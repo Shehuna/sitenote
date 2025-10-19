@@ -1,0 +1,305 @@
+/* Base styles - will be overridden by theme classes */
+.view-note-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  /* Use CSS variables for all colors */
+  background-color: var(--overlay-bg-color);
+}
+
+.view-note-modal {
+  width: 90%;
+  max-width: 600px;
+  height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  overflow: hidden;
+  background-color: var(--modal-bg-color);
+  color: var(--text-color);
+}
+
+/* --- THEME DEFINITIONS --- */
+
+/* Gray Theme */
+.theme-gray {
+  --overlay-bg-color: rgba(0, 0, 0, 0.7);
+  --modal-bg-color: #f0f0f0;
+  --header-bg-color: #e0e0e0;
+  --text-color: #333;
+  --secondary-text-color: #777;
+  --message-bg-color: #dcf8c6;
+  --message-received-bg-color: #fff;
+  --border-color: #e5e5e5;
+  --button-color: #555;
+  --button-hover-color: #333;
+}
+
+
+.view-note-modal-overlay.theme-white {
+  background-color: #ffffff; /* Use a solid hex color */
+  opacity: 1; /* Explicitly set opacity to 1 to remove any inherited transparency */
+}
+
+/* --- WHATSAPP-STYLE LAYOUT --- */
+.whatsapp-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+  background-color: var(--header-bg-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+.back-button {
+  background: none;
+  border: none;
+  color: var(--button-color);
+  font-size: 24px;
+  cursor: pointer;
+  margin-right: 15px;
+}
+
+.contact-info .contact-name {
+  font-weight: bold;
+  font-size: 16px;
+  color: var(--text-color);
+}
+
+.contact-info .contact-status {
+  font-size: 12px;
+  color: var(--secondary-text-color);
+}
+
+.header-right .header-button {
+  background: none;
+  border: none;
+  color: var(--button-color);
+  font-size: 20px;
+  margin-left: 15px;
+  cursor: pointer;
+}
+
+.whatsapp-chat {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 10px 15px;
+  display: flex;
+  flex-direction: column;
+}
+
+.whatsapp-chat::-webkit-scrollbar {
+  width: 6px;
+}
+
+.whatsapp-chat::-webkit-scrollbar-thumb {
+  background-color: var(--scroll-thumb-color);
+  border-radius: 3px;
+}
+
+.whatsapp-chat::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+/* Light & White Theme Scrollbar */
+.theme-gray .whatsapp-chat::-webkit-scrollbar-thumb,
+.theme-white .whatsapp-chat::-webkit-scrollbar-thumb {
+  background-color: #999;
+}
+
+/* Dark Theme Scrollbar */
+.theme-dark-blue .whatsapp-chat::-webkit-scrollbar-thumb {
+  background-color: #3b4a54;
+}
+
+.date-separator {
+  text-align: center;
+  margin: 15px 0;
+  font-size: 12px;
+  color: var(--secondary-text-color);
+  border-radius: 10px;
+  background-color: var(--date-separator-bg);
+  display: inline-block;
+  padding: 5px 10px;
+  align-self: center;
+}
+
+/* Light Theme Date Separator */
+.theme-gray .date-separator,
+.theme-white .date-separator {
+  background-color: #e0e0e0;
+}
+
+/* Dark Theme Date Separator */
+.theme-dark-blue .date-separator {
+  background-color: #3b4a54;
+}
+
+.message {
+  padding: 8px 10px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  max-width: 80%;
+  position: relative;
+  word-wrap: break-word;
+}
+
+.message.received {
+    background-color: var(--message-received-bg-color);
+    align-self: flex-start; 
+    color: var(--text-color);
+    flex-grow: 1; 
+    margin-right: 4px !important; 
+    margin-left: 0 !important;
+    max-width: 80%;
+}
+
+.message.received.selected {
+  border: 2px solid #34b7f1; 
+}
+
+.message-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.sender-name {
+  font-weight: bold;
+  font-size: 14px;
+  color: #cbcaca;
+}
+
+.message-time {
+  font-size: 10px;
+  color: var(--secondary-text-color);
+  margin-left: 10px;
+}
+
+.message-text {
+  font-size: 14px;
+  font-weight: bold;
+  line-height: 1.4;
+  margin-bottom: 5px;
+}
+
+.message-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 5px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--secondary-text-color);
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.message-attachments {
+  margin-top: 10px;
+  padding: 10px;
+  border-top: 1px solid var(--border-color);
+}
+
+.attachments-header {
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--secondary-text-color);
+  margin-bottom: 5px;
+}
+
+.attachment-item {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  color: var(--text-color);
+  margin-top: 5px;
+}
+
+.status-message {
+  text-align: center;
+  margin: 15px 0;
+}
+
+.status-content {
+  font-size: 12px;
+  color: var(--secondary-text-color);
+}
+
+.whatsapp-footer {
+  padding: 10px 15px;
+  background-color: var(--header-bg-color);
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.close-chat-button {
+  background-color: #ff4d4d;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: bold;
+}
+.whatsapp-chat .message-row {
+    display: flex;
+    justify-content: flex-start; 
+    flex-direction: row; 
+    align-items: flex-end; 
+    margin-bottom: 8px; 
+    width: 100%; 
+}
+
+.message.received {
+    align-self: flex-start; 
+    margin-right: 4px !important; 
+    margin-left: 0 !important;
+}
+
+.whatsapp-chat .paperclip-container {
+    display: flex;
+    align-items: flex-end; 
+    padding: 0 4px;
+    height: auto;
+    flex-shrink: 0; 
+}
+
+.whatsapp-chat .paperclip-button {
+    background: none;
+    border: none;
+    color: var(--secondary-text-color); 
+    cursor: pointer;
+    padding: 5px;
+    font-size: 14px;
+    opacity: 0.8;
+    transition: opacity 0.2s, color 0.2s;
+    line-height: 1;
+}
+
+.whatsapp-chat .paperclip-button:hover {
+    opacity: 1;
+    color: #34b7f1; 
+}

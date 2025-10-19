@@ -1,0 +1,233 @@
+
+.error-message {
+  background-color: #ffebee;
+  color: #d32f2f;
+  padding: 10px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dismiss-error {
+  background: none;
+  border: none;
+  color: #d32f2f;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+
+.tabs {
+  display: flex;
+  border-bottom: 1px solid #ddd;
+  margin-bottom: 20px;
+  background-color: white; 
+}
+
+.tab-button {
+  padding: 10px 20px;
+  background-color : #f5f8f8 !important;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  color: #3896ee !important;
+  
+}
+
+.tab-button.active {
+  border-bottom: 3px solid #3a7ec2; 
+  background-color: #f4f6f8;
+}
+
+.tab-content {
+  min-height: 300px;
+}
+
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+
+.documents-list {
+  margin-top: 20px;
+}
+
+.documents-list table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.documents-list th,
+.documents-list td {
+  padding: 10px;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+}
+
+.documents-list th {
+  background-color: #f5f5f5;
+}
+
+.document-actions {
+  margin-bottom: 15px;
+}
+
+
+.add-button {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.add-button:hover {
+  background-color: #4caf50; 
+  color: white; 
+}
+
+.edit-button {
+  background-color: #2196f3;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 5px;
+}
+
+.delete-button {
+  background-color: #f44336;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+}
+
+.cancel-button {
+  background-color: #f5f5f5;
+  border: 1px solid #ddd;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.save-button {
+  background-color: #1976d2;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease; 
+}
+
+.save-button:hover:not(:disabled) {
+  background-color: #1565c0; 
+}
+
+.save-button:active:not(:disabled) {
+  background-color: #0d47a1; 
+  transform: translateY(1px); 
+}
+
+.save-button:disabled {
+  background-color: #90caf9;
+  cursor: not-allowed;
+}
+
+
+.document-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5); 
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1001; 
+}
+
+.document-modal {
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2); 
+}
+
+.document-modal h3 {
+  margin-top: 0;
+  margin-bottom: 20px;
+}
+
+.document-modal .form-group {
+  margin-bottom: 15px;
+}
+
+.document-modal .modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.submit-button {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.submit-button:hover {
+  background-color: #45a049; 
+  color: white;
+}
+
+.submit-button:disabled {
+  background-color: #a5d6a7;
+  cursor: not-allowed;
+}
+.selected-row {
+  background-color: #f0f8ff !important;
+  border: 2px solid #1890ff !important;
+}

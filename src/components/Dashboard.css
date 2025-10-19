@@ -1,0 +1,139 @@
+.dashboard {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.responsive-table-container {
+  overflow-x: auto;
+}
+
+.responsive-table-container table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.responsive-table-container th, 
+.responsive-table-container td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: center;
+  overflow: hidden; 
+  white-space: nowrap; 
+  text-overflow: ellipsis; 
+}
+
+.responsive-table-container th:nth-child(1), 
+.responsive-table-container td:nth-child(1) {
+  width: 70px;
+}
+
+.responsive-table-container th:nth-child(2), 
+.responsive-table-container td:nth-child(2) {
+  width: 70px;
+}
+
+.responsive-table-container th:nth-child(3), 
+.responsive-table-container td:nth-child(3) {
+  width: 70px;
+}
+
+.responsive-table-container th:nth-child(4), 
+.responsive-table-container td:nth-child(4) {
+  width: 70px;
+}
+
+.responsive-table-container th:nth-child(5), 
+.responsive-table-container td:nth-child(5) {
+  width: 300px; 
+  text-align: left;
+}
+
+.responsive-table-container th:nth-child(6), 
+.responsive-table-container td:nth-child(6) {
+  width: 70px;
+}
+
+.responsive-table-container th:nth-child(7), 
+.responsive-table-container td:nth-child(7) {
+  width: 90px;
+}
+
+.responsive-table-container th:last-child, 
+.responsive-table-container td:last-child {
+  width: 70px;
+}
+
+.paginated-container {
+  position: relative;
+}
+
+.pagination-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+  padding: 10px 0;
+}
+
+.pagination-buttons {
+  display: flex;
+  gap: 5px;
+}
+
+.pagination-buttons button {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  background: white;
+  cursor: pointer;
+}
+
+.pagination-buttons button:hover:not(:disabled) {
+  background: #f0f0f0;
+}
+
+.pagination-buttons button.active {
+  background: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.pagination-buttons button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.page-size-selector {
+  margin-bottom: 20px;
+}
+
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+
+.dropdown-container {
+    color: gray;
+    margin-top: -20px;
+   
+}
+
+.dropdown-items{
+  padding: 5px;
+  border: 1 soldi gray;
+}
+
+.fas .fa-refresh{
+  color: #007bff;
+  cursor: pointer;
+}
+
