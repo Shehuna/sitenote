@@ -34,6 +34,27 @@ function App() {
   useEffect(() => {
     initializeUser();
   }, []);
+  // Add this useEffect to sync authentication state
+useEffect(() => {
+  const checkAuthState = () => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      setUserId(parseInt(user.id));
+      setIsAuthenticated(true);
+    }
+  };
+
+  // Check auth state when component mounts
+  checkAuthState();
+
+  // Listen for storage changes (when UserManagement stores user)
+  window.addEventListener('storage', checkAuthState);
+  
+  return () => {
+    window.removeEventListener('storage', checkAuthState);
+  };
+}, []);
 
   const fetchNotes = useCallback(async () => {
     if (loadingRef.current || (!isInitialFetchRef.current && !hasMore)) return;
