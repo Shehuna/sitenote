@@ -9,7 +9,7 @@ const useQuery = () => {
 
 const UserManagement = () => {
     const navigate = useNavigate();
-    const query = useQuery();
+    const query = useQuery(); 
     const initialAddUserState = query.get('action') === 'create';
      const [isAddUserOpen, setIsAddUserOpen] = useState(false);
      const [isEditUserOpen, setIsEditUserOpen] = useState(false);
@@ -79,45 +79,81 @@ const UserManagement = () => {
 
 
     const validateField = (name, value) => {
-        let error = '';
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    let error = '';
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-        if (name !== 'profilePictureBase64' && !value && isAddUserOpen) {
-            error = 'This field is mandatory.';
-        } else if (name === 'Fname' || name === 'Lname') {
-            if (value.length < 2) error = 'Must be at least 2 characters long.';
-            else if (value.length > 50) error = 'Cannot exceed 50 characters.';
-        } else if (name === 'UserName') {
-            if (value.length < 3) error = 'Must be at least 3 characters long.';
-            else if (value.length > 30) error = 'Cannot exceed 30 characters.';
-        } else if (name === 'Email') {
-            if (!emailRegex.test(value)) error = 'Invalid email format.';
-        } else if (name === 'Password' && isAddUserOpen) {
-            if (value.length < 6) error = 'Password must be at least 6 characters long.';
+    if (name !== 'profilePictureBase64' && !value && isAddUserOpen) {
+        error = 'This field is mandatory.';
+    } else if (name === 'Fname' || name === 'Lname') {
+        if (value.length < 2) error = 'Must be at least 2 characters long.';
+        else if (value.length > 50) error = 'Cannot exceed 50 characters.';
+    } else if (name === 'UserName') {
+        if (value.length < 3) error = 'Must be at least 3 characters long.';
+        else if (value.length > 30) error = 'Cannot exceed 30 characters.';
+        else if (isAddUserOpen) {
+            const isDuplicateUsername = users.some(user => 
+                user.userName.toLowerCase() === value.toLowerCase().trim()
+            );
+            if (isDuplicateUsername) {
+                error = 'Username already exists. Please choose a different one.';
+            }
         }
+    } else if (name === 'Email') {
+        if (!emailRegex.test(value)) {
+            error = 'Invalid email format.';
+        } else if (isAddUserOpen) {
+            const isDuplicateEmail = users.some(user => 
+                user.email.toLowerCase() === value.toLowerCase().trim()
+            );
+            if (isDuplicateEmail) {
+                error = 'Email address is already registered.';
+            }
+        }
+    } else if (name === 'Password' && isAddUserOpen) {
+        if (value.length < 6) error = 'Password must be at least 6 characters long.';
+    }
 
-        setErrors(prevErrors => ({ ...prevErrors, [name]: error }));
-        return error;
-    };
+    setErrors(prevErrors => ({ ...prevErrors, [name]: error }));
+    return error;
+};
 
     const validateForm = () => {
-        let formErrors = {};
-        let isValid = true;
+    let formErrors = {};
+    let isValid = true;
 
-        const mandatoryFields = ['Fname', 'Lname', 'UserName', 'Email', 'Password'];
+    const mandatoryFields = ['Fname', 'Lname', 'UserName', 'Email', 'Password'];
 
-        mandatoryFields.forEach(field => {
-            const value = formData[field];
-            const error = validateField(field, value);
-            if (error) {
-                formErrors[field] = error;
-                isValid = false;
-            }
-        });
+    mandatoryFields.forEach(field => {
+        const value = formData[field];
+        const error = validateField(field, value);
+        if (error) {
+            formErrors[field] = error;
+            isValid = false;
+        }
+    });
 
-        setErrors(formErrors);
-        return isValid;
-    };
+    if (isAddUserOpen) {
+        const isDuplicateUsername = users.some(user => 
+            user.userName.toLowerCase() === formData.UserName.toLowerCase().trim()
+        );
+        const isDuplicateEmail = users.some(user => 
+            user.email.toLowerCase() === formData.Email.toLowerCase().trim()
+        );
+
+        if (isDuplicateUsername) {
+            formErrors.UserName = 'Username already exists. Please choose a different one.';
+            isValid = false;
+        }
+
+        if (isDuplicateEmail) {
+            formErrors.Email = 'Email address is already registered.';
+            isValid = false;
+        }
+    }
+
+    setErrors(formErrors);
+    return isValid;
+};
 
 
     const handleInputChange = (e) => {
@@ -125,37 +161,74 @@ const UserManagement = () => {
 
     let newValue = value;
     if(name === 'profilePictureBase64'){
-      newValue = files[0];
-      setFormData((prevData) => ({...prevData, [name]: files[0]}))
-    }else{
-      setFormData((prevData) => ({...prevData, [name]: value}))
+        newValue = files[0];
+        setFormData((prevData) => ({...prevData, [name]: files[0]}))
+    } else {
+        setFormData((prevData) => ({...prevData, [name]: value}))
     }
     
     validateField(name, newValue);
+    
+    if ((name === 'UserName' || name === 'Email') && value.trim() && isAddUserOpen) {
+        const trimmedValue = value.trim().toLowerCase();
+        const existingUser = users.find(user => 
+            user[name === 'UserName' ? 'userName' : 'email'].toLowerCase() === trimmedValue
+        );
+        
+        if (existingUser) {
+            const fieldName = name === 'UserName' ? 'UserName' : 'Email';
+            const errorMessage = name === 'UserName' 
+                ? 'Username already exists. Please choose a different one.'
+                : 'Email address is already registered.';
+            
+            setErrors(prevErrors => ({ ...prevErrors, [fieldName]: errorMessage }));
+        }
     }
+}
 
     const handleCreateUser = async () => {
-        if (!validateForm()) {
-            toast.error('Please fill in all mandatory fields correctly.');
+      if (isAddUserOpen) {
+        const isDuplicateUsername = users.some(user => 
+            user.userName.toLowerCase() === formData.UserName.toLowerCase().trim()
+        );
+        const isDuplicateEmail = users.some(user => 
+            user.email.toLowerCase() === formData.Email.toLowerCase().trim()
+        );
+
+        if (isDuplicateUsername) {
+            setErrors(prev => ({ ...prev, UserName: 'Username already exists. Please choose a different one.' }));
+            toast.error('Username already exists.');
             return;
         }
 
-        const formDataObj = new FormData()
-        Object.keys(formData).forEach((key)=>{
-          formDataObj.append(key, formData[key])
-        })
+        if (isDuplicateEmail) {
+            setErrors(prev => ({ ...prev, Email: 'Email address is already registered.' }));
+            toast.error('Email address is already registered.');
+            return;
+        }
+    }
+
+
+    const formDataObj = new FormData()
+    Object.keys(formData).forEach((key)=>{
+        formDataObj.append(key, formData[key])
+    })
+    
     try {
+        console.log('Creating user...', formData.UserName);
         const response = await fetch(`${API_URL}/api/UserManagement/CreateUser`, {
-          method: 'POST',
-          body: formDataObj
+            method: 'POST',
+            body: formDataObj
         });
 
         if (!response.ok) {
-          throw new Error('Failed to create user');
+            throw new Error('Failed to create user');
         }
+
+        const result = await response.json();
+        console.log('User created successfully:', result);
         toast.success('User created successfully! 🎉');
         setIsAddUserOpen(false);
-        fetchUsers();
         setFormData({
             Fname: '',
             Lname: '',
@@ -165,20 +238,54 @@ const UserManagement = () => {
             profilePictureBase64: null,
         })
         setErrors({}); 
-         if (isSignUpFlow) {
+
+        if (isSignUpFlow) {
+            try {
+                console.log('Attempting auto-login...', formData.UserName);
+                const loginResponse = await fetch(`${API_URL}/api/UserManagement/Login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        username: formData.UserName, 
+                        password: formData.Password 
+                    }),
+                });
+
+                const loginData = await loginResponse.json();
+                console.log('Login response:', loginResponse.status, loginData);
+
+                if (loginResponse.ok && loginData.user) {
+                    localStorage.setItem('user', JSON.stringify(loginData.user));
+                    console.log('User stored in localStorage:', loginData.user);                    
+                    toast.success(`Welcome to SiteNotes, ${formData.Fname}! 🎉`);
+                    
+                    setTimeout(() => {
+                        console.log('Redirecting to dashboard...');
+                        window.location.href = '/dashboard'; 
+                    }, 1000);
+                    
+                } else {
+                    console.error('Auto-login failed:', loginData);
+                    throw new Error('Auto-login failed');
+                }
+            } catch (loginError) {
+                console.error('Auto-login error:', loginError);
+                toast.success('Account created! Please log in.');
                 setTimeout(() => {
                     navigate('/login');
-                }, 1500); 
-            } else {
-                // If this was from the admin panel, refresh users
-                fetchUsers();
+                }, 1500);
             }
+        } else {
+            fetchUsers();
+        }
 
     } catch (error) {
         console.error('Error creating user:', error);
         toast.error('Failed to create user. Please try again.');
     }
-    };
+};
 
     const fetchUsers = async () => {
         setLoading(true);
@@ -316,11 +423,10 @@ const UserManagement = () => {
 
     if (query.get('action') === 'create') {
         window.history.replaceState(null, '', window.location.pathname);
-         if (isSignUpFlow) {
-                navigate('/login');
-            }
+        if (isSignUpFlow) {
+            navigate('/login');
+        }
     }
-    
 };
 
     const handleSignUpRedirect = () => {
