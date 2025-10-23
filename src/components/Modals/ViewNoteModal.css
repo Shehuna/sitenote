@@ -170,6 +170,26 @@
   border: 2px solid #34b7f1; 
 }
 
+.message.received.selected.priority-5 {
+  border: 2px solid #ff4444; /* Red for highest priority */
+}
+
+.message.received.selected.priority-4 {
+  border: 2px solid #ff8800; /* Orange */
+}
+
+.message.received.selected.priority-3 {
+  border: 2px solid #ffbb33; /* Yellow */
+}
+
+.message.received.selected.priority-2 {
+  border: 2px solid #00C851; /* Green */
+}
+
+.message.received.selected.priority-1 {
+  border: 2px solid #34b7f1; /* Blue for lowest priority */
+}
+
 .message-header {
   display: flex;
   justify-content: space-between;

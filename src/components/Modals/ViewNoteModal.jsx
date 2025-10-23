@@ -1,14 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './ViewNoteModal.css';
 
-const ViewNoteModal = ({ noteId, onClose, documents = [], currentTheme, onViewAttachments }) => {
+const ViewNoteModal = ({ noteId, onClose, documents = [], currentTheme, onViewAttachments, priorities = [], userid}) => {
     const [currentNote, setCurrentNote] = useState(null);
     const [filteredDocuments, setFilteredDocuments] = useState([]);
+    const [priority, setPriority] = useState(0)
     
     const noteRefs = useRef({});
     const chatContainerRef = useRef(null);
 
+    const assignPriority = () =>{
+        const priority = priorities.find(p => p.noteID == noteId && p.userId == userid)
+        if(priority){
+            console.log(priority.priorityValue)
+            setPriority(priority.priorityValue)
+        }
+    }
+
     useEffect(() => {
+        assignPriority()
         const selectedNote = documents.find(doc => doc.id === noteId);
         setCurrentNote(selectedNote);
 
@@ -49,6 +59,8 @@ const ViewNoteModal = ({ noteId, onClose, documents = [], currentTheme, onViewAt
         });
     };
 
+    
+
     return (
         <div className={`view-note-modal-overlay theme-${currentTheme}`}>
             <div className="view-note-modal">
@@ -76,16 +88,16 @@ const ViewNoteModal = ({ noteId, onClose, documents = [], currentTheme, onViewAt
         ref={el => noteRefs.current[doc.id] = el}
         className="message-row"
     >
-        <div className={`message received ${doc.id === noteId ? 'selected' : ''}`}>
+        <div className={`message received ${doc.id === noteId ? 'selected' : ''} priority-${priority}`}>
             <div className="message-content">
                 <div className="message-header">
-                    <span className="sender-name">{doc.userName}</span>
-                    <span className="message-time">
-                        {formatDate(doc.noteDate)} - {formatTime(doc.noteDate)}
-                    </span>
+                <span className="sender-name">{doc.userName}</span>
+                <span className="message-time">
+                    {formatDate(doc.noteDate)} - {formatTime(doc.noteDate)}
+                </span>
                 </div>
                 <div className="message-text">
-                    {doc.note}
+                {doc.note}
                 </div>
             </div>
         </div>

@@ -26,10 +26,12 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [documentCounts, setDocumentCounts] = useState({});
   const [workspaces, setWorkspaces] = useState([]);
+  const [role, setRole] = useState('')
   const [showBackToTop, setShowBackToTop] = useState(false);
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
   const scrollPositionRef = useRef(0);
   const isInitialFetchRef = useRef(true);
+  
 
   useEffect(() => {
     initializeUser();
@@ -120,8 +122,8 @@ useEffect(() => {
   
       if (response.ok) {
         const data = await response.json();
-        console.log(data);
         setDefaultWorkspace(data.user.defaultWorkspaceId);
+        setRole(data.user.role)
         fetchDefaultWorkspace(data.user.defaultWorkspaceId);
         setLoading(false);  
       }
@@ -619,6 +621,7 @@ useEffect(() => {
                     <Dashboard 
                       notes={notes} 
                       userid={userId}
+                      userRole={role}
                       workspaces={workspaces}
                       defaultUserWorkspaceID={defaultWorkspace}
                       defaultUserWorkspaceName={userDefaultWork}
