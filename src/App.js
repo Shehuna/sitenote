@@ -505,7 +505,8 @@ useEffect(() => {
       setJobs(jobsData.map(j => ({
         id: j.id.toString(),
         projectId: j.projectId.toString(),
-        name: j.name
+        name: j.name,
+        status: j.status
       })));
     } catch (error) {
       console.error("Error fetching projects and jobs:", error);

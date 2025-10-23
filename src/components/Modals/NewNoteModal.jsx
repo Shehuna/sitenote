@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import Modal from './Modal';
 import './NewNoteModal.css';
+import toast from 'react-hot-toast';
 
 const NewNoteModal = ({
     isOpen,
@@ -17,6 +18,7 @@ const NewNoteModal = ({
 }) => {
     const [activeTab, setActiveTab] = useState('journal');
     const [selectedProject, setSelectedProject] = useState('');
+    const [selectedPriority, setSelectedPriority] = useState('');
     const [selectedJob, setSelectedJob] = useState('');
     const [filteredJobs, setFilteredJobs] = useState([]);
     const [selectedDate, setSelectedDate] = useState('');
@@ -73,18 +75,14 @@ const NewNoteModal = ({
   const isValidFileSize = (file) => {
     return file.size <= MAX_FILE_SIZE;
   };
-
-   
       // Get filtered projects based on workspace
-
-
     useEffect(() => {
         if (selectedProject) {
             const filtered = jobs.filter(job =>
-                job.projectId?.toString() === selectedProject.toString()
+                job.projectId?.toString() === selectedProject.toString() && job.status == 1
             );
             setFilteredJobs(filtered);
-            if (!filtered.some(job => job.id.toString() === selectedJob.toString())) {
+            if (!filtered.some(job => job.id.toString() === selectedJob.toString() ) ) {
                 setSelectedJob('');
             }
         } else {
@@ -143,6 +141,7 @@ const NewNoteModal = ({
         if (!selectedJob) newErrors.job = "Please select a job";
         if (!selectedDate) newErrors.date = "Please select a date";
         if (!noteContent.trim()) newErrors.note = "Note content is required";
+        if (!selectedPriority) newErrors.priority = "Please select a priority";
 
         if (Object.keys(newErrors).length > 0) {
             setErrors(newErrors);
@@ -154,29 +153,14 @@ const NewNoteModal = ({
 
         try {
             const user = JSON.parse(localStorage.getItem('user'));
-            /* 
-            
-            const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/SiteNote/AddSiteNote`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    note: noteContent,
-                    date: new Date(selectedDate).toISOString(),
-                    jobId: selectedJob,
-                    userId: user.id,
-                })
-            }); */
+           
             const noteData = {
                 note: noteContent,
                 date: new Date(selectedDate).toISOString(),
                 jobId: selectedJob,
                 userId: user.id,
             }; 
-            /* if(response.ok){
-                const siteNoteId = response.siteNoteId;
-            } */
+            
             const savedNote = await addSiteNote(noteData);
             const siteNoteId = savedNote.siteNoteId; 
 
@@ -202,7 +186,7 @@ const NewNoteModal = ({
             }
 
             console.log("All documents processed.");
-
+            await handleAddPriority(siteNoteId,  user.id)
             onClose();
             refreshNotes();
         } catch (error) {
@@ -294,6 +278,34 @@ const NewNoteModal = ({
         setErrors({});
     };
 
+    const handleAddPriority =  async (noteId, userId) =>{
+        try {
+          const response = await fetch(
+            `${process.env.REACT_APP_API_BASE_URL}/api/Priority/AddPriority`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                noteID: noteId,
+                priorityValue: selectedPriority,
+                userId: userId
+              }),
+            }
+          );
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || "Failed to save note");
+          }
+          toast.success('Note Successfully Saved')
+        } catch (error) {
+          console.error("API Error:", error);
+          throw error;
+        }
+    }
+
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="New Note">
             <div className="tabs">
@@ -309,6 +321,13 @@ const NewNoteModal = ({
                 >
                     Documents ({documents.length})
                 </button>
+                <button
+                    className={`tab-button ${activeTab === 'priority' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('priority')}
+                >
+                    Priority
+                </button>
+                
             </div>
 
             <div className="tab-content">
@@ -381,8 +400,9 @@ const NewNoteModal = ({
                                 rows="6"
                             />
                         </div>
+                        {errors.priority && <span className="error-message-inline">{errors.priority}</span>}
                     </div>
-                ) : (
+                ) : activeTab === 'documents' ? (
                     <div className="documents-section">
                         <div className="document-actions">
                             <button
@@ -431,7 +451,27 @@ const NewNoteModal = ({
                             )}
                         </div>
                     </div>
-                )}
+                ): (<div className="journal-section">
+                        <div className="form-group">
+                            <label>Priority</label>
+                            {errors.priority && <span className="error-message-inline">{errors.priority}</span>}
+                            <select
+                                value={selectedPriority}
+                                onChange={(e) => {
+                                    setSelectedPriority(e.target.value);
+                                    setErrors(prev => ({ ...prev, priority: undefined}));
+                                }}
+                            >
+                                <option value="">Select Priority</option>
+                                <option value="5">Very High</option>
+                                <option value="4">High</option>
+                                <option value="3">Medium</option>
+                                <option value="2">Low</option>
+                                <option value="1">Very Low</option>
+                            </select>
+                        </div>
+                        
+                    </div>)}
             </div>
 
             {apiError && (

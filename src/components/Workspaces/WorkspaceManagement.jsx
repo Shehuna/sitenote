@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import Modal from '../Modals/Modal';
 import toast from 'react-hot-toast';
 
-const WorkspaceManagement = ({onUpdateDefaultWorkspace}) => {
+const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole}) => {
     
     const [workspaceName, setWorkspaceName] = useState('');
     const [ownerUserID, setOwnerUserID] = useState('');
@@ -23,12 +23,16 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace}) => {
     const [phone, setPhone] = useState('');
     const [taxID, setTaxID] = useState('');
     const [status, setStatus] = useState(2);
+    const [users, setUsers] = useState([])
+    const [isDisabled, setIsDisabled] = useState(true);
 
     const [isAddWorkspaceOpen, setIsAddWorkspaceOpen] = useState(false);
     const [isEditWorkspaceOpen, setIsEditWorkspaceOpen] = useState(false);
     const [isChangeWorkspaceOpen, setIsChangeWorkspaceOpen] = useState(false);
+    const [isUserWorkspaceOpen, setIsUserWorkspaceOpen] = useState(false);
     const [selectedWorkspace, setSelectedWorkspace] = useState('');
     const [workspaces, setWorkspaces] = useState([]);
+    const [selectedUser, setSelectedUser] = useState('');
     
     
     const [error, setError] = useState(null);
@@ -47,13 +51,14 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace}) => {
     "Djibouti",
     "Ethiopia",
 ];
-
+    console.log(userRole)
     const API_URL = process.env.REACT_APP_API_BASE_URL
 
       useEffect(() => {
             const user = JSON.parse(localStorage.getItem('user'));
             setOwnerUserID(user.id)
             fetchWorkspaces(user.id);
+            fetchUsers()
         }, []);
 
         useEffect(() => {
@@ -139,6 +144,25 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace}) => {
     }
 };
 
+ const fetchUsers = async () => {
+        setLoading(true);
+        try {
+          const response = await fetch(`${API_URL}/api/UserManagement/GetUsers`);
+          
+          if (!response.ok) {
+            throw new Error('Error fetching users data!');
+          }
+          
+          const data = await response.json();
+          setUsers(data.users || []);
+        } catch (err) {
+          setError(err.message);
+          console.error('Error fetching users:', err);
+        } finally {
+          setLoading(false);
+        }
+    };
+
  const handleAddWorkspace = async () => {
     try {
         const response = await fetch(`${API_URL}/api/Workspace/AddWorkspace`, {
@@ -167,24 +191,24 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace}) => {
         setCountry('')
         setStatus(2)
         setIsAddWorkspaceOpen(false);
-        const data = await response.json()
+        /* const data = await response.json()
         const workspaceID =  data.workspace.id
         console.log(workspaceID)
-        await addUserToWorkSpace(ownerUserID, workspaceID)
+        await addUserToWorkSpace(ownerUserID, workspaceID) */
     } catch (err) {
         setError(err.message);
         console.error('Error adding workspace:', err);
     }
 };
 
-  const addUserToWorkSpace = async(userid, workspaceId) => {
+  const addUserToWorkSpace = async() => {
     try {
         const response = await fetch(`${API_URL}/api/UserWorkspace/AddUserWorkspace`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
-                userID: userid,
-                workspaceID: workspaceId,
+                userID: selectedUser,
+                workspaceID: selectedWorkspace,
                 role: 1,
                 status: 1
             }),
@@ -192,8 +216,9 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace}) => {
             });
 
         if (!response.ok) throw new Error('Failed to add workspace');
-        toast.success('Workspace Created Successfully')
-        fetchWorkspaces(userid);
+        toast.success('User Added to workspace Successfully')
+        await updateUserDefaultWorkspace(selectedUser)
+        fetchWorkspaces(selectedUser);
         } catch (err) {
         setError(err.message);
         console.error('Error adding workspace:', err);
@@ -203,12 +228,12 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace}) => {
   const updateDefWorkspace = async () =>{
     onUpdateDefaultWorkspace(selectedWorkspace, workspaceName)
     setIsChangeWorkspaceOpen(false)
-    await updateUserDefaultWorkspace()
+    await updateUserDefaultWorkspace(ownerUserID)
   }
 
-  const updateUserDefaultWorkspace = async () =>{
+  const updateUserDefaultWorkspace = async (userId) =>{
     try {
-        const response = await fetch(`${API_URL}/api/UserManagement/UpdateDefaultWorkspaceByUserId/${ownerUserID}`, {
+        const response = await fetch(`${API_URL}/api/UserManagement/UpdateDefaultWorkspaceByUserId/${userId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
@@ -235,240 +260,321 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace}) => {
         setCountry(works.country)
         setStatus(works.status)
   }
+
   return (
-     
     <div className="settings-content">
-        <div className="settings-action-buttons">
-            <button className="btn-primary" onClick={() => setIsAddWorkspaceOpen(true)} disabled>
-                Add Workspace
+      <div className="settings-action-buttons">
+        <button
+          className="btn-primary"
+          onClick={() => setIsAddWorkspaceOpen(true)}
+          disabled={userRole === "User"}
+        >
+          Add Workspace
+        </button>
+        <button
+          className="btn-secondary"
+          onClick={() => setIsEditWorkspaceOpen(true)}
+          disabled={!(userRole === "Admin" && selectedWorkspace)}
+        >
+          Edit Workspace
+        </button>
+        <button
+          className="btn-secondary"
+          onClick={() => setIsUserWorkspaceOpen(true)}
+          disabled={!(userRole === "Admin" && selectedWorkspace)}
+        >
+          User Workspace
+        </button>
+        <button
+          className="btn-secondary"
+          onClick={() => setIsChangeWorkspaceOpen(true)}
+        >
+          Select Workspace
+        </button>
+      </div>
+      <div className="settings-lookup-list">
+        <h4>Workspace Lookups</h4>
+        <select
+          size="5"
+          className="lookup-select"
+          value={selectedWorkspace}
+          onChange={(e) => setSelectedWorkspace(e.target.value)}
+        >
+          <option disabled value="">
+            Select a Workspace
+          </option>
+          {workspaces.map((workspace) => (
+            <option
+              onClick={() => handleOptionClick(workspace)}
+              key={workspace.id}
+              value={workspace.id}
+            >
+              {workspace.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <Modal
+        isOpen={isAddWorkspaceOpen}
+        onClose={() => setIsAddWorkspaceOpen(false)}
+        title="Add Workspace"
+      >
+        <div className="settings-form">
+          <div className="settings-form user-form-grid">
+            <div className="form-group">
+              <label>Workspace Name:</label>
+              <input
+                type="text"
+                value={workspaceName}
+                onChange={(e) => setWorkspaceName(e.target.value)}
+                placeholder="Enter workspace name"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Owner Type:</label>
+              <select
+                value={ownerType}
+                onChange={(e) => setOwnerType(e.target.value)}
+              >
+                <option value="1">Individual</option>
+                <option value="2">Company</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Owner Name:</label>
+              <input
+                type="text"
+                value={ownerName}
+                onChange={(e) => setOwnerName(e.target.value)}
+                placeholder="Enter Owner name"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Address Line 1:</label>
+              <input
+                type="text"
+                value={addressLine1}
+                onChange={(e) => setAddressLine1(e.target.value)}
+                placeholder="Enter address Line 1"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>City:</label>
+              <input
+                type="text"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="Enter city"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="country-select">Country:</label>
+              <select
+                id="country-select"
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                required
+              >
+                <option value="" disabled>
+                  Select Country
+                </option>
+                {COUNTRY_OPTIONS.map((countryName) => (
+                  <option key={countryName} value={countryName}>
+                    {countryName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="modal-footer">
+            <button className="btn-primary" onClick={handleAddWorkspace}>
+              Add
             </button>
-            <button className="btn-secondary" onClick={() => setIsEditWorkspaceOpen(true)} disabled>
-                Edit Workspace
+            <button
+              className="btn-close"
+              onClick={() => setIsAddWorkspaceOpen(false)}
+            >
+              Cancel
             </button>
-            <button className="btn-secondary" onClick={() => setIsChangeWorkspaceOpen(true)} >
-                Select Workspace
-            </button>
+          </div>
         </div>
-        <div className="settings-lookup-list">
-            <h4>Workspace Lookups</h4>
-            <select
+      </Modal>
+
+      <Modal
+        isOpen={isEditWorkspaceOpen}
+        onClose={() => setIsEditWorkspaceOpen(false)}
+        title="Edit Workspace"
+      >
+        <div className="settings-form">
+          <div className="settings-form user-form-grid">
+            <div className="form-group">
+              <label>Workspace Name:</label>
+              <input
+                type="text"
+                value={workspaceName}
+                onChange={(e) => setWorkspaceName(e.target.value)}
+                placeholder="Enter workspace name"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Owner Type:</label>
+              <select
+                value={ownerType}
+                onChange={(e) => setOwnerType(e.target.value)}
+              >
+                <option value="1">Individual</option>
+                <option value="2">Company</option>
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Owner Name:</label>
+              <input
+                type="text"
+                value={ownerName}
+                onChange={(e) => setOwnerName(e.target.value)}
+                placeholder="Enter Owner name"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Address Line 1:</label>
+              <input
+                type="text"
+                value={addressLine1}
+                onChange={(e) => setAddressLine1(e.target.value)}
+                placeholder="Enter address Line 1"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>City:</label>
+              <input
+                type="text"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="Enter city"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="country-select">Country:</label>
+              <select
+                id="country-select"
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                required
+              >
+                <option value="" disabled>
+                  Select Country
+                </option>
+                {COUNTRY_OPTIONS.map((countryName) => (
+                  <option key={countryName} value={countryName}>
+                    {countryName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="modal-footer">
+            <button className="btn-primary" onClick={handleEditWorkspace}>
+              Add
+            </button>
+            <button
+              className="btn-close"
+              onClick={() => setIsEditWorkspaceOpen(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isUserWorkspaceOpen}
+        onClose={() => setIsUserWorkspaceOpen(false)}
+        title="Add User to Workspace"
+      >
+        <div className="settings-form">
+          <div className="settings-form">
+            <div className="form-group">
+              <label>Users:</label>
+              <select
                 size="5"
                 className="lookup-select"
+                value={selectedUser}
+                onChange={(e) => setSelectedUser(e.target.value)}
+              >
+                <option value="">Select a User</option>
+                {users.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.userName}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-primary" disabled={!selectedUser}  onClick={addUserToWorkSpace}>
+                Add
+              </button>
+              <button
+                className="btn-close"
+                onClick={() => setIsUserWorkspaceOpen(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isChangeWorkspaceOpen}
+        onClose={() => setIsChangeWorkspaceOpen(false)}
+        title="Change Workspace"
+      >
+        <div className="settings-form">
+          <div className="settings-form">
+            <div className="form-group">
+              <label>Workspaces:</label>
+              <select
                 value={selectedWorkspace}
                 onChange={(e) => setSelectedWorkspace(e.target.value)}
-            >
-                <option value="">Select a Workspace</option>
-                {workspaces.map(workspace => (
-                    <option onClick={()=>handleOptionClick(workspace)} key={workspace.id} value={workspace.id}>
-                        {workspace.name}
-                    </option>
+              >
+                <option value="">Select Workspaces</option>
+                {workspaces.map((workspace) => (
+                  <option
+                    onClick={() => handleOptionClick(workspace)}
+                    key={workspace.id}
+                    value={workspace.id}
+                  >
+                    {workspace.name}
+                  </option>
                 ))}
-            </select>
+              </select>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-primary" onClick={updateDefWorkspace}>
+                Change
+              </button>
+              <button
+                className="btn-close"
+                onClick={() => setIsChangeWorkspaceOpen(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
-         <Modal isOpen={isAddWorkspaceOpen} onClose={() => setIsAddWorkspaceOpen(false)} title="Add Workspace">
-                <div className="settings-form">
-                  <div className="settings-form user-form-grid">
-                        <div className="form-group">
-                            <label>Workspace Name:</label>
-                            <input
-                                type="text"
-                                value={workspaceName}
-                                onChange={(e) => setWorkspaceName(e.target.value)}
-                                placeholder="Enter workspace name"
-                                required
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Owner Type:</label>
-                            <select
-                                value={ownerType}
-                                onChange={(e) => setOwnerType(e.target.value)}
-                                
-                            >
-                                <option value="1">Individual</option>
-                                <option value="2">Company</option>
-                                
-                            </select>
-                        </div>
-                        <div className="form-group">
-                            <label>Owner Name:</label>
-                            <input
-                                type="text"
-                                value={ownerName}
-                                onChange={(e) => setOwnerName(e.target.value)}
-                                placeholder="Enter Owner name"
-                                required
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Address Line 1:</label>
-                            <input
-                                type="text"
-                                value={addressLine1}
-                                onChange={(e) => setAddressLine1(e.target.value)}
-                                placeholder="Enter address Line 1"
-                                required
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>City:</label>
-                            <input
-                                type="text"
-                                value={city}
-                                onChange={(e) => setCity(e.target.value)}
-                                placeholder="Enter city"
-                                required
-                            />
-                        </div>
-                          <div className="form-group">
-                            <label htmlFor="country-select">Country:</label>
-                                <select
-                                id="country-select"
-                                value={country}
-                                onChange={(e) => setCountry(e.target.value)}
-                                required
-                                >
-                                <option value="" disabled>Select Country</option> 
-                                {COUNTRY_OPTIONS.map((countryName) => (
-                                <option key={countryName} value={countryName}>
-                                {countryName}
-                                </option>
-                                ))}
-                                </select>
-                            </div>
-                    </div>
-                    
-                    <div className="modal-footer">
-                        <button className="btn-primary" onClick={handleAddWorkspace} >
-                            Add
-                        </button>
-                        <button className="btn-close" onClick={() => setIsAddWorkspaceOpen(false)}>
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-        </Modal>
-
-        <Modal isOpen={isEditWorkspaceOpen} onClose={() => setIsEditWorkspaceOpen(false)} title="Edit Workspace">
-        <div className="settings-form">
-                  <div className="settings-form user-form-grid">
-                        <div className="form-group">
-                            <label>Workspace Name:</label>
-                            <input
-                                type="text"
-                                value={workspaceName}
-                                onChange={(e) => setWorkspaceName(e.target.value)}
-                                placeholder="Enter workspace name"
-                                required
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Owner Type:</label>
-                            <select
-                                value={ownerType}
-                                onChange={(e) => setOwnerType(e.target.value)}
-                                
-                            >
-                                <option value="1">Individual</option>
-                                <option value="2">Company</option>
-                                
-                            </select>
-                        </div>
-                        <div className="form-group">
-                            <label>Owner Name:</label>
-                            <input
-                                type="text"
-                                value={ownerName}
-                                onChange={(e) => setOwnerName(e.target.value)}
-                                placeholder="Enter Owner name"
-                                required
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Address Line 1:</label>
-                            <input
-                                type="text"
-                                value={addressLine1}
-                                onChange={(e) => setAddressLine1(e.target.value)}
-                                placeholder="Enter address Line 1"
-                                required
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>City:</label>
-                            <input
-                                type="text"
-                                value={city}
-                                onChange={(e) => setCity(e.target.value)}
-                                placeholder="Enter city"
-                                required
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label htmlFor="country-select">Country:</label>
-                                <select
-                                id="country-select"
-                                value={country}
-                                onChange={(e) => setCountry(e.target.value)}
-                                required
-                                >
-                                <option value="" disabled>Select Country</option> 
-                                {COUNTRY_OPTIONS.map((countryName) => (
-                                <option key={countryName} value={countryName}>
-                                {countryName}
-                                </option>
-                                ))}
-                                </select>
-                            </div>
-                    </div>
-                    
-                    <div className="modal-footer">
-                        <button className="btn-primary" onClick={handleEditWorkspace} >
-                            Add
-                        </button>
-                        <button className="btn-close" onClick={() => setIsEditWorkspaceOpen(false)}>
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-    </Modal>
-
-        <Modal isOpen={isChangeWorkspaceOpen} onClose={() => setIsChangeWorkspaceOpen(false)} title="Change Workspace">
-            <div className="settings-form">
-                    <div className="settings-form">
-                            
-                            <div className="form-group">
-                                <label>Workspaces:</label>
-                                <select
-                                   value={selectedWorkspace}
-                                    onChange={(e) => setSelectedWorkspace(e.target.value)}
-                                >
-                                    <option value="">Select Workspaces</option>
-                                    {workspaces.map(workspace => (
-                                    <option onClick={()=>handleOptionClick(workspace)} key={workspace.id} value={workspace.id}>
-                                        {workspace.name}
-                                    </option>
-                ))}
-                                </select>
-                            </div>
-                            <div className="modal-footer">
-                            <button className="btn-primary" onClick={updateDefWorkspace} >
-                                Change
-                            </button>
-                            <button className="btn-close" onClick={()=>setIsChangeWorkspaceOpen(false)}>
-                                Cancel
-                            </button>
-                        </div>
-                           
-                        </div>
-                        
-                       
-                    </div>
-        </Modal>
+      </Modal>
     </div>
-
-    
-  )
+  );
 }
 
 export default WorkspaceManagement
