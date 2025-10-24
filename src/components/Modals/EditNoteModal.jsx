@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './EditNoteModal.css';
+import toast from 'react-hot-toast';
 
-const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument, projects = [], jobs = [] }) => {
+const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument, projects = [], jobs = [], priorities = [] }) => {
   
   const [isEditable, setIsEditable] = useState(true);
   const [journalData, setJournalData] = useState({
@@ -25,6 +26,8 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
   const [error, setError] = useState(null);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedPriority, setSelectedPriority] = useState('');
+  const [priorityId, setPriorityId] = useState('')
 
   const allowedFileTypes = {
     // Images
@@ -185,6 +188,15 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
       if (note.id) {
         fetchDocumentsByReference(note.id); 
       }
+
+      if(note.id){
+        const result = priorities.find(p => p.noteID == note.id)
+        if(result){
+          console.log(result)
+          setSelectedPriority(result.priorityValue)
+          setPriorityId(result.id)
+        }
+      }
     }
   }, [note, fetchDocumentsByReference, projects, jobs]); 
 
@@ -336,6 +348,7 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
       });
   
       if (result && (result.success || result.id || result.message)) {
+        handleUpdatepriority()
         onClose();
         refreshNotes();
       } else {
@@ -348,6 +361,38 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
       setIsSubmitting(false);
     }
   };
+
+  const handleUpdatepriority = async () =>{
+    try {
+      const url = `${process.env.REACT_APP_API_BASE_URL}/api/Priority/UpdatePriority/${priorityId}`;
+
+      const response = await fetch(url, {
+        method: "PUT",
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          priorityValue: selectedPriority
+        })
+      });
+      
+      if (!response.ok) {
+        let errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch (e) {}
+        
+        throw new Error(errorMessage);
+      }
+      toast.success('Site Note updated Successfully')
+      await refreshNotes();
+      
+    } catch (error) {
+      console.error("Error updating note:", error);
+      throw error;
+    }
+  }
 
   if (!note) return null;
 
@@ -378,6 +423,12 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
             onClick={() => setActiveTab('documents')}
           >
             Documents {documents.length > 0 && `(${documents.length})`}
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'priority' ? 'active' : ''}`}
+            onClick={() => setActiveTab('priority')}
+          >
+            Priority
           </button>
         </div>
 
@@ -446,7 +497,7 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
                 />
               </div>
             </div>
-          ) : (
+          ) : activeTab === 'documents' ? (
             <div className="documents-section">
               <h3>Attached Documents</h3>
               {error && <p className="error-message">{error}</p>}
@@ -497,7 +548,27 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
                 </>
               )}
             </div>
-          )}
+          ): (<div className="journal-section">
+                        <div className="form-group">
+                            <label>Priority</label>
+                            
+                            <select
+                                value={selectedPriority}
+                                onChange={(e) => {
+                                    setSelectedPriority(e.target.value);
+                                    
+                                }}
+                            >
+                                <option value="">Select Priority</option>
+                                <option value="5">Very High</option>
+                                <option value="4">High</option>
+                                <option value="3">Medium</option>
+                                <option value="2">Low</option>
+                                <option value="1">Very Low</option>
+                            </select>
+                        </div>
+                        
+                    </div>)}
         </div>
 
         <div className="modal-footer">

@@ -10,6 +10,7 @@ import ViewNoteModal from './Modals/ViewNoteModal';
 const Dashboard = ({ 
   notes,
   userid,
+  userRole,
   refreshNotes, 
   addSiteNote, 
   updateNote, 
@@ -55,6 +56,7 @@ const Dashboard = ({
   const [userWorkspaces, setUserWorkspaces] = useState([])
   const [role, setRole] = useState(null)
   const [isRoleLoading, setIsRoleLoading] = useState(false);
+  const [priorities, setPriorities] = useState([]);
 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
   console.log(defaultUserWorkspaceID)
@@ -170,6 +172,7 @@ const Dashboard = ({
   useEffect(() => {
     if(userid && defaultUserWorkspaceID){
         fetchUserWorkspaceRole();
+        fetchPriorities()
     }
       
   }, [userid, defaultUserWorkspaceID]); 
@@ -203,6 +206,26 @@ const Dashboard = ({
     return result;
   }, [notes, hierarchy, selectedValues, searchTerm, searchColumn]);
 
+  const fetchPriorities = async () =>{
+      
+    try {
+      const response = await fetch(`${apiUrl}/Priority/GetPriorities`, {
+        method: 'GET',
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+        }
+      })
+      if(response.ok){
+        const result = await response.json()
+        console.log(result)
+        setPriorities(result.priorities || [])
+      }
+      
+      
+    } catch (error) {
+      
+    }
+  }
  
 
   const handleRowSelect = useCallback((note) => {
@@ -893,7 +916,7 @@ const Dashboard = ({
           defWorkID={defaultUserWorkspaceID}
           role={role}
           onUpdateDefaultWorkspace={onUpdateDefaultWorkspace}
-          
+          userrole={userRole}
         />
       )}
 
@@ -907,6 +930,8 @@ const Dashboard = ({
           documents={filteredNotes} 
           currentTheme={currentTheme}
           onViewAttachments={handleViewAttachments}
+          priorities={priorities}
+          userid={userid}
         />
       )}
   
@@ -935,7 +960,8 @@ const Dashboard = ({
           projects={projects}                       
           jobs={jobs} 
           noteDocuments={noteDocuments[selectedNote.id] || []}
-          loadingDocuments={loadingDocuments[selectedNote.id] || false}                     
+          loadingDocuments={loadingDocuments[selectedNote.id] || false} 
+          priorities={priorities}                    
         />
       )}
       {showSettingsModal && <SettingsModal onClose={() => setShowSettingsModal(false)} />}
