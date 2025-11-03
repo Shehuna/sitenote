@@ -276,7 +276,7 @@ useEffect(() => {
             case 'jobStatus':
                 return <JobStatusManagement defId={defWorkID} />;
             case 'workspaceSettings':
-                return <WorkspaceManagement onUpdateDefaultWorkspace={onUpdateDefaultWorkspace} userRole={userrole}/>;
+                return <WorkspaceManagement onUpdateDefaultWorkspace={onUpdateDefaultWorkspace} userRole={userrole} workspaceRole={role}/>;
             default:
                 return <div>Unknown settings option</div>;
         }

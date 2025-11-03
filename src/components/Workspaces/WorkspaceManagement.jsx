@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import Modal from '../Modals/Modal';
 import toast from 'react-hot-toast';
 
-const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole}) => {
+const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}) => {
     
     const [workspaceName, setWorkspaceName] = useState('');
     const [ownerUserID, setOwnerUserID] = useState('');
@@ -281,7 +281,7 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole}) => {
         <button
           className="btn-secondary"
           onClick={() => setIsUserWorkspaceOpen(true)}
-          disabled={!(userRole === "Admin" && selectedWorkspace)}
+          disabled={!((userRole === "Admin" || workspaceRole == 1) && selectedWorkspace)}
         >
           User Workspace
         </button>
