@@ -326,7 +326,7 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
           <option disabled value="">
             Select a Workspace
           </option>
-          {workspaces.filte.map((workspace) => (
+          {workspaces.map((workspace) => (
             <option
               onClick={() => handleOptionClick(workspace)}
               key={workspace.id}
