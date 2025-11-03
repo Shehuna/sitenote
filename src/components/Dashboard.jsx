@@ -914,6 +914,7 @@ const Dashboard = ({
           onClose={() => setShowSettingsModal(false)} 
           onLogout={onLogout}
           defWorkID={defaultUserWorkspaceID}
+          defWorkName={defaultUserWorkspaceName}
           role={role}
           onUpdateDefaultWorkspace={onUpdateDefaultWorkspace}
           userrole={userRole}

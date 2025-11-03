@@ -32,6 +32,7 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
     const [isUserWorkspaceOpen, setIsUserWorkspaceOpen] = useState(false);
     const [selectedWorkspace, setSelectedWorkspace] = useState('');
     const [workspaces, setWorkspaces] = useState([]);
+    const [userWorkspaces, setUserWorkspaces] = useState([]);
     const [selectedUser, setSelectedUser] = useState('');
     
     
@@ -59,6 +60,7 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
             setOwnerUserID(user.id)
             fetchWorkspaces(user.id);
             fetchUsers()
+            fetchUserWorkspaces(user.id)
         }, []);
 
         useEffect(() => {
@@ -209,7 +211,7 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
             body: JSON.stringify({ 
                 userID: selectedUser,
                 workspaceID: selectedWorkspace,
-                role: 1,
+                role: 2,
                 status: 1
             }),
         
@@ -261,6 +263,27 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
         setStatus(works.status)
   }
 
+  const fetchUserWorkspaces = async (userid) =>{
+    try {
+          const response = await fetch(`${API_URL}/api/UserWorkspace/GetWorkspacesByUserId/${userid}`,{
+            method: 'GET'
+          });
+          
+          if (!response.ok) {
+            throw new Error('Error fetching users data!');
+          }
+          
+          const data = await response.json();
+          setUserWorkspaces(data.userWorkspaces || []);
+          
+        } catch (err) {
+          setError(err.message);
+          console.error('Error fetching Userworkspaces:', err);
+        } finally {
+          setLoading(false);
+        }
+  }
+
   return (
     <div className="settings-content">
       <div className="settings-action-buttons">
@@ -293,7 +316,7 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
         </button>
       </div>
       <div className="settings-lookup-list">
-        <h4>Workspace Lookups</h4>
+        <h4>Workspace</h4>
         <select
           size="5"
           className="lookup-select"
@@ -303,7 +326,7 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
           <option disabled value="">
             Select a Workspace
           </option>
-          {workspaces.map((workspace) => (
+          {workspaces.filte.map((workspace) => (
             <option
               onClick={() => handleOptionClick(workspace)}
               key={workspace.id}
