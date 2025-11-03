@@ -224,6 +224,7 @@ useEffect(() => {
     setNotes([]);
     setUserId('');
     setUserDefaultWork('');
+    setPage(1);
   };
  
   const refreshNote = () => {
@@ -529,7 +530,7 @@ useEffect(() => {
   return (
     <Router>
       <div className="app">
-        {loading && isInitialFetchRef.current && (
+        {loading && isInitialFetchRef.current && isAuthenticated && (
           <div className="loading-container">
             <div className="loading-content">
               <div className="spinner"></div>

@@ -21,7 +21,9 @@ const AttachedFileModal = ({
   const [showDocumentModal, setShowDocumentModal] = useState(false);
   const [newDocument, setNewDocument] = useState({
     name: '',
-    file: null
+    file: null,
+    siteNoteId: '',
+    userId: ''
   });
 
   const [activeTab, setActiveTab] = useState('documents'); 
@@ -224,7 +226,7 @@ const handleDocumentSubmit = async () => {
 
       // ✅ Build consistent object with download URL
       const newDocWithDownloadUrl = {
-        ...savedDoc,
+        ...savedDoc,name: newDocument.name, fileName: newDocument.file.name,
         fileType: getMimeType(savedDoc.fileName).split('/')[1],
         fileUrl: null,
         downloadApiTriggerUrl: `${process.env.REACT_APP_API_BASE_URL}/api/Documents/DownloadDocument/${savedDoc.id}`
@@ -308,7 +310,7 @@ const handleDownloadDocument = async (documentToDownload) => {
     <div className="afm-overlay">
       <div className="afm-container">
         <div className="afm-header">
-          <h2>Attachments</h2>
+          <h2>Attachments ({documents.length})</h2>
           <button className="afm-close" onClick={onClose} disabled={isSubmitting}>
             &times;
           </button>
@@ -321,20 +323,20 @@ const handleDownloadDocument = async (documentToDownload) => {
           </div>
         )}
   
-        <div className="afm-tabs">
-          <button
+        {/* <div className="afm-tabs"> */}
+          {/* <button
             className={`afm-tab ${activeTab === 'journal' ? 'active' : ''}`}
             onClick={() => setActiveTab('journal')}
           >
             Journal
-          </button>
-          <button
+          </button> */}
+          {/* <button
             className={`afm-tab ${activeTab === 'documents' ? 'active' : ''}`}
             onClick={() => setActiveTab('documents')}
           >
             Documents ({documents.length})
-          </button>
-        </div>
+          </button> */}
+        {/* </div> */}
   
         <div className="afm-content">
           {activeTab === 'journal' ? (
@@ -455,13 +457,13 @@ const handleDownloadDocument = async (documentToDownload) => {
           >
             Cancel
           </button>
-          <button
+          {/* <button
             onClick={handleSaveNote}
             className="afm-save-btn"
             disabled={isSubmitting}
           >
             {isSubmitting ? 'Saving...' : 'Save'}
-          </button>
+          </button> */}
         </div>
   
        

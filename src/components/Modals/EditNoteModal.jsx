@@ -321,10 +321,10 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
 
   const handleSaveNote = async () => {
     console.log()
-    if (!isEditable) {
-      setError('Cannot edit notes older than 24 hours');
-      return;
-    }
+    // if (!isEditable) {
+    //   setError('Cannot edit notes older than 24 hours');
+    //   return;
+    // }
     
     setIsSubmitting(true);
     setError(null);
@@ -399,8 +399,13 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
   return (
     <div className="edit-note-modal-overlay">
       <div className="edit-note-modal">
-        <div className="modal-header">
-          <h2>Edit Note {!isEditable && <span className="read-only-badge">(Read Only)</span>}</h2>
+        <div className="modal-header"><h2>
+        Edit Note{" "}
+        {!isEditable && (
+          <i className="fas fa-edit" title="Only priority can be edited"></i>
+        )}
+        </h2>
+
           <button className="close-button" onClick={onClose} disabled={isSubmitting}>
             &times;
           </button>
@@ -408,7 +413,7 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
 
         {!isEditable && (
           <div className="edit-warning">
-            This note is older than 24 hours and can no longer be edited.
+           This note is older than 24 hours. Only the priority can be updated.
           </div>
         )}
         <div className="tabs">
@@ -505,7 +510,7 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
                 <p>Loading documents...</p>
               ) : (
                 <>
-                  {isEditable && (
+                  { (
                     <div className="document-actions">
                       <button onClick={handleAddDocument} className="add-button" disabled={isSubmitting}>
                         Add Document
@@ -579,7 +584,7 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
           >
             {isEditable ? 'Cancel' : 'Close'}
           </button>
-          {isEditable && (
+          { 
             <button
               onClick={handleSaveNote}
               className="save-button"
@@ -587,7 +592,7 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
             >
               {isSubmitting ? 'Saving...' : 'Save'}
             </button>
-          )}
+          }
         </div>
 
         {showDocumentModal && (
