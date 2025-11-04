@@ -203,14 +203,15 @@ const ProjectManagement = ({workspaceId}) => {
                     >
                         <div className="settings-form">
                             <div className="form-group">
-                                <label>Workspace:</label>
-                                <select
+                                
+                                <h4>Workspace: {workspaceName}</h4>
+                                {/* <select
                                     value={workspaceId}
                                     //onChange={(e) => setSelectedWorkspace(e.target.value)}
                                     disabled
                                 >
                                     <option value={workspaceId}>{workspaceName}</option>
-                                </select>
+                                </select> */}
                             </div>
                             <div className="form-group">
                                 <label>Project Name:</label>
