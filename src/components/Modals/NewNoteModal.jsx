@@ -187,8 +187,8 @@ const NewNoteModal = ({
 
             console.log("All documents processed.");
             await handleAddPriority(siteNoteId,  user.id)
-            onClose();
             refreshNotes();
+            onClose();
         } catch (error) {
             console.error("Save error:", error);
             setApiError(error.message || "Failed to save note or upload documents");
