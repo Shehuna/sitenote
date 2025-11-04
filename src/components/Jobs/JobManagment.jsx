@@ -341,6 +341,7 @@ const JobManagment = ({defWorkId}) => {
                     >
                         <option value="1">Active</option>
                         <option value="2">Inactive</option>
+                        <option value="">Archive</option>
                     </select>
                 </div>
 
