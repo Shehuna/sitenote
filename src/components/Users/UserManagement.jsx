@@ -438,9 +438,7 @@ const UserManagement = () => {
             {!isSignUpFlow && (
                 <>
                  <div className="settings-action-buttons">
-                     <button className="btn-primary" onClick={() => setIsAddUserOpen(true)}>
-                                 Add 
-                     </button>
+                     
                      <button className="btn-secondary" onClick={() => setIsEditUserOpen(true)} disabled={!selectedUser}>
                                  Edit 
                      </button>

@@ -232,25 +232,139 @@
   border: 2px solid #1890ff !important;
 }
 
-select option {
-    color: black; /* Default color */
+.journal-section {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
 }
 
-select option.red {
-    color: #ff4444;
+.priority-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #2d3748;
 }
 
-select option.semi-red {
-    color: #ff8800;
+.priority-select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 6px;
+    background: white;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    outline: none;
+    cursor: pointer;
 }
 
-select option.orange {
-    color: #ffbb33;
+.priority-select:focus {
+    border-color: #4299e1;
+    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
 }
 
-select option.yellow {
-    color: #00C851;
+.priority-default {
+    border-color: #cbd5e0;
+    background: linear-gradient(135deg, #fff 95%, #cbd5e0 5%);
+    color: #718096;
+    font-style: italic;
 }
-select option.green {
-    color: #34b7f1;
+
+.priority-5 {
+    border-color: #dc2626;
+    background: linear-gradient(135deg, #fff 95%, #dc2626 5%);
+    color: #dc2626;
+    font-weight: 600;
+}
+
+.priority-4 {
+    border-color: #ea580c;
+    background: linear-gradient(135deg, #fff 95%, #ea580c 5%);
+    color: #ea580c;
+    font-weight: 600;
+}
+
+.priority-3 {
+    border-color: #d97706;
+    background: linear-gradient(135deg, #fff 95%, #d97706 5%);
+    color: #d97706;
+    font-weight: 600;
+}
+
+.priority-2 {
+    border-color: #16a34a;
+    background: linear-gradient(135deg, #fff 95%, #16a34a 5%);
+    color: #16a34a;
+    font-weight: 600;
+}
+
+.priority-1 {
+    border-color: #2563eb;
+    background: linear-gradient(135deg, #fff 95%, #2563eb 5%);
+    color: #2563eb;
+    font-weight: 600;
+}
+.priority-0 {
+    border-color: #cbd5e0;
+    background: linear-gradient(135deg, #fff 95%, #cbd5e0 5%);
+    color: #718096;
+    font-style: italic;
+}
+
+.priority-select option[value=""] {
+    color: #718096;
+    font-style: italic;
+    background-color: #f7fafc;
+}
+
+.priority-option-5 {
+    background-color: #fef2f2;
+    color: #dc2626;
+    font-weight: 600;
+}
+
+.priority-option-4 {
+    background-color: #fff7ed;
+    color: #ea580c;
+    font-weight: 600;
+}
+
+.priority-option-3 {
+    background-color: #fffbeb;
+    color: #d97706;
+    font-weight: 600;
+}
+
+.priority-option-2 {
+    background-color: #f0fdf4;
+    color: #16a34a;
+    font-weight: 600;
+}
+
+.priority-option-1 {
+    background-color: #eff6ff;
+    color: #2563eb;
+    font-weight: 600;
+}
+
+/* Error state */
+.priority-select.error {
+    border-color: #dc2626;
+    background: linear-gradient(135deg, #fef2f2 95%, #dc2626 5%);
+    color: #dc2626;
+}
+
+.error-message-inline {
+    color: #dc2626;
+    font-size: 12px;
+    margin-left: 0.5rem;
+    font-weight: 500;
+}
+
+/* Hover states */
+.priority-select:hover:not(.error) {
+    border-color: #a0aec0;
+}
+
+.priority-default:hover {
+    border-color: #a0aec0;
 }
