@@ -163,6 +163,7 @@ const JobStatusManagement = ({defId}) => {
                     >
                         <option value="1">Active</option>
                         <option value="2">Inactive</option>
+                        <option value="3">Archive</option>
                     </select>
                 </div>
             </div>
