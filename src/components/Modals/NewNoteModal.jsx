@@ -75,6 +75,8 @@ const NewNoteModal = ({
   const isValidFileSize = (file) => {
     return file.size <= MAX_FILE_SIZE;
   };
+
+  
       // Get filtered projects based on workspace
     useEffect(() => {
         if (selectedProject) {
