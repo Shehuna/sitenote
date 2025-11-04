@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import Modal from '../Modals/Modal';
 import toast from 'react-hot-toast';
 
-const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole}) => {
+const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}) => {
     
     const [workspaceName, setWorkspaceName] = useState('');
     const [ownerUserID, setOwnerUserID] = useState('');
@@ -32,6 +32,7 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole}) => {
     const [isUserWorkspaceOpen, setIsUserWorkspaceOpen] = useState(false);
     const [selectedWorkspace, setSelectedWorkspace] = useState('');
     const [workspaces, setWorkspaces] = useState([]);
+    const [userWorkspaces, setUserWorkspaces] = useState([]);
     const [selectedUser, setSelectedUser] = useState('');
     
     
@@ -59,6 +60,7 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole}) => {
             setOwnerUserID(user.id)
             fetchWorkspaces(user.id);
             fetchUsers()
+            fetchUserWorkspaces(user.id)
         }, []);
 
         useEffect(() => {
@@ -209,7 +211,7 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole}) => {
             body: JSON.stringify({ 
                 userID: selectedUser,
                 workspaceID: selectedWorkspace,
-                role: 1,
+                role: 2,
                 status: 1
             }),
         
@@ -261,6 +263,27 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole}) => {
         setStatus(works.status)
   }
 
+  const fetchUserWorkspaces = async (userid) =>{
+    try {
+          const response = await fetch(`${API_URL}/api/UserWorkspace/GetWorkspacesByUserId/${userid}`,{
+            method: 'GET'
+          });
+          
+          if (!response.ok) {
+            throw new Error('Error fetching users data!');
+          }
+          
+          const data = await response.json();
+          setUserWorkspaces(data.userWorkspaces || []);
+          
+        } catch (err) {
+          setError(err.message);
+          console.error('Error fetching Userworkspaces:', err);
+        } finally {
+          setLoading(false);
+        }
+  }
+
   return (
     <div className="settings-content">
       <div className="settings-action-buttons">
@@ -281,7 +304,7 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole}) => {
         <button
           className="btn-secondary"
           onClick={() => setIsUserWorkspaceOpen(true)}
-          disabled={!(userRole === "Admin" && selectedWorkspace)}
+          disabled={!((userRole === "Admin" || workspaceRole == 1) && selectedWorkspace)}
         >
           User Workspace
         </button>
@@ -293,7 +316,7 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole}) => {
         </button>
       </div>
       <div className="settings-lookup-list">
-        <h4>Workspace Lookups</h4>
+        <h4>Workspace</h4>
         <select
           size="5"
           className="lookup-select"

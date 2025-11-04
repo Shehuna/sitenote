@@ -17,6 +17,7 @@ const SettingsModal = ({
     onLogout, 
     role, 
     defWorkID, 
+    defWorkName,
     onUpdateDefaultWorkspace, 
     userrole
    }) => { 
@@ -276,7 +277,13 @@ useEffect(() => {
             case 'jobStatus':
                 return <JobStatusManagement defId={defWorkID} />;
             case 'workspaceSettings':
-                return <WorkspaceManagement onUpdateDefaultWorkspace={onUpdateDefaultWorkspace} userRole={userrole}/>;
+                return <WorkspaceManagement 
+                        onUpdateDefaultWorkspace={onUpdateDefaultWorkspace} 
+                        userRole={userrole} 
+                        workspaceRole={role}
+                        defWorkId={defWorkID}
+                        defWorkName={defWorkName}
+                        />;
             default:
                 return <div>Unknown settings option</div>;
         }
