@@ -58,58 +58,74 @@ useEffect(() => {
   };
 }, []);
 
-  const fetchNotes = useCallback(async () => {
-    if (loadingRef.current || (!isInitialFetchRef.current && !hasMore)) return;
+  const fetchNotes = useCallback(async (specificPage = null) => {
+  const currentPage = specificPage !== null ? specificPage : page;
+  
+  if (loadingRef.current || (!isInitialFetchRef.current && !hasMore)) return;
 
-    loadingRef.current = true;
-    setLoading(true);
+  loadingRef.current = true;
+  setLoading(true);
 
-    try {
-      const response = await fetch(`${apiUrl}/SiteNote/GetSiteNotes?pageNumber=${page}&pageSize=${pageSize}&userId=${userId}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json; charset=utf-8",
+  console.log("fetchNotes called - page:", currentPage, "userId:", userId);
+
+  try {
+    const response = await fetch(`${apiUrl}/SiteNote/GetSiteNotes?pageNumber=${currentPage}&pageSize=${pageSize}&userId=${userId}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+      }
+    });
+
+    const text = await response.text();
+    console.log("API Response data:", text);
+
+    if (response.ok) {
+      const data = JSON.parse(text);
+
+      if (data.siteNotes.length === 0) {
+        console.log("No more notes to fetch");
+        setHasMore(false);
+        loadingRef.current = false;
+        setLoading(false);
+        return;
+      }
+
+      scrollPositionRef.current = window.scrollY;
+
+      setNotes(prev => {
+        if (currentPage === 1) {
+          // If page is 1, replace all notes (for refresh)
+          console.log("Replacing all notes with:", data.siteNotes.length, "notes");
+          return data.siteNotes;
+        } else {
+          // If paginating, append new notes
+          const existingIds = new Set(prev.map(note => note.id));
+          const newNotes = data.siteNotes.filter(note => !existingIds.has(note.id));
+          console.log("Appending notes - previous:", prev.length, "new:", newNotes.length);
+          return [...prev, ...newNotes];
         }
       });
 
-      const text = await response.text();
-
-      if (response.ok) {
-        const data = JSON.parse(text);
-
-        if (data.siteNotes.length === 0) {
-          setHasMore(false);
-          loadingRef.current = false;
-          setLoading(false);
-          return;
-        }
-
-        scrollPositionRef.current = window.scrollY;
-
-        setNotes(prev => {
-          const existingIds = new Set(prev.map(note => note.id));
-          const newNotes = data.siteNotes.filter(note => !existingIds.has(note.id));
-          return [...prev, ...newNotes];
-        });
-
+      if (specificPage === null) {
         setPage(prev => prev + 1);
-
-        setTimeout(() => {
-          window.scrollTo(0, scrollPositionRef.current);
-        }, 0);
-      } else {
-        console.error(`Failed to fetch: ${response.status}`);
-        setError("Failed to load more notes");
       }
-    } catch (error) {
-      console.error("Error fetching notes:", error);
+
+      setTimeout(() => {
+        window.scrollTo(0, scrollPositionRef.current);
+      }, 0);
+    } else {
+      console.error(`Failed to fetch: ${response.status}`);
       setError("Failed to load more notes");
-    } finally {
-      loadingRef.current = false;
-      setLoading(false);
-      isInitialFetchRef.current = false;
     }
-  }, [page, pageSize, userId, hasMore]);
+  } catch (error) {
+    console.error("Error fetching notes:", error);
+    setError("Failed to load more notes");
+  } finally {
+    loadingRef.current = false;
+    setLoading(false);
+    isInitialFetchRef.current = false;
+  }
+}, [page, pageSize, userId, hasMore]);
 
   const getUser = async (userid) => {
     try {
@@ -228,15 +244,22 @@ useEffect(() => {
   };
  
   const refreshNote = () => {
-    isInitialFetchRef.current = true;
-    fetchInitialData();
-  }
+  console.log("refreshNote called - resetting state");
+  setNotes([]); 
+  setPage(1); 
+  setHasMore(true); 
+  isInitialFetchRef.current = true;
+  loadingRef.current = false;
+  
+  // Force fetch with page 1
+  fetchNotes(1);
+}
 
   const fetchInitialData = async () => {
     setLoading(true);
     setError(null);
     try {
-      await Promise.all([fetchNotes(), fetchProjectsAndJobs()]);
+      await Promise.all([fetchNotes(1), fetchProjectsAndJobs()]);
     } catch (err) {
       setError(err.message);
       console.error("Initial data loading error:", err);
@@ -325,8 +348,8 @@ useEffect(() => {
 
       const result = await response.json(); 
       console.log('Document uploaded successfully:', result.message);
-      isInitialFetchRef.current = true;
-      fetchNotes();
+      /* isInitialFetchRef.current = true;
+      fetchNotes(); */
       return {
         id: result.document.Id, 
         name: result.document.Name, 
@@ -449,8 +472,9 @@ useEffect(() => {
 
       const result = await response.json();
       console.log('Update successful:', result);
-      isInitialFetchRef.current = true;
-      await fetchNotes();
+      /* isInitialFetchRef.current = true;
+      await fetchNotes(); */
+      //refreshNote
       return result;
     } catch (error) {
       console.error("Error updating note:", error);
@@ -474,8 +498,8 @@ useEffect(() => {
       }
 
       const responseData = await response.json();
-      isInitialFetchRef.current = true;
-      await fetchNotes();
+      /* isInitialFetchRef.current = true;
+      await fetchNotes(); */
       return responseData;
     } catch (error) {
       console.error("API Error:", error);

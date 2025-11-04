@@ -441,7 +441,7 @@ const Dashboard = ({
       /* if (noteId) {
         await fetchDocumentCount(noteId);
       } */
-      refreshNotes(); 
+      //refreshNotes(); 
       return result;
     } catch (error) {
       console.error('Error uploading document in wrapper:', error);
@@ -455,7 +455,7 @@ const Dashboard = ({
       /* if (noteId) {
         await fetchDocumentCount(noteId);
       } */
-      refreshNotes(); 
+      //refreshNotes(); 
     } catch (error) {
       console.error('Error deleting document in wrapper:', error);
       throw error;
@@ -506,7 +506,6 @@ const Dashboard = ({
   const handleCloseNewModal = () => {
     setShowNewModal(false);
     setSelectedRow(null);
-    refreshNotes();
   };
 
   const handleDrop = (e) => {
@@ -570,7 +569,7 @@ const Dashboard = ({
               if (window.confirm('Are you sure you want to delete this note?')) {
               try { 
                     await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/SiteNote/DeleteSiteNote/${note.id}`, { method: 'DELETE' });
-                    refreshNotes();
+                    //refreshNotes();
                   } catch (error) {
                     console.error('Error deleting note:', error);
                 }
