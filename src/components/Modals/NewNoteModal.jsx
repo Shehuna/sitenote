@@ -463,11 +463,11 @@ const NewNoteModal = ({
                                 }}
                             >
                                 <option value="">Select Priority</option>
-                                <option value="5">Very High</option>
-                                <option value="4">High</option>
-                                <option value="3">Medium</option>
-                                <option value="2">Low</option>
-                                <option value="1">Very Low</option>
+                                <option value="5" className='red'>Very High</option>
+                                <option value="4" className='semi-red'>High</option>
+                                <option value="3" className='orange'>Medium</option>
+                                <option value="2" className='yellow'>Low</option>
+                                <option value="1" className='green'>Very Low</option>
                             </select>
                         </div>
                         

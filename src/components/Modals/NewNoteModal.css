@@ -231,3 +231,26 @@
   background-color: #f0f8ff !important;
   border: 2px solid #1890ff !important;
 }
+
+select option {
+    color: black; /* Default color */
+}
+
+select option.red {
+    color: #ff4444;
+}
+
+select option.semi-red {
+    color: #ff8800;
+}
+
+select option.orange {
+    color: #ffbb33;
+}
+
+select option.yellow {
+    color: #00C851;
+}
+select option.green {
+    color: #34b7f1;
+}
