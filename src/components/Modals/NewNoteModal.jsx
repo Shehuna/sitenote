@@ -18,7 +18,7 @@ const NewNoteModal = ({
 }) => {
     const [activeTab, setActiveTab] = useState('journal');
     const [selectedProject, setSelectedProject] = useState('');
-    const [selectedPriority, setSelectedPriority] = useState('');
+    const [selectedPriority, setSelectedPriority] = useState('1');
     const [selectedJob, setSelectedJob] = useState('');
     const [filteredJobs, setFilteredJobs] = useState([]);
     const [selectedDate, setSelectedDate] = useState('');
@@ -485,11 +485,10 @@ const NewNoteModal = ({
             className={`priority-select ${selectedPriority ? `priority-${selectedPriority}` : 'priority-default'} ${errors.priority ? 'error' : ''}`}
         >
             <option value="">Select Priority</option>
-            <option value="5" className="priority-option-5">Very High</option>
             <option value="4" className="priority-option-4">High</option>
             <option value="3" className="priority-option-3">Medium</option>
             <option value="2" className="priority-option-2">Low</option>
-            <option value="1" className="priority-option-1">Very Low</option>
+            <option value="1" className="priority-option-1">No Priority</option>
         </select>
     </div>
 </div>)}

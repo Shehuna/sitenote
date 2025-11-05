@@ -269,46 +269,36 @@
     font-style: italic;
 }
 
-.priority-5 {
-    border-color: #dc2626;
-    background: linear-gradient(135deg, #fff 95%, #dc2626 5%);
-    color: #dc2626;
-    font-weight: 600;
-}
+
 
 .priority-4 {
-    border-color: #ea580c;
-    background: linear-gradient(135deg, #fff 95%, #ea580c 5%);
-    color: #ea580c;
+    border-color: #d32b15;
+    background: #fff;
+    color: #f83330;
     font-weight: 600;
 }
 
 .priority-3 {
     border-color: #d97706;
-    background: linear-gradient(135deg, #fff 95%, #d97706 5%);
-    color: #d97706;
+    background:  #fff;
+    color: #f6c286;
     font-weight: 600;
 }
 
 .priority-2 {
-    border-color: #16a34a;
-    background: linear-gradient(135deg, #fff 95%, #16a34a 5%);
-    color: #16a34a;
+    border-color: #2e48ed;
+    background: #fff;
+    color: #5987ec;
     font-weight: 600;
 }
 
 .priority-1 {
-    border-color: #2563eb;
-    background: linear-gradient(135deg, #fff 95%, #2563eb 5%);
-    color: #2563eb;
+    border-color: #eff6ff;
+    background: #fff;
+    color: #a7a8ab;
     font-weight: 600;
 }
-.priority-0 {
-    border-color: #cbd5e0;
-    background: linear-gradient(135deg, #fff 95%, #cbd5e0 5%);
-    color: #718096;
-    font-style: italic;
-}
+
 
 .priority-select option[value=""] {
     color: #718096;
@@ -316,33 +306,28 @@
     background-color: #f7fafc;
 }
 
-.priority-option-5 {
-    background-color: #fef2f2;
-    color: #dc2626;
-    font-weight: 600;
-}
 
 .priority-option-4 {
     background-color: #fff7ed;
-    color: #ea580c;
+    color: #f83330;
     font-weight: 600;
 }
 
 .priority-option-3 {
     background-color: #fffbeb;
-    color: #d97706;
+    color: #f6c286;
     font-weight: 600;
 }
 
 .priority-option-2 {
     background-color: #f0fdf4;
-    color: #16a34a;
+    color: #5987ec;
     font-weight: 600;
 }
 
 .priority-option-1 {
     background-color: #eff6ff;
-    color: #2563eb;
+    color: #a7a8ab;
     font-weight: 600;
 }
 
