@@ -177,11 +177,21 @@ const Dashboard = ({
       
   }, [userid, defaultUserWorkspaceID]); 
 
-  const filteredNotes = useMemo(() => {
-    
+    const filteredNotes = useMemo(() => {
     let result = [...notes];
     
-    result.sort((a, b) => new Date(b.date) - new Date(a.date));
+    result = result.filter(note => {
+  
+      const job = jobs.find(j => 
+        j.id.toString() === note.jobId?.toString() || 
+        j.name === note.job
+      );
+      
+      return job && job.status !== 3;
+    });
+  
+    result.sort((a, b) => new Date(b.timeStamp) - new Date(a.timeStamp));
+    
     
     hierarchy.forEach(column => {
       const selectedValue = selectedValues[column];
@@ -195,6 +205,7 @@ const Dashboard = ({
       }
     });
 
+    // Apply existing search filter
     if (searchTerm.trim()) {
       const searchColumnToUse = searchColumn || 'note';
       result = result.filter(note => {
@@ -204,7 +215,7 @@ const Dashboard = ({
     }
     
     return result;
-  }, [notes, hierarchy, selectedValues, searchTerm, searchColumn]);
+  }, [notes, jobs, hierarchy, selectedValues, searchTerm, searchColumn]);
 
   const fetchPriorities = async () =>{
       

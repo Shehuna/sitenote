@@ -252,7 +252,7 @@ const JobManagment = ({defWorkId}) => {
                         >
                             <option value="">Select Project</option>
                             {projects 
-                                .filter(project => (project.workspaceId == defWorkId)) // Only show active projects
+                                .filter(project => (project.workspaceId == defWorkId && project.status == 1)) // Only show active projects
                                 .map(project => (
                                     <option key={project.id} value={project.id}>{project.name}</option>
                                 ))}
