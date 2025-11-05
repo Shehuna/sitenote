@@ -272,8 +272,8 @@
 }
 
 .close-chat-button {
-  background-color: #ff4d4d;
-  color: white;
+  background-color: #f4f1f0cf;
+  color: rgb(25, 22, 22);
   border: none;
   padding: 10px 20px;
   border-radius: 20px;
@@ -283,6 +283,15 @@
   gap: 8px;
   font-size: 14px;
   font-weight: bold;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.close-chat-button:hover {
+  background-color: #b3b0b0;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(120, 115, 115, 0.3);
 }
 .whatsapp-chat .message-row {
     display: flex;

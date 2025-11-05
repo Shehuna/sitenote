@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo , useCallback } from 'react';
 import PropTypes from 'prop-types';
 import Modal from './Modal';
 import './NewNoteModal.css';
@@ -136,6 +136,7 @@ const NewNoteModal = ({
             }
         }
     }, [selectedProject, prefilledData, jobs]);
+     
 
     const handleSaveJournal = async () => {
         const newErrors = {};
@@ -143,7 +144,7 @@ const NewNoteModal = ({
         if (!selectedJob) newErrors.job = "Please select a job";
         if (!selectedDate) newErrors.date = "Please select a date";
         if (!noteContent.trim()) newErrors.note = "Note content is required";
-        if (!selectedPriority) newErrors.priority = "Please select a priority";
+        //if (!selectedPriority) newErrors.priority = "Please select a priority";
 
         if (Object.keys(newErrors).length > 0) {
             setErrors(newErrors);
@@ -198,6 +199,24 @@ const NewNoteModal = ({
             setIsSaving(false);
         }
     };
+    const handleSaveShortcut = useCallback((event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+            event.preventDefault(); 
+            if (!isSaving) {
+                handleSaveJournal();
+            }
+        }
+    }, [isSaving, handleSaveJournal]);
+
+    useEffect(() => {
+        if (isOpen) {
+            document.addEventListener('keydown', handleSaveShortcut);
+        }
+
+        return () => {
+            document.removeEventListener('keydown', handleSaveShortcut);
+        };
+    }, [isOpen, handleSaveShortcut]);
 
     const handleAddDocument = () => {
         setCurrentDocumentBeingEdited(null);
