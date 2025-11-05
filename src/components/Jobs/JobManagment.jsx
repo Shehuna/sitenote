@@ -206,25 +206,29 @@ const JobManagment = ({defWorkId}) => {
                     value={selectedJob}
                     onChange={(e) => setSelectedJob(e.target.value)}
                 >
-                    <option value="">Select a Job</option>
+                   <option value="">Select a Job</option>
                     {jobs
-                        .filter(job => {
-                            const project = projects.find(p => (p.id === job.projectId && p.workspaceId == defWorkId));
-                            return project && project.status === 1; // Only include jobs from active projects
-                        })
-                        .map(job => {
-                            const projectName = projects.find(p => p.id === job.projectId)?.name || 'Unknown';
-                            const isInactive = job.status !== 1;
-                            return (
-                                <option 
-                                    key={job.id} 
-                                    value={job.id}
-                                    className={isInactive ? 'inactive-job' : ''}
-                                >
-                                    {job.name} (Project: {projectName}) {isInactive ? '(Inactive)' : ''}
-                                </option>
-                            );
-                        })}
+                    .filter(job => {
+                        const project = projects.find(
+                        p => p.id === job.projectId && p.workspaceId == defWorkId
+                        );
+                        return project && job.status !== 3 && project.status !== 3;
+                    })
+                    .map(job => {
+                        const projectName = projects.find(p => p.id === job.projectId)?.name || 'Unknown';
+                        const isInactive = job.status !== 1;
+                        return (
+                        <option
+                            key={job.id}
+                            value={job.id}
+                            className={isInactive ? 'inactive-job' : ''}
+                        >
+                            {job.name} (Project: {projectName}) {isInactive ? '(Inactive)' : ''}
+                        </option>
+                        );
+                    })}
+
+
                 </select>
             </div>
         
@@ -341,7 +345,7 @@ const JobManagment = ({defWorkId}) => {
                     >
                         <option value="1">Active</option>
                         <option value="2">Inactive</option>
-                        <option value="">Archive</option>
+                        <option value="3">Archive</option>
                     </select>
                 </div>
 

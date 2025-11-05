@@ -178,15 +178,16 @@ const ProjectManagement = ({workspaceId}) => {
                 value={selectedProject}
                 onChange={(e) => setSelectedProject(e.target.value)}
             >
-                <option value="">Select a Project</option>
-                {filteredProjects.map(project => (
-                    
-                    <option 
-                        key={project.id} 
-                        value={project.id}
-                        className={project.status !== 1 ? 'inactive-project' : ''}
+               <option value="">Select a Project</option>
+                {filteredProjects
+                .filter(project => project.status !== 3)
+                .map(project => (
+                    <option
+                    key={project.id}
+                    value={project.id}
+                    className={project.status !== 1 ? 'inactive-project' : ''}
                     >
-                        {project.name} {project.status !== 1 ? '(Inactive)' : ''}
+                    {project.name} {project.status !== 1 ? '(Inactive)' : ''}
                     </option>
                 ))}
             </select>
