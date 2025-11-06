@@ -10,7 +10,7 @@ import ProjectManagement from '../Projects/ProjectManagement';
 import JobManagment from '../Jobs/JobManagment';
 import JobPermissionManagement from '../JobPermission/JobPermissionManagement';
 import JobStatusManagement from '../JobStatus/JobStatusManagement';
-
+import UserProfile from '../UserProfile/UserProfile';
 const SettingsModal = ({ 
     isOpen, 
     onClose, 
@@ -48,6 +48,8 @@ const SettingsModal = ({
     const [newProjectStatus, setNewProjectStatus] = useState(1);
     console.log(role)
     const navigate = useNavigate();
+    const storedUser = localStorage.getItem('user');
+    const userId = storedUser ? JSON.parse(storedUser).id : null;
     
     useEffect(() => {
         if (isOpen) {
@@ -211,6 +213,11 @@ useEffect(() => {
                     text: 'User Management'
                 },
                 {
+                    id: 'userProfile',
+                    icon: 'fa-user',
+                    text: 'User Profile'
+                },
+                {
                     id: 'jobPermissions',
                     icon: 'fa-user-shield',
                     text: 'Job Permissions'
@@ -231,7 +238,7 @@ useEffect(() => {
                     key={option.id}
                     className="settings-option"
                     onClick={() => setActiveTab(option.id)}
-                    disabled={option.id !== 'workspaceSettings' && role !== 1}
+                    disabled={option.id !== 'workspaceSettings' && option.id !== 'userProfile' && role !== 1}
                     aria-label={`Open ${option.text} settings`}
                 >
                     
@@ -272,6 +279,11 @@ useEffect(() => {
                 return <JobManagment defWorkId={defWorkID}/>;
             case 'userManagement':
                 return <UserManagement />;
+            case 'userProfile':
+                return (
+                        <UserProfile userid={userId} />
+                  
+                );
             case 'jobPermissions':
                 return <JobPermissionManagement defId={defWorkID} users={users}/>;
             case 'jobStatus':
@@ -299,6 +311,8 @@ useEffect(() => {
                 return 'Job Management';
             case 'userManagement':
                 return 'User Management';
+            case 'userProfile':
+                return 'User Profile';
             case 'jobPermissions':
                 return 'Job Permissions';
             case 'jobStatus':
