@@ -177,6 +177,7 @@ const Dashboard = ({
     if(userid && defaultUserWorkspaceID){
         fetchUserWorkspaceRole();
         fetchPriorities()
+        fetchUserWorkspaces()
     }
       
   }, [userid, defaultUserWorkspaceID]); 
@@ -654,6 +655,28 @@ const handleDelete = async (note) => {
 
   const user = JSON.parse(localStorage.getItem('user'));
 
+    const fetchUserWorkspaces = async () =>{
+    try {
+          const response = await fetch(`${apiUrl}/UserWorkspace/GetWorkspacesByUserId/${user.id}`,{
+            method: 'GET'
+          });
+          
+          if (!response.ok) {
+            throw new Error('Error fetching users data!');
+          }
+          
+          const data = await response.json();
+          console.log(data.userWorkspaces)
+          setUserWorkspaces(data.userWorkspaces || []);
+          
+        } catch (err) {
+          setError(err.message);
+          console.error('Error fetching Userworkspaces:', err);
+        } finally {
+          setLoading(false);
+        }
+  }
+
 
   return (
     <div className="main-content">
@@ -717,8 +740,9 @@ const handleDelete = async (note) => {
            <div>
               <p className="dropdown-container">{defaultUserWorkspaceName}</p>
               <button 
-            onClick={handleOpenSettings}
-            style={{
+              disabled={userWorkspaces.length === 1}
+              onClick={handleOpenSettings}
+              style={{
               background: 'rgba(52, 152, 219, 0.1)',
               border: '1px solid rgba(52, 152, 219, 0.2)',
               cursor: 'pointer',
@@ -1091,6 +1115,7 @@ const handleDelete = async (note) => {
           role={role}
           onUpdateDefaultWorkspace={onUpdateDefaultWorkspace}
           userrole={userRole}
+          userWorkspaces={userWorkspaces}
         />
       )}
 

@@ -59,8 +59,6 @@ const ViewNoteModal = ({ noteId, onClose, documents = [], currentTheme, onViewAt
         });
     };
 
-    
-
     return (
         <div className={`view-note-modal-overlay theme-${currentTheme}`}>
             <div className="view-note-modal">

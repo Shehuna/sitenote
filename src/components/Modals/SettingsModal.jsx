@@ -19,7 +19,8 @@ const SettingsModal = ({
     defWorkID, 
     defWorkName,
     onUpdateDefaultWorkspace, 
-    userrole
+    userrole,
+    
    }) => { 
     const [activeTab, setActiveTab] = useState(null);
     const [projects, setProjects] = useState([]);
