@@ -43,7 +43,7 @@ form {
 }
 
 .input-group {
-  margin-bottom: 1rem;
+  margin-bottom: 0.2rem;
   text-align: left;
 }
 
@@ -74,7 +74,7 @@ form {
 .button-group {
   display: flex;
   justify-content: space-between;
-  margin-top: 1.5rem;
+  margin-top: 1rem;
   gap: 1rem;
 }
 
@@ -184,4 +184,66 @@ form {
 .password-toggle-btn:focus {
   outline: none;
   box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+/* Forgot Password Styles */
+.forgot-password-link {
+  text-align: center;
+  margin: 1px 0;
+}
+
+.forgot-password-btn {
+  background: none;
+  border: none;
+  color: #007bff;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 14px;
+  padding: 5px;
+}
+
+.forgot-password-btn:hover {
+  color: #0056b3;
+}
+
+.forgot-password-btn:disabled {
+  color: #6c757d;
+  cursor: not-allowed;
+}
+
+.forgot-password-instruction {
+  background-color: #f8f9fa;
+  border-left: 4px solid #007bff;
+  padding: 5px 15px;
+  border-radius: 4px;
+}
+
+.forgot-password-instruction p {
+  margin: 0;
+  font-size: 14px;
+  color: #495057;
+}
+
+.forgot-password-note {
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 4px;
+  padding: 10px;
+  margin: 15px 0;
+}
+
+.forgot-password-note p {
+  margin: 0;
+  font-size: 13px;
+  color: #856404;
+}
+
+.success-message {
+  background-color: #d4edda;
+  border: 1px solid #c3e6cb;
+  color: #155724;
+  padding: 10px;
+  border-radius: 4px;
+  margin: 10px 0;
+  font-size: 14px;
 }
