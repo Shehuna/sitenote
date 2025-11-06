@@ -6,6 +6,7 @@ import EditNoteModal from './Modals/EditNoteModal';
 import SettingsModal from './Modals/SettingsModal';
 import AttachedFileModal from './Modals/AttachedfileModal.jsx';
 import ViewNoteModal from './Modals/ViewNoteModal';
+import toast from 'react-hot-toast';
 
 const Dashboard = ({ 
   notes,
@@ -57,6 +58,9 @@ const Dashboard = ({
   const [role, setRole] = useState(null)
   const [isRoleLoading, setIsRoleLoading] = useState(false);
   const [priorities, setPriorities] = useState([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [noteToDelete, setNoteToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
   console.log(defaultUserWorkspaceID)
@@ -566,30 +570,51 @@ const Dashboard = ({
     setShowEditModal(true);
   };
 
-  const handleDelete = async (note) => {
-        const creationDate = note.timeStamp;
-            //|| note.dateCreated || note.createdDate || note.date
-            if (creationDate) {
-              const createdAt = new Date(creationDate);
-              const now = new Date();
-              const hoursDiff = (now - createdAt) / (1000 * 60 * 60); 
-              if(hoursDiff > 24){
-                 alert('Cannot delete this note it is older than 24 hours')
-              }
-             else{
-              if (window.confirm('Are you sure you want to delete this note?')) {
-              try { 
-                    await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/SiteNote/DeleteSiteNote/${note.id}`, { method: 'DELETE' });
-                    //refreshNotes();
-                  } catch (error) {
-                    console.error('Error deleting note:', error);
-                }
-             }
-            } 
-       
-      
-    }
+const handleDelete = async (note) => {
+    const creationDate = note.timeStamp;
+    if (creationDate) {
+      const createdAt = new Date(creationDate);
+      const now = new Date();
+      const hoursDiff = (now - createdAt) / (1000 * 60 * 60); 
+      if(hoursDiff > 24){
+         toast.error('Cannot delete this note it is older than 24 hours');
+      }
+     else{
+        setNoteToDelete(note);
+        setShowDeleteConfirm(true);
+     }
+    } 
+   
+  
   };
+
+ const handleConfirmDelete = async () => {
+    if (!noteToDelete) return;
+    setIsDeleting(true);
+    try { 
+          const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/SiteNote/DeleteSiteNote/${noteToDelete.id}`, { method: 'DELETE' });
+          if (response.ok) {
+            const data = await response.json();
+            toast.success(data.message || 'Note deleted successfully');
+          } else {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          refreshNotes();
+        } catch (error) {
+          console.error('Error deleting note:', error);
+          toast.error('Error deleting note: ' + error.message);
+      } finally {
+        setIsDeleting(false);
+        setShowDeleteConfirm(false);
+        setNoteToDelete(null);
+      }
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteConfirm(false);
+    setNoteToDelete(null);
+  };
+
   const getUniqueValues = (column, currentNotes) => {
     const values = new Set();
     currentNotes.forEach(note => {
@@ -917,6 +942,144 @@ const Dashboard = ({
        
       </div>
 
+      {showDeleteConfirm && (
+        <div 
+          className="modal-overlay" 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}
+          onClick={handleCancelDelete}
+        >
+          <div 
+            className="modal-content" 
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+              width: '90%',
+              maxWidth: '400px',
+              padding: '24px',
+              textAlign: 'center'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ marginBottom: '16px' }}>
+              <i 
+                className="fas fa-exclamation-triangle" 
+                style={{ 
+                  fontSize: '48px', 
+                  color: '#f39c12', 
+                  marginBottom: '12px' 
+                }} 
+              />
+            </div>
+            <h3 style={{ 
+              margin: '0 0 8px 0', 
+              color: '#2c3e50', 
+              fontSize: '20px',
+              fontWeight: 600
+            }}>
+              Confirm Delete
+            </h3>
+            <p style={{ 
+              margin: '0 0 24px 0', 
+              color: '#7f8c8d', 
+              lineHeight: '1.5' 
+            }}>
+              Are you sure you want to delete this note? This action cannot be undone.
+            </p>
+            <div 
+              className="modal-actions" 
+              style={{ 
+                display: 'flex', 
+                gap: '12px', 
+                justifyContent: 'center' 
+              }}
+            >
+              <button 
+                onClick={handleCancelDelete}
+                style={{
+                  backgroundColor: 'white',
+                  border: '1px solid #bdc3c7',
+                  color: '#7f8c8d',
+                  padding: '10px 20px',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  transition: 'all 0.2s ease',
+                  minWidth: '80px'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = '#ecf0f1';
+                  e.target.style.borderColor = '#95a5a6';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = 'white';
+                  e.target.style.borderColor = '#bdc3c7';
+                }}
+              >
+                <i className="fas fa-times" style={{ marginRight: '6px' }} />
+                Cancel
+              </button>
+              <button 
+                onClick={handleConfirmDelete} 
+                disabled={isDeleting}
+                className="delete-btn"
+                style={{
+                  backgroundColor: isDeleting ? '#bdc3c7' : '#e74c3c',
+                  border: 'none',
+                  color: 'white',
+                  padding: '10px 20px',
+                  borderRadius: '6px',
+                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  transition: 'all 0.2s ease',
+                  minWidth: '80px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  opacity: isDeleting ? 0.7 : 1
+                }}
+                onMouseEnter={(e) => {
+                  if (!isDeleting) {
+                    e.target.style.backgroundColor = '#c0392b';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isDeleting) {
+                    e.target.style.backgroundColor = '#e74c3c';
+                  }
+                }}
+              >
+                {isDeleting ? (
+                  <>
+                    <i className="fas fa-spinner fa-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-trash" />
+                    Delete
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {showSettingsModal && (
         <SettingsModal 
           //key={role}
