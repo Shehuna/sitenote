@@ -62,6 +62,8 @@ const Dashboard = ({
   const [noteToDelete, setNoteToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  
+
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
   console.log(defaultUserWorkspaceID)
 
@@ -183,44 +185,83 @@ const Dashboard = ({
   }, [userid, defaultUserWorkspaceID]); 
 
     const filteredNotes = useMemo(() => {
-    let result = [...notes];
-    
-    result = result.filter(note => {
+  let result = [...notes];
   
-      const job = jobs.find(j => 
-        j.id.toString() === note.jobId?.toString() || 
-        j.name === note.job
-      );
-      
-      return job && job.status !== 3;
-    });
-  
-    result.sort((a, b) => new Date(b.timeStamp) - new Date(a.timeStamp));
+  result = result.filter(note => {
+    const job = jobs.find(j => 
+      j.id.toString() === note.jobId?.toString() || 
+      j.name === note.job
+    );
     
-    
-    hierarchy.forEach(column => {
-      const selectedValue = selectedValues[column];
-      if (selectedValue) {
-        result = result.filter(note => {
-          const noteValue = column === 'date' 
-            ? new Date(note[column]).toLocaleDateString() 
-            : note[column];
-          return noteValue === selectedValue;
-        });
-      }
-    });
+    return job && job.status !== 3;
+  });
 
-    // Apply existing search filter
-    if (searchTerm.trim()) {
-      const searchColumnToUse = searchColumn || 'note';
+  // Custom sorting logic
+  result.sort((a, b) => {
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0); // Set to start of today for accurate comparison
+
+    // Parse dates - use noteDate if available, otherwise use date field
+    const dateA = new Date(a.date || a.date);
+    const dateB = new Date(b.date || b.date);
+    
+    // Set time to start of day for date comparison
+    const dateAOnly = new Date(dateA);
+    dateAOnly.setHours(0, 0, 0, 0);
+    const dateBOnly = new Date(dateB);
+    dateBOnly.setHours(0, 0, 0, 0);
+
+    // Check if dates are in the future
+    const isAFuture = dateAOnly > currentDate;
+    const isBFuture = dateBOnly > currentDate;
+
+    // Priority 1: Future-dated notes come first
+    if (isAFuture && !isBFuture) return -1;
+    if (!isAFuture && isBFuture) return 1;
+    
+    // Both are future or both are current/past
+    if (isAFuture && isBFuture) {
+      // Both future: sort by date ascending (closest future first)
+      if (dateAOnly.getTime() !== dateBOnly.getTime()) {
+        return dateAOnly - dateBOnly;
+      }
+    } else {
+      // Both current/past: sort by date descending (most recent first)
+      if (dateAOnly.getTime() !== dateBOnly.getTime()) {
+        return dateBOnly - dateAOnly;
+      }
+    }
+
+    // If same date, sort by timestamp (most recent entry first)
+    const timestampA = new Date(a.timeStamp || a.noteDate || a.date);
+    const timestampB = new Date(b.timeStamp || b.noteDate || b.date);
+    return timestampB - timestampA;
+  });
+  
+  // Apply existing hierarchy filters
+  hierarchy.forEach(column => {
+    const selectedValue = selectedValues[column];
+    if (selectedValue) {
       result = result.filter(note => {
-        const noteValue = String(note[searchColumnToUse]).toLowerCase();
-        return noteValue.includes(searchTerm.toLowerCase());
+        const noteValue = column === 'date' 
+          ? new Date(note[column]).toLocaleDateString() 
+          : note[column];
+        return noteValue === selectedValue;
       });
     }
-    
-    return result;
-  }, [notes, jobs, hierarchy, selectedValues, searchTerm, searchColumn]);
+  });
+
+  // Apply existing search filter
+  if (searchTerm.trim()) {
+    const searchColumnToUse = searchColumn || 'note';
+    result = result.filter(note => {
+      const noteValue = String(note[searchColumnToUse]).toLowerCase();
+      return noteValue.includes(searchTerm.toLowerCase());
+    });
+  }
+  
+  return result;
+}, [notes, jobs, hierarchy, selectedValues, searchTerm, searchColumn]);
 
   const fetchPriorities = async () =>{
       
