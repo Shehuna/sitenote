@@ -51,6 +51,7 @@ const SettingsModal = ({
     const navigate = useNavigate();
     const storedUser = localStorage.getItem('user');
     const userId = storedUser ? JSON.parse(storedUser).id : null;
+    const userRole = storedUser ? JSON.parse(storedUser).role : null;
     
     useEffect(() => {
         if (isOpen) {
@@ -193,82 +194,91 @@ useEffect(() => {
     };
     
 
-    const renderMainMenu = () => (
-        
-        <div className="settings-options-container">
+    const renderMainMenu = () => {
+        const options = [
+            {
+                id: 'projectManagement',
+                icon: 'fa-project-diagram',
+                text: 'Project Management'
+            },
+            {
+                id: 'jobManagement',
+                icon: 'fa-tasks',
+                text: 'Job Management'
+            },
+            {
+                id: 'userManagement',
+                icon: 'fa-user-plus',
+                text: 'User Management'
+            },
+            {
+                id: 'userProfile',
+                icon: 'fa-user',
+                text: 'User Profile'
+            },
+            {
+                id: 'jobPermissions',
+                icon: 'fa-user-shield',
+                text: 'Job Permissions'
+            },
+            {
+                id: 'jobStatus',
+                icon: 'fa-sync-alt',
+                text: 'Job Status Update'
+            },
+            {
+                id: 'workspaceSettings',
+                icon: 'fa-building', 
+                text: 'Workspace Settings'
+            }
+        ];
+
+        const filteredOptions = options.filter(option => {
+            if (option.id === 'jobManagement' && userrole === "User") return false;
+            return true;
+        });
+
+        return (
             
-            {[
-                {
-                    id: 'projectManagement',
-                    icon: 'fa-project-diagram',
-                    text: 'Project Management'
-                },
-                {
-                    id: 'jobManagement',
-                    icon: 'fa-tasks',
-                    text: 'Job Management'
-                },
-                {
-                    id: 'userManagement',
-                    icon: 'fa-user-plus',
-                    text: 'User Management'
-                },
-                {
-                    id: 'userProfile',
-                    icon: 'fa-user',
-                    text: 'User Profile'
-                },
-                {
-                    id: 'jobPermissions',
-                    icon: 'fa-user-shield',
-                    text: 'Job Permissions'
-                },
-                {
-                    id: 'jobStatus',
-                    icon: 'fa-sync-alt',
-                    text: 'Job Status Update'
-                },
-                {
-                    id: 'workspaceSettings',
-                    icon: 'fa-building', 
-                    text: 'Workspace Settings'
-                }
-            ].map((option) => (
+            <div className="settings-options-container">
                 
-                <button
-                    key={option.id}
-                    className="settings-option"
-                    onClick={() => setActiveTab(option.id)}
-                    disabled={option.id !== 'workspaceSettings' && option.id !== 'userProfile' && role !== 1}
-                    aria-label={`Open ${option.text} settings`}
-                >
+                {filteredOptions.map((option) => (
                     
+                    <button
+                        key={option.id}
+                        className="settings-option"
+                        onClick={() => setActiveTab(option.id)}
+                        disabled={option.id !== 'workspaceSettings' && option.id !== 'userProfile' && role !== 1}
+                        aria-label={`Open ${option.text} settings`}
+                    >
+                        
+                        <div className="option-icon">
+                            <i className={`fas ${option.icon}`} />
+                        </div>
+                        <div className="option-text">
+                            <h4>{option.text}</h4>
+                            <p>{option.description}</p>
+                        </div>
+                        <i className="fas fa-chevron-right option-arrow" />
+                    </button>
+                ))}
+
+                <button
+                    className="settings-option logout-option"
+                    onClick={handleLogout}
+                    aria-label="Logout"
+                >
                     <div className="option-icon">
-                        <i className={`fas ${option.icon}`} />
+                        <i className="fas fa-sign-out-alt" />
                     </div>
                     <div className="option-text">
-                        <h4>{option.text}</h4>
-                        <p>{option.description}</p>
+                        <h4>Logout</h4>
                     </div>
                     <i className="fas fa-chevron-right option-arrow" />
                 </button>
-            ))}
-
-            <button
-                className="settings-option logout-option"
-                onClick={handleLogout}
-                aria-label="Logout"
-            >
-                <div className="option-icon">
-                    <i className="fas fa-sign-out-alt" />
-                </div>
-                <div className="option-text">
-                    <h4>Logout</h4>
-                </div>
-                <i className="fas fa-chevron-right option-arrow" />
-            </button>
-        </div>
-    );
+            </div>
+        );
+    };
 
     const renderContent = () => {
         if (!activeTab) return renderMainMenu();

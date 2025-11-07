@@ -35,9 +35,14 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
     const [userWorkspaces, setUserWorkspaces] = useState([]);
     const [selectedUser, setSelectedUser] = useState('');
     
+    const [email, setEmail] = useState('');
     
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [successMessage, setSuccessMessage] = useState('');
+    const [workspaceError, setWorkspaceError] = useState('');
+    const [addingWorkspace, setAddingWorkspace] = useState(false);
+    const [editingWorkspace, setEditingWorkspace] = useState(false);
     const COUNTRY_OPTIONS = [
     "United States",
     "Canada",
@@ -74,6 +79,8 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
                         setCity(workspace.city)
                         setCountry(workspace.country)
                         setStatus(workspace.status)
+                        setEmail(workspace.email || '')
+                        setPhone(workspace.phone || '')
                     }
                 } else{
                     setWorkspaceName('')
@@ -103,48 +110,130 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
       };
 
    
-   const handleEditWorkspace = async () => {
-    if (!selectedWorkspace || !workspaceName) {
-        toast.error('Please select a workspace and enter a new name.')
-        return;
+   const validateAddWorkspace = () => {
+    if (!workspaceName.trim()) {
+      return 'Workspace name is required';
+    }
+    if (!ownerType) {
+      return 'Owner type is required';
+    }
+    if (!ownerName.trim()) {
+      return 'Owner name is required';
+    }
+    if (!email.trim()) {
+      return 'Email is required';
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return 'Please enter a valid email address';
+    }
+    if (!phone.trim()) {
+      return 'Phone is required';
+    }
+    if (!addressLine1.trim()) {
+      return 'Address Line 1 is required';
+    }
+    if (!city.trim()) {
+      return 'City is required';
+    }
+    if (!country) {
+      return 'Country is required';
+    }
+    return '';
+  };
+
+   const validateEditWorkspace = () => {
+    if (!selectedWorkspace) {
+      return 'Please select a workspace';
+    }
+    if (!workspaceName.trim()) {
+      return 'Workspace name is required';
+    }
+    if (!ownerType) {
+      return 'Owner type is required';
+    }
+    if (!ownerName.trim()) {
+      return 'Owner name is required';
+    }
+    if (!email.trim()) {
+      return 'Email is required';
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return 'Please enter a valid email address';
+    }
+    if (!phone.trim()) {
+      return 'Phone is required';
+    }
+    if (!addressLine1.trim()) {
+      return 'Address Line 1 is required';
+    }
+    if (!city.trim()) {
+      return 'City is required';
+    }
+    if (!country) {
+      return 'Country is required';
+    }
+    return '';
+  };
+
+   const handleEditWorkspace = async (e) => {
+    e.preventDefault();
+    setSuccessMessage('');
+    setWorkspaceError('');
+    const validationError = validateEditWorkspace();
+    if (validationError) {
+      setWorkspaceError(validationError);
+      return;
     }
 
     try {
-        const response = await fetch(`${API_URL}/api/Workspace/UpdateWorkspace/${selectedWorkspace}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                id: selectedWorkspace,
-                name: workspaceName,
-                ownerUserID: ownerUserID,
-                ownerType: ownerType,
-                ownerName: ownerName,
-                addressLine1: addressLine1,
-                city: city,
-                country: country,
-                status: status
-             }),
-        });
+      setEditingWorkspace(true);
+      const response = await fetch(`${API_URL}/api/Workspace/UpdateWorkspace/${selectedWorkspace}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+              id: selectedWorkspace,
+              name: workspaceName,
+              ownerUserID: ownerUserID,
+              ownerType: ownerType,
+              ownerName: ownerName,
+              email: email,
+              phone: phone,
+              addressLine1: addressLine1,
+              city: city,
+              country: country,
+              status: status
+           }),
+      });
 
-        if (!response.ok) throw new Error('Failed to update workspace');
-        
+      if (!response.ok) {
+        const errorData = await response.json();
+        setWorkspaceError(errorData.message || `Failed to update workspace: ${response.status}`);
+        return;
+      }
+      
+      const data = await response.json();
+      setSuccessMessage(data.message || 'Workspace updated successfully');
+      setTimeout(() => {
+        setIsEditWorkspaceOpen(false);
         fetchWorkspaces();
         setWorkspaceName('')
         setOwnerType(1)
         setOwnerName('')
+        setEmail('')
+        setPhone('')
         setAddressLine1('')
         setCity('')
         setCountry('')
         setStatus(2)
-        setSelectedWorkspace('');
-        setIsEditWorkspaceOpen(false);
-        toast.success('Worksapce is updated successfully')
-        fetchWorkspaces(ownerUserID);
+      }, 2000);
     } catch (err) {
-        setError(err.message);
-        toast.error('Error updating workspace')
+      setWorkspaceError(err.message);
+    } finally {
+      setEditingWorkspace(false);
     }
-};
+  };
 
  const fetchUsers = async () => {
         setLoading(true);
@@ -165,43 +254,83 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
         }
     };
 
- const handleAddWorkspace = async () => {
-    try {
-        const response = await fetch(`${API_URL}/api/Workspace/AddWorkspace`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                name: workspaceName,
-                ownerUserID: ownerUserID,
-                ownerType: ownerType,
-                ownerName: ownerName,
-                addressLine1: addressLine1,
-                city: city,
-                country: country,
-                status: status
-            }),
-        
-            });
-
-        if (!response.ok) throw new Error('Failed to add workspace');
-        fetchWorkspaces(); 
-        setWorkspaceName('')
-        setOwnerType(1)
-        setOwnerName('')
-        setAddressLine1('')
-        setCity('')
-        setCountry('')
-        setStatus(2)
-        setIsAddWorkspaceOpen(false);
-        /* const data = await response.json()
-        const workspaceID =  data.workspace.id
-        console.log(workspaceID)
-        await addUserToWorkSpace(ownerUserID, workspaceID) */
-    } catch (err) {
-        setError(err.message);
-        console.error('Error adding workspace:', err);
+ const handleAddWorkspace = async (e) => {
+    e.preventDefault();
+    setSuccessMessage('');
+    setWorkspaceError('');
+    const validationError = validateAddWorkspace();
+    if (validationError) {
+      setWorkspaceError(validationError);
+      return;
     }
-};
+    try {
+      setAddingWorkspace(true);
+      const response = await fetch(`${API_URL}/api/Workspace/AddWorkspace`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+              name: workspaceName,
+              ownerUserID: ownerUserID,
+              ownerType: ownerType,
+              ownerName: ownerName,
+              email: email,
+              phone: phone,
+              addressLine1: addressLine1,
+              city: city,
+              country: country,
+              status: status
+          }),
+      
+          });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        setWorkspaceError(errorData.message || `Failed to add workspace: ${response.status}`);
+        return;
+      }
+      const data = await response.json();
+      setSuccessMessage(data.message || 'Workspace added successfully');
+      setTimeout(() => {
+        setIsAddWorkspaceOpen(false);
+        fetchWorkspaces(); 
+      }, 2000);
+      setWorkspaceName('')
+      setOwnerType(1)
+      setOwnerName('')
+      setEmail('')
+      setPhone('')
+      setAddressLine1('')
+      setCity('')
+      setCountry('')
+      setStatus(2)
+    } catch (err) {
+      setWorkspaceError(err.message);
+      console.error('Error adding workspace:', err);
+    } finally {
+      setAddingWorkspace(false);
+    }
+  };
+
+  const openAddWorkspaceModal = () => {
+    setSuccessMessage('');
+    setWorkspaceError('');
+    setWorkspaceName('')
+    setOwnerType(1)
+    setOwnerName('')
+    setEmail('')
+    setPhone('')
+    setAddressLine1('')
+    setCity('')
+    setCountry('')
+    setStatus(2)
+    setIsAddWorkspaceOpen(true);
+  };
+
+  const openEditWorkspaceModal = () => {
+    setSuccessMessage('');
+    setWorkspaceError('');
+    setIsEditWorkspaceOpen(true);
+  };
 
   const addUserToWorkSpace = async() => {
     try {
@@ -257,6 +386,8 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
         setWorkspaceName(works.name)
         setOwnerType(works.ownerType)
         setOwnerName(works.ownerName)
+        setEmail(works.email || '')
+        setPhone(works.phone || '')
         setAddressLine1(works.addressLine1)
         setCity(works.city)
         setCountry(works.country)
@@ -289,14 +420,14 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
       <div className="settings-action-buttons">
         <button
           className="btn-primary"
-          onClick={() => setIsAddWorkspaceOpen(true)}
+          onClick={openAddWorkspaceModal}
           disabled={userRole === "User"}
         >
           Add Workspace
         </button>
         <button
           className="btn-secondary"
-          onClick={() => setIsEditWorkspaceOpen(true)}
+          onClick={openEditWorkspaceModal}
           disabled={!(userRole === "Admin" && selectedWorkspace)}
         >
           Edit Workspace
@@ -337,12 +468,18 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
           ))}
         </select>
       </div>
-      <Modal
+            <Modal
         isOpen={isAddWorkspaceOpen}
-        onClose={() => setIsAddWorkspaceOpen(false)}
+        onClose={() => { setIsAddWorkspaceOpen(false); setSuccessMessage(''); setWorkspaceError(''); }}
         title="Add Workspace"
       >
         <div className="settings-form">
+          {successMessage && (
+            <div className="success-message">
+              <i className="fas fa-check-circle"></i> {successMessage}
+            </div>
+          )}
+          <form onSubmit={(e) => { e.preventDefault(); handleAddWorkspace(e); }}>
           <div className="settings-form user-form-grid">
             <div className="form-group">
               <label>Workspace Name:</label>
@@ -371,6 +508,26 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
                 value={ownerName}
                 onChange={(e) => setOwnerName(e.target.value)}
                 placeholder="Enter Owner name"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Email:</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter email"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Phone:</label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Enter phone"
                 required
               />
             </div>
@@ -413,27 +570,35 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
               </select>
             </div>
           </div>
-
+          {workspaceError && <div className="error-message">{workspaceError}</div>}
           <div className="modal-footer">
-            <button className="btn-primary" onClick={handleAddWorkspace}>
-              Add
+            <button className="btn-primary" type="submit" disabled={addingWorkspace || !workspaceName || !ownerType || !ownerName || !email || !phone || !addressLine1 || !city || !country}>
+              {addingWorkspace ? 'Adding...' : 'Add'}
             </button>
             <button
               className="btn-close"
-              onClick={() => setIsAddWorkspaceOpen(false)}
+              type="button"
+              onClick={() => { setIsAddWorkspaceOpen(false); setSuccessMessage(''); setWorkspaceError(''); }}
+              disabled={addingWorkspace}
             >
               Cancel
             </button>
           </div>
+          </form>
         </div>
       </Modal>
-
       <Modal
         isOpen={isEditWorkspaceOpen}
-        onClose={() => setIsEditWorkspaceOpen(false)}
+        onClose={() => { setIsEditWorkspaceOpen(false); setSuccessMessage(''); setWorkspaceError(''); }}
         title="Edit Workspace"
       >
         <div className="settings-form">
+          {successMessage && (
+            <div className="success-message">
+              <i className="fas fa-check-circle"></i> {successMessage}
+            </div>
+          )}
+          <form onSubmit={(e) => { e.preventDefault(); handleEditWorkspace(e); }}>
           <div className="settings-form user-form-grid">
             <div className="form-group">
               <label>Workspace Name:</label>
@@ -462,6 +627,26 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
                 value={ownerName}
                 onChange={(e) => setOwnerName(e.target.value)}
                 placeholder="Enter Owner name"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Email:</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter email"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Phone:</label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Enter phone"
                 required
               />
             </div>
@@ -504,18 +689,21 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
               </select>
             </div>
           </div>
-
+          {workspaceError && <div className="error-message">{workspaceError}</div>}
           <div className="modal-footer">
-            <button className="btn-primary" onClick={handleEditWorkspace}>
-              Add
+            <button className="btn-primary" type="submit" disabled={editingWorkspace || !selectedWorkspace || !workspaceName || !ownerType || !ownerName || !email || !phone || !addressLine1 || !city || !country}>
+              {editingWorkspace ? 'Updating...' : 'Update'}
             </button>
             <button
               className="btn-close"
-              onClick={() => setIsEditWorkspaceOpen(false)}
+              type="button"
+              onClick={() => { setIsEditWorkspaceOpen(false); setSuccessMessage(''); setWorkspaceError(''); }}
+              disabled={editingWorkspace}
             >
               Cancel
             </button>
           </div>
+          </form>
         </div>
       </Modal>
 

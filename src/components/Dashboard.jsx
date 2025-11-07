@@ -781,7 +781,6 @@ const handleDelete = async (note) => {
            <div>
               <p className="dropdown-container">{defaultUserWorkspaceName}</p>
               <button 
-              disabled={userWorkspaces.length === 1}
               onClick={handleOpenSettings}
               style={{
               background: 'rgba(52, 152, 219, 0.1)',
