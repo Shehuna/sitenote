@@ -234,7 +234,7 @@ useEffect(() => {
         ];
 
         const filteredOptions = options.filter(option => {
-            if (option.id === 'jobManagement' && userrole === "User") return false;
+            if (option.id === 'userManagement' && userrole === "User") return false;
             return true;
         });
 
