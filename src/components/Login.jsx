@@ -279,16 +279,19 @@ const Login = ({ onLogin }) => {
             </div>
 
             {/* Forgot Password Link */}
-            <div className="forgot-password-link">
-              <button
-                type="button"
-                className="forgot-password-btn"
-                onClick={handleForgotPasswordClick}
-                disabled={isLoading}
-              >
-                Forgot Password?
-              </button>
-            </div>
+
+            {/* Temporarily disabled until further requirement is done */}
+
+            {/*<div className="forgot-password-link">*/}
+            {/*  <button*/}
+            {/*    type="button"*/}
+            {/*    className="forgot-password-btn"*/}
+            {/*    onClick={handleForgotPasswordClick}*/}
+            {/*    disabled={isLoading}*/}
+            {/*  >*/}
+            {/*    Forgot Password?*/}
+            {/*  </button>*/}
+            {/*</div>*/}
 
             <div className="signup-link-group">
               <span className="signup-text">Don't have an account?</span>
