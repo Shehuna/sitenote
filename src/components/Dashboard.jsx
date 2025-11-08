@@ -61,6 +61,8 @@ const Dashboard = ({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   
 
@@ -185,7 +187,7 @@ const Dashboard = ({
   }, [userid, defaultUserWorkspaceID]); 
 
     const filteredNotes = useMemo(() => {
-  let result = [...notes];
+  let result = searchTerm.trim() ? searchResults : [...notes];
   
   result = result.filter(note => {
     const job = jobs.find(j => 
@@ -251,17 +253,9 @@ const Dashboard = ({
     }
   });
 
-  // Apply existing search filter
-  if (searchTerm.trim()) {
-    const searchColumnToUse = searchColumn || 'note';
-    result = result.filter(note => {
-      const noteValue = String(note[searchColumnToUse]).toLowerCase();
-      return noteValue.includes(searchTerm.toLowerCase());
-    });
-  }
   
   return result;
-}, [notes, jobs, hierarchy, selectedValues, searchTerm, searchColumn]);
+}, [notes, jobs, hierarchy, selectedValues, searchTerm, searchColumn, searchResults]);
 
   const fetchPriorities = async () =>{
       
@@ -718,6 +712,33 @@ const handleDelete = async (note) => {
         }
   }
 
+  useEffect(() => {
+    const performSearch = async () => {
+      if (!searchTerm.trim() || !userid) {
+        setSearchResults([]);
+        return;
+      }
+      setSearchLoading(true);
+      try {
+        const response = await fetch(`${apiUrl}/SiteNote/SearchSiteNotes?searchTerm=${encodeURIComponent(searchTerm.trim())}&pageNumber=1&pageSize=50&userId=${userid}`);
+        if (!response.ok) throw new Error('Search failed');
+        const data = await response.json();
+        setSearchResults((data.siteNotes || []).map(note => ({
+          ...note,
+          userName: note.UserName || note.userName,
+          documentCount: note.DocumentCount || note.documentCount || 0,
+        })));
+      } catch (error) {
+        console.error('Search error:', error);
+        setSearchResults([]);
+        toast.error('Search failed');
+      } finally {
+        setSearchLoading(false);
+      }
+    };
+    performSearch();
+  }, [searchTerm, userid, apiUrl]);
+
 
   return (
     <div className="main-content">
@@ -818,9 +839,6 @@ const handleDelete = async (note) => {
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value);
-              if (!searchColumn) {
-                setSearchColumn('note');
-              }
             }}
             style={styles.searchInput}
           />
@@ -925,7 +943,13 @@ const handleDelete = async (note) => {
             </tr>
           </thead>
           <tbody>
-            {filteredNotes.map(note => (
+            {searchLoading ? (
+              <tr>
+                <td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>
+                  Searching...
+                </td>
+              </tr>
+            ) : filteredNotes.map(note => (
                 <tr
                   key={note.id}
                   onClick={() => handleRowClick(note)}
