@@ -211,7 +211,7 @@ const JobManagment = ({defWorkId, updateProjectsAndJobs}) => {
                     {jobs
                     .filter(job => {
                         const project = projects.find(
-                        p => p.id === job.projectId && p.workspaceId == defWorkId
+                        p => p.id === job.projectId && p.workspaceId === defWorkId
                         );
                         return project && job.status !== 3 && project.status !== 3;
                     })
@@ -253,7 +253,7 @@ const JobManagment = ({defWorkId, updateProjectsAndJobs}) => {
                         >
                             <option value="">Select Project</option>
                             {projects 
-                                .filter(project => (project.workspaceId == defWorkId && project.status == 1)) // Only show active projects
+                                .filter(project => (project.workspaceId === defWorkId && project.status === 1)) // Only show active projects
                                 .map(project => (
                                     <option key={project.id} value={project.id}>{project.name}</option>
                                 ))}

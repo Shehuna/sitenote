@@ -77,7 +77,6 @@ const NewNoteModal = ({
   };
 
   
-      // Get filtered projects based on workspace
     useEffect(() => {
         if (selectedProject) {
             const filtered = jobs.filter(job =>
@@ -100,7 +99,7 @@ const NewNoteModal = ({
             setSelectedDate(formattedDate);
             
             setActiveTab('journal');
-            
+            setSelectedPriority('1'); 
             if (prefilledData) {
                 const project = projects.find(p => p.name === prefilledData.project);
                 if (project) {
@@ -170,7 +169,6 @@ const NewNoteModal = ({
             if (!siteNoteId) {
                 throw new Error("Failed to retrieve SiteNoteId from the saved note.");
             } 
-            //const siteNoteId = response.siteNoteId
             console.log(siteNoteId)
             console.log("Journal note saved successfully. SiteNoteId:", siteNoteId);
 

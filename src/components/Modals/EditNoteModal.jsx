@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import './EditNoteModal.css';
 import toast from 'react-hot-toast';
 
-const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument, projects = [], jobs = [], priorities = [] }) => {
+const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument, projects = [], jobs = [], priorities = [], onPriorityUpdate  }) => {
   
   const [isEditable, setIsEditable] = useState(true);
   const [journalData, setJournalData] = useState({
@@ -73,7 +73,6 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
   useEffect(() => {
     if (note) {
       const creationDate = note.timeStamp;
-      //|| note.dateCreated || note.createdDate || note.date
       if (creationDate) {
         const createdAt = new Date(creationDate);
         const now = new Date();
@@ -89,7 +88,7 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
       }
     }
   }, [note]);
-
+  
 
 
   const getMimeType = (fileName) => {
@@ -146,6 +145,66 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
       setIsLoadingDocuments(false);
     }
   }, []); 
+  useEffect(() => {
+    if (note) {
+        const projectId = note.projectId 
+            ? note.projectId.toString() 
+            : findProjectIdByName(note.project || '');
+        
+        const jobId = note.jobId 
+            ? note.jobId.toString() 
+            : findJobIdByName(note.job || '', projectId);
+        
+        let correctedDate = '';
+        if (note.date) {
+            const dateObj = new Date(note.date);
+            const year = dateObj.getFullYear();
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const day = String(dateObj.getDate()).padStart(2, '0');
+            correctedDate = `${year}-${month}-${day}`;
+        }
+
+        setJournalData({
+            date: correctedDate,
+            projectId: projectId || '',
+            jobId: jobId || '',
+            note: note.note || ''
+        });
+
+        if (note.id) {
+            fetchDocumentsByReference(note.id); 
+        }
+
+        if(note.id){
+            const user = JSON.parse(localStorage.getItem('user'));
+            console.log('=== PRIORITY DEBUG ===');
+            console.log('Note ID:', note.id);
+            console.log('Current User ID:', user.id);
+            console.log('All priorities:', priorities);
+            
+            let result = priorities.find(p => p.noteID == note.id);
+            console.log('Found priority (any user):', result);
+            
+            if (!result) {
+                result = priorities.find(p => p.noteID == note.id && p.userId == user.id);
+                console.log('Found priority (current user):', result);
+            }
+            
+            if(result){
+                console.log('✅ Setting priorityId:', result.id);
+                console.log('✅ Setting selectedPriority:', result.priorityValue);
+                setSelectedPriority(result.priorityValue.toString());
+                setPriorityId(result.id.toString());
+            } else {
+                console.log('❌ No priority found for this note');
+                setSelectedPriority('1');
+                setPriorityId('');
+            }
+            console.log('=== END DEBUG ===');
+        }
+    }
+}, [note, fetchDocumentsByReference, projects, jobs, priorities]);
+
 
   const findProjectIdByName = (projectName) => {
     const project = projects.find(p => p.name === projectName);
@@ -160,45 +219,7 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
     return job ? job.id.toString() : '';
   };
 
-  useEffect(() => {
-    if (note) {
-      const projectId = note.projectId 
-        ? note.projectId.toString() 
-        : findProjectIdByName(note.project || '');
-      
-      const jobId = note.jobId 
-        ? note.jobId.toString() 
-        : findJobIdByName(note.job || '', projectId);
-        let correctedDate = '';
-      if (note.date) {
-        const dateObj = new Date(note.date);
-        const year = dateObj.getFullYear();
-        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-        const day = String(dateObj.getDate()).padStart(2, '0');
-        correctedDate = `${year}-${month}-${day}`;
-      }
-
-      setJournalData({
-        date: correctedDate,
-        projectId: projectId || '',
-        jobId: jobId || '',
-        note: note.note || ''
-      });
-
-      if (note.id) {
-        fetchDocumentsByReference(note.id); 
-      }
-
-      if(note.id){
-        const result = priorities.find(p => p.noteID == note.id)
-        if(result){
-          console.log(result)
-          setSelectedPriority(result.priorityValue)
-          setPriorityId(result.id)
-        }
-      }
-    }
-  }, [note, fetchDocumentsByReference, projects, jobs]); 
+  
 
   const handleJournalChange = (e) => {
     if (!isEditable) return;
@@ -299,11 +320,11 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
       throw new Error(`Failed to retrieve document: ${response.status} ${response.statusText}`);
     }
 
-    const blob = await response.blob(); // read as binary
+    const blob = await response.blob(); 
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = documentToDownload.fileName; // sets the filename
+    a.download = documentToDownload.fileName; 
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -319,17 +340,18 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
 };
 
 
-  const handleSaveNote = async () => {
-    console.log()
-    // if (!isEditable) {
-    //   setError('Cannot edit notes older than 24 hours');
-    //   return;
-    // }
-    
+   const handleSaveNote = async () => {
     setIsSubmitting(true);
     setError(null);
   
     try {
+      if (!isEditable) {
+        await handleUpdatepriority();
+        onClose();
+        refreshNotes();
+        return;
+      }
+
       const originalProjectId = note.projectId ? note.projectId.toString() : findProjectIdByName(note.project || '');
       const originalJobId = note.jobId ? note.jobId.toString() : findJobIdByName(note.job || '', originalProjectId);
       
@@ -344,11 +366,11 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
         Note: journalData.note,
         JobId: journalData.jobId,
         UserId: journalData.userId
-        //UserId: journalData.userId
       });
   
       if (result && (result.success || result.id || result.message)) {
-        handleUpdatepriority()
+      
+        await handleUpdatepriority();
         onClose();
         refreshNotes();
       } else {
@@ -362,37 +384,63 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
     }
   };
 
-  const handleUpdatepriority = async () =>{
+ const handleUpdatepriority = async () => {
     try {
-      const url = `${process.env.REACT_APP_API_BASE_URL}/api/Priority/UpdatePriority/${priorityId}`;
-
-      const response = await fetch(url, {
-        method: "PUT",
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          priorityValue: selectedPriority
-        })
-      });
-      
-      if (!response.ok) {
-        let errorMessage = `Server error: ${response.status} ${response.statusText}`;
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorMessage;
-        } catch (e) {}
+        const user = JSON.parse(localStorage.getItem('user'));
+        console.log('=== UPDATE PRIORITY DEBUG ===');
+        console.log('priorityId:', priorityId);
+        console.log('selectedPriority:', selectedPriority);
+        console.log('note.id:', note.id);
+        console.log('user.id:', user.id);
         
-        throw new Error(errorMessage);
-      }
-      toast.success('Site Note updated Successfully')
-      await refreshNotes();
-      
+        let response;
+        
+        if (priorityId) {
+            console.log('Updating existing priority');
+            const url = `${process.env.REACT_APP_API_BASE_URL}/api/Priority/UpdatePriority/${priorityId}`;
+            console.log('Update URL:', url);
+            
+            response = await fetch(url, {
+                method: "PUT",
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    priorityValue: selectedPriority
+                })
+            });
+        } 
+        else {
+            console.log('Creating new priority');
+            response = await fetch(
+                `${process.env.REACT_APP_API_BASE_URL}/api/Priority/AddPriority`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        noteID: note.id,
+                        priorityValue: selectedPriority,
+                        userId: user.id
+                    }),
+                }
+            );
+        }
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || `Failed to ${priorityId ? 'update' : 'create'} priority`);
+        }
+        
+        console.log(`Priority ${priorityId ? 'updated' : 'created'} successfully`);
+        toast.success(`Priority ${priorityId ? 'updated' : 'created'} successfully`);
+        
     } catch (error) {
-      console.error("Error updating note:", error);
-      throw error;
+        console.error("Error saving priority:", error);
+        throw error;
     }
-  }
+}
 
   if (!note) return null;
 
@@ -554,25 +602,25 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
               )}
             </div>
           ): (<div className="journal-section">
-                        <div className="form-group">
-                            <label>Priority</label>
-                            
-                            <select
-                                value={selectedPriority}
-                                onChange={(e) => {
-                                    setSelectedPriority(e.target.value);
-                                    
-                                }}
-                            >
-                                <option value="">Select Priority</option>
+    <div className="form-group">
+        <label>Priority</label>
+        
+        <select
+            value={selectedPriority}
+            onChange={(e) => {
+                setSelectedPriority(e.target.value);
+            }}
+            disabled={isSubmitting}
+            className={`priority-select ${selectedPriority ? `priority-${selectedPriority}` : 'priority-default'}`}
+        >
+            <option value="">Select Priority</option>
             <option value="4" className="priority-option-4">High</option>
             <option value="3" className="priority-option-3">Medium</option>
             <option value="2" className="priority-option-2">Low</option>
             <option value="1" className="priority-option-1">No Priority</option>
-                            </select>
-                        </div>
-                        
-                    </div>)}
+        </select>
+    </div>
+</div>)}
         </div>
 
         <div className="modal-footer">

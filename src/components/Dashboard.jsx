@@ -28,7 +28,7 @@ const Dashboard = ({
   onUpdateDefaultWorkspace,
   onChange, 
   fetchProjectAndJobs,
-  
+
 }) => {
   //const [notes, setNotes] = useState([]);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -125,6 +125,67 @@ const Dashboard = ({
     onChange(option);
     setIsDropDownOpen(false);
   };
+  const handlePriorityUpdate = () => {
+    console.log('🔄 Refreshing priorities after edit...');
+    fetchPriorities();
+};
+const handleRefresh = async () => {
+  try {
+    console.log('🔄 Manual refresh triggered');
+    await handleRefreshNotes();
+    toast.success('Dashboard refreshed');
+  } catch (error) {
+    console.error('Error refreshing dashboard:', error);
+    toast.error('Error refreshing dashboard');
+  }
+};
+
+const getRelativeTime = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMs = now - date;
+    const diffInSeconds = Math.floor(diffInMs / 1000);
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    const diffInDays = Math.floor(diffInHours / 24);
+
+    if (diffInSeconds < 60) {
+        return 'Just now';
+    } else if (diffInMinutes === 1) {
+        return '1 min ago';
+    } else if (diffInMinutes < 60) {
+        return `${diffInMinutes} mins ago`;
+    } else if (diffInHours === 1) {
+        return '1 hour ago';
+    } else if (diffInHours < 24) {
+        return `${diffInHours} hours ago`;
+    } else if (diffInDays === 1) {
+        return 'Yesterday';
+    } else if (diffInDays < 7) {
+        return `${diffInDays} days ago`;
+    } else if (diffInDays < 30) {
+        const weeks = Math.floor(diffInDays / 7);
+        return `${weeks} week${weeks > 1 ? 's' : ''} ago`;
+    } else {
+        return date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+        });
+    }
+};
+
+const getExactDateTime = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+};
 
  
   const loadDocumentsForView = async (noteId) => {
@@ -203,12 +264,12 @@ const filteredNotes = useMemo(() => {
   result.sort((a, b) => {
     return b.id - a.id; // Descending order by noteId
   });
-  
+
   // Alternative: Sort by noteId in ascending order (lowest ID first = oldest)
   // result.sort((a, b) => {
   //   return a.id - b.id; // Ascending order by noteId
   // });
-  
+
   hierarchy.forEach(column => {
     const selectedValue = selectedValues[column];
     if (selectedValue) {
@@ -220,6 +281,14 @@ const filteredNotes = useMemo(() => {
       });
     }
   });
+
+  if (searchTerm.trim()) {
+    const searchColumnToUse = searchColumn || 'note';
+    result = result.filter(note => {
+      const noteValue = String(note[searchColumnToUse]).toLowerCase();
+      return noteValue.includes(searchTerm.toLowerCase());
+    });
+  }
 
   return result;
 }, [notes, jobs, hierarchy, selectedValues, searchTerm, searchColumn, searchResults]);
@@ -525,6 +594,11 @@ const filteredNotes = useMemo(() => {
     setShowNewModal(false);
     setSelectedRow(null);
   };
+  const handleRefreshNotes = async () => {
+    await fetchPriorities();
+    await refreshNotes();
+};
+
 
   const handleDrop = (e) => {
     e.preventDefault();
@@ -823,7 +897,40 @@ const handleDelete = async (note) => {
               </button>
             </span>
           )}
-          <button 
+                                    <button
+                onClick={handleRefresh}
+                style={{
+                  background: '#1976d2',
+                  border: 'none',
+                  cursor: 'pointer',
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.3s ease',
+                  color: 'white',
+                  fontSize: '14px',
+                  position: 'relative',
+                  zIndex: 1,
+                  boxShadow: '0 2px 6px rgba(25, 118, 210, 0.3)'
+                }}
+                title="Refresh Dashboard"
+                onMouseEnter={(e) => {
+                  e.target.style.background = '#1565c0';
+                  e.target.style.transform = 'rotate(180deg)';
+                  e.target.style.boxShadow = '0 3px 8px rgba(25, 118, 210, 0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = '#1976d2';
+                  e.target.style.transform = 'rotate(0deg)';
+                  e.target.style.boxShadow = '0 2px 6px rgba(25, 118, 210, 0.3)';
+                }}
+              >
+                <i className="fas fa-sync-alt" />
+              </button>
+          <button
             id="newBtn" 
             style={{
               backgroundColor: '#1976d2',
@@ -910,13 +1017,10 @@ const handleDelete = async (note) => {
             </tr>
           </thead>
           <tbody>
-            {searchLoading ? (
-              <tr>
-                <td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>
-                  Searching...
-                </td>
-              </tr>
-            ) : filteredNotes.map(note => (
+           {filteredNotes.map(note => {
+              const notePriority = priorities.find(p => p.noteID === note.id && p.userId === userid);
+              const priorityClass = notePriority ? `priority-${notePriority.priorityValue}` : 'priority-1';
+              return (
                 <tr
                   key={note.id}
                   onClick={() => handleRowClick(note)}
@@ -990,7 +1094,8 @@ const handleDelete = async (note) => {
                  </a>
                 </td>
               </tr>
-             ))}
+             );
+})}
           </tbody>
         </table>
         </div>
@@ -1163,6 +1268,7 @@ const handleDelete = async (note) => {
           onViewAttachments={handleViewAttachments}
           priorities={priorities}
           userid={userid}
+          refreshNotes={handleRefreshNotes}
         />
       )}
   
@@ -1170,7 +1276,7 @@ const handleDelete = async (note) => {
         <NewNoteModal
           isOpen={showNewModal}
           onClose={handleCloseNewModal}
-          refreshNotes={refreshNotes}
+          refreshNotes={handleRefreshNotes}
           addSiteNote={addSiteNote}
           projects={projects}
           jobs={jobs}
@@ -1183,7 +1289,10 @@ const handleDelete = async (note) => {
       {showEditModal && selectedNote && ( 
         <EditNoteModal
           note={selectedNote}
-          onClose={() => setShowEditModal(false)}
+           onClose={() => {
+      setShowEditModal(false);
+      handleRefreshNotes();
+    }}
           refreshNotes={refreshNotes}
           updateNote={updateNote}             
           deleteDocument={handleDeleteDocumentWrapper}    
@@ -1192,7 +1301,8 @@ const handleDelete = async (note) => {
           jobs={jobs} 
           noteDocuments={noteDocuments[selectedNote.id] || []}
           loadingDocuments={loadingDocuments[selectedNote.id] || false} 
-          priorities={priorities}                    
+          priorities={priorities}
+          onPriorityUpdate={handlePriorityUpdate}
         />
       )}
       {showSettingsModal && <SettingsModal onClose={() => setShowSettingsModal(false)} />}

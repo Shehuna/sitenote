@@ -137,3 +137,44 @@
   cursor: pointer;
 }
 
+tr.priority-1 {
+}
+
+tr.priority-2 {
+  background-color: #e8f5e8 !important; 
+  border-left: 4px solid #4caf50;
+}
+
+tr.priority-3 {
+  background-color: #fff3cd !important; 
+  border-left: 4px solid #ffc107;
+}
+
+tr.priority-4 {
+  background-color: #f8d7da !important;
+  border-left: 4px solid #dc3545;
+}
+
+tr.priority-2:hover {
+  background-color: #d4edda !important;
+}
+
+tr.priority-3:hover {
+  background-color: #ffeaa7 !important;
+}
+
+tr.priority-4:hover {
+  background-color: #f5c6cb !important;
+}
+
+tr.selected-row.priority-2 {
+  background-color: #c3e6cb !important;
+}
+
+tr.selected-row.priority-3 {
+  background-color: #ffeaa7 !important;
+}
+
+tr.selected-row.priority-4 {
+  background-color: #f5c6cb !important;
+}

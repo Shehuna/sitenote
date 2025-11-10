@@ -164,31 +164,44 @@
     margin-right: 4px !important; 
     margin-left: 0 !important;
     max-width: 80%;
+    border: 1px solid var(--border-color); /* Default border */
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
-.message.received.selected {
-  border: 2px solid #34b7f1; 
+.message.received.priority-4 {
+    border: 2px solid #d32b15 !important; 
 }
 
-.message.received.selected.priority-5 {
-  border: 2px solid #ff4444; /* Red for highest priority */
+.message.received.priority-3 {
+    border: 2px solid #d97706 !important;
 }
+
+.message.received.priority-2 {
+    border: 2px solid #2e48ed !important; 
+}
+
+.message.received.priority-1 {
+    border: 2px solid #a7a8ab !important;
+}
+
 
 .message.received.selected.priority-4 {
-  border: 2px solid #ff8800; /* Orange */
+    box-shadow: 0 0 10px rgba(211, 43, 21, 0.3);
 }
 
 .message.received.selected.priority-3 {
-  border: 2px solid #ffbb33; /* Yellow */
+    box-shadow: 0 0 10px rgba(217, 119, 6, 0.3);
 }
 
 .message.received.selected.priority-2 {
-  border: 2px solid #00C851; /* Green */
+    box-shadow: 0 0 10px rgba(46, 72, 237, 0.3);
 }
 
 .message.received.selected.priority-1 {
-  border: 2px solid #34b7f1; /* Blue for lowest priority */
+    box-shadow: 0 0 10px rgba(167, 168, 171, 0.3);
 }
+
+
 
 .message-header {
   display: flex;
