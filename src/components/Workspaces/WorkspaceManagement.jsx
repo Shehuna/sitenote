@@ -421,14 +421,14 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
         <button
           className="btn-primary"
           onClick={openAddWorkspaceModal}
-          disabled={userRole === "User"}
+          hidden={userRole === "User"}
         >
           Add Workspace
         </button>
         <button
           className="btn-secondary"
           onClick={openEditWorkspaceModal}
-          disabled={!(userRole === "Admin" && selectedWorkspace)}
+          hidden={!(userRole === "Admin" && selectedWorkspace)}
         >
           Edit Workspace
         </button>

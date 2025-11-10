@@ -235,6 +235,13 @@ useEffect(() => {
 
         const filteredOptions = options.filter(option => {
             if (option.id === 'userManagement' && userrole === "User") return false;
+            
+            if (
+                option.id !== 'workspaceSettings' &&
+                option.id !== 'userProfile' &&
+                role !== 1
+                ) return false;
+
             return true;
         });
 
