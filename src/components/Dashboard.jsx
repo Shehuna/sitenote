@@ -921,12 +921,12 @@ const handleDelete = async (note) => {
                   className={selectedRow === note.id ? 'selected-row' : ''}
                   style={{ cursor: 'pointer' }}
                 >
-                  <td title={new Date(note.timeStamp).toLocaleDateString('en-US', {
+                  <td title={new Date(note.date).toLocaleDateString('en-US', {
                   year: 'numeric',
                   month: 'short',
                   day: 'numeric'
                 })}>
-                  {new Date(note.timeStamp).toLocaleDateString('en-US', {
+                  {new Date(note.date).toLocaleDateString('en-US', {
                   year: 'numeric',
                   month: 'short',
                   day: 'numeric'
