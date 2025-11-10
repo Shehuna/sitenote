@@ -11,6 +11,7 @@ import JobManagment from '../Jobs/JobManagment';
 import JobPermissionManagement from '../JobPermission/JobPermissionManagement';
 import JobStatusManagement from '../JobStatus/JobStatusManagement';
 import UserProfile from '../UserProfile/UserProfile';
+import UserJobManagement from '../UserJob/UserJobManagement';
 const SettingsModal = ({ 
     isOpen, 
     onClose, 
@@ -20,7 +21,7 @@ const SettingsModal = ({
     defWorkName,
     onUpdateDefaultWorkspace, 
     userrole,
-    
+    updateProjectsAndJobs
    }) => { 
     const [activeTab, setActiveTab] = useState(null);
     const [projects, setProjects] = useState([]);
@@ -227,6 +228,11 @@ useEffect(() => {
                 text: 'Job Status Update'
             },
             {
+                id: 'userJobManagement',
+                icon: 'fa-user-cog',
+                text: 'User Job Management'
+            },
+            {
                 id: 'workspaceSettings',
                 icon: 'fa-building', 
                 text: 'Workspace Settings'
@@ -292,9 +298,9 @@ useEffect(() => {
 
         switch (activeTab) {
             case 'projectManagement':
-                return <ProjectManagement workspaceId={defWorkID}/>;
+                return <ProjectManagement workspaceId={defWorkID} updateProjectsAndJobs={updateProjectsAndJobs}/>;
             case 'jobManagement':
-                return <JobManagment defWorkId={defWorkID}/>;
+                return <JobManagment defWorkId={defWorkID} updateProjectsAndJobs={updateProjectsAndJobs}s/>;
             case 'userManagement':
                 return <UserManagement />;
             case 'userProfile':
@@ -306,6 +312,8 @@ useEffect(() => {
                 return <JobPermissionManagement defId={defWorkID} users={users}/>;
             case 'jobStatus':
                 return <JobStatusManagement defId={defWorkID} />;
+            case 'userJobManagement':
+                return <UserJobManagement defWorkID={defWorkID} />;   
             case 'workspaceSettings':
                 return <WorkspaceManagement 
                         onUpdateDefaultWorkspace={onUpdateDefaultWorkspace} 

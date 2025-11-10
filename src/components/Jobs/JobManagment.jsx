@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import Modal from '../Modals/Modal';
 import toast from 'react-hot-toast';
 
-const JobManagment = ({defWorkId}) => {
+const JobManagment = ({defWorkId, updateProjectsAndJobs}) => {
     const [selectedJob, setSelectedJob] = useState('');
     const [newJobName, setNewJobName] = useState('');
     const [user, setUser] = useState('');
@@ -57,6 +57,7 @@ const JobManagment = ({defWorkId}) => {
             });
 
             if (!response.ok) throw new Error('Failed to add job');
+            await updateProjectsAndJobs()
             const data = await response.json()
             console.log(data)
             const jobId = data.job.id

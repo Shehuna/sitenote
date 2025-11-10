@@ -25,12 +25,17 @@ const ViewNoteModal = ({ noteId, onClose, documents = [], currentTheme, onViewAt
         if (selectedNote) {
             const filtered = documents.filter(doc =>
                 doc.project === selectedNote.project && doc.job === selectedNote.job
-            ).sort((a, b) => new Date(a.date) - new Date(b.date));
+            ).sort((a, b) => {
+                // Sort by timestamp in descending order (newest first)
+                const timestampA = new Date(a.timeStamp || a.noteDate || a.date);
+                const timestampB = new Date(b.timeStamp || b.noteDate || b.date);
+                return timestampB - timestampA; // Descending order
+            });
 
             setFilteredDocuments(filtered);
             setTimeout(() => {
                 if (chatContainerRef.current) {
-                    chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+                    chatContainerRef.current.scrollTop = 0; // Scroll to top since newest is first
                 }
                 if (noteRefs.current[noteId]) {
                     noteRefs.current[noteId].scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -81,39 +86,42 @@ const ViewNoteModal = ({ noteId, onClose, documents = [], currentTheme, onViewAt
 
                 <div className="whatsapp-chat" id="chat-container" ref={chatContainerRef}>
                     {filteredDocuments.map((doc) => (
-    <div
-        key={doc.id}
-        ref={el => noteRefs.current[doc.id] = el}
-        className="message-row"
-    >
-        <div className={`message received ${doc.id === noteId ? 'selected' : ''} priority-${priority}`}>
-            <div className="message-content">
-                <div className="message-header">
-                <span className="sender-name">{doc.userName}</span>
-                <span className="message-time">
-                    {formatDate(doc.noteDate)} - {formatTime(doc.noteDate)}
-                </span>
-                </div>
-                <div className="message-text">
-                {doc.note}
-                </div>
-            </div>
-        </div>
+                        <div
+                            key={doc.id}
+                            ref={el => noteRefs.current[doc.id] = el}
+                            className="message-row"
+                        >
+                            <div className={`message received ${doc.id === noteId ? 'selected' : ''} priority-${priority}`}>
+                                <div className="message-content">
+                                    <div className="message-header">
+                                        <span className="sender-name">{doc.userName}</span>
+                                        <span className="message-time">
+                                            {formatDate(doc.timeStamp)} - {formatTime(doc.timeStamp)}
+                                        </span>
+                                    </div>
+                                    <div className="message-date-below">
+                                        {formatDate(doc.date)}
+                                    </div>
+                                    <div className="message-text">
+                                        {doc.note}
+                                    </div>
+                                </div>
+                            </div>
 
-        {doc.documentCount > 0 && (
-            <div className="paperclip-container">
-                <button 
-                    className="paperclip-button"
-                    onClick={() => onViewAttachments(doc)} 
-                    title={`View ${doc.documentCount} attached file(s)`}
-                >
-                     <span className="document-count-badge">({doc.documentCount}) </span>
-                    <i className="fas fa-paperclip"></i>
-                </button>
-            </div>
-        )}
-    </div>
-))}
+                            {doc.documentCount > 0 && (
+                                <div className="paperclip-container">
+                                    <button 
+                                        className="paperclip-button"
+                                        onClick={() => onViewAttachments(doc)} 
+                                        title={`View ${doc.documentCount} attached file(s)`}
+                                    >
+                                        <span className="document-count-badge">({doc.documentCount}) </span>
+                                        <i className="fas fa-paperclip"></i>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    ))}
                 </div>
                 
                 <div className="whatsapp-footer">

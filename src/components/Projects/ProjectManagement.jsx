@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import Modal from '../Modals/Modal';
 
-const ProjectManagement = ({workspaceId}) => {
+const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
      const [projects, setProjects] = useState([])
      const [filteredProjects, setFilteredProjects] = useState([])
      const [selectedProject, setSelectedProject] = useState('')
@@ -118,6 +118,7 @@ const ProjectManagement = ({workspaceId}) => {
 
             if (!response.ok) throw new Error('Failed to add project');
 
+            await updateProjectsAndJobs()
             fetchProjects();
             setNewProjectName('');
             setNewProjectDescription('');

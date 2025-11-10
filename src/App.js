@@ -550,6 +550,10 @@ useEffect(() => {
       [noteId]: prevFiles[noteId]?.filter(doc => doc.id !== docId)
     }));
   };
+
+  const onUpdateProjectAndJob = async () =>{
+    await fetchProjectsAndJobs()
+  }
   
   return (
     <Router>
@@ -663,6 +667,7 @@ useEffect(() => {
                       fetchDocuments={fetchDocumentsByReference}
                       onLogout={handleLogout} 
                       documentCounts={documentCounts}
+                      fetchProjectAndJobs={onUpdateProjectAndJob}
                     />
                     {loading && !isInitialFetchRef.current && (
                       <div style={{

@@ -1,0 +1,262 @@
+.user-job-management {
+    padding: 20px;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.user-job-header {
+    margin-bottom: 24px;
+    text-align: center;
+}
+
+.user-job-header h2 {
+    color: #2c3e50;
+    margin-bottom: 8px;
+    font-size: 24px;
+}
+
+.user-job-header p {
+    color: #7f8c8d;
+    margin: 0;
+    font-size: 14px;
+}
+
+.user-job-filters {
+    display: flex;
+    margin-bottom: 24px;
+}
+
+.search-bar {
+    position: relative;
+    width: 100%;
+}
+
+.search-bar i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #7f8c8d;
+}
+
+.search-bar input {
+    width: 100%;
+    padding: 10px 10px 10px 40px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: border-color 0.3s ease;
+    box-sizing: border-box;
+}
+
+.search-bar input:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1);
+}
+
+.users-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.user-card {
+    border: 1px solid #e1e8ed;
+    border-radius: 12px;
+    padding: 24px;
+    background: white;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: box-shadow 0.3s ease;
+}
+
+.user-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.user-info {
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f1f2f6;
+}
+
+.user-name {
+    margin: 0;
+    color: #2c3e50;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.user-jobs-section {
+    margin-top: 16px;
+}
+
+.jobs-section-title {
+    margin: 0 0 16px 0;
+    color: #2c3e50;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.jobs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.job-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
+
+.job-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+}
+
+.job-name {
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 14px;
+}
+
+.job-project {
+    color: #7f8c8d;
+    font-size: 12px;
+}
+
+.job-timestamp {
+    color: #95a5a6;
+    font-size: 11px;
+    font-style: italic;
+}
+
+.permission-display {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.permission-badge {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    min-width: 60px;
+    text-align: center;
+}
+
+.permission-badge.read {
+    background: #e3f2fd;
+    color: #1976d2;
+    border: 1px solid #2196f3;
+}
+
+.permission-badge.write {
+    background: #fff3e0;
+    color: #f57c00;
+    border: 1px solid #ff9800;
+}
+
+.permission-badge.admin {
+    background: #fce4ec;
+    color: #c2185b;
+    border: 1px solid #e91e63;
+}
+
+.deny-btn {
+    background: #e74c3c;
+    border: none;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.3s ease;
+}
+
+.deny-btn:hover {
+    background: #c0392b;
+}
+
+.no-jobs {
+    text-align: center;
+    padding: 32px;
+    color: #7f8c8d;
+}
+
+.no-jobs i {
+    font-size: 48px;
+    margin-bottom: 12px;
+    color: #bdc3c7;
+}
+
+.no-jobs p {
+    margin: 0;
+    font-style: italic;
+}
+
+.no-results {
+    text-align: center;
+    padding: 60px 20px;
+    color: #7f8c8d;
+}
+
+.no-results i {
+    font-size: 64px;
+    margin-bottom: 16px;
+    color: #bdc3c7;
+}
+
+.no-results h3 {
+    margin: 0 0 8px 0;
+    color: #2c3e50;
+}
+
+.no-results p {
+    margin: 0;
+}
+
+.loading-message, .error-message {
+    text-align: center;
+    padding: 40px;
+    font-size: 16px;
+}
+
+.error-message {
+    color: #e74c3c;
+    background: #fdf2f2;
+    border: 1px solid #f5c6cb;
+    border-radius: 8px;
+    margin: 20px;
+}
+
+@media (max-width: 768px) {
+    .user-job-filters {
+        flex-direction: column;
+    }
+    
+    .job-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    
+    .permission-display {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .user-card {
+        padding: 16px;
+    }
+}

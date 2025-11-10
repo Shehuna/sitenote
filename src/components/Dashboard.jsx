@@ -27,6 +27,7 @@ const Dashboard = ({
   defaultUserWorkspaceName,
   onUpdateDefaultWorkspace,
   onChange, 
+  fetchProjectAndJobs,
   
 }) => {
   //const [notes, setNotes] = useState([]);
@@ -186,7 +187,7 @@ const Dashboard = ({
       
   }, [userid, defaultUserWorkspaceID]); 
 
-    const filteredNotes = useMemo(() => {
+  const filteredNotes = useMemo(() => {
   let result = searchTerm.trim() ? searchResults : [...notes];
   
   result = result.filter(note => {
@@ -198,49 +199,14 @@ const Dashboard = ({
     return job && job.status !== 3;
   });
 
-  // Custom sorting logic
+  
   result.sort((a, b) => {
-    const currentDate = new Date();
-    currentDate.setHours(0, 0, 0, 0); // Set to start of today for accurate comparison
-
-    // Parse dates - use noteDate if available, otherwise use date field
-    const dateA = new Date(a.date || a.date);
-    const dateB = new Date(b.date || b.date);
-    
-    // Set time to start of day for date comparison
-    const dateAOnly = new Date(dateA);
-    dateAOnly.setHours(0, 0, 0, 0);
-    const dateBOnly = new Date(dateB);
-    dateBOnly.setHours(0, 0, 0, 0);
-
-    // Check if dates are in the future
-    const isAFuture = dateAOnly > currentDate;
-    const isBFuture = dateBOnly > currentDate;
-
-    // Priority 1: Future-dated notes come first
-    if (isAFuture && !isBFuture) return -1;
-    if (!isAFuture && isBFuture) return 1;
-    
-    // Both are future or both are current/past
-    if (isAFuture && isBFuture) {
-      // Both future: sort by date ascending (closest future first)
-      if (dateAOnly.getTime() !== dateBOnly.getTime()) {
-        return dateAOnly - dateBOnly;
-      }
-    } else {
-      // Both current/past: sort by date descending (most recent first)
-      if (dateAOnly.getTime() !== dateBOnly.getTime()) {
-        return dateBOnly - dateAOnly;
-      }
-    }
-
-    // If same date, sort by timestamp (most recent entry first)
-    const timestampA = new Date(a.timeStamp || a.noteDate || a.date);
-    const timestampB = new Date(b.timeStamp || b.noteDate || b.date);
-    return timestampB - timestampA;
+    const timestampA = new Date(a.timeStamp);
+    const timestampB = new Date(b.timeStamp);
+    return timestampB - timestampA; // Descending order (newest first)
   });
   
-  // Apply existing hierarchy filters
+  
   hierarchy.forEach(column => {
     const selectedValue = selectedValues[column];
     if (selectedValue) {
@@ -253,7 +219,6 @@ const Dashboard = ({
     }
   });
 
-  
   return result;
 }, [notes, jobs, hierarchy, selectedValues, searchTerm, searchColumn, searchResults]);
 
@@ -1180,6 +1145,7 @@ const handleDelete = async (note) => {
           onUpdateDefaultWorkspace={onUpdateDefaultWorkspace}
           userrole={userRole}
           userWorkspaces={userWorkspaces}
+          updateProjectsAndJobs={fetchProjectAndJobs}
         />
       )}
 
