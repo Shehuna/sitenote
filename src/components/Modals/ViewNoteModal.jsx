@@ -26,10 +26,17 @@ const ViewNoteModal = ({ noteId, onClose, documents = [], currentTheme, onViewAt
             const filtered = documents.filter(doc =>
                 doc.project === selectedNote.project && doc.job === selectedNote.job
             ).sort((a, b) => {
-                // Sort by timestamp in descending order (newest first)
-                const timestampA = new Date(a.timeStamp || a.noteDate || a.date);
-                const timestampB = new Date(b.timeStamp || b.noteDate || b.date);
-                return timestampB - timestampA; // Descending order
+                // First, sort by date
+                const dateA = new Date(a.date);
+                const dateB = new Date(b.date);
+                
+                // If dates are different, sort by date (ascending)
+                if (dateA.getTime() !== dateB.getTime()) {
+                    return dateA - dateB; // Ascending order by date
+                }
+                
+                // If dates are the same, sort by noteId (ascending)
+                return a.id - b.id; // Ascending order by noteId
             });
 
             setFilteredDocuments(filtered);
@@ -95,6 +102,7 @@ const ViewNoteModal = ({ noteId, onClose, documents = [], currentTheme, onViewAt
                                 <div className="message-content">
                                     <div className="message-header">
                                         <span className="sender-name">{doc.userName}</span>
+                                        
                                         <span className="message-time">
                                             {formatDate(doc.timeStamp)} - {formatTime(doc.timeStamp)}
                                         </span>

@@ -187,7 +187,7 @@ const Dashboard = ({
       
   }, [userid, defaultUserWorkspaceID]); 
 
-  const filteredNotes = useMemo(() => {
+const filteredNotes = useMemo(() => {
   let result = searchTerm.trim() ? searchResults : [...notes];
   
   result = result.filter(note => {
@@ -199,13 +199,15 @@ const Dashboard = ({
     return job && job.status !== 3;
   });
 
-  
+  // Sort by noteId in descending order (highest ID first = newest)
   result.sort((a, b) => {
-    const timestampA = new Date(a.timeStamp);
-    const timestampB = new Date(b.timeStamp);
-    return timestampB - timestampA; // Descending order (newest first)
+    return b.id - a.id; // Descending order by noteId
   });
   
+  // Alternative: Sort by noteId in ascending order (lowest ID first = oldest)
+  // result.sort((a, b) => {
+  //   return a.id - b.id; // Ascending order by noteId
+  // });
   
   hierarchy.forEach(column => {
     const selectedValue = selectedValues[column];
@@ -626,8 +628,8 @@ const handleDelete = async (note) => {
     });
     if (column === 'date') {
       const dateValues = Array.from(values);
-      dateValues.sort((a, b) => {
-        return new Date(a) - new Date(b);
+      dateValues.sort((b, a) => {
+        return new Date(b) - new Date(a);
       });
       return dateValues;
     }
