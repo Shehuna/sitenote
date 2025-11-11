@@ -1,29 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './ViewNoteModal.css';
 
-const ViewNoteModal = ({ noteId, onClose, documents = [], currentTheme, onViewAttachments, priorities = [], userid }) => {
+const ViewNoteModal = ({ noteId, onClose, documents = [], currentTheme, onViewAttachments, priorities = [], userid}) => {
     const [currentNote, setCurrentNote] = useState(null);
     const [filteredDocuments, setFilteredDocuments] = useState([]);
-    const [notePriorities, setNotePriorities] = useState({});
+    const [priority, setPriority] = useState(0)
     
     const noteRefs = useRef({});
     const chatContainerRef = useRef(null);
 
-    const getNotePriority = (noteId) => {
-        const priority = priorities.find(p => p.noteID === noteId && p.userId === userid);
-        return priority ? priority.priorityValue.toString() : '1';
-    };
-
-    const assignPriorities = () => {
-        const prioritiesMap = {};
-        documents.forEach(doc => {
-            prioritiesMap[doc.id] = getNotePriority(doc.id);
-        });
-        setNotePriorities(prioritiesMap);
-    };
+    const assignPriority = () =>{
+        const priority = priorities.find(p => p.noteID == noteId && p.userId == userid)
+        if(priority){
+            console.log(priority.priorityValue)
+            setPriority(priority.priorityValue)
+        }
+    }
 
     useEffect(() => {
-        assignPriorities();
+        assignPriority()
         const selectedNote = documents.find(doc => doc.id === noteId);
         setCurrentNote(selectedNote);
 
@@ -31,17 +26,32 @@ const ViewNoteModal = ({ noteId, onClose, documents = [], currentTheme, onViewAt
             const filtered = documents.filter(doc =>
                 doc.project === selectedNote.project && doc.job === selectedNote.job
             ).sort((a, b) => {
-                // First, sort by date
+                const now = new Date();
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                
                 const dateA = new Date(a.date);
                 const dateB = new Date(b.date);
-
-                // If dates are different, sort by date (ascending)
+                
+                // Check if dates are future-dated (after today)
+                const isAFuture = dateA > today;
+                const isBFuture = dateB > today;
+                
+                // Future-dated notes should appear at the bottom
+                if (isAFuture && !isBFuture) {
+                    return 1; // A is future, B is not -> A should be after B
+                }
+                if (!isAFuture && isBFuture) {
+                    return -1; // A is not future, B is future -> A should be before B
+                }
+                
+                // If both are future or both are not future, sort by date (ascending)
                 if (dateA.getTime() !== dateB.getTime()) {
                     return dateA - dateB; // Ascending order by date
                 }
-
-                // If dates are the same, sort by noteId (ascending)
-                return a.id - b.id; // Ascending order by noteId
+                
+                // If dates are the same, sort by id (latest entry last)
+                // Assuming higher id means newer note (if ids are sequential)
+                return a.id - b.id; // Ascending order by id (older ids first, newer ids last)
             });
 
             setFilteredDocuments(filtered);
@@ -54,7 +64,7 @@ const ViewNoteModal = ({ noteId, onClose, documents = [], currentTheme, onViewAt
                 }
             }, 0);
         }
-    }, [noteId, documents, priorities, userid]);
+    }, [noteId, documents]);
 
     if (!currentNote) return null;
 
@@ -85,7 +95,8 @@ const ViewNoteModal = ({ noteId, onClose, documents = [], currentTheme, onViewAt
                             <i className="fas fa-arrow-left"></i>
                         </button>
                         <div className="contact-info">
-                            <div className="contact-name">Project: {currentNote.project}</div>
+                            <div className="contact-name">Workspace: {currentNote.workspace}</div>
+                            <div className="contact-project">Project: {currentNote.project}</div>
                             <div className="contact-status">Job: {currentNote.job}</div>
                         </div>
                     </div>
@@ -97,47 +108,44 @@ const ViewNoteModal = ({ noteId, onClose, documents = [], currentTheme, onViewAt
                 </div>
 
                 <div className="whatsapp-chat" id="chat-container" ref={chatContainerRef}>
-                    {filteredDocuments.map((doc) => {
-                        const notePriority = notePriorities[doc.id] || '1';
-                        console.log(`Note ${doc.id} has priority:`, notePriority);
-                        return (
-                            <div
-                                key={doc.id}
-                                ref={el => noteRefs.current[doc.id] = el}
-                                className="message-row"
-                            >
-                                <div className={`message received ${doc.id === noteId ? 'selected' : ''} priority-${notePriority}`}>
-                                    <div className="message-content">
-                                        <div className="message-header">
-                                            <span className="sender-name">{doc.userName}</span>
-                                            <span className="message-time">
-                                                {formatDate(doc.timeStamp)} - {formatTime(doc.timeStamp)}
-                                            </span>
-                                        </div>
-                                        <div className="message-date-below">
-                                            {formatDate(doc.date)}
-                                        </div>
-                                        <div className="message-text">
-                                            {doc.note}
-                                        </div>
+                    {filteredDocuments.map((doc) => (
+                        <div
+                            key={doc.id}
+                            ref={el => noteRefs.current[doc.id] = el}
+                            className="message-row"
+                        >
+                            <div className={`message received ${doc.id === noteId ? 'selected' : ''} priority-${priority}`}>
+                                <div className="message-content">
+                                    <div className="message-header">
+                                        <span className="sender-name">{doc.userName}</span>
+                                        
+                                        <span className="message-time">
+                                            {formatDate(doc.timeStamp)} - {formatTime(doc.timeStamp)}
+                                        </span>
+                                    </div>
+                                    <div className="message-date-below">
+                                        {formatDate(doc.date)}
+                                    </div>
+                                    <div className="message-text">
+                                        {doc.note}
                                     </div>
                                 </div>
-
-                                {doc.documentCount > 0 && (
-                                    <div className="paperclip-container">
-                                        <button
-                                            className="paperclip-button"
-                                            onClick={() => onViewAttachments(doc)}
-                                            title={`View ${doc.documentCount} attached file(s)`}
-                                        >
-                                            <span className="document-count-badge">({doc.documentCount}) </span>
-                                            <i className="fas fa-paperclip"></i>
-                                        </button>
-                                    </div>
-                                )}
                             </div>
-                        );
-                    })}
+
+                            {doc.documentCount > 0 && (
+                                <div className="paperclip-container">
+                                    <button 
+                                        className="paperclip-button"
+                                        onClick={() => onViewAttachments(doc)} 
+                                        title={`View ${doc.documentCount} attached file(s)`}
+                                    >
+                                        <span className="document-count-badge">({doc.documentCount}) </span>
+                                        <i className="fas fa-paperclip"></i>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    ))}
                 </div>
                 
                 <div className="whatsapp-footer">
