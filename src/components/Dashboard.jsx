@@ -64,6 +64,7 @@ const Dashboard = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [focusedRow, setFocusedRow] = useState(null);
 
   
 
@@ -115,11 +116,15 @@ const Dashboard = ({
 
  
 
-  const handleRowClick = useCallback((note) => {
-    setSelectedRow(note.id);
-    setViewNote(note);
-    setShowViewModal(true);
-  }, []);
+  const handleRowClick = useCallback((note, event) => {
+  setFocusedRow(note.id);
+  setSelectedRow(note.id);
+}, []);
+
+const handleRowDoubleClick = useCallback((note) => {
+  setViewNote(note);
+  setShowViewModal(true);
+}, []);
 
  const handleSelect = (option) => {
     onChange(option);
@@ -140,50 +145,14 @@ const handleRefresh = async () => {
   }
 };
 
-const getRelativeTime = (dateString) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInMs = now - date;
-    const diffInSeconds = Math.floor(diffInMs / 1000);
-    const diffInMinutes = Math.floor(diffInSeconds / 60);
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    const diffInDays = Math.floor(diffInHours / 24);
 
-    if (diffInSeconds < 60) {
-        return 'Just now';
-    } else if (diffInMinutes === 1) {
-        return '1 min ago';
-    } else if (diffInMinutes < 60) {
-        return `${diffInMinutes} mins ago`;
-    } else if (diffInHours === 1) {
-        return '1 hour ago';
-    } else if (diffInHours < 24) {
-        return `${diffInHours} hours ago`;
-    } else if (diffInDays === 1) {
-        return 'Yesterday';
-    } else if (diffInDays < 7) {
-        return `${diffInDays} days ago`;
-    } else if (diffInDays < 30) {
-        const weeks = Math.floor(diffInDays / 7);
-        return `${weeks} week${weeks > 1 ? 's' : ''} ago`;
-    } else {
-        return date.toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
-        });
-    }
-};
 
 const getExactDateTime = (dateString) => {
     const date = new Date(dateString);
     return date.toLocaleString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
+        month: 'short',
         day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+        year: 'numeric'
     });
 };
 
@@ -320,26 +289,36 @@ const filteredNotes = useMemo(() => {
   }, []);
 
   const handleKeyDown = useCallback((event) => {
-    console.log('Key pressed:', event.key, 'Ctrl pressed:', event.ctrlKey, 'Selected row:', selectedRow);
-    
-    if (event.ctrlKey && event.key === 'a' && selectedRow) {
-      event.preventDefault();
-      console.log('Ctrl+A detected with selected row:', selectedRow);
-      
-      const selectedNote = filteredNotes.find(note => note.id === selectedRow);
-      console.log('Found note:', selectedNote);
-      
-      if (selectedNote) {
-        setPrefilledData({
-          project: selectedNote.project,
-          job: selectedNote.job
-        });
-        
-        setShowNewModal(true);
-        console.log('Opening modal with pre-filled data:', {project: selectedNote.project, job: selectedNote.job});
-      }
+  if (!focusedRow) return;
+  
+  const currentIndex = filteredNotes.findIndex(note => note.id === focusedRow);
+  
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    const nextIndex = Math.min(currentIndex + 1, filteredNotes.length - 1);
+    if (nextIndex !== currentIndex) {
+      setFocusedRow(filteredNotes[nextIndex].id);
+      setSelectedRow(filteredNotes[nextIndex].id);
     }
-  }, [selectedRow, filteredNotes]);
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    const prevIndex = Math.max(currentIndex - 1, 0);
+    if (prevIndex !== currentIndex) {
+      setFocusedRow(filteredNotes[prevIndex].id);
+      setSelectedRow(filteredNotes[prevIndex].id);
+    }
+  } else if (event.ctrlKey && event.key === 'a' && focusedRow) {
+    event.preventDefault();
+    const selectedNote = filteredNotes.find(note => note.id === focusedRow);
+    if (selectedNote) {
+      setPrefilledData({
+        project: selectedNote.project,
+        job: selectedNote.job
+      });
+      setShowNewModal(true);
+    }
+  }
+}, [focusedRow, filteredNotes]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -378,7 +357,7 @@ const filteredNotes = useMemo(() => {
         ...prev,
         [noteId]: documents.map(doc => ({
           ...doc,
-          fileUrl: doc.FileData ? URL.createObjectURL(new Blob([doc.FileData])) : null
+          fileUrl : doc.FileData ? URL.createObjectURL(new Blob([doc.FileData])) : null
         }))
       }));
 
@@ -595,10 +574,16 @@ const filteredNotes = useMemo(() => {
     setSelectedRow(null);
   };
   const handleRefreshNotes = async () => {
-    await fetchPriorities();
-    await refreshNotes();
-};
-
+    try {
+      console.log('🔄 Manual refresh triggered');
+      await fetchPriorities(); 
+      await refreshNotes(); 
+      toast.success('Dashboard refreshed');
+    } catch (error) {
+      console.error('Error refreshing dashboard:', error);
+      toast.error('Error refreshing dashboard');
+    }
+  };
 
   const handleDrop = (e) => {
     e.preventDefault();
@@ -1022,22 +1007,18 @@ const handleDelete = async (note) => {
               const priorityClass = notePriority ? `priority-${notePriority.priorityValue}` : 'priority-1';
               return (
                 <tr
-                  key={note.id}
-                  onClick={() => handleRowClick(note)}
-                  className={selectedRow === note.id ? 'selected-row' : ''}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <td title={new Date(note.date).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric'
-                })}>
-                  {new Date(note.date).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric'
-                })}
-                </td>
+                    key={note.id}
+                    onClick={(e) => handleRowClick(note, e)}
+                    onDoubleClick={() => handleRowDoubleClick(note)}
+                    className={`${selectedRow === note.id ? 'selected-row' : ''} ${focusedRow === note.id ? 'focused-row' : ''}`}
+                    style={{ cursor: 'pointer' }}
+                    tabIndex={0}
+>
+                  <td 
+                    title={getExactDateTime(note.timeStamp || note.noteDate || note.date)}
+                    >
+                    {getExactDateTime(note.timeStamp || note.noteDate || note.date)}
+                  </td>
                 <td title={note.workspace}>{note.workspace}</td>
                 <td title={note.project}>{note.project}</td>
                 <td title={note.job}>{note.job}</td>
@@ -1045,8 +1026,27 @@ const handleDelete = async (note) => {
                   className="editable"
                   title={note.note}
                 >
-                  {note.note.length > 69 ? `${note.note.substring(0, 69)}...` : note.note}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ flex: 1 }}>
+                      {note.note.length > 69 ? `${note.note.substring(0, 69)}...` : note.note}
+                    </span>
+                    {notePriority && notePriority.priorityValue > 1 && (
+                      <div 
+                        className={`priority-dot ${
+                          notePriority.priorityValue === 2 ? 'priority-dot-low' :
+                          notePriority.priorityValue === 3 ? 'priority-dot-medium' :
+                          notePriority.priorityValue === 4 ? 'priority-dot-high' : ''
+                        }`}
+                        title={
+                          notePriority.priorityValue === 2 ? 'Low Priority' :
+                          notePriority.priorityValue === 3 ? 'Medium Priority' :
+                          notePriority.priorityValue === 4 ? 'High Priority' : 'No Priority'
+                        }
+                      />
+                    )}
+                  </div>
                 </td>
+                
                 <td title={note.userName}>{note.userName}</td>
                 <td
                     className="file-cell"

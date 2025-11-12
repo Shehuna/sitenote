@@ -33,6 +33,7 @@ const NewNoteModal = ({
     
     const [isSaving, setIsSaving] = useState(false);
     const [apiError, setApiError] = useState(null);
+    const textareaRef = useRef(null);
     console.log(projects)
 
       const allowedFileTypes = {
@@ -188,8 +189,15 @@ const NewNoteModal = ({
 
             console.log("All documents processed.");
             await handleAddPriority(siteNoteId,  user.id)
+            
+            setTimeout(() => {
+            if (textareaRef.current) {
+                textareaRef.current.focus();
+            }
+        }, 0);
+        
+        
             refreshNotes();
-            onClose();
         } catch (error) {
             console.error("Save error:", error);
             setApiError(error.message || "Failed to save note or upload documents");
@@ -200,6 +208,8 @@ const NewNoteModal = ({
     const handleSaveShortcut = useCallback((event) => {
         if ((event.ctrlKey || event.metaKey) && event.key === 's') {
             event.preventDefault(); 
+            setNoteContent('');
+        
             if (!isSaving) {
                 handleSaveJournal();
             }
@@ -410,6 +420,7 @@ const NewNoteModal = ({
                             <label>Note</label>
                             {errors.note && <span className="error-message-inline">{errors.note}</span>}
                             <textarea
+                                ref={textareaRef}
                                 value={noteContent}
                                 onChange={(e) => {
                                     setNoteContent(e.target.value);

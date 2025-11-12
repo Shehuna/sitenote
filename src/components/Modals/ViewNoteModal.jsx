@@ -1,24 +1,29 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './ViewNoteModal.css';
 
-const ViewNoteModal = ({ noteId, onClose, documents = [], currentTheme, onViewAttachments, priorities = [], userid}) => {
+const ViewNoteModal = ({ noteId, onClose, documents = [], currentTheme, onViewAttachments, priorities = [], userid }) => {
     const [currentNote, setCurrentNote] = useState(null);
     const [filteredDocuments, setFilteredDocuments] = useState([]);
-    const [priority, setPriority] = useState(0)
+    const [notePriorities, setNotePriorities] = useState({});
     
     const noteRefs = useRef({});
     const chatContainerRef = useRef(null);
 
-    const assignPriority = () =>{
-        const priority = priorities.find(p => p.noteID == noteId && p.userId == userid)
-        if(priority){
-            console.log(priority.priorityValue)
-            setPriority(priority.priorityValue)
-        }
-    }
+    const getNotePriority = (noteId) => {
+        const priority = priorities.find(p => p.noteID == noteId && p.userId == userid);
+        return priority ? priority.priorityValue.toString() : '1'; 
+    };
+
+    const assignPriorities = () => {
+        const prioritiesMap = {};
+        documents.forEach(doc => {
+            prioritiesMap[doc.id] = getNotePriority(doc.id);
+        });
+        setNotePriorities(prioritiesMap);
+    };
 
     useEffect(() => {
-        assignPriority()
+        assignPriorities();
         const selectedNote = documents.find(doc => doc.id === noteId);
         setCurrentNote(selectedNote);
 
@@ -64,7 +69,7 @@ const ViewNoteModal = ({ noteId, onClose, documents = [], currentTheme, onViewAt
                 }
             }, 0);
         }
-    }, [noteId, documents]);
+    }, [noteId, documents, priorities, userid]); 
 
     if (!currentNote) return null;
 
@@ -114,7 +119,7 @@ const ViewNoteModal = ({ noteId, onClose, documents = [], currentTheme, onViewAt
                             ref={el => noteRefs.current[doc.id] = el}
                             className="message-row"
                         >
-                            <div className={`message received ${doc.id === noteId ? 'selected' : ''} priority-${priority}`}>
+                            <div className={`message received ${doc.id === noteId ? 'selected' : ''} priority-${notePriorities[doc.id] || '1'}`}>
                                 <div className="message-content">
                                     <div className="message-header">
                                         <span className="sender-name">{doc.userName}</span>
