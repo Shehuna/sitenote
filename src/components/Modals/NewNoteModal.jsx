@@ -34,6 +34,8 @@ const NewNoteModal = ({
     const [isSaving, setIsSaving] = useState(false);
     const [apiError, setApiError] = useState(null);
     const textareaRef = useRef(null);
+    const [fetchedProjects, setFetchedProjects] = useState([]);
+    const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
     console.log(projects)
 
       const allowedFileTypes = {
@@ -102,7 +104,7 @@ const NewNoteModal = ({
             setActiveTab('journal');
             setSelectedPriority('1'); 
             if (prefilledData) {
-                const project = projects.find(p => p.name === prefilledData.project);
+                const project = fetchedProjects.find(p => p.text === prefilledData.project);
                 if (project) {
                     setSelectedProject(project.id.toString());
                 }
@@ -123,7 +125,7 @@ const NewNoteModal = ({
             setIsSaving(false);
             setApiError(null);
         }
-    }, [isOpen, prefilledData, projects, defWorkSpaceId]);
+    }, [isOpen, prefilledData, fetchedProjects]);
 
     useEffect(() => {
         if (prefilledData && prefilledData.job && selectedProject) {
@@ -136,6 +138,17 @@ const NewNoteModal = ({
             }
         }
     }, [selectedProject, prefilledData, jobs]);
+
+    useEffect(() => {
+      if (isOpen) {
+        const user = JSON.parse(localStorage.getItem('user'));
+        const userId = user ? user.id : 1;
+        fetch(`${apiUrl}/SiteNote/GetUniqueProjects?userId=${userId}`)
+          .then(r => r.json())
+          .then(d => setFetchedProjects(d.projects || []))
+          .catch(e => console.error(e));
+      }
+    }, [isOpen]);
      
 
     const handleSaveJournal = async () => {
@@ -198,6 +211,7 @@ const NewNoteModal = ({
         
         
             refreshNotes();
+            onClose();
         } catch (error) {
             console.error("Save error:", error);
             setApiError(error.message || "Failed to save note or upload documents");
@@ -374,11 +388,11 @@ const NewNoteModal = ({
                                 }}
                             >
                                 <option value="">
-                                    {projects.length === 0 ? "No projects available" : "Select Project"}
+                                    {fetchedProjects.length === 0 ? "No projects available" : "Select Project"}
                                 </option>
-                                {projects.filter(project => (project.status === 1 && project.workspaceId == defWorkSpaceId)).map(project => (
+                                {fetchedProjects.map(project => (
                                     <option key={project.id} value={project.id.toString()}>
-                                        {project.name} (ID: {project.id})
+                                        {project.text} (ID: {project.id})
                                     </option>
                                 ))}
                             </select>
