@@ -73,9 +73,9 @@ const NewNoteModal = ({
   const isValidFileType = (file) => {
     return Object.keys(allowedFileTypes).includes(file.type);
   };
-  const isValidFileSize = (file) => {
+  /* const isValidFileSize = (file) => {
     return file.size <= MAX_FILE_SIZE;
-  };
+  }; */
 
   
     useEffect(() => {
@@ -257,18 +257,19 @@ const NewNoteModal = ({
       return;
     }
 
-    if (!isValidFileSize(file)) {
+    /* if (!isValidFileSize(file)) {
       setError(`File size too large. Maximum allowed size is 5MB.`);
       setSelectedFile(null);
       return;
-    }
+    } */
         setNewDocument(prev => ({ ...prev, file: e.target.files[0] }));
     };
 
     const handleDocumentSubmit = () => {
         const newDocErrors = {};
         if (!newDocument.name.trim()) {
-            newDocErrors.newDocumentName = "Document name is required.";
+            setError('Document name is required.');
+            return;
         }
         if (!currentDocumentBeingEdited && !newDocument.file) {
             newDocErrors.newDocumentFile = "Please select a file to add.";

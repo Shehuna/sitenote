@@ -66,9 +66,9 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
   const isValidFileType = (file) => {
     return Object.keys(allowedFileTypes).includes(file.type);
   };
-  const isValidFileSize = (file) => {
+  /* const isValidFileSize = (file) => {
     return file.size <= MAX_FILE_SIZE;
-  };
+  }; */
 
   useEffect(() => {
     if (note) {
@@ -246,11 +246,11 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
       return;
     }
 
-    if (!isValidFileSize(file)) {
+   /*  if (!isValidFileSize(file)) {
       setError(`File size too large. Maximum allowed size is 5MB.`);
       setSelectedFile(null);
       return;
-    }
+    } */
     setNewDocument(prev => ({ ...prev, file: e.target.files[0] }));
   };
 

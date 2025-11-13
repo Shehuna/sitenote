@@ -71,9 +71,9 @@ const AttachedFileModal = ({
   const isValidFileType = (file) => {
     return Object.keys(allowedFileTypes).includes(file.type);
   };
-  const isValidFileSize = (file) => {
+  /* const isValidFileSize = (file) => {
     return file.size <= MAX_FILE_SIZE;
-  };
+  }; */
 
   const getFileExtension = (filename) => {
     return filename.slice((filename.lastIndexOf('.') - 1 >>> 0) + 2);
@@ -187,64 +187,67 @@ const AttachedFileModal = ({
       return;
     }
 
-    if (!isValidFileSize(file)) {
+   /*  if (!isValidFileSize(file)) {
       setError(`File size too large. Maximum size is 5MB.`);
       setSelectedFile(null);
       return;
-    }
+    } */
 
     setNewDocument(prev => ({ ...prev, file }));
 
   };
 
 const handleDocumentSubmit = async () => {
-    setError(null);
-  
-    if (!newDocument.name.trim()) {
-      setError('Document name is required.');
-      return;
+  setError(null);
+
+  // Validate document name length
+   if (!newDocument.name.trim()) {
+            setError('Document name is required.');
+            return;
+        }
+
+  if (!newDocument.file) {
+    setError('Please select a file to upload.');
+    return;
+  }
+
+  try {
+    setIsSubmitting(true);
+    const siteNoteId = note.id; 
+    if (!siteNoteId) {
+      throw new Error("Cannot upload document: Note ID is missing.");
     }
-  
-    if (!newDocument.file) {
-      setError('Please select a file to upload.');
-      return;
-    }
-  
-    try {
-      setIsSubmitting(true);
-      const siteNoteId = note.id; 
-      if (!siteNoteId) {
-        throw new Error("Cannot upload document: Note ID is missing.");
-      }
 
-      var user = JSON.parse(localStorage.getItem('user'));
-      var userId = user ? user.id  : 1;
-      console.log("Uploading document for userId:", userId);
+    var user = JSON.parse(localStorage.getItem('user'));
+    var userId = user ? user.id  : 1;
+    console.log("Uploading document for userId:", userId);
 
-      // ✅ Call your existing uploadDocument function
-      const savedDoc = await uploadDocument(newDocument.name, newDocument.file, siteNoteId, userId);
+    // ✅ Call your existing uploadDocument function
+    const savedDoc = await uploadDocument(newDocument.name, newDocument.file, siteNoteId, userId);
 
-      // ✅ Build consistent object with download URL
-      const newDocWithDownloadUrl = {
-        ...savedDoc,name: newDocument.name, fileName: newDocument.file.name,
-        fileType: getMimeType(savedDoc.fileName).split('/')[1],
-        fileUrl: null,
-        downloadApiTriggerUrl: `${process.env.REACT_APP_API_BASE_URL}/api/Documents/DownloadDocument/${savedDoc.id}`
-      };
+    // ✅ Build consistent object with download URL
+    const newDocWithDownloadUrl = {
+      ...savedDoc,
+      name: newDocument.name, 
+      fileName: newDocument.file.name,
+      fileType: getMimeType(savedDoc.fileName).split('/')[1],
+      fileUrl: null,
+      downloadApiTriggerUrl: `${process.env.REACT_APP_API_BASE_URL}/api/Documents/DownloadDocument/${savedDoc.id}`
+    };
 
-      // ✅ Add uploaded doc to state
-      setDocuments(docs => [...docs, newDocWithDownloadUrl]);
-  
-      // ✅ Reset modal state
-      setShowDocumentModal(false);
-      setNewDocument({ name: '', file: null });
-    } catch (err) {
-      console.error('Error saving document:', err);
-      setError(err.message || 'Failed to save document');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    // ✅ Add uploaded doc to state
+    setDocuments(docs => [...docs, newDocWithDownloadUrl]);
+
+    // ✅ Reset modal state
+    setShowDocumentModal(false);
+    setNewDocument({ name: '', file: null });
+  } catch (err) {
+    console.error('Error saving document:', err);
+    setError(err.message || 'Failed to save document');
+  } finally {
+    setIsSubmitting(false);
+  }
+};
   
 const handleDownloadDocument = async (documentToDownload) => {
   console.log(documentToDownload)
