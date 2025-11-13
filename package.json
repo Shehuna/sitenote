@@ -2,7 +2,7 @@
   "name": "client",
   "version": "0.1.0",
   "private": true,
-  "proxy": "http://localhost:7204",
+  "proxy": "http://localhost:3000",
   "homepage": ".",
   "dependencies": {
     "@testing-library/dom": "^10.4.0",

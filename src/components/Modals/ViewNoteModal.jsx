@@ -1,167 +1,180 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './ViewNoteModal.css';
+import toast from 'react-hot-toast';
 
-const ViewNoteModal = ({ noteId, onClose, documents = [], currentTheme, onViewAttachments, priorities = [], userid }) => {
-    const [currentNote, setCurrentNote] = useState(null);
-    const [filteredDocuments, setFilteredDocuments] = useState([]);
-    const [notePriorities, setNotePriorities] = useState({});
-    
-    const noteRefs = useRef({});
-    const chatContainerRef = useRef(null);
+const ViewNoteModal = ({
+  noteId,
+  jobId,         
+  onClose,
+  currentTheme = 'gray',
+  onViewAttachments,
+  priorities = [],
+  userid,
+  scrollToNoteId,
+}) => {
+  const [currentNote, setCurrentNote] = useState(null);
+  const [relatedNotes, setRelatedNotes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [priority, setPriority] = useState(0);
 
-    const getNotePriority = (noteId) => {
-        const priority = priorities.find(p => p.noteID == noteId && p.userId == userid);
-        return priority ? priority.priorityValue.toString() : '1'; 
-    };
+  const noteRefs = useRef({});
+  const chatContainerRef = useRef(null);
+  const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
 
-    const assignPriorities = () => {
-        const prioritiesMap = {};
-        documents.forEach(doc => {
-            prioritiesMap[doc.id] = getNotePriority(doc.id);
+  const fetchNoteAndRelated = async () => {
+    if (!noteId) return;
+    setLoading(true);
+    try {
+      const noteRes = await fetch(`${apiUrl}/SiteNote/GetSiteNoteById/${noteId}`);
+      if (!noteRes.ok) throw new Error('Failed to fetch note');
+      const noteData = await noteRes.json();
+
+      const note = {
+        ...noteData,
+        userName: noteData.UserName || noteData.userName,
+        documentCount: noteData.DocumentCount || noteData.documentCount || 0,
+        date: noteData.date || '',
+        timeStamp: noteData.timeStamp || '',
+      };
+      setCurrentNote(note);
+
+      if (!jobId) {
+        setRelatedNotes([note]);
+        setLoading(false);
+        return;
+      }
+
+      const url = `${apiUrl}/SiteNote/GetSiteNotesByJobId?pageNumber=1&pageSize=100&jobId=${jobId}&userId=${userid}`;
+      console.log('Fetching all notes for job ->', url);
+      const relRes = await fetch(url);
+      if (!relRes.ok) throw new Error('Failed to fetch related notes');
+      const relData = await relRes.json();
+
+      const related = (relData.siteNotes || [])
+        .map(n => ({
+          ...n,
+          userName: n.UserName || n.userName,
+          documentCount: n.DocumentCount || n.documentCount || 0,
+          date: n.date || '',
+          timeStamp: n.timeStamp || '',
+        }))
+        .sort((a, b) => {
+          const now = new Date();
+          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const da = new Date(a.date);
+          const db = new Date(b.date);
+          const aF = da > today;
+          const bF = db > today;
+          if (aF && !bF) return 1;
+          if (!aF && bF) return -1;
+          if (da.getTime() !== db.getTime()) return da - db;
+          return a.id - b.id;
         });
-        setNotePriorities(prioritiesMap);
-    };
 
-    useEffect(() => {
-        assignPriorities();
-        const selectedNote = documents.find(doc => doc.id === noteId);
-        setCurrentNote(selectedNote);
+      setRelatedNotes(related);
+    } catch (err) {
+      console.error('ViewNoteModal error:', err);
+      toast.error('Failed to load note');
+      onClose();
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        if (selectedNote) {
-            const filtered = documents.filter(doc =>
-                doc.project === selectedNote.project && doc.job === selectedNote.job
-            ).sort((a, b) => {
-                const now = new Date();
-                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                
-                const dateA = new Date(a.date);
-                const dateB = new Date(b.date);
-                
-                // Check if dates are future-dated (after today)
-                const isAFuture = dateA > today;
-                const isBFuture = dateB > today;
-                
-                // Future-dated notes should appear at the bottom
-                if (isAFuture && !isBFuture) {
-                    return 1; // A is future, B is not -> A should be after B
-                }
-                if (!isAFuture && isBFuture) {
-                    return -1; // A is not future, B is future -> A should be before B
-                }
-                
-                // If both are future or both are not future, sort by date (ascending)
-                if (dateA.getTime() !== dateB.getTime()) {
-                    return dateA - dateB; // Ascending order by date
-                }
-                
-                // If dates are the same, sort by id (latest entry last)
-                // Assuming higher id means newer note (if ids are sequential)
-                return a.id - b.id; // Ascending order by id (older ids first, newer ids last)
-            });
+  const assignPriority = () => {
+    const p = priorities.find(p => p.noteID == noteId && p.userId == userid);
+    setPriority(p?.priorityValue || 0);
+  };
 
-            setFilteredDocuments(filtered);
-            setTimeout(() => {
-                if (chatContainerRef.current) {
-                    chatContainerRef.current.scrollTop = 0; // Scroll to top since newest is first
-                }
-                if (noteRefs.current[noteId]) {
-                    noteRefs.current[noteId].scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            }, 0);
-        }
-    }, [noteId, documents, priorities, userid]); 
+  const scrollToCurrentNote = () => {
+    const target = scrollToNoteId || noteId;
+    const el = noteRefs.current[target];
+    if (el && chatContainerRef.current) {
+      requestAnimationFrame(() => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.style.transition = 'background .4s ease';
+        el.style.background = '#e3f2fd';
+        setTimeout(() => { el.style.background = ''; el.style.borderLeft = ''; }, 2000);
+      });
+    }
+  };
 
-    if (!currentNote) return null;
+  useEffect(() => { fetchNoteAndRelated(); }, [noteId, jobId, userid]);
+  useEffect(() => { assignPriority(); }, [priorities, noteId, userid]);
+  useEffect(() => { if (!loading && relatedNotes.length) scrollToCurrentNote(); }, [loading, relatedNotes, scrollToNoteId, noteId]);
 
-    const formatDate = (dateString) => {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', {
-            weekday: 'short',
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        });
-    };
+  const formatDate = iso => {
+    if (!iso) return 'Invalid Date';
+    const d = new Date(iso);
+    return isNaN(d) ? 'Invalid Date' : d.toLocaleDateString('en-US', { weekday:'short', year:'numeric', month:'short', day:'numeric' });
+  };
+  const formatTime = iso => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return isNaN(d) ? '' : d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+  };
 
-    const formatTime = (dateString) => {
-        const date = new Date(dateString);
-        return date.toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    };
-
+  if (loading) {
     return (
-        <div className={`view-note-modal-overlay theme-${currentTheme}`}>
-            <div className="view-note-modal">
-                <div className="whatsapp-header">
-                    <div className="header-left">
-                        <button className="back-button" onClick={onClose}>
-                            <i className="fas fa-arrow-left"></i>
-                        </button>
-                        <div className="contact-info">
-                            <div className="contact-name">Workspace: {currentNote.workspace}</div>
-                            <div className="contact-project">Project: {currentNote.project}</div>
-                            <div className="contact-status">Job: {currentNote.job}</div>
-                        </div>
-                    </div>
-                    <div className="header-right">
-                        <button className="header-button">
-                            <i className="fas fa-ellipsis-v"></i>
-                        </button>
-                    </div>
-                </div>
-
-                <div className="whatsapp-chat" id="chat-container" ref={chatContainerRef}>
-                    {filteredDocuments.map((doc) => (
-                        <div
-                            key={doc.id}
-                            ref={el => noteRefs.current[doc.id] = el}
-                            className="message-row"
-                        >
-                            <div className={`message received ${doc.id === noteId ? 'selected' : ''} priority-${notePriorities[doc.id] || '1'}`}>
-                                <div className="message-content">
-                                    <div className="message-header">
-                                        <span className="sender-name">{doc.userName}</span>
-                                        
-                                        <span className="message-time">
-                                            {formatDate(doc.timeStamp)} - {formatTime(doc.timeStamp)}
-                                        </span>
-                                    </div>
-                                    <div className="message-date-below">
-                                        {formatDate(doc.date)}
-                                    </div>
-                                    <div className="message-text">
-                                        {doc.note}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {doc.documentCount > 0 && (
-                                <div className="paperclip-container">
-                                    <button 
-                                        className="paperclip-button"
-                                        onClick={() => onViewAttachments(doc)} 
-                                        title={`View ${doc.documentCount} attached file(s)`}
-                                    >
-                                        <span className="document-count-badge">({doc.documentCount}) </span>
-                                        <i className="fas fa-paperclip"></i>
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
-                
-                <div className="whatsapp-footer">
-                    <button className="close-chat-button" onClick={onClose}>
-                        <i className="fas fa-times"></i>
-                        Close
-                    </button>
-                </div>
-            </div>
+      <div className={`view-note-modal-overlay theme-${currentTheme}`}>
+        <div className="view-note-modal loading">
+          <div className="loading-spinner"><i className="fas fa-spinner fa-spin"/> <p>Loading note...</p></div>
         </div>
+      </div>
     );
+  }
+  if (!currentNote) return null;
+
+  return (
+    <div className={`view-note-modal-overlay theme-${currentTheme}`} onClick={onClose}>
+      <div className="view-note-modal" onClick={e=>e.stopPropagation()}>
+        <div className="whatsapp-header">
+          <div className="header-left">
+            <button className="back-button" onClick={onClose}><i className="fas fa-arrow-left"/></button>
+            <div className="contact-info">
+              <div className="contact-name">Workspace: {currentNote.siteNote.workspace}</div>
+              <div className="contact-project">Project: {currentNote.siteNote.project}</div>
+              <div className="contact-status">Job: {currentNote.siteNote.job}</div>
+            </div>
+          </div>
+          <div className="header-right"><button className="header-button"><i className="fas fa-ellipsis-v"/></button></div>
+        </div>
+
+        <div className="whatsapp-chat" ref={chatContainerRef}>
+          {relatedNotes.map(doc => (
+            <div key={doc.id} ref={el=> (noteRefs.current[doc.id]=el)} className="message-row" id={`related-note-${doc.id}`}>
+              <div
+                className={`message received ${doc.id===noteId?'selected':''} priority-${priority}`}
+                style={{borderLeft:doc.id===noteId?'4px solid #3498db':'none',border :'solid 1px #555', background:doc.id===noteId?'#f0f8ff':'white'}}
+              >
+                <div className="message-content">
+                  <div className="message-header">
+                    <span className="sender-name">{doc.userName}</span>
+                    <span className="message-time">{formatDate(doc.timeStamp)} - {formatTime(doc.timeStamp)}</span>
+                  </div>
+                  <div className="message-date-below">{formatDate(doc.date)}</div>
+                  <div className="message-text">{doc.note}</div>
+                </div>
+              </div>
+
+              {doc.documentCount>0 && (
+                <div className="paperclip-container">
+                  <button className="paperclip-button" onClick={e=>{e.stopPropagation();onViewAttachments(doc);}} title={`View ${doc.documentCount} attached file(s)`}>
+                    <span className="document-count-badge">({doc.documentCount}) </span>
+                    <i className="fas fa-paperclip"/>
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="whatsapp-footer">
+          <button className="close-chat-button" onClick={onClose}><i className="fas fa-times"/> Close</button>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default ViewNoteModal;
