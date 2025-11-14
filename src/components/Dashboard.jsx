@@ -904,6 +904,7 @@ const Dashboard = ({
           projects={projects}
           jobs={jobs}
           priorities={priorities}
+          defaultUserWorkspaceID={defaultUserWorkspaceID}
         />
       )}
       {showAttachedFileModal && selectedFileNote && (

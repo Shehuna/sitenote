@@ -1,65 +1,80 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import './EditNoteModal.css';
-import toast from 'react-hot-toast';
+import React, { useState, useEffect, useCallback } from "react";
+import "./EditNoteModal.css";
+import toast from "react-hot-toast";
 
-const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument, projects = [], jobs = [], priorities = [], onPriorityUpdate  }) => {
-  
+const EditNoteModal = ({
+  note,
+  onClose,
+  refreshNotes,
+  updateNote,
+  uploadDocument,
+  projects = [],
+  jobs = [],
+  priorities = [],
+  onPriorityUpdate,
+  defaultWorkspaceId
+}) => {
   const [isEditable, setIsEditable] = useState(true);
   const [journalData, setJournalData] = useState({
-    date: '',
-    userId: '',
-    jobId: '',
-    note: ''
+    date: "",
+    userId: "",
+    jobId: "",
+    note: "",
   });
 
   const [documents, setDocuments] = useState([]);
   const [showDocumentModal, setShowDocumentModal] = useState(false);
   const [newDocument, setNewDocument] = useState({
-    name: '',
+    name: "",
     file: null,
-    siteNoteId :'',
-    userId: ''
+    siteNoteId: "",
+    userId: "",
   });
 
-  const [activeTab, setActiveTab] = useState('journal');
+  const [activeTab, setActiveTab] = useState("journal");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [selectedPriority, setSelectedPriority] = useState('');
-  const [priorityId, setPriorityId] = useState('')
+  const [selectedPriority, setSelectedPriority] = useState("");
+  const [priorityId, setPriorityId] = useState("");
 
   const allowedFileTypes = {
     // Images
-    'image/jpeg': ['.jpg', '.jpeg'],
-    'image/png': ['.png'],
-    'image/gif': ['.gif'],
-    'image/webp': ['.webp'],
-    'image/svg+xml': ['.svg'],
-    
+    "image/jpeg": [".jpg", ".jpeg"],
+    "image/png": [".png"],
+    "image/gif": [".gif"],
+    "image/webp": [".webp"],
+    "image/svg+xml": [".svg"],
+
     // Documents
-    'application/pdf': ['.pdf'],
-    'application/msword': ['.doc'],
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-    'application/vnd.ms-excel': ['.xls'],
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-    'application/vnd.ms-powerpoint': ['.ppt'],
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
-    'text/plain': ['.txt'],
-    
+    "application/pdf": [".pdf"],
+    "application/msword": [".doc"],
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [
+      ".docx",
+    ],
+    "application/vnd.ms-excel": [".xls"],
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [
+      ".xlsx",
+    ],
+    "application/vnd.ms-powerpoint": [".ppt"],
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+      [".pptx"],
+    "text/plain": [".txt"],
+
     // Audio
-    'audio/mpeg': ['.mp3'],
-    'audio/wav': ['.wav'],
-    'audio/ogg': ['.ogg'],
-    'audio/aac': ['.aac'],
-    
+    "audio/mpeg": [".mp3"],
+    "audio/wav": [".wav"],
+    "audio/ogg": [".ogg"],
+    "audio/aac": [".aac"],
+
     // Video
-    'video/mp4': ['.mp4'],
-    'video/mpeg': ['.mpeg'],
-    'video/ogg': ['.ogv'],
-    'video/webm': ['.webm'],
-    'video/quicktime': ['.mov'],
-    'video/x-msvideo': ['.avi']
+    "video/mp4": [".mp4"],
+    "video/mpeg": [".mpeg"],
+    "video/ogg": [".ogv"],
+    "video/webm": [".webm"],
+    "video/quicktime": [".mov"],
+    "video/x-msvideo": [".avi"],
   };
 
   const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -76,36 +91,44 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
       if (creationDate) {
         const createdAt = new Date(creationDate);
         const now = new Date();
-        const hoursDiff = (now - createdAt) / (1000 * 60 * 60); 
-        if(hoursDiff > 24){
-           setIsEditable(false);
+        const hoursDiff = (now - createdAt) / (1000 * 60 * 60);
+        if (hoursDiff > 24) {
+          setIsEditable(false);
+        } else {
+          setIsEditable(true);
         }
-       else{
-        setIsEditable(true)
-       }
       } else {
         setIsEditable(true);
       }
     }
   }, [note]);
-  
-
 
   const getMimeType = (fileName) => {
-    const ext = fileName?.split('.').pop()?.toLowerCase();
+    const ext = fileName?.split(".").pop()?.toLowerCase();
     switch (ext) {
-      case 'pdf': return 'application/pdf';
-      case 'jpg':
-      case 'jpeg': return 'image/jpeg';
-      case 'png': return 'image/png';
-      case 'gif': return 'image/gif';
-      case 'doc': return 'application/msword';
-      case 'docx': return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      case 'xls': return 'application/vnd.ms-excel';
-      case 'xlsx': return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-      case 'txt': return 'text/plain';
-      case 'html': return 'text/html';
-      default: return 'application/octet-stream';
+      case "pdf":
+        return "application/pdf";
+      case "jpg":
+      case "jpeg":
+        return "image/jpeg";
+      case "png":
+        return "image/png";
+      case "gif":
+        return "image/gif";
+      case "doc":
+        return "application/msword";
+      case "docx":
+        return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      case "xls":
+        return "application/vnd.ms-excel";
+      case "xlsx":
+        return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+      case "txt":
+        return "text/plain";
+      case "html":
+        return "text/html";
+      default:
+        return "application/octet-stream";
     }
   };
 
@@ -114,124 +137,129 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
       setIsLoadingDocuments(true);
       setError(null);
 
-      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Documents/GetDocumentMetadataByReference?siteNoteId=${referenceId}`, {
-        headers: { "accept": "application/json" }
-      });
+      const response = await fetch(
+        `${process.env.REACT_APP_API_BASE_URL}/api/Documents/GetDocumentMetadataByReference?siteNoteId=${referenceId}`,
+        {
+          headers: { accept: "application/json" },
+        }
+      );
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch documents: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `Failed to fetch documents: ${response.status} ${response.statusText}`
+        );
       }
 
       var docs = await response.json();
       docs = docs.documents || docs;
 
-      setDocuments(docs.map(doc => {
-        const fileType = doc.fileName?.split('.').pop();
-        
-        const downloadApiTriggerUrl = `${process.env.REACT_APP_API_BASE_URL}/api/Documents/DownloadDocument/${doc.id}`;
+      setDocuments(
+        docs.map((doc) => {
+          const fileType = doc.fileName?.split(".").pop();
 
-        return {
-          ...doc,
-          fileType: fileType,
-          fileUrl: null, 
-          downloadApiTriggerUrl: downloadApiTriggerUrl
-        };
-      }));
+          const downloadApiTriggerUrl = `${process.env.REACT_APP_API_BASE_URL}/api/Documents/DownloadDocument/${doc.id}`;
 
+          return {
+            ...doc,
+            fileType: fileType,
+            fileUrl: null,
+            downloadApiTriggerUrl: downloadApiTriggerUrl,
+          };
+        })
+      );
     } catch (error) {
       console.error("Error fetching documents:", error);
       setError("Failed to load documents: " + error.message);
     } finally {
       setIsLoadingDocuments(false);
     }
-  }, []); 
+  }, []);
   useEffect(() => {
     if (note) {
-        const projectId = note.projectId 
-            ? note.projectId.toString() 
-            : findProjectIdByName(note.project || '');
-        
-        const jobId = note.jobId 
-            ? note.jobId.toString() 
-            : findJobIdByName(note.job || '', projectId);
-        
-        let correctedDate = '';
-        if (note.date) {
-            const dateObj = new Date(note.date);
-            const year = dateObj.getFullYear();
-            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-            const day = String(dateObj.getDate()).padStart(2, '0');
-            correctedDate = `${year}-${month}-${day}`;
+      const projectId = note.projectId
+        ? note.projectId.toString()
+        : findProjectIdByName(note.project || "");
+
+      const jobId = note.jobId
+        ? note.jobId.toString()
+        : findJobIdByName(note.job || "", projectId);
+
+      let correctedDate = "";
+      if (note.date) {
+        const dateObj = new Date(note.date);
+        const year = dateObj.getFullYear();
+        const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+        const day = String(dateObj.getDate()).padStart(2, "0");
+        correctedDate = `${year}-${month}-${day}`;
+      }
+
+      setJournalData({
+        date: correctedDate,
+        projectId: projectId || "",
+        jobId: jobId || "",
+        note: note.note || "",
+      });
+
+      if (note.id) {
+        fetchDocumentsByReference(note.id);
+      }
+
+      if (note.id) {
+        const user = JSON.parse(localStorage.getItem("user"));
+        console.log("=== PRIORITY DEBUG ===");
+        console.log("Note ID:", note.id);
+        console.log("Current User ID:", user.id);
+        console.log("All priorities:", priorities);
+
+        let result = priorities.find((p) => p.noteID == note.id);
+        console.log("Found priority (any user):", result);
+
+        if (!result) {
+          result = priorities.find(
+            (p) => p.noteID == note.id && p.userId == user.id
+          );
+          console.log("Found priority (current user):", result);
         }
 
-        setJournalData({
-            date: correctedDate,
-            projectId: projectId || '',
-            jobId: jobId || '',
-            note: note.note || ''
-        });
-
-        if (note.id) {
-            fetchDocumentsByReference(note.id); 
+        if (result) {
+          console.log("✅ Setting priorityId:", result.id);
+          console.log("✅ Setting selectedPriority:", result.priorityValue);
+          setSelectedPriority(result.priorityValue.toString());
+          setPriorityId(result.id.toString());
+        } else {
+          console.log("❌ No priority found for this note");
+          setSelectedPriority("1");
+          setPriorityId("");
         }
-
-        if(note.id){
-            const user = JSON.parse(localStorage.getItem('user'));
-            console.log('=== PRIORITY DEBUG ===');
-            console.log('Note ID:', note.id);
-            console.log('Current User ID:', user.id);
-            console.log('All priorities:', priorities);
-            
-            let result = priorities.find(p => p.noteID == note.id);
-            console.log('Found priority (any user):', result);
-            
-            if (!result) {
-                result = priorities.find(p => p.noteID == note.id && p.userId == user.id);
-                console.log('Found priority (current user):', result);
-            }
-            
-            if(result){
-                console.log('✅ Setting priorityId:', result.id);
-                console.log('✅ Setting selectedPriority:', result.priorityValue);
-                setSelectedPriority(result.priorityValue.toString());
-                setPriorityId(result.id.toString());
-            } else {
-                console.log('❌ No priority found for this note');
-                setSelectedPriority('1');
-                setPriorityId('');
-            }
-            console.log('=== END DEBUG ===');
-        }
+        console.log("=== END DEBUG ===");
+      }
     }
-}, [note, fetchDocumentsByReference, projects, jobs, priorities]);
-
+  }, [note, fetchDocumentsByReference, projects, jobs, priorities]);
 
   const findProjectIdByName = (projectName) => {
-    const project = projects.find(p => p.name === projectName);
-    return project ? project.id.toString() : '';
+    const project = projects.find((p) => p.name === projectName);
+    return project ? project.id.toString() : "";
   };
 
   const findJobIdByName = (jobName, projectId) => {
-    const job = jobs.find(j => 
-      j.name === jobName && 
-      j.projectId?.toString() === projectId.toString()
+    const job = jobs.find(
+      (j) =>
+        j.name === jobName && j.projectId?.toString() === projectId.toString()
     );
-    return job ? job.id.toString() : '';
+    return job ? job.id.toString() : "";
   };
-
-  
 
   const handleJournalChange = (e) => {
     if (!isEditable) return;
-    
+
     const { name, value } = e.target;
-    setJournalData(prev => ({ ...prev, [name]: value }));
+    setJournalData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleAddDocument = () => {
     if (!isEditable) return;
-    
-    setNewDocument({ name: '', file: null, siteNoteId: '', userId: '' });
+
+    setNewDocument({ name: "", file: null, siteNoteId: "", userId: "" });
     setShowDocumentModal(true);
     setError(null);
   };
@@ -239,36 +267,36 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
   const handleDocumentFileChange = (e) => {
     if (!isEditable) return;
     const file = e.target.files[0];
-    setError('');
+    setError("");
     if (!isValidFileType(file)) {
-      setError('Invalid file type! ');
+      setError("Invalid file type! ");
       setSelectedFile(null);
       return;
     }
 
-   /*  if (!isValidFileSize(file)) {
+    /*  if (!isValidFileSize(file)) {
       setError(`File size too large. Maximum allowed size is 5MB.`);
       setSelectedFile(null);
       return;
     } */
-    setNewDocument(prev => ({ ...prev, file: e.target.files[0] }));
+    setNewDocument((prev) => ({ ...prev, file: e.target.files[0] }));
   };
 
   const handleDocumentSubmit = async () => {
     if (!isEditable) {
-      setError('Cannot add documents to notes older than 24 hours');
+      setError("Cannot add documents to notes older than 24 hours");
       return;
     }
-    
+
     setError(null);
 
     if (!newDocument.name.trim()) {
-      setError('Document name is required.');
+      setError("Document name is required.");
       return;
     }
 
     if (!newDocument.file) {
-      setError('Please select a file to upload.');
+      setError("Please select a file to upload.");
       return;
     }
 
@@ -276,11 +304,9 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
       setIsSubmitting(true);
 
       const savedDoc = await uploadDocument(
-        
-          newDocument.name,
-          newDocument.file,
-          note.id
-        
+        newDocument.name,
+        newDocument.file,
+        note.id
 
         /* note.id, 
         null, 
@@ -293,57 +319,57 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
 
       const newDocWithDownloadUrl = {
         ...savedDoc,
-        fileType: getMimeType(savedDoc.fileName).split('/')[1], 
-        fileUrl: null, 
-        downloadApiTriggerUrl: `${process.env.REACT_APP_API_BASE_URL}/api/Documents/DownloadDocument/${savedDoc.id}`
+        fileType: getMimeType(savedDoc.fileName).split("/")[1],
+        fileUrl: null,
+        downloadApiTriggerUrl: `${process.env.REACT_APP_API_BASE_URL}/api/Documents/DownloadDocument/${savedDoc.id}`,
       };
-      setDocuments(docs => [...docs, newDocWithDownloadUrl]);
+      setDocuments((docs) => [...docs, newDocWithDownloadUrl]);
 
       setShowDocumentModal(false);
-      setNewDocument({ name: '', file: null });
+      setNewDocument({ name: "", file: null });
     } catch (err) {
-      console.error('Error saving document:', err);
-      setError(err.message || 'Failed to save document');
+      console.error("Error saving document:", err);
+      setError(err.message || "Failed to save document");
     } finally {
       setIsSubmitting(false);
     }
   };
 
- const handleDownloadDocument = async (documentToDownload) => {
-  try {
-    setError(null); 
-    setIsSubmitting(true); 
+  const handleDownloadDocument = async (documentToDownload) => {
+    try {
+      setError(null);
+      setIsSubmitting(true);
 
-    const response = await fetch(documentToDownload.downloadApiTriggerUrl);
+      const response = await fetch(documentToDownload.downloadApiTriggerUrl);
 
-    if (!response.ok) {
-      throw new Error(`Failed to retrieve document: ${response.status} ${response.statusText}`);
+      if (!response.ok) {
+        throw new Error(
+          `Failed to retrieve document: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = documentToDownload.fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error downloading document:", error);
+      alert("Could not download document: " + error.message);
+      setError("Error downloading document: " + error.message);
+    } finally {
+      setIsSubmitting(false);
     }
+  };
 
-    const blob = await response.blob(); 
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = documentToDownload.fileName; 
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
-
-  } catch (error) {
-    console.error('Error downloading document:', error);
-    alert('Could not download document: ' + error.message);
-    setError('Error downloading document: ' + error.message);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
-
-
-   const handleSaveNote = async () => {
+  const handleSaveNote = async () => {
     setIsSubmitting(true);
     setError(null);
-  
+
     try {
       if (!isEditable) {
         await handleUpdatepriority();
@@ -352,141 +378,169 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
         return;
       }
 
-      const originalProjectId = note.projectId ? note.projectId.toString() : findProjectIdByName(note.project || '');
-      const originalJobId = note.jobId ? note.jobId.toString() : findJobIdByName(note.job || '', originalProjectId);
-      
-      if (journalData.projectId !== originalProjectId || journalData.jobId !== originalJobId) {
-        setError('Cannot update project or job information. Only the note content and date can be updated.');
+      const originalProjectId = note.projectId
+        ? note.projectId.toString()
+        : findProjectIdByName(note.project || "");
+      const originalJobId = note.jobId
+        ? note.jobId.toString()
+        : findJobIdByName(note.job || "", originalProjectId);
+
+      if (
+        journalData.projectId !== originalProjectId ||
+        journalData.jobId !== originalJobId
+      ) {
+        setError(
+          "Cannot update project or job information. Only the note content and date can be updated."
+        );
         setIsSubmitting(false);
         return;
       }
-  
+
       const result = await updateNote(note.id, {
-        Date: new Date(journalData.date).toISOString(), 
+        Date: new Date(journalData.date).toISOString(),
         Note: journalData.note,
         JobId: journalData.jobId,
-        UserId: journalData.userId
+        UserId: journalData.userId,
       });
-  
+
       if (result && (result.success || result.id || result.message)) {
-      
         await handleUpdatepriority();
         onClose();
         refreshNotes();
       } else {
-        throw new Error('Failed to save note: No success confirmation from server');
+        throw new Error(
+          "Failed to save note: No success confirmation from server"
+        );
       }
     } catch (err) {
-      console.error('Error saving note:', err);
-      setError(err.message || 'Failed to save note. Please check your connection and try again.');
+      console.error("Error saving note:", err);
+      setError(
+        err.message ||
+          "Failed to save note. Please check your connection and try again."
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
 
- const handleUpdatepriority = async () => {
+  const handleUpdatepriority = async () => {
     try {
-        const user = JSON.parse(localStorage.getItem('user'));
-        console.log('=== UPDATE PRIORITY DEBUG ===');
-        console.log('priorityId:', priorityId);
-        console.log('selectedPriority:', selectedPriority);
-        console.log('note.id:', note.id);
-        console.log('user.id:', user.id);
-        
-        let response;
-        
-        if (priorityId) {
-            console.log('Updating existing priority');
-            const url = `${process.env.REACT_APP_API_BASE_URL}/api/Priority/UpdatePriority/${priorityId}`;
-            console.log('Update URL:', url);
-            
-            response = await fetch(url, {
-                method: "PUT",
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    priorityValue: selectedPriority
-                })
-            });
-        } 
-        else {
-            console.log('Creating new priority');
-            response = await fetch(
-                `${process.env.REACT_APP_API_BASE_URL}/api/Priority/AddPriority`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        noteID: note.id,
-                        priorityValue: selectedPriority,
-                        userId: user.id
-                    }),
-                }
-            );
-        }
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || `Failed to ${priorityId ? 'update' : 'create'} priority`);
-        }
-        
-        console.log(`Priority ${priorityId ? 'updated' : 'created'} successfully`);
-        toast.success(`Priority ${priorityId ? 'updated' : 'created'} successfully`);
-        
+      const user = JSON.parse(localStorage.getItem("user"));
+      console.log("=== UPDATE PRIORITY DEBUG ===");
+      console.log("priorityId:", priorityId);
+      console.log("selectedPriority:", selectedPriority);
+      console.log("note.id:", note.id);
+      console.log("user.id:", user.id);
+
+      let response;
+
+      if (priorityId) {
+        console.log("Updating existing priority");
+        const url = `${process.env.REACT_APP_API_BASE_URL}/api/Priority/UpdatePriority/${priorityId}`;
+        console.log("Update URL:", url);
+
+        response = await fetch(url, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            priorityValue: selectedPriority,
+          }),
+        });
+      } else {
+        console.log("Creating new priority");
+        response = await fetch(
+          `${process.env.REACT_APP_API_BASE_URL}/api/Priority/AddPriority`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              noteID: note.id,
+              priorityValue: selectedPriority,
+              userId: user.id,
+            }),
+          }
+        );
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          errorData.message ||
+            `Failed to ${priorityId ? "update" : "create"} priority`
+        );
+      }
+
+      console.log(
+        `Priority ${priorityId ? "updated" : "created"} successfully`
+      );
+      toast.success(
+        `Priority ${priorityId ? "updated" : "created"} successfully`
+      );
     } catch (error) {
-        console.error("Error saving priority:", error);
-        throw error;
+      console.error("Error saving priority:", error);
+      throw error;
     }
-}
+  };
 
   if (!note) return null;
 
   return (
     <div className="edit-note-modal-overlay">
       <div className="edit-note-modal">
-        <div className="modal-header"><h2>
-        Edit Note{" "}
-        {!isEditable && (
-          <i className="fas fa-edit" title="Only priority can be edited"></i>
-        )}
-        </h2>
+        <div className="modal-header">
+          <h2>
+            Edit Note{" "}
+            {!isEditable && (
+              <i
+                className="fas fa-edit"
+                title="Only priority can be edited"
+              ></i>
+            )}
+          </h2>
 
-          <button className="close-button" onClick={onClose} disabled={isSubmitting}>
+          <button
+            className="close-button"
+            onClick={onClose}
+            disabled={isSubmitting}
+          >
             &times;
           </button>
         </div>
 
         {!isEditable && (
           <div className="edit-warning">
-           This note is older than 24 hours. Only the priority can be updated.
+            This note is older than 24 hours. Only the priority can be updated.
           </div>
         )}
         <div className="tabs">
           <button
-            className={`tab-button ${activeTab === 'journal' ? 'active' : ''}`}
-            onClick={() => setActiveTab('journal')}
+            className={`tab-button ${activeTab === "journal" ? "active" : ""}`}
+            onClick={() => setActiveTab("journal")}
           >
             Journal
           </button>
           <button
-            className={`tab-button ${activeTab === 'documents' ? 'active' : ''}`}
-            onClick={() => setActiveTab('documents')}
+            className={`tab-button ${
+              activeTab === "documents" ? "active" : ""
+            }`}
+            onClick={() => setActiveTab("documents")}
           >
             Documents {documents.length > 0 && `(${documents.length})`}
           </button>
           <button
-            className={`tab-button ${activeTab === 'priority' ? 'active' : ''}`}
-            onClick={() => setActiveTab('priority')}
+            className={`tab-button ${activeTab === "priority" ? "active" : ""}`}
+            onClick={() => setActiveTab("priority")}
           >
             Priority
           </button>
         </div>
 
         <div className="tab-content">
-          {activeTab === 'journal' ? (
+          {activeTab === "journal" ? (
             <div className="journal-section">
               <div className="form-group">
                 <label>Date:</label>
@@ -510,7 +564,9 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
                   disabled={!isEditable || isSubmitting}
                 >
                   <option value="">Select Project</option>
-                  {projects.map(project => (
+                  {projects.filter(project => 
+                      !defaultWorkspaceId || project.workspaceId?.toString() === defaultWorkspaceId.toString()
+                      ).map((project) => (
                     <option key={project.id} value={project.id}>
                       {project.name}
                     </option>
@@ -525,12 +581,17 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
                   value={journalData.jobId}
                   onChange={handleJournalChange}
                   required
-                  disabled={!isEditable || !journalData.projectId || isSubmitting}
+                  disabled={
+                    !isEditable || !journalData.projectId || isSubmitting
+                  }
                 >
                   <option value="">Select Job</option>
                   {jobs
-                    .filter(job => job.projectId?.toString() === journalData.projectId)
-                    .map(job => (
+                    .filter(
+                      (job) =>
+                        job.projectId?.toString() === journalData.projectId
+                    )
+                    .map((job) => (
                       <option key={job.id} value={job.id}>
                         {job.name}
                       </option>
@@ -550,7 +611,7 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
                 />
               </div>
             </div>
-          ) : activeTab === 'documents' ? (
+          ) : activeTab === "documents" ? (
             <div className="documents-section">
               <h3>Attached Documents</h3>
               {error && <p className="error-message">{error}</p>}
@@ -558,13 +619,17 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
                 <p>Loading documents...</p>
               ) : (
                 <>
-                  { (
+                  {
                     <div className="document-actions">
-                      <button onClick={handleAddDocument} className="add-button" disabled={isSubmitting}>
+                      <button
+                        onClick={handleAddDocument}
+                        className="add-button"
+                        disabled={isSubmitting}
+                      >
                         Add Document
                       </button>
                     </div>
-                  )}
+                  }
 
                   <div className="documents-list">
                     {documents.length === 0 ? (
@@ -579,10 +644,10 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
                           </tr>
                         </thead>
                         <tbody>
-                          {documents.map(doc => (
+                          {documents.map((doc) => (
                             <tr key={doc.id}>
                               <td>{doc.name}</td>
-                              <td>{doc.fileName || 'N/A'}</td>
+                              <td>{doc.fileName || "N/A"}</td>
                               <td className="document-actions-cell">
                                 <button
                                   onClick={() => handleDownloadDocument(doc)}
@@ -601,26 +666,40 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
                 </>
               )}
             </div>
-          ): (<div className="journal-section">
-    <div className="form-group">
-        <label>Priority</label>
-        
-        <select
-            value={selectedPriority}
-            onChange={(e) => {
-                setSelectedPriority(e.target.value);
-            }}
-            disabled={isSubmitting}
-            className={`priority-select ${selectedPriority ? `priority-${selectedPriority}` : 'priority-default'}`}
-        >
-            <option value="">Select Priority</option>
-            <option value="4" className="priority-option-4">High</option>
-            <option value="3" className="priority-option-3">Medium</option>
-            <option value="2" className="priority-option-2">Low</option>
-            <option value="1" className="priority-option-1">No Priority</option>
-        </select>
-    </div>
-</div>)}
+          ) : (
+            <div className="journal-section">
+              <div className="form-group">
+                <label>Priority</label>
+
+                <select
+                  value={selectedPriority}
+                  onChange={(e) => {
+                    setSelectedPriority(e.target.value);
+                  }}
+                  disabled={isSubmitting}
+                  className={`priority-select ${
+                    selectedPriority
+                      ? `priority-${selectedPriority}`
+                      : "priority-default"
+                  }`}
+                >
+                  <option value="">Select Priority</option>
+                  <option value="4" className="priority-option-4">
+                    High
+                  </option>
+                  <option value="3" className="priority-option-3">
+                    Medium
+                  </option>
+                  <option value="2" className="priority-option-2">
+                    Low
+                  </option>
+                  <option value="1" className="priority-option-1">
+                    No Priority
+                  </option>
+                </select>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="modal-footer">
@@ -629,15 +708,15 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
             className="cancel-button"
             disabled={isSubmitting}
           >
-            {isEditable ? 'Cancel' : 'Close'}
+            {isEditable ? "Cancel" : "Close"}
           </button>
-          { 
+          {
             <button
               onClick={handleSaveNote}
               className="save-button"
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Saving...' : 'Save'}
+              {isSubmitting ? "Saving..." : "Save"}
             </button>
           }
         </div>
@@ -645,14 +724,19 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
         {showDocumentModal && (
           <div className="document-modal-overlay">
             <div className="document-modal">
-              <h3>Add Document</h3> 
+              <h3>Add Document</h3>
               {error && <p className="error-message">{error}</p>}
               <div className="form-group">
                 <label>Document Name:</label>
                 <input
                   type="text"
                   value={newDocument.name}
-                  onChange={(e) => setNewDocument(prev => ({ ...prev, name: e.target.value }))}
+                  onChange={(e) =>
+                    setNewDocument((prev) => ({
+                      ...prev,
+                      name: e.target.value,
+                    }))
+                  }
                   required
                   disabled={isSubmitting || !isEditable}
                 />
@@ -663,7 +747,7 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
                 <input
                   type="file"
                   onChange={handleDocumentFileChange}
-                  required 
+                  required
                   disabled={isSubmitting || !isEditable}
                 />
               </div>
@@ -679,9 +763,14 @@ const EditNoteModal = ({ note, onClose, refreshNotes, updateNote, uploadDocument
                 <button
                   onClick={handleDocumentSubmit}
                   className="submit-button"
-                  disabled={isSubmitting || !newDocument.name.trim() || !newDocument.file || !isEditable}
+                  disabled={
+                    isSubmitting ||
+                    !newDocument.name.trim() ||
+                    !newDocument.file ||
+                    !isEditable
+                  }
                 >
-                  {isSubmitting ? 'Saving...' : 'Save Document'}
+                  {isSubmitting ? "Saving..." : "Save Document"}
                 </button>
               </div>
             </div>
