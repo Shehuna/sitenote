@@ -21,7 +21,9 @@ const NewNoteModal = ({
     const [selectedProject, setSelectedProject] = useState('');
     const [selectedPriority, setSelectedPriority] = useState('1');
     const [selectedJob, setSelectedJob] = useState('');
+    const [selectedWorkspace, setSelectedWorkspace] = useState('');
     const [filteredJobs, setFilteredJobs] = useState([]);
+    const [filteredProjects, setFilteredProjects] = useState([]);
     const [selectedDate, setSelectedDate] = useState('');
     const [noteContent, setNoteContent] = useState('');
     const [documents, setDocuments] = useState([]);
@@ -79,7 +81,20 @@ const NewNoteModal = ({
   /* const isValidFileSize = (file) => {
     return file.size <= MAX_FILE_SIZE;
   }; */
-
+    useEffect(() => {
+        if (selectedWorkspace) {
+            const filtered = projects.filter(project =>
+                project.workspaceID?.toString() === selectedWorkspace.toString() 
+            );
+            setFetchedProjects(filtered);
+            if (!filtered.some(project => project.id.toString() === selectedProject.toString() ) ) {
+                setSelectedProject('');
+            }
+        } else {
+            setFilteredProjects([]);
+            setSelectedProject('');
+        }
+    }, [selectedWorkspace, projects, selectedProject]);
   
     useEffect(() => {
         if (selectedProject) {
@@ -382,11 +397,11 @@ const NewNoteModal = ({
                             <label>Workspace</label>
                             
                             <select
-                                //value={selectedProject}
-                                /* onChange={(e) => {
-                                    setSelectedProject(e.target.value);
-                                    setErrors(prev => ({ ...prev, project: undefined, job: undefined }));
-                                }} */
+                                value={selectedWorkspace}
+                                onChange={(e) => {
+                                    setSelectedWorkspace(e.target.value);
+                                    //setErrors(prev => ({ ...prev, project: undefined, job: undefined }));
+                                }}
                             >
                                 <option value="">
                                     Select Workspace
@@ -408,12 +423,10 @@ const NewNoteModal = ({
                                     setErrors(prev => ({ ...prev, project: undefined, job: undefined }));
                                 }}
                             >
-                                <option value="">
-                                    {fetchedProjects.length === 0 ? "No projects available" : "Select Project"}
-                                </option>
-                                {fetchedProjects.map(project => (
+                                <option value="">Select Project</option>
+                                {filteredProjects && filteredProjects.map(project => (
                                     <option key={project.id} value={project.id.toString()}>
-                                        {project.text} (ID: {project.id})
+                                        {project.name} (ID: {project.id})
                                     </option>
                                 ))}
                             </select>
