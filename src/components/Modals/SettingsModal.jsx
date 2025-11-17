@@ -11,7 +11,7 @@ import JobManagment from '../Jobs/JobManagment';
 import JobPermissionManagement from '../JobPermission/JobPermissionManagement';
 import JobStatusManagement from '../JobStatus/JobStatusManagement';
 import UserProfile from '../UserProfile/UserProfile';
-import UserJobManagement from '../UserJob/UserJobManagement';
+import UserJobManagement from '../JobPermission/UserJobManagement';
 const SettingsModal = ({ 
     isOpen, 
     onClose, 
@@ -228,11 +228,6 @@ useEffect(() => {
                 text: 'Job Status Update'
             },
             {
-                id: 'userJobManagement',
-                icon: 'fa-user-cog',
-                text: 'User Job Management'
-            },
-            {
                 id: 'workspaceSettings',
                 icon: 'fa-building', 
                 text: 'Workspace Settings'
@@ -312,12 +307,10 @@ useEffect(() => {
                 return <JobPermissionManagement defId={defWorkID} users={users}/>;
             case 'jobStatus':
                 return <JobStatusManagement defId={defWorkID} />;
-            case 'userJobManagement':
-                return <UserJobManagement defWorkID={defWorkID} />;   
             case 'workspaceSettings':
                 return <WorkspaceManagement 
                         onUpdateDefaultWorkspace={onUpdateDefaultWorkspace} 
-                        userRole={userrole} 
+                        userRole={userRole}
                         workspaceRole={role}
                         defWorkId={defWorkID}
                         defWorkName={defWorkName}

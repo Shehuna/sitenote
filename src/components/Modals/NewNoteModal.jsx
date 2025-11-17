@@ -13,7 +13,8 @@ const NewNoteModal = ({
     addSiteNote,
     onUploadDocument,
     prefilledData = null,
-    defWorkSpaceId
+    defWorkSpaceId,
+    userworksaces
     
 }) => {
     const [activeTab, setActiveTab] = useState('journal');
@@ -378,6 +379,26 @@ const NewNoteModal = ({
                 {activeTab === 'journal' ? (
                     <div className="journal-section">
                         <div className="form-group">
+                            <label>Workspace</label>
+                            
+                            <select
+                                //value={selectedProject}
+                                /* onChange={(e) => {
+                                    setSelectedProject(e.target.value);
+                                    setErrors(prev => ({ ...prev, project: undefined, job: undefined }));
+                                }} */
+                            >
+                                <option value="">
+                                    Select Workspace
+                                </option>
+                                {userworksaces.map(workspace => (
+                                    <option key={workspace.id} value={workspace.id.toString()}>
+                                        {workspace.text} (ID: {workspace.id})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="form-group">
                             <label>Project</label>
                             {errors.project && <span className="error-message-inline">{errors.project}</span>}
                             <select
@@ -390,9 +411,7 @@ const NewNoteModal = ({
                                 <option value="">
                                     {fetchedProjects.length === 0 ? "No projects available" : "Select Project"}
                                 </option>
-                                {fetchedProjects.filter(project => 
-                                    !defWorkSpaceId || project.workspaceId?.toString() === defWorkSpaceId.toString()
-                                    ).map(project => (
+                                {fetchedProjects.map(project => (
                                     <option key={project.id} value={project.id.toString()}>
                                         {project.text} (ID: {project.id})
                                     </option>

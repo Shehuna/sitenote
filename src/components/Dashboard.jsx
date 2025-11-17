@@ -54,7 +54,10 @@ const Dashboard = ({
   const [initialLoading, setInitialLoading] = useState(true);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [priorities, setPriorities] = useState([]);
+  const [role, setRole] = useState(null)
+  const [isRoleLoading, setIsRoleLoading] = useState(false);
   const [loadingUniques, setLoadingUniques] = useState(true);
+  const [userWorkspaces, setUserWorkspaces] = useState()
 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
 
@@ -108,6 +111,14 @@ const Dashboard = ({
       console.error(e);
     }
   };
+
+  useEffect(() => {
+    if (userid && defaultUserWorkspaceID) {
+      console.log("Fetching role with workspace ID:", defaultUserWorkspaceID);
+      fetchUserWorkspaceRole();
+    }
+  }, [userid, defaultUserWorkspaceID]);
+
   useEffect(() => {
     const fetchAllUniques = async () => {
       if (userid) {
@@ -116,7 +127,7 @@ const Dashboard = ({
           fetchUniqueJobs(),
           fetchUniqueWorkspaces(),
           fetchUniqueDates(),
-          fetchUniqueUsernames()
+          fetchUniqueUsernames(),
         ]);
         setLoadingUniques(false);
       }
@@ -320,7 +331,12 @@ const Dashboard = ({
         fetchUniqueWorkspaces(),
         fetchUniqueDates(),
         fetchUniqueUsernames()
+        // Remove fetchUserWorkspaceRole from here too
       ]);
+      // Fetch role separately if we have the workspace ID
+      if (defaultUserWorkspaceID) {
+        await fetchUserWorkspaceRole();
+      }
       toast.success("Refreshed");
     } catch {
       toast.error("Refresh error");
@@ -385,6 +401,54 @@ const Dashboard = ({
     setSelectedFileNote(note);
     setShowAttachedFileModal(true);
   };
+
+  const fetchUserWorkspaceRole = async () => {
+  setIsRoleLoading(true);
+  console.log("fetching workspace Id", defaultUserWorkspaceID);
+  console.log("userid", userid);
+  
+  try {
+    const response = await fetch(`${apiUrl}/UserWorkspace/GetWorkspacesByUserId/${userid}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+      }
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      
+      const userWorkspaces = data.userWorkspaces || data || []; // Try different possible structures
+      setUserWorkspaces(userWorkspaces)
+      // Log all workspace IDs to see what we're working with
+      userWorkspaces.forEach((ws, index) => {
+        console.log(`Workspace ${index}:`, {
+          id: ws.id,
+          workspaceID: ws.workspaceID,
+          workspaceId: ws.workspaceId, // try camelCase too
+          role: ws.role
+        });
+      });
+
+      // Try multiple possible field names
+      const workspace = userWorkspaces.find(ws => 
+        (ws.workspaceID && ws.workspaceID.toString() === defaultUserWorkspaceID.toString()) ||
+        (ws.workspaceId && ws.workspaceId.toString() === defaultUserWorkspaceID.toString()) ||
+        (ws.id && ws.id.toString() === defaultUserWorkspaceID.toString())
+      );
+          
+      const newRole = workspace?.role || null;
+      setRole(newRole);
+    } else {
+      console.error("API response not OK:", response.status);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    setRole(null);
+  } finally {
+    setIsRoleLoading(false);
+  }
+}
 
   return (
     <div className="main-content">
@@ -854,7 +918,8 @@ const Dashboard = ({
           defWorkID={defaultUserWorkspaceID}
           defWorkName={defaultUserWorkspaceName}
           onUpdateDefaultWorkspace={onUpdateDefaultWorkspace}
-          userrole={userRole}
+          //userrole={userRole}
+          role={role}
           userWorkspaces={workspaces}
           updateProjectsAndJobs={fetchProjectAndJobs}
         />
@@ -888,6 +953,7 @@ const Dashboard = ({
           onUploadDocument={onUploadDocument}
           onDeleteDocument={onDeleteDocument}
           defWorkSpaceId={defaultUserWorkspaceID}
+          userworksaces={uniqueWorkspaces}
         />
       )}
       {showEditModal && selectedNote && (

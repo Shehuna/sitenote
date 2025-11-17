@@ -138,8 +138,9 @@ useEffect(() => {
   
       if (response.ok) {
         const data = await response.json();
+        console.log(data.user.defaultWorkspaceId)
         setDefaultWorkspace(data.user.defaultWorkspaceId);
-        setRole(data.user.role)
+        //setRole(data.user.role)
         fetchDefaultWorkspace(data.user.defaultWorkspaceId);
         setLoading(false);  
       }

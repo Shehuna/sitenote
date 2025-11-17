@@ -8,6 +8,7 @@ const UserJobManagement = ({ defWorkID }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedJobs, setSelectedJobs] = useState({}); // { userId: { jobId1: true, jobId2: false } }
 
     useEffect(() => {
         fetchUsersAndJobs();
@@ -133,24 +134,74 @@ const UserJobManagement = ({ defWorkID }) => {
         };
     };
 
-    const handleDenyPermission = async (userJobId) => {
-        if (!window.confirm('Are you sure you want to deny permission for this job?')) {
+    // Handle checkbox selection
+    const handleCheckboxChange = (userId, userJobId) => {
+        setSelectedJobs(prev => ({
+            ...prev,
+            [userId]: {
+                ...prev[userId],
+                [userJobId]: !prev[userId]?.[userJobId]
+            }
+        }));
+    };
+
+    // Handle select all for a specific user
+    const handleSelectAllForUser = (userId, jobs) => {
+        const allSelected = jobs.every(job => selectedJobs[userId]?.[job.id]);
+        
+        setSelectedJobs(prev => ({
+            ...prev,
+            [userId]: jobs.reduce((acc, job) => {
+                acc[job.id] = !allSelected;
+                return acc;
+            }, {})
+        }));
+    };
+
+    // Handle deny permission for selected jobs of a specific user
+    const handleDenyPermissionForUser = async (userId) => {
+        const userSelectedJobs = selectedJobs[userId] || {};
+        const selectedJobIds = Object.keys(userSelectedJobs).filter(jobId => userSelectedJobs[jobId]);
+        
+        if (selectedJobIds.length === 0) {
+            alert('Please select at least one job to deny permission.');
+            return;
+        }
+
+        if (!window.confirm(`Are you sure you want to deny permission for ${selectedJobIds.length} job(s) for this user?`)) {
             return;
         }
 
         try {
-            const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/UserJobAuth/DeleteUserJob/${userJobId}`, {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
+            const denyPromises = selectedJobIds.map(async (userJobId) => {
+                const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/UserJobAuth/DeleteUserJob/${userJobId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                return response.ok;
             });
 
-            if (!response.ok) throw new Error('Failed to deny permission');
-            fetchUsersAndJobs();
+            const results = await Promise.all(denyPromises);
+            const allSuccessful = results.every(result => result);
+            
+            if (allSuccessful) {
+                // Clear selections for this user
+                setSelectedJobs(prev => {
+                    const newSelected = { ...prev };
+                    delete newSelected[userId];
+                    return newSelected;
+                });
+                
+                // Refresh the data
+                fetchUsersAndJobs();
+            } else {
+                throw new Error('Failed to deny permission for some jobs');
+            }
         } catch (err) {
             setError(err.message);
-            console.error('Error denying permission:', err);
+            console.error('Error denying permissions:', err);
         }
     };
 
@@ -205,6 +256,18 @@ const UserJobManagement = ({ defWorkID }) => {
         }
     };
 
+    // Check if all jobs are selected for a user
+    const areAllJobsSelectedForUser = (userId, jobs) => {
+        if (!jobs.length) return false;
+        return jobs.every(job => selectedJobs[userId]?.[job.id]);
+    };
+
+    // Check if any jobs are selected for a user
+    const areAnyJobsSelectedForUser = (userId, jobs) => {
+        if (!jobs.length) return false;
+        return jobs.some(job => selectedJobs[userId]?.[job.id]);
+    };
+
     if (loading) return <div className="loading-message">Loading user job data...</div>;
     if (error) return <div className="error-message">Error: {error}</div>;
 
@@ -236,36 +299,57 @@ const UserJobManagement = ({ defWorkID }) => {
                     // Don't show users with no jobs to display
                     if (jobsToDisplay.length === 0) return null;
 
+                    const allSelected = areAllJobsSelectedForUser(user.id, jobsToDisplay);
+                    const anySelected = areAnyJobsSelectedForUser(user.id, jobsToDisplay);
+
                     return (
                         <div key={user.id} className="user-card">
                             <div className="user-info">
                                 <h3 className="user-name">{user.fname} {user.lname}</h3>
-                                
+                                <p className="user-email">{user.email}</p>
                             </div>
 
                             <div className="user-jobs-section">
-                                <h4 className="jobs-section-title">
-                                    Job Permissions ({jobsToDisplay.length} job{jobsToDisplay.length !== 1 ? 's' : ''})
-                                </h4>
+                                <div className="jobs-section-header">
+                                    <h4 className="jobs-section-title">
+                                        Job Permissions ({jobsToDisplay.length} job{jobsToDisplay.length !== 1 ? 's' : ''})
+                                    </h4>
+                                    <div className="bulk-actions">
+                                        <label className="select-all-checkbox">
+                                            <input
+                                                type="checkbox"
+                                                checked={allSelected}
+                                                onChange={() => handleSelectAllForUser(user.id, jobsToDisplay)}
+                                            />
+                                            Select All
+                                        </label>
+                                        {anySelected && (
+                                            <button 
+                                                onClick={() => handleDenyPermissionForUser(user.id)}
+                                                className="deny-selected-btn"
+                                                title="Deny Permission for Selected Jobs"
+                                            >
+                                                Deny Selected ({Object.values(selectedJobs[user.id] || {}).filter(Boolean).length})
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
                                 <div className="jobs-list">
                                     {jobsToDisplay.map(userJob => {
                                         const job = getJobDetail(userJob.jobId);
+                                        const isSelected = selectedJobs[user.id]?.[userJob.id] || false;
                                         
                                         return (
                                             <div key={userJob.id} className="job-item">
                                                 <div className="job-info">
-                                                    <span className="job-name">{job.name}</span>
-                                                </div>
-                                                
-                                                <div className="permission-display">
-                                                    
-                                                    <button 
-                                                        onClick={() => handleDenyPermission(userJob.id)}
-                                                        className="deny-btn"
-                                                        title="Deny Permission"
-                                                    >
-                                                        Deny
-                                                    </button>
+                                                    <label className="job-checkbox">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isSelected}
+                                                            onChange={() => handleCheckboxChange(user.id, userJob.id)}
+                                                        />
+                                                        <span className="job-name">{job.name}</span>
+                                                    </label>
                                                 </div>
                                             </div>
                                         );
