@@ -39,7 +39,7 @@ const NewNoteModal = ({
     const textareaRef = useRef(null);
     const [fetchedProjects, setFetchedProjects] = useState([]);
     const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
-    console.log(projects)
+    //console.log(projects)
 
       const allowedFileTypes = {
     // Images
@@ -83,10 +83,10 @@ const NewNoteModal = ({
   }; */
     useEffect(() => {
         if (selectedWorkspace) {
-            const filtered = projects.filter(project =>
+            const filtered = fetchedProjects.filter(project =>
                 project.workspaceID?.toString() === selectedWorkspace.toString() 
             );
-            setFetchedProjects(filtered);
+            setFilteredProjects(filtered);
             if (!filtered.some(project => project.id.toString() === selectedProject.toString() ) ) {
                 setSelectedProject('');
             }
@@ -159,7 +159,7 @@ const NewNoteModal = ({
       if (isOpen) {
         const user = JSON.parse(localStorage.getItem('user'));
         const userId = user ? user.id : 1;
-        fetch(`${apiUrl}/SiteNote/GetUniqueProjects?userId=${userId}`)
+        fetch(`${apiUrl}/SiteNote/GetUniqueProjectsWithWorkspace?userId=${userId}`)
           .then(r => r.json())
           .then(d => setFetchedProjects(d.projects || []))
           .catch(e => console.error(e));
@@ -395,7 +395,6 @@ const NewNoteModal = ({
                     <div className="journal-section">
                         <div className="form-group">
                             <label>Workspace</label>
-                            
                             <select
                                 value={selectedWorkspace}
                                 onChange={(e) => {
@@ -426,7 +425,7 @@ const NewNoteModal = ({
                                 <option value="">Select Project</option>
                                 {filteredProjects && filteredProjects.map(project => (
                                     <option key={project.id} value={project.id.toString()}>
-                                        {project.name} (ID: {project.id})
+                                        {project.text} (ID: {project.id})
                                     </option>
                                 ))}
                             </select>
