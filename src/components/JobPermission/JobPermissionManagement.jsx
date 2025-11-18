@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import './JobPermissionManagement.css'; 
 import UserJobManagement from './UserJobManagement'; // Import the UserJobManagement component
 
-const JobPermissionManagement = ({defId, users}) => {
+const JobPermissionManagement = ({defId, users, userId}) => {
     const [activeTab, setActiveTab] = useState('grant'); // 'grant', 'userJobs', 'copy', 'assign'
     const [selectedUsers, setSelectedUsers] = useState([]); 
     const [selectedProject, setSelectedProject] = useState('');
@@ -524,7 +524,7 @@ const JobPermissionManagement = ({defId, users}) => {
         setError(null);
 
         try {
-            const projectsUrl = `${process.env.REACT_APP_API_BASE_URL}/api/Project/GetProjects`;
+            const projectsUrl = `${process.env.REACT_APP_API_BASE_URL}/api/SiteNote/GetUniqueProjects?userId=${userId}`;
             const jobsUrl = `${process.env.REACT_APP_API_BASE_URL}/api/Job/GetJobs`;
             const userWorkspaceURL = `${process.env.REACT_APP_API_BASE_URL}/api/UserWorkspace/GetUserWorkspaces`;
 
@@ -653,9 +653,8 @@ const JobPermissionManagement = ({defId, users}) => {
                         onChange={(e) => setSelectedProject(e.target.value)}
                     >
                         <option value="">Select Project</option>
-                        {projects.filter(project => (project.status === 1 && project.workspaceId == defId))
-                            .map(project => (
-                            <option key={project.id} value={project.id}>{project.name}</option>
+                        {projects.map(project => (
+                            <option key={project.id} value={project.id}>{project.text}</option>
                         ))}
                     </select>
                 </div>

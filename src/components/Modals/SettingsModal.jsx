@@ -11,7 +11,6 @@ import JobManagment from '../Jobs/JobManagment';
 import JobPermissionManagement from '../JobPermission/JobPermissionManagement';
 import JobStatusManagement from '../JobStatus/JobStatusManagement';
 import UserProfile from '../UserProfile/UserProfile';
-import UserJobManagement from '../JobPermission/UserJobManagement';
 const SettingsModal = ({ 
     isOpen, 
     onClose, 
@@ -304,7 +303,7 @@ useEffect(() => {
                   
                 );
             case 'jobPermissions':
-                return <JobPermissionManagement defId={defWorkID} users={users}/>;
+                return <JobPermissionManagement defId={defWorkID} users={users} userId={userId}/>;
             case 'jobStatus':
                 return <JobStatusManagement defId={defWorkID} />;
             case 'workspaceSettings':
