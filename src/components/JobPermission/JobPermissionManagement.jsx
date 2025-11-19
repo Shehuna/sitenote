@@ -87,13 +87,13 @@ const JobPermissionManagement = ({ defId, users, userId }) => {
                         className={`tab-button ${activeTab === 'grant' ? 'active' : ''}`}
                         onClick={() => setActiveTab('grant')}
                     >
-                        Grant/Deny Jobs
+                        Grant Job To Users
                     </button>
                     <button 
                         className={`tab-button ${activeTab === 'userJobs' ? 'active' : ''}`}
                         onClick={() => setActiveTab('userJobs')}
                     >
-                        User Job Management
+                        Deny Jobs
                     </button>
                     <button 
                         className={`tab-button ${activeTab === 'copy' ? 'active' : ''}`}
@@ -105,7 +105,7 @@ const JobPermissionManagement = ({ defId, users, userId }) => {
                         className={`tab-button ${activeTab === 'assign' ? 'active' : ''}`}
                         onClick={() => setActiveTab('assign')}
                     >
-                        Assign User
+                        Assign Jobs To User 
                     </button>
                 </div>
 

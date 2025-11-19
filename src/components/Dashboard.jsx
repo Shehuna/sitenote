@@ -26,11 +26,48 @@ const Dashboard = ({
   onUpdateDefaultWorkspace,
   fetchProjectAndJobs,
 }) => {
+  // Load search state from localStorage on initial render
+  const [searchTerm, setSearchTerm] = useState(() => {
+    const saved = localStorage.getItem('dashboardSearchTerm');
+    return saved || "";
+  });
+  const [searchResults, setSearchResults] = useState(() => {
+    const saved = localStorage.getItem('dashboardSearchResults');
+    return saved ? JSON.parse(saved) : [];
+  });
+  
+  // Load filter state from localStorage on initial render
+  const [hierarchy, setHierarchy] = useState(() => {
+    const saved = localStorage.getItem('dashboardHierarchy');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [selectedValues, setSelectedValues] = useState(() => {
+    const saved = localStorage.getItem('dashboardSelectedValues');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  // Save search state to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('dashboardSearchTerm', searchTerm);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    localStorage.setItem('dashboardSearchResults', JSON.stringify(searchResults));
+  }, [searchResults]);
+
+  // Save filter state to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('dashboardHierarchy', JSON.stringify(hierarchy));
+  }, [hierarchy]);
+
+  useEffect(() => {
+    localStorage.setItem('dashboardSelectedValues', JSON.stringify(selectedValues));
+  }, [selectedValues]);
+
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showNewModal, setShowNewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedNote, setSelectedNote] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
   const [showAttachedFileModal, setShowAttachedFileModal] = useState(false);
   const [selectedFileNote, setSelectedFileNote] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
@@ -38,10 +75,7 @@ const Dashboard = ({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [hierarchy, setHierarchy] = useState([]);
-  const [selectedValues, setSelectedValues] = useState({});
   const [showFilterDialog, setShowFilterDialog] = useState(false);
   const [currentFilterColumn, setCurrentFilterColumn] = useState(null);
   const [uniqueProjects, setUniqueProjects] = useState([]);
@@ -134,6 +168,7 @@ const Dashboard = ({
     };
     fetchAllUniques();
   }, [userid]);
+  
   useEffect(() => {
     if (notes !== undefined) setIsDataLoaded(true);
   }, [notes]);
@@ -225,6 +260,7 @@ const Dashboard = ({
       setLoadingFiltered(false);
     }
   };
+  
   useEffect(() => {
     if (notes !== undefined && isDataLoaded) {
       setInitialLoading(false);
@@ -236,28 +272,35 @@ const Dashboard = ({
     e.preventDefault();
     const c = e.dataTransfer.getData("column");
     if (["date","workspace","project","job","userName"].includes(c) && !hierarchy.includes(c)) {
-      setHierarchy([...hierarchy, c]);
+      const newHierarchy = [...hierarchy, c];
+      setHierarchy(newHierarchy);
       setSelectedValues({ ...selectedValues, [c]: "" });
       setCurrentFilterColumn(c);
       setShowFilterDialog(true);
     }
   };
+  
   const handleDragOver = (e) => e.preventDefault();
   const handleDragStart = (c) => (e) => e.dataTransfer.setData("column", c);
+  
   const openFilterDialog = (c) => {
     setCurrentFilterColumn(c);
     setShowFilterDialog(true);
   };
+  
   const handleFilterSelect = (val) => {
     setSelectedValues((p) => ({ ...p, [currentFilterColumn]: val }));
     setShowFilterDialog(false);
   };
+  
   const removeHierarchyLevel = (c) => {
-    setHierarchy(hierarchy.filter((x) => x !== c));
+    const newHierarchy = hierarchy.filter((x) => x !== c);
+    setHierarchy(newHierarchy);
     const v = { ...selectedValues };
     delete v[c];
     setSelectedValues(v);
   };
+  
   const clearAllFilters = () => {
     setHierarchy([]);
     setSelectedValues({});
@@ -292,13 +335,12 @@ const Dashboard = ({
         );
         if (!r.ok) throw new Error();
         const d = await r.json();
-        setSearchResults(
-          (d.siteNotes || []).map((n) => ({
-            ...n,
-            userName: n.UserName || n.userName,
-            documentCount: n.DocumentCount || n.documentCount || 0,
-          }))
-        );
+        const newResults = (d.siteNotes || []).map((n) => ({
+          ...n,
+          userName: n.UserName || n.userName,
+          documentCount: n.DocumentCount || n.documentCount || 0,
+        }));
+        setSearchResults(newResults);
       } catch {
         toast.error("Search failed");
         setSearchResults([]);
@@ -331,8 +373,26 @@ const Dashboard = ({
         fetchUniqueWorkspaces(),
         fetchUniqueDates(),
         fetchUniqueUsernames()
-        // Remove fetchUserWorkspaceRole from here too
       ]);
+      // If there's a search term, re-run the search to get fresh results
+      if (searchTerm.trim()) {
+        const r = await fetch(
+          `${apiUrl}/SiteNote/SearchSiteNotes?searchTerm=${encodeURIComponent(
+            searchTerm
+          )}&pageNumber=1&pageSize=50&userId=${userid}`
+        );
+        if (r.ok) {
+          const d = await r.json();
+          const newResults = (d.siteNotes || []).map((n) => ({
+            ...n,
+            userName: n.UserName || n.userName,
+            documentCount: n.DocumentCount || n.documentCount || 0,
+          }));
+          setSearchResults(newResults);
+        }
+      }
+      // Re-fetch filtered notes to ensure they're current
+      await fetchFilteredSiteNotes();
       // Fetch role separately if we have the workspace ID
       if (defaultUserWorkspaceID) {
         await fetchUserWorkspaceRole();
@@ -389,6 +449,23 @@ const Dashboard = ({
       toast.success("Deleted");
       await refreshNotes();
       await fetchFilteredSiteNotes();
+      // If we're in search mode, refresh search results too
+      if (searchTerm.trim()) {
+        const searchResponse = await fetch(
+          `${apiUrl}/SiteNote/SearchSiteNotes?searchTerm=${encodeURIComponent(
+            searchTerm
+          )}&pageNumber=1&pageSize=50&userId=${userid}`
+        );
+        if (searchResponse.ok) {
+          const searchData = await searchResponse.json();
+          const updatedSearchResults = (searchData.siteNotes || []).map((n) => ({
+            ...n,
+            userName: n.UserName || n.userName,
+            documentCount: n.DocumentCount || n.documentCount || 0,
+          }));
+          setSearchResults(updatedSearchResults);
+        }
+      }
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -918,7 +995,6 @@ const Dashboard = ({
           defWorkID={defaultUserWorkspaceID}
           defWorkName={defaultUserWorkspaceName}
           onUpdateDefaultWorkspace={onUpdateDefaultWorkspace}
-          //userrole={userRole}
           role={role}
           userWorkspaces={workspaces}
           updateProjectsAndJobs={fetchProjectAndJobs}
@@ -961,7 +1037,7 @@ const Dashboard = ({
           note={selectedNote}
           onClose={() => {
             setShowEditModal(false);
-            refreshNotes();
+            //refreshNotes();
           }}
           refreshNotes={refreshNotes}
           updateNote={updateNote}

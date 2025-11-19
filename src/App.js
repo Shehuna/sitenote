@@ -269,30 +269,7 @@ useEffect(() => {
     }
   };
 
-  const fetchUserWorkspaceRole = async () => {
-    setLoading(true);
-    console.log('fetching');
-    try {
-      console.log('fetching');
-      const response = await fetch(`${apiUrl}/UserWorkspace/GetWorkspacesByUserId/${userId}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json; charset=utf-8",
-        }
-      });
-  
-      if (response.ok) {
-        const data = await response.json();
-        setUserWorkspaceMaps(await data.userWorkspaces);        
-        setLoading(false);
-      }
-    } catch (error) {
-      console.error("Error fetching notes:", error);
-    } finally {
-      setLoading(false);
-    }
-  }
-  
+   
   const fetchDocumentsByReference = async (noteId) => {
     try {
       const response = await fetch(
@@ -473,9 +450,6 @@ useEffect(() => {
 
       const result = await response.json();
       console.log('Update successful:', result);
-      /* isInitialFetchRef.current = true;
-      await fetchNotes(); */
-      //refreshNote
       return result;
     } catch (error) {
       console.error("Error updating note:", error);
@@ -499,8 +473,7 @@ useEffect(() => {
       }
 
       const responseData = await response.json();
-      /* isInitialFetchRef.current = true;
-      await fetchNotes(); */
+
       return responseData;
     } catch (error) {
       console.error("API Error:", error);
