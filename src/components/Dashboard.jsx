@@ -26,48 +26,11 @@ const Dashboard = ({
   onUpdateDefaultWorkspace,
   fetchProjectAndJobs,
 }) => {
-  // Load search state from localStorage on initial render
-  const [searchTerm, setSearchTerm] = useState(() => {
-    const saved = localStorage.getItem('dashboardSearchTerm');
-    return saved || "";
-  });
-  const [searchResults, setSearchResults] = useState(() => {
-    const saved = localStorage.getItem('dashboardSearchResults');
-    return saved ? JSON.parse(saved) : [];
-  });
-  
-  // Load filter state from localStorage on initial render
-  const [hierarchy, setHierarchy] = useState(() => {
-    const saved = localStorage.getItem('dashboardHierarchy');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [selectedValues, setSelectedValues] = useState(() => {
-    const saved = localStorage.getItem('dashboardSelectedValues');
-    return saved ? JSON.parse(saved) : {};
-  });
-
-  // Save search state to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem('dashboardSearchTerm', searchTerm);
-  }, [searchTerm]);
-
-  useEffect(() => {
-    localStorage.setItem('dashboardSearchResults', JSON.stringify(searchResults));
-  }, [searchResults]);
-
-  // Save filter state to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem('dashboardHierarchy', JSON.stringify(hierarchy));
-  }, [hierarchy]);
-
-  useEffect(() => {
-    localStorage.setItem('dashboardSelectedValues', JSON.stringify(selectedValues));
-  }, [selectedValues]);
-
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showNewModal, setShowNewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedNote, setSelectedNote] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
   const [showAttachedFileModal, setShowAttachedFileModal] = useState(false);
   const [selectedFileNote, setSelectedFileNote] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
@@ -75,7 +38,10 @@ const Dashboard = ({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [hierarchy, setHierarchy] = useState([]);
+  const [selectedValues, setSelectedValues] = useState({});
   const [showFilterDialog, setShowFilterDialog] = useState(false);
   const [currentFilterColumn, setCurrentFilterColumn] = useState(null);
   const [uniqueProjects, setUniqueProjects] = useState([]);
@@ -88,10 +54,7 @@ const Dashboard = ({
   const [initialLoading, setInitialLoading] = useState(true);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [priorities, setPriorities] = useState([]);
-  const [role, setRole] = useState(null)
-  const [isRoleLoading, setIsRoleLoading] = useState(false);
   const [loadingUniques, setLoadingUniques] = useState(true);
-  const [userWorkspaces, setUserWorkspaces] = useState()
 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
 
@@ -145,14 +108,6 @@ const Dashboard = ({
       console.error(e);
     }
   };
-
-  useEffect(() => {
-    if (userid && defaultUserWorkspaceID) {
-      console.log("Fetching role with workspace ID:", defaultUserWorkspaceID);
-      fetchUserWorkspaceRole();
-    }
-  }, [userid, defaultUserWorkspaceID]);
-
   useEffect(() => {
     const fetchAllUniques = async () => {
       if (userid) {
@@ -161,14 +116,13 @@ const Dashboard = ({
           fetchUniqueJobs(),
           fetchUniqueWorkspaces(),
           fetchUniqueDates(),
-          fetchUniqueUsernames(),
+          fetchUniqueUsernames()
         ]);
         setLoadingUniques(false);
       }
     };
     fetchAllUniques();
   }, [userid]);
-  
   useEffect(() => {
     if (notes !== undefined) setIsDataLoaded(true);
   }, [notes]);
@@ -260,7 +214,6 @@ const Dashboard = ({
       setLoadingFiltered(false);
     }
   };
-  
   useEffect(() => {
     if (notes !== undefined && isDataLoaded) {
       setInitialLoading(false);
@@ -272,35 +225,28 @@ const Dashboard = ({
     e.preventDefault();
     const c = e.dataTransfer.getData("column");
     if (["date","workspace","project","job","userName"].includes(c) && !hierarchy.includes(c)) {
-      const newHierarchy = [...hierarchy, c];
-      setHierarchy(newHierarchy);
+      setHierarchy([...hierarchy, c]);
       setSelectedValues({ ...selectedValues, [c]: "" });
       setCurrentFilterColumn(c);
       setShowFilterDialog(true);
     }
   };
-  
   const handleDragOver = (e) => e.preventDefault();
   const handleDragStart = (c) => (e) => e.dataTransfer.setData("column", c);
-  
   const openFilterDialog = (c) => {
     setCurrentFilterColumn(c);
     setShowFilterDialog(true);
   };
-  
   const handleFilterSelect = (val) => {
     setSelectedValues((p) => ({ ...p, [currentFilterColumn]: val }));
     setShowFilterDialog(false);
   };
-  
   const removeHierarchyLevel = (c) => {
-    const newHierarchy = hierarchy.filter((x) => x !== c);
-    setHierarchy(newHierarchy);
+    setHierarchy(hierarchy.filter((x) => x !== c));
     const v = { ...selectedValues };
     delete v[c];
     setSelectedValues(v);
   };
-  
   const clearAllFilters = () => {
     setHierarchy([]);
     setSelectedValues({});
@@ -335,12 +281,13 @@ const Dashboard = ({
         );
         if (!r.ok) throw new Error();
         const d = await r.json();
-        const newResults = (d.siteNotes || []).map((n) => ({
-          ...n,
-          userName: n.UserName || n.userName,
-          documentCount: n.DocumentCount || n.documentCount || 0,
-        }));
-        setSearchResults(newResults);
+        setSearchResults(
+          (d.siteNotes || []).map((n) => ({
+            ...n,
+            userName: n.UserName || n.userName,
+            documentCount: n.DocumentCount || n.documentCount || 0,
+          }))
+        );
       } catch {
         toast.error("Search failed");
         setSearchResults([]);
@@ -374,29 +321,6 @@ const Dashboard = ({
         fetchUniqueDates(),
         fetchUniqueUsernames()
       ]);
-      // If there's a search term, re-run the search to get fresh results
-      if (searchTerm.trim()) {
-        const r = await fetch(
-          `${apiUrl}/SiteNote/SearchSiteNotes?searchTerm=${encodeURIComponent(
-            searchTerm
-          )}&pageNumber=1&pageSize=50&userId=${userid}`
-        );
-        if (r.ok) {
-          const d = await r.json();
-          const newResults = (d.siteNotes || []).map((n) => ({
-            ...n,
-            userName: n.UserName || n.userName,
-            documentCount: n.DocumentCount || n.documentCount || 0,
-          }));
-          setSearchResults(newResults);
-        }
-      }
-      // Re-fetch filtered notes to ensure they're current
-      await fetchFilteredSiteNotes();
-      // Fetch role separately if we have the workspace ID
-      if (defaultUserWorkspaceID) {
-        await fetchUserWorkspaceRole();
-      }
       toast.success("Refreshed");
     } catch {
       toast.error("Refresh error");
@@ -449,23 +373,6 @@ const Dashboard = ({
       toast.success("Deleted");
       await refreshNotes();
       await fetchFilteredSiteNotes();
-      // If we're in search mode, refresh search results too
-      if (searchTerm.trim()) {
-        const searchResponse = await fetch(
-          `${apiUrl}/SiteNote/SearchSiteNotes?searchTerm=${encodeURIComponent(
-            searchTerm
-          )}&pageNumber=1&pageSize=50&userId=${userid}`
-        );
-        if (searchResponse.ok) {
-          const searchData = await searchResponse.json();
-          const updatedSearchResults = (searchData.siteNotes || []).map((n) => ({
-            ...n,
-            userName: n.UserName || n.userName,
-            documentCount: n.DocumentCount || n.documentCount || 0,
-          }));
-          setSearchResults(updatedSearchResults);
-        }
-      }
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -478,54 +385,6 @@ const Dashboard = ({
     setSelectedFileNote(note);
     setShowAttachedFileModal(true);
   };
-
-  const fetchUserWorkspaceRole = async () => {
-  setIsRoleLoading(true);
-  console.log("fetching workspace Id", defaultUserWorkspaceID);
-  console.log("userid", userid);
-  
-  try {
-    const response = await fetch(`${apiUrl}/UserWorkspace/GetWorkspacesByUserId/${userid}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-      }
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      
-      const userWorkspaces = data.userWorkspaces || data || []; // Try different possible structures
-      setUserWorkspaces(userWorkspaces)
-      // Log all workspace IDs to see what we're working with
-      userWorkspaces.forEach((ws, index) => {
-        console.log(`Workspace ${index}:`, {
-          id: ws.id,
-          workspaceID: ws.workspaceID,
-          workspaceId: ws.workspaceId, // try camelCase too
-          role: ws.role
-        });
-      });
-
-      // Try multiple possible field names
-      const workspace = userWorkspaces.find(ws => 
-        (ws.workspaceID && ws.workspaceID.toString() === defaultUserWorkspaceID.toString()) ||
-        (ws.workspaceId && ws.workspaceId.toString() === defaultUserWorkspaceID.toString()) ||
-        (ws.id && ws.id.toString() === defaultUserWorkspaceID.toString())
-      );
-          
-      const newRole = workspace?.role || null;
-      setRole(newRole);
-    } else {
-      console.error("API response not OK:", response.status);
-    }
-  } catch (error) {
-    console.error("Error:", error);
-    setRole(null);
-  } finally {
-    setIsRoleLoading(false);
-  }
-}
 
   return (
     <div className="main-content">
@@ -995,7 +854,7 @@ const Dashboard = ({
           defWorkID={defaultUserWorkspaceID}
           defWorkName={defaultUserWorkspaceName}
           onUpdateDefaultWorkspace={onUpdateDefaultWorkspace}
-          role={role}
+          userrole={userRole}
           userWorkspaces={workspaces}
           updateProjectsAndJobs={fetchProjectAndJobs}
         />
@@ -1029,7 +888,6 @@ const Dashboard = ({
           onUploadDocument={onUploadDocument}
           onDeleteDocument={onDeleteDocument}
           defWorkSpaceId={defaultUserWorkspaceID}
-          userworksaces={uniqueWorkspaces}
         />
       )}
       {showEditModal && selectedNote && (
@@ -1037,7 +895,7 @@ const Dashboard = ({
           note={selectedNote}
           onClose={() => {
             setShowEditModal(false);
-            //refreshNotes();
+            refreshNotes();
           }}
           refreshNotes={refreshNotes}
           updateNote={updateNote}
@@ -1046,7 +904,6 @@ const Dashboard = ({
           projects={projects}
           jobs={jobs}
           priorities={priorities}
-          defaultUserWorkspaceID={defaultUserWorkspaceID}
         />
       )}
       {showAttachedFileModal && selectedFileNote && (
