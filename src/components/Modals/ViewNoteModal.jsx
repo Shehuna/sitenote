@@ -6,19 +6,22 @@ const ViewNoteModal = ({
   noteId,
   jobId,         
   onClose,
-  currentTheme = 'gray',
+  currentTheme,
   onViewAttachments,
-  priorities = [],
   userid,
   scrollToNoteId,
 }) => {
   const [currentNote, setCurrentNote] = useState(null);
   const [relatedNotes, setRelatedNotes] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [priority, setPriority] = useState(0);
 
   const noteRefs = useRef({});
   const chatContainerRef = useRef(null);
+
+
+
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
 
   const fetchNoteAndRelated = async () => {
@@ -81,10 +84,6 @@ const ViewNoteModal = ({
     }
   };
 
-  const assignPriority = () => {
-    const p = priorities.find(p => p.noteID == noteId && p.userId == userid);
-    setPriority(p?.priorityValue || 0);
-  };
 
   const scrollToCurrentNote = () => {
     const target = scrollToNoteId || noteId;
@@ -100,7 +99,7 @@ const ViewNoteModal = ({
   };
 
   useEffect(() => { fetchNoteAndRelated(); }, [noteId, jobId, userid]);
-  useEffect(() => { assignPriority(); }, [priorities, noteId, userid]);
+
   useEffect(() => { if (!loading && relatedNotes.length) scrollToCurrentNote(); }, [loading, relatedNotes, scrollToNoteId, noteId]);
 
   const formatDate = iso => {
@@ -114,6 +113,7 @@ const ViewNoteModal = ({
     return isNaN(d) ? '' : d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
   };
 
+
   if (loading) {
     return (
       <div className={`view-note-modal-overlay theme-${currentTheme}`}>
@@ -124,6 +124,8 @@ const ViewNoteModal = ({
     );
   }
   if (!currentNote) return null;
+
+
 
   return (
     <div className={`view-note-modal-overlay theme-${currentTheme}`} onClick={onClose}>
@@ -144,7 +146,7 @@ const ViewNoteModal = ({
           {relatedNotes.map(doc => (
             <div key={doc.id} ref={el=> (noteRefs.current[doc.id]=el)} className="message-row" id={`related-note-${doc.id}`}>
               <div
-                className={`message received ${doc.id===noteId?'selected':''} priority-${priority}`}
+                className={`message received ${doc.id===noteId?'selected':''}`}
                 style={{borderLeft:doc.id===noteId?'4px solid #3498db':'none',border :'solid 1px #555', background:doc.id===noteId?'#f0f8ff':'white'}}
               >
                 <div className="message-content">

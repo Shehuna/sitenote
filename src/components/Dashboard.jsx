@@ -64,6 +64,46 @@ const Dashboard = ({
     localStorage.setItem('dashboardSelectedValues', JSON.stringify(selectedValues));
   }, [selectedValues]);
 
+
+  const styles = {
+    searchBox: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+      marginBottom: '20px',
+      flexWrap: 'wrap'
+    },
+    searchInput: {
+      flex: 1,
+      minWidth: '200px',
+      padding: '8px 12px',
+      border: '1px solid #ddd',
+      borderRadius: '4px'
+    },
+    searchHint: {
+      background: '#f0f0f0',
+      padding: '4px 8px',
+      borderRadius: '4px',
+      fontSize: '0.9em',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '5px'
+    },
+    clearGroupBtn: {
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      color: '#666',
+      padding: 0,
+      fontSize: '1.1em',
+      lineHeight: 1
+    },
+    clearGroupBtnHover: {
+      color: '#333'
+    },
+  };
+
+
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showNewModal, setShowNewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -94,6 +134,8 @@ const Dashboard = ({
   const [userWorkspaces, setUserWorkspaces] = useState()
   const [focusedRow, setFocusedRow] = useState(null);
   const [selectedRow, setSelectedRow] = useState(null);
+  const [searchColumn, setSearchColumn] = useState('');
+  const [prefilledData, setPrefilledData] = useState(null);
 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
 
@@ -152,6 +194,7 @@ const Dashboard = ({
     if (userid && defaultUserWorkspaceID) {
       console.log("Fetching role with workspace ID:", defaultUserWorkspaceID);
       fetchUserWorkspaceRole();
+      fetchPriorities()
     }
   }, [userid, defaultUserWorkspaceID]);
 
@@ -172,7 +215,8 @@ const Dashboard = ({
   }, [userid]);
   
   useEffect(() => {
-    if (notes !== undefined) setIsDataLoaded(true);
+    if (notes !== undefined)
+      setIsDataLoaded(true);
   }, [notes]);
 
   const fetchFilteredSiteNotes = async () => {
@@ -281,7 +325,9 @@ const Dashboard = ({
       setShowFilterDialog(true);
     }
   };
-  
+  const handlePriorityUpdate = () => {
+    fetchPriorities();
+  };
   const handleDragOver = (e) => e.preventDefault();
   const handleDragStart = (c) => (e) => e.dataTransfer.setData("column", c);
   
@@ -360,11 +406,6 @@ const Dashboard = ({
     },
     []);
 
-  const handleRowDoubleClick = useCallback((note) => {
-    setViewNote(note);
-    setShowViewModal(true);
-  }, []);
-
   const handleKeyDown = useCallback((event) => {
     if (!focusedRow) return;
 
@@ -384,11 +425,31 @@ const Dashboard = ({
         setFocusedRow(filteredNotes[prevIndex].id);
         setSelectedRow(filteredNotes[prevIndex].id);
       }
+    } else if (event.ctrlKey && event.key === 'a' && focusedRow) {
+      event.preventDefault();
+      const selectedNote = filteredNotes.find(note => note.id === focusedRow);
+      if (selectedNote) {
+        setPrefilledData({
+          project: selectedNote.project,
+          job: selectedNote.job
+        });
+        setShowNewModal(true);
+      }
     }
   }, [focusedRow, filteredNotes]);
 
+ const handleRowDoubleClick = useCallback((note) => {
+    setViewNote(note);
+    setShowViewModal(true);
+  }, []);
 
-  const handleRefresh = async () => {
+ useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleKeyDown]);
+ const handleRefresh = async () => {
     setInitialLoading(true);
     try {
       await refreshNotes();
@@ -431,22 +492,20 @@ const Dashboard = ({
 
   const handleAddFromRow = (note) => {
     const today = new Date();
-    const pre = {
-      date: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(
-        2,
-        "0"
-      )}-${String(today.getDate()).padStart(2, "0")}`,
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const currentDateFormatted = `${year}-${month}-${day}`;
+
+
+    setPrefilledData({
+      date: currentDateFormatted,
       project: note.project,
       job: note.job,
-    };
+      workspace: note.workspace
+    });
+
     setShowNewModal(true);
-    setTimeout(
-      () =>
-        document.dispatchEvent(
-          new CustomEvent("prefillNewNote", { detail: pre })
-        ),
-      100
-    );
   };
 
   const handleEdit = (note) => {
@@ -550,6 +609,24 @@ const Dashboard = ({
     setIsRoleLoading(false);
   }
 }
+  const fetchPriorities = async () => {
+    try {
+      const response = await fetch(`${apiUrl}/Priority/GetPriorities`, {
+        method: 'GET',
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+        }
+      });
+
+      if(response.ok){
+        const result = await response.json();
+        console.log(result);
+        setPriorities(result.priorities || []);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  }
 
   return (
     <div className="main-content">
@@ -609,27 +686,81 @@ const Dashboard = ({
         </div>
 
         <div
-          style={{
-            display: "flex",
-            gap: 10,
-            marginBottom: 20,
-            flexWrap: "wrap",
-            alignItems: "center",
-          }}
+            style={styles.searchBox}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
         >
-          <input
-            type="text"
-            placeholder="Search notes..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{
-              flex: 1,
-              minWidth: 200,
-              padding: "8px 12px",
-              border: "1px solid #ddd",
-              borderRadius: 4,
-            }}
-          />
+          <div style={{
+            position: 'relative',
+            flex: 1,
+            minWidth: '200px'
+          }}>
+            <input
+                id="searchInput"
+                type="text"
+                placeholder={searchColumn ? `Search by ${searchColumn}...` : "Search notes..."}
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                }}
+                style={{
+                  ...styles.searchInput,
+                  paddingRight: searchTerm ? '30px' : '12px',
+                  width: '100%',
+                  boxSizing: 'border-box'
+                }}
+            />
+            {searchTerm && (
+                <button
+                    onClick={() => {
+                      setSearchTerm('');
+                    }}
+                    style={{
+                      position: 'absolute',
+                      right: '8px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: '#666',
+                      fontSize: '18px',
+                      padding: '4px',
+                      borderRadius: '50%',
+                      width: '20px',
+                      height: '20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.backgroundColor = '#f0f0f0';
+                      e.target.style.color = '#333';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.backgroundColor = 'transparent';
+                      e.target.style.color = '#666';
+                    }}
+                    title="Clear search"
+                >
+                  ×
+                </button>
+            )}
+          </div>
+          {searchColumn && (
+              <span style={styles.searchHint}>
+                    Searching in: {searchColumn}
+                <button
+                    onClick={() => {
+                      setSearchColumn('');
+                      setSearchTerm('');
+                    }}
+                    style={styles.clearGroupBtn}
+                >
+                      ×
+                    </button>
+                  </span>
+          )}
           <button
             onClick={handleRefresh}
             style={{
@@ -757,132 +888,163 @@ const Dashboard = ({
               </tr>
             </thead>
             <tbody>
-              {!isDataLoaded ||
-              initialLoading ||
-              searchLoading ||
-              loadingFiltered ||
-              loadingUniques ? (
+            {!isDataLoaded ||
+            initialLoading ||
+            searchLoading ||
+            loadingFiltered ||
+            loadingUniques ? (
                 [...Array(5)].map((_, i) => (
-                  <tr key={i}>
-                    <td colSpan={8}>
-                      <div className="skeleton-row">
-                        <div className="skeleton-cell short" />
-                        <div className="skeleton-cell medium" />
-                        <div className="skeleton-cell medium" />
-                        <div className="skeleton-cell medium" />
-                        <div className="skeleton-cell long" />
-                        <div className="skeleton-cell short" />
-                        <div className="skeleton-cell short" />
-                        <div className="skeleton-cell short" />
-                      </div>
-                    </td>
-                  </tr>
+                    <tr key={i}>
+                      <td colSpan={8}>
+                        <div className="skeleton-row">
+                          <div className="skeleton-cell short" />
+                          <div className="skeleton-cell medium" />
+                          <div className="skeleton-cell medium" />
+                          <div className="skeleton-cell medium" />
+                          <div className="skeleton-cell long" />
+                          <div className="skeleton-cell short" />
+                          <div className="skeleton-cell short" />
+                          <div className="skeleton-cell short" />
+                        </div>
+                      </td>
+                    </tr>
                 ))
-              ) : displayNotes.length === 0 ? (
+            ) : displayNotes.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={8}
-                    style={{ textAlign: "center", padding: 40, color: "#999" }}
+                      colSpan={8}
+                      style={{ textAlign: "center", padding: 40, color: "#999" }}
                   >
                     {isDataLoaded && !initialLoading && !loadingUniques ? (
-                      <>
-                        <i
-                          className="fas fa-search"
-                          style={{
-                            fontSize: 28,
-                            marginBottom: 12,
-                            display: "block",
-                            opacity: 0.5,
-                          }}
-                        />{" "}
-                        <div>
-                          {searchTerm.trim()
-                            ? "No notes match your search"
-                            : "No notes available"}
-                        </div>
-                      </>
+                        <>
+                          <i
+                              className="fas fa-search"
+                              style={{
+                                fontSize: 28,
+                                marginBottom: 12,
+                                display: "block",
+                                opacity: 0.5,
+                              }}
+                          />{" "}
+                          <div>
+                            {searchTerm.trim()
+                                ? "No notes match your search"
+                                : "No notes available"}
+                          </div>
+                        </>
                     ) : null}
                   </td>
                 </tr>
-              ) : (
-                displayNotes.map((n) => (
-                    <tr
-                        key={n.id}
-                        onClick={() => handleRowClick(n)}
-                        onDoubleClick={() => handleRowDoubleClick(n)}
-                        className={`${selectedRow === n.id ? 'selected-row' : ''} ${focusedRow === n.id ? 'focused-row' : ''}`}
-                        style={{ cursor: "pointer" }}
-                    >
-
-                    <td>
-                      {new Date(n.date).toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </td>
-                    <td>{n.workspace}</td>
-                    <td>{n.project}</td>
-                    <td>{n.job}</td>
-                    <td className="editable">
-                      {n.note.length > 69
-                        ? n.note.substring(0, 69) + "..."
-                        : n.note}
-                    </td>
-                    <td>{n.userName}</td>
-                    <td
-                      className="file-cell"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleViewAttachments(n);
-                      }}
-                    >
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
+            ) : (
+                displayNotes.map((n) => {
+                  const notePriority = priorities.find(
+                      (p) => Number(p.noteID) === Number(n.id)
+                  );
+                  return (
+                      <tr
+                          key={n.id}
+                          onClick={() => handleRowClick(n)}
+                          onDoubleClick={() => handleRowDoubleClick(n)}
+                          className={`${
+                              selectedRow === n.id ? "selected-row" : ""
+                          } ${focusedRow === n.id ? "focused-row" : ""}`}
+                          style={{ cursor: "pointer" }}
                       >
-                        <i
-                          className="fas fa-paperclip"
-                          style={{ opacity: n.documentCount > 0 ? 1 : 0.3 }}
-                        />
-                        <span>({n.documentCount || 0})</span>
-                      </span>
-                    </td>
-                    <td className="table-actions">
-                      <a
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleAddFromRow(n);
-                        }}
-                        title="Add"
-                      >
-                        <i className="fas fa-plus" />
-                      </a>
-                      <a
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEdit(n);
-                        }}
-                        title="Edit"
-                      >
-                        <i className="fas fa-edit" />
-                      </a>
-                      <a
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(n);
-                        }}
-                        title="Delete"
-                      >
-                        <i className="fas fa-trash" />
-                      </a>
-                    </td>
-                  </tr>
-                ))
-              )}
+                        <td>
+                          {new Date(n.date).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </td>
+                        <td>{n.workspace}</td>
+                        <td>{n.project}</td>
+                        <td>{n.job}</td>
+                        <td className="editable" style={{ position: "relative" }}>
+                          <div style={{ display: "flex", alignItems: "flex-start" }}>
+              <span style={{ flex: 1 }}>
+                {n.note.length > 69 ? n.note.substring(0, 69) + "..." : n.note}
+              </span>
+                            {notePriority && notePriority.priorityValue > 1 && (
+                                <div
+                                    className={`priority-dot ${
+                                        notePriority.priorityValue === 3
+                                            ? "priority-dot-medium"
+                                            : notePriority.priorityValue === 4
+                                                ? "priority-dot-high"
+                                                : ""
+                                    }`}
+                                    style={{
+                                      width: "10px",
+                                      height: "10px",
+                                      borderRadius: "50%",
+                                      position: "absolute",
+                                      top: "4px",
+                                      right: "4px",
+                                      background:
+                                          notePriority.priorityValue === 3
+                                              ? "#f1c40f"
+                                              : notePriority.priorityValue === 4
+                                                  ? "#e74c3c"
+                                                  : "#bdc3c7",
+                                    }}
+                                    title={
+                                      notePriority.priorityValue === 3
+                                          ? "Medium Priority"
+                                          : notePriority.priorityValue === 4
+                                              ? "High Priority"
+                                              : "Low Priority"
+                                    }
+                                />
+                            )}
+                          </div>
+                        </td>
+                        <td>{n.userName}</td>
+                        <td
+                            className="file-cell"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewAttachments(n);
+                            }}
+                        >
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+              <i className="fas fa-paperclip" style={{ opacity: n.documentCount > 0 ? 1 : 0.3 }} />
+              <span>({n.documentCount || 0})</span>
+            </span>
+                        </td>
+                        <td className="table-actions">
+                          <a
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAddFromRow(n);
+                              }}
+                              title="Add"
+                          >
+                            <i className="fas fa-plus" />
+                          </a>
+                          <a
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEdit(n);
+                              }}
+                              title="Edit"
+                          >
+                            <i className="fas fa-edit" />
+                          </a>
+                          <a
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(n);
+                              }}
+                              title="Delete"
+                          >
+                            <i className="fas fa-trash" />
+                          </a>
+                        </td>
+                      </tr>
+                  );
+                })
+            )}
             </tbody>
           </table>
         </div>
@@ -1057,6 +1219,7 @@ const Dashboard = ({
           onDeleteDocument={onDeleteDocument}
           defWorkSpaceId={defaultUserWorkspaceID}
           userworksaces={uniqueWorkspaces}
+          prefilledData={prefilledData}
         />
       )}
       {showEditModal && selectedNote && (
@@ -1064,6 +1227,7 @@ const Dashboard = ({
           note={selectedNote}
           onClose={() => {
             setShowEditModal(false);
+            fetchPriorities();
             //refreshNotes();
           }}
           refreshNotes={refreshNotes}
@@ -1074,6 +1238,7 @@ const Dashboard = ({
           jobs={jobs}
           priorities={priorities}
           defaultUserWorkspaceID={defaultUserWorkspaceID}
+          onPriorityUpdate={handlePriorityUpdate}
         />
       )}
       {showAttachedFileModal && selectedFileNote && (

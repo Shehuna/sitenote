@@ -370,10 +370,10 @@ button:disabled {
 }
 
 .priority-3 {
-    border-color: #d97706;
-    background:  #fff;
-    color: #f6c286;
-    font-weight: 600;
+  border-color: #e8f628;
+  background:  #fff;
+  color: #e8f628;
+  font-weight: 600;
 }
 
 .priority-2 {
@@ -404,7 +404,7 @@ button:disabled {
 
 .priority-option-3 {
     background-color: #fffbeb;
-    color: #f6c286;
+  color: #e8f628;
     font-weight: 600;
 }
 
@@ -418,4 +418,14 @@ button:disabled {
     background-color: #eff6ff;
     color: #a7a8ab;
     font-weight: 600;
+}
+.journal-section textarea:focus {
+  border: 2px solid #1976d2 !important;
+  border-radius: 8px;
+  margin: -2px;
+  outline: none !important;
+}
+
+.journal-section textarea {
+  transition: border-color 0.2s ease-in-out;
 }
