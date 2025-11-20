@@ -92,6 +92,8 @@ const Dashboard = ({
   const [isRoleLoading, setIsRoleLoading] = useState(false);
   const [loadingUniques, setLoadingUniques] = useState(true);
   const [userWorkspaces, setUserWorkspaces] = useState()
+  const [focusedRow, setFocusedRow] = useState(null);
+  const [selectedRow, setSelectedRow] = useState(null);
 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
 
@@ -352,16 +354,39 @@ const Dashboard = ({
   }, [searchTerm, userid, apiUrl]);
 
   const handleRowClick = useCallback(
-    (note) => {
-      const job = jobs.find((j) => j.name === note.job);
-      setViewNote({
-        id: note.id,
-        jobId: job?.id ?? null,
-      });
-      setShowViewModal(true);
+    (note, event) => {
+      setFocusedRow(note.id);
+      setSelectedRow(note.id);
     },
-    [jobs]
-  );
+    []);
+
+  const handleRowDoubleClick = useCallback((note) => {
+    setViewNote(note);
+    setShowViewModal(true);
+  }, []);
+
+  const handleKeyDown = useCallback((event) => {
+    if (!focusedRow) return;
+
+    const currentIndex = filteredNotes.findIndex(note => note.id === focusedRow);
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      const nextIndex = Math.min(currentIndex + 1, filteredNotes.length - 1);
+      if (nextIndex !== currentIndex) {
+        setFocusedRow(filteredNotes[nextIndex].id);
+        setSelectedRow(filteredNotes[nextIndex].id);
+      }
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      const prevIndex = Math.max(currentIndex - 1, 0);
+      if (prevIndex !== currentIndex) {
+        setFocusedRow(filteredNotes[prevIndex].id);
+        setSelectedRow(filteredNotes[prevIndex].id);
+      }
+    }
+  }, [focusedRow, filteredNotes]);
+
 
   const handleRefresh = async () => {
     setInitialLoading(true);
@@ -397,7 +422,6 @@ const Dashboard = ({
       if (defaultUserWorkspaceID) {
         await fetchUserWorkspaceRole();
       }
-      toast.success("Refreshed");
     } catch {
       toast.error("Refresh error");
     } finally {
@@ -782,11 +806,14 @@ const Dashboard = ({
                 </tr>
               ) : (
                 displayNotes.map((n) => (
-                  <tr
-                    key={n.id}
-                    onClick={() => handleRowClick(n)}
-                    style={{ cursor: "pointer" }}
-                  >
+                    <tr
+                        key={n.id}
+                        onClick={() => handleRowClick(n)}
+                        onDoubleClick={() => handleRowDoubleClick(n)}
+                        className={`${selectedRow === n.id ? 'selected-row' : ''} ${focusedRow === n.id ? 'focused-row' : ''}`}
+                        style={{ cursor: "pointer" }}
+                    >
+
                     <td>
                       {new Date(n.date).toLocaleDateString("en-US", {
                         year: "numeric",
@@ -911,7 +938,7 @@ const Dashboard = ({
                       padding: 10,
                       cursor: "pointer",
                       background:
-                        (currentFilterColumn === "date" || currentFilterColumn === "userName" ? selectedValues[currentFilterColumn] === it.text : selectedValues[currentFilterColumn] == it.id)
+                        (currentFilterColumn === "date" || currentFilterColumn === "userName" ? selectedValues[currentFilterColumn] === it.text : selectedValues[currentFilterColumn] === it.id)
                           ? "#e3f2fd"
                           : "transparent",
                       borderBottom: "1px solid #eee",
