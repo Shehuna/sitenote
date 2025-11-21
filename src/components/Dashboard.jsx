@@ -54,9 +54,36 @@ const Dashboard = ({
   const [initialLoading, setInitialLoading] = useState(true);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [priorities, setPriorities] = useState([]);
+  const [role, setRole] = useState(null)
+  const [isRoleLoading, setIsRoleLoading] = useState(false);
   const [loadingUniques, setLoadingUniques] = useState(true);
+  const [userWorkspaces, setUserWorkspaces] = useState()
+  
+  const [viewMode, setViewMode] = useState('table'); 
+  const [selectedRow, setSelectedRow] = useState(null);
+  const [focusedRow, setFocusedRow] = useState(null);
 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
+
+  const handleDragStartValue = (column, value) => (e) => {
+    e.dataTransfer.setData('column', column);
+    e.dataTransfer.setData('value', value);
+    e.stopPropagation();
+  };
+
+  const handleRowClick = useCallback((note) => {
+    setFocusedRow(note.id);
+    setSelectedRow(note.id);
+  }, []);
+
+  const handleRowDoubleClick = useCallback((note) => {
+    const job = jobs.find((j) => j.name === note.job);
+    setViewNote({
+      id: note.id,
+      jobId: job?.id ?? null,
+    });
+    setShowViewModal(true);
+  }, [jobs]);
 
   const fetchUniqueProjects = async () => {
     try {
@@ -88,6 +115,7 @@ const Dashboard = ({
       console.error(e);
     }
   };
+
   const fetchUniqueDates = async () => {
     try {
       const r = await fetch(
@@ -98,6 +126,7 @@ const Dashboard = ({
       console.error(e);
     }
   };
+
   const fetchUniqueUsernames = async () => {
     try {
       const r = await fetch(
@@ -108,6 +137,14 @@ const Dashboard = ({
       console.error(e);
     }
   };
+
+  useEffect(() => {
+    if (userid && defaultUserWorkspaceID) {
+      console.log("Fetching role with workspace ID:", defaultUserWorkspaceID);
+      fetchUserWorkspaceRole();
+    }
+  }, [userid, defaultUserWorkspaceID]);
+
   useEffect(() => {
     const fetchAllUniques = async () => {
       if (userid) {
@@ -116,13 +153,14 @@ const Dashboard = ({
           fetchUniqueJobs(),
           fetchUniqueWorkspaces(),
           fetchUniqueDates(),
-          fetchUniqueUsernames()
+          fetchUniqueUsernames(),
         ]);
         setLoadingUniques(false);
       }
     };
     fetchAllUniques();
   }, [userid]);
+
   useEffect(() => {
     if (notes !== undefined) setIsDataLoaded(true);
   }, [notes]);
@@ -214,6 +252,7 @@ const Dashboard = ({
       setLoadingFiltered(false);
     }
   };
+
   useEffect(() => {
     if (notes !== undefined && isDataLoaded) {
       setInitialLoading(false);
@@ -231,6 +270,7 @@ const Dashboard = ({
       setShowFilterDialog(true);
     }
   };
+
   const handleDragOver = (e) => e.preventDefault();
   const handleDragStart = (c) => (e) => e.dataTransfer.setData("column", c);
   const openFilterDialog = (c) => {
@@ -298,18 +338,6 @@ const Dashboard = ({
     run();
   }, [searchTerm, userid, apiUrl]);
 
-  const handleRowClick = useCallback(
-    (note) => {
-      const job = jobs.find((j) => j.name === note.job);
-      setViewNote({
-        id: note.id,
-        jobId: job?.id ?? null,
-      });
-      setShowViewModal(true);
-    },
-    [jobs]
-  );
-
   const handleRefresh = async () => {
     setInitialLoading(true);
     try {
@@ -321,6 +349,9 @@ const Dashboard = ({
         fetchUniqueDates(),
         fetchUniqueUsernames()
       ]);
+      if (defaultUserWorkspaceID) {
+        await fetchUserWorkspaceRole();
+      }
       toast.success("Refreshed");
     } catch {
       toast.error("Refresh error");
@@ -353,6 +384,7 @@ const Dashboard = ({
     setSelectedNote(note);
     setShowEditModal(true);
   };
+
   const handleDelete = (note) => {
     const hrs = (Date.now() - new Date(note.timeStamp)) / 36e5;
     if (hrs > 24) toast.error("Cannot delete notes older than 24h");
@@ -361,6 +393,7 @@ const Dashboard = ({
       setShowDeleteConfirm(true);
     }
   };
+
   const handleConfirmDelete = async () => {
     if (!noteToDelete) return;
     setIsDeleting(true);
@@ -381,9 +414,93 @@ const Dashboard = ({
       setNoteToDelete(null);
     }
   };
+
   const handleViewAttachments = (note) => {
     setSelectedFileNote(note);
     setShowAttachedFileModal(true);
+  };
+
+  const fetchUserWorkspaceRole = async () => {
+    setIsRoleLoading(true);
+    console.log("fetching workspace Id", defaultUserWorkspaceID);
+    console.log("userid", userid);
+    
+    try {
+      const response = await fetch(`${apiUrl}/UserWorkspace/GetWorkspacesByUserId/${userid}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const userWorkspaces = data.userWorkspaces || data || [];
+        setUserWorkspaces(userWorkspaces);
+
+        const workspace = userWorkspaces.find(ws => 
+          (ws.workspaceID && ws.workspaceID.toString() === defaultUserWorkspaceID.toString()) ||
+          (ws.workspaceId && ws.workspaceId.toString() === defaultUserWorkspaceID.toString()) ||
+          (ws.id && ws.id.toString() === defaultUserWorkspaceID.toString())
+        );
+            
+        const newRole = workspace?.role || null;
+        setRole(newRole);
+      } else {
+        console.error("API response not OK:", response.status);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      setRole(null);
+    } finally {
+      setIsRoleLoading(false);
+    }
+  };
+
+  const getCurrentNotesForLevel = (level) => {
+    let currentNotes = [...notes];
+    for (let i = 0; i < level; i++) {
+      const column = hierarchy[i];
+      const selectedValue = selectedValues[column];
+      if (selectedValue) {
+        currentNotes = currentNotes.filter(note => {
+          const noteValue = column === 'date' 
+            ? new Date(note[column]).toLocaleDateString() 
+            : note[column];
+          return noteValue === selectedValue;
+        });
+      }
+    }
+    return currentNotes;
+  };
+
+  const getUniqueValues = (column, currentNotes) => {
+    const values = new Set();
+    currentNotes.forEach(note => {
+      const value = column === 'date' 
+        ? new Date(note[column]).toLocaleDateString() 
+        : note[column];
+      if (value) values.add(value);
+    });
+    if (column === 'date') {
+      const dateValues = Array.from(values);
+      dateValues.sort((b, a) => {
+        return new Date(b) - new Date(a);
+      });
+      return dateValues;
+    }
+    return Array.from(values).sort();
+  };
+
+  const handleHierarchyChange = (column, value) => {
+    const newSelectedValues = {...selectedValues, [column]: value};
+    setSelectedValues(newSelectedValues);
+    const columnIndex = hierarchy.indexOf(column);
+    if (columnIndex < hierarchy.length - 1) {
+      hierarchy.slice(columnIndex + 1).forEach(col => {
+        newSelectedValues[col] = '';
+      });
+    }
   };
 
   return (
@@ -465,6 +582,24 @@ const Dashboard = ({
               borderRadius: 4,
             }}
           />
+          
+          <div className="view-toggle-container">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`view-toggle-btn ${viewMode === 'table' ? 'active' : ''}`}
+              title="Table View"
+            >
+              <i className="fas fa-table" />
+            </button>
+            <button
+              onClick={() => setViewMode('cards')}
+              className={`view-toggle-btn ${viewMode === 'cards' ? 'active' : ''}`}
+              title="Card View"
+            >
+              <i className="fas fa-th" />
+            </button>
+          </div>
+
           <button
             onClick={handleRefresh}
             style={{
@@ -496,60 +631,46 @@ const Dashboard = ({
           </button>
         </div>
 
-        <div
-          className="hierarchy-filters"
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-        >
-          {hierarchy.map((col) => {
-            let opts;
-            let txt;
-            if (col === "project") {
-              opts = uniqueProjects;
-              txt = opts.find((o) => o.id === selectedValues[col])?.text;
-            } else if (col === "job") {
-              opts = uniqueJobs;
-              txt = opts.find((o) => o.id === selectedValues[col])?.text;
-            } else if (col === "workspace") {
-              opts = uniqueWorkspaces;
-              txt = opts.find((o) => o.id === selectedValues[col])?.text;
-            } else if (col === "date") {
-              opts = uniqueDates;
-              txt = selectedValues[col];
-            } else if (col === "userName") {
-              opts = uniqueUsernames;
-              txt = selectedValues[col];
-            }
+        <div className="hierarchy-filters" onDrop={handleDrop} onDragOver={handleDragOver}>
+          <div className="filter-instructions">
+            <span>Drag values from cards to filter:</span>
+          </div>
+          
+          {hierarchy.map((column, level) => {
+            const currentNotes = getCurrentNotesForLevel(level);
+            const uniqueValues = getUniqueValues(column, currentNotes);
+            
             return (
-              <div key={col} className="hierarchy-level">
+              <div key={column} className="hierarchy-level">
                 <label>
-                  {col.charAt(0).toUpperCase() + col.slice(1)}:
-                  <span
-                    onClick={() => openFilterDialog(col)}
-                    style={{
-                      cursor: "pointer",
-                      padding: "4px 8px",
-                      background: "#f0f0f0",
-                      borderRadius: 4,
-                      display: "inline-block",
-                      minWidth: 100,
-                    }}
+                  {column.charAt(0).toUpperCase() + column.slice(1)}:
+                  <select
+                    value={selectedValues[column] || ''}
+                    onChange={(e) => handleHierarchyChange(column, e.target.value)}
                   >
-                    {txt || `All ${col}s`}
-                  </span>
+                    <option value="">All {column}s</option>
+                    {uniqueValues.map(value => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
                 </label>
-                <button
-                  onClick={() => removeHierarchyLevel(col)}
+                <button 
+                  onClick={() => removeHierarchyLevel(column)}
                   className="clear-hierarchy-btn"
                 >
-                  x
+                  ×
                 </button>
               </div>
             );
           })}
           {hierarchy.length > 0 && (
-            <button
-              onClick={clearAllFilters}
+            <button 
+              onClick={() => {
+                setHierarchy([]);
+                setSelectedValues({});
+              }}
               className="clear-all-hierarchy-btn"
             >
               Clear all filters
@@ -557,167 +678,343 @@ const Dashboard = ({
           )}
         </div>
 
-        <div className="responsive-table-container">
-          <table>
-            <thead>
-              <tr>
-                {[
-                  "date",
-                  "workspace",
-                  "project",
-                  "job",
-                  "note",
-                  "userName",
-                  "Attached File",
-                ].map((c) => (
-                  <th
-                    key={c}
-                    draggable={["date","workspace","project","job","userName"].includes(c)}
-                    onDragStart={handleDragStart(c)}
-                    className={hierarchy.includes(c) ? "hierarchy-column" : ""}
-                  >
-                    {c === "date" && <i className="fas fa-calendar" />}
-                    {c === "workspace" && <i className="fas fa-building" />}
-                    {c === "project" && (
-                      <i className="fas fa-project-diagram" />
-                    )}
-                    {c === "job" && <i className="fas fa-tasks" />}
-                    {c === "note" && <i className="fas fa-sticky-note" />}
-                    {c === "userName" && <i className="fas fa-user" />}
-                    {c === "Attached File" && <i className="fas fa-paperclip" />}{" "}
-                    {c.charAt(0).toUpperCase() + c.slice(1)}
-                  </th>
-                ))}
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!isDataLoaded ||
-              initialLoading ||
-              searchLoading ||
-              loadingFiltered ||
-              loadingUniques ? (
-                [...Array(5)].map((_, i) => (
-                  <tr key={i}>
-                    <td colSpan={8}>
-                      <div className="skeleton-row">
-                        <div className="skeleton-cell short" />
-                        <div className="skeleton-cell medium" />
-                        <div className="skeleton-cell medium" />
-                        <div className="skeleton-cell medium" />
-                        <div className="skeleton-cell long" />
-                        <div className="skeleton-cell short" />
-                        <div className="skeleton-cell short" />
-                        <div className="skeleton-cell short" />
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : displayNotes.length === 0 ? (
+        {viewMode === 'table' ? (
+          // Table View
+          <div className="responsive-table-container">
+            <table>
+              <thead>
                 <tr>
-                  <td
-                    colSpan={8}
-                    style={{ textAlign: "center", padding: 40, color: "#999" }}
-                  >
-                    {isDataLoaded && !initialLoading && !loadingUniques ? (
-                      <>
-                        <i
-                          className="fas fa-search"
-                          style={{
-                            fontSize: 28,
-                            marginBottom: 12,
-                            display: "block",
-                            opacity: 0.5,
-                          }}
-                        />{" "}
-                        <div>
-                          {searchTerm.trim()
-                            ? "No notes match your search"
-                            : "No notes available"}
-                        </div>
-                      </>
-                    ) : null}
-                  </td>
-                </tr>
-              ) : (
-                displayNotes.map((n) => (
-                  <tr
-                    key={n.id}
-                    onClick={() => handleRowClick(n)}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <td>
-                      {new Date(n.date).toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </td>
-                    <td>{n.workspace}</td>
-                    <td>{n.project}</td>
-                    <td>{n.job}</td>
-                    <td className="editable">
-                      {n.note.length > 69
-                        ? n.note.substring(0, 69) + "..."
-                        : n.note}
-                    </td>
-                    <td>{n.userName}</td>
-                    <td
-                      className="file-cell"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleViewAttachments(n);
-                      }}
+                  {[
+                    "date",
+                    "workspace",
+                    "project",
+                    "job",
+                    "note",
+                    "userName",
+                    "Attached File",
+                  ].map((c) => (
+                    <th
+                      key={c}
+                      draggable={["date","workspace","project","job","userName"].includes(c)}
+                      onDragStart={handleDragStart(c)}
+                      className={hierarchy.includes(c) ? 'hierarchy-column' : ''}
                     >
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                      >
-                        <i
-                          className="fas fa-paperclip"
-                          style={{ opacity: n.documentCount > 0 ? 1 : 0.3 }}
-                        />
-                        <span>({n.documentCount || 0})</span>
-                      </span>
-                    </td>
-                    <td className="table-actions">
-                      <a
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleAddFromRow(n);
-                        }}
-                        title="Add"
-                      >
-                        <i className="fas fa-plus" />
-                      </a>
-                      <a
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEdit(n);
-                        }}
-                        title="Edit"
-                      >
-                        <i className="fas fa-edit" />
-                      </a>
-                      <a
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(n);
-                        }}
-                        title="Delete"
-                      >
-                        <i className="fas fa-trash" />
-                      </a>
+                      {c === "date" && <i className="fas fa-calendar" />}
+                      {c === "workspace" && <i className="fas fa-building" />}
+                      {c === "project" && (
+                        <i className="fas fa-project-diagram" />
+                      )}
+                      {c === "job" && <i className="fas fa-tasks" />}
+                      {c === "note" && <i className="fas fa-sticky-note" />}
+                      {c === "userName" && <i className="fas fa-user" />}
+                      {c === "Attached File" && <i className="fas fa-paperclip" />}{" "}
+                      {c.charAt(0).toUpperCase() + c.slice(1)}
+                    </th>
+                  ))}
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {!isDataLoaded ||
+                initialLoading ||
+                searchLoading ||
+                loadingFiltered ||
+                loadingUniques ? (
+                  [...Array(5)].map((_, i) => (
+                    <tr key={i}>
+                      <td colSpan={8}>
+                        <div className="skeleton-row">
+                          <div className="skeleton-cell short" />
+                          <div className="skeleton-cell medium" />
+                          <div className="skeleton-cell medium" />
+                          <div className="skeleton-cell medium" />
+                          <div className="skeleton-cell long" />
+                          <div className="skeleton-cell short" />
+                          <div className="skeleton-cell short" />
+                          <div className="skeleton-cell short" />
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : displayNotes.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={8}
+                      style={{ textAlign: "center", padding: 40, color: "#999" }}
+                    >
+                      {isDataLoaded && !initialLoading && !loadingUniques ? (
+                        <>
+                          <i
+                            className="fas fa-search"
+                            style={{
+                              fontSize: 28,
+                              marginBottom: 12,
+                              display: "block",
+                              opacity: 0.5,
+                            }}
+                          />{" "}
+                          <div>
+                            {searchTerm.trim()
+                              ? "No notes match your search"
+                              : "No notes available"}
+                          </div>
+                        </>
+                      ) : null}
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  displayNotes.map((n) => (
+                    <tr
+                      key={n.id}
+                      onClick={() => {
+                        const job = jobs.find((j) => j.name === n.job);
+                        setViewNote({
+                          id: n.id,
+                          jobId: job?.id ?? null,
+                        });
+                        setShowViewModal(true);
+                      }}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <td>
+                        {new Date(n.date).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
+                      </td>
+                      <td>{n.workspace}</td>
+                      <td>{n.project}</td>
+                      <td>{n.job}</td>
+                      <td className="editable">
+                        {n.note.length > 69
+                          ? n.note.substring(0, 69) + "..."
+                          : n.note}
+                      </td>
+                      <td>{n.userName}</td>
+                      <td
+                        className="file-cell"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewAttachments(n);
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          <i
+                            className="fas fa-paperclip"
+                            style={{ opacity: n.documentCount > 0 ? 1 : 0.3 }}
+                          />
+                          <span>({n.documentCount || 0})</span>
+                        </span>
+                      </td>
+                      <td className="table-actions">
+                        <a
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAddFromRow(n);
+                          }}
+                          title="Add"
+                        >
+                          <i className="fas fa-plus" />
+                        </a>
+                        <a
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit(n);
+                          }}
+                          title="Edit"
+                        >
+                          <i className="fas fa-edit" />
+                        </a>
+                        <a
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(n);
+                          }}
+                          title="Delete"
+                        >
+                          <i className="fas fa-trash" />
+                        </a>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="notes-grid">
+            {!isDataLoaded || initialLoading || searchLoading || loadingFiltered ? (
+              [...Array(8)].map((_, i) => (
+                <div key={i} className="note-card skeleton">
+                  <div className="skeleton-header">
+                    <div className="skeleton-avatar" />
+                    <div className="skeleton-text short" />
+                  </div>
+                  <div className="skeleton-content">
+                    <div className="skeleton-text long" />
+                  </div>
+                  <div className="skeleton-footer">
+                    <div className="skeleton-actions" />
+                  </div>
+                </div>
+              ))
+            ) : displayNotes.length === 0 ? (
+              <div className="empty-state">
+                <i className="fas fa-search" />
+                <h3>
+                  {searchTerm.trim() ? "No notes match your search" : "No notes available"}
+                </h3>
+                <p>
+                  {searchTerm.trim()
+                    ? "Try adjusting your search terms"
+                    : "Create your first note to get started"}
+                </p>
+              </div>
+            ) : (
+              displayNotes.map((note) => {
+                const notePriority = priorities.find(p => p.noteID === note.id && p.userId === userid);
+                
+                return (
+                  <div
+                    key={note.id}
+                    className={`note-card ${selectedRow === note.id ? 'selected' : ''}`}
+                    onClick={() => handleRowClick(note)}
+                    onDoubleClick={() => handleRowDoubleClick(note)}
+                  >
+                    <div className="note-header">
+                      <div className="user-avatar">
+                        <i className="fas fa-user" />
+                      </div>
+                      <div className="note-meta">
+                        <div 
+                          className="note-author draggable-value"
+                          draggable
+                          onDragStart={(e) => handleDragStartValue('userName', note.userName)(e)}
+                          title="Drag to filter by user"
+                        >
+                          {note.userName}
+                        </div>
+                        <div 
+                          className="note-date draggable-value"
+                          draggable
+                          onDragStart={(e) => handleDragStartValue('date', note.date)(e)}
+                          title="Drag to filter by date"
+                        >
+                          {new Date(note.date).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </div>
+                      </div>
+                      
+                      <div className="note-context">
+                        <div 
+                          className="context-item workspace draggable-value"
+                          draggable
+                          onDragStart={(e) => handleDragStartValue('workspace', note.workspace)(e)}
+                          title="Drag to filter by workspace"
+                        >
+                          {note.workspace}
+                        </div>
+                        <div 
+                          className="context-item project draggable-value"
+                          draggable
+                          onDragStart={(e) => handleDragStartValue('project', note.project)(e)}
+                          title="Drag to filter by project"
+                        >
+                          {note.project}
+                        </div>
+                        <div 
+                          className="context-item job draggable-value"
+                          draggable
+                          onDragStart={(e) => handleDragStartValue('job', note.job)(e)}
+                          title="Drag to filter by job"
+                        >
+                          {note.job}
+                        </div>
+                      </div>
+                      
+                      {notePriority && notePriority.priorityValue > 1 && (
+                        <div 
+                          className={`priority-indicator priority-${notePriority.priorityValue}`}
+                          title={
+                            notePriority.priorityValue === 2 ? 'Low Priority' :
+                            notePriority.priorityValue === 3 ? 'Medium Priority' :
+                            notePriority.priorityValue === 4 ? 'High Priority' : 'No Priority'
+                          }
+                        />
+                      )}
+                    </div>
+
+                    <div className="note-content">
+                      <div className="note-text">
+                        {note.note}
+                      </div>
+                    </div>
+
+                    <div className="note-footer">
+                      <div className="note-attachments">
+                        <button
+                          className="attachment-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewAttachments(note);
+                          }}
+                        >
+                          <i 
+                            className="fas fa-paperclip" 
+                            style={{ opacity: note.documentCount > 0 ? 1 : 0.3 }}
+                          />
+                          <span>({note.documentCount || 0})</span>
+                        </button>
+                      </div>
+                      <div className="note-actions">
+                        <button
+                          className="action-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAddFromRow(note);
+                          }}
+                          title="Add New Note"
+                        >
+                          <i className="fas fa-plus" />
+                        </button>
+                        <button
+                          className="action-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit(note);
+                          }}
+                          title="Edit Note"
+                        >
+                          <i className="fas fa-edit" />
+                        </button>
+                        <button
+                          className="action-btn delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(note);
+                          }}
+                          title="Delete Note"
+                        >
+                          <i className="fas fa-trash" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
       </div>
 
       {showFilterDialog && (
@@ -854,7 +1151,7 @@ const Dashboard = ({
           defWorkID={defaultUserWorkspaceID}
           defWorkName={defaultUserWorkspaceName}
           onUpdateDefaultWorkspace={onUpdateDefaultWorkspace}
-          userrole={userRole}
+          role={role}
           userWorkspaces={workspaces}
           updateProjectsAndJobs={fetchProjectAndJobs}
         />
@@ -888,6 +1185,7 @@ const Dashboard = ({
           onUploadDocument={onUploadDocument}
           onDeleteDocument={onDeleteDocument}
           defWorkSpaceId={defaultUserWorkspaceID}
+          userworksaces={uniqueWorkspaces}
         />
       )}
       {showEditModal && selectedNote && (
@@ -904,6 +1202,7 @@ const Dashboard = ({
           projects={projects}
           jobs={jobs}
           priorities={priorities}
+          defaultUserWorkspaceID={defaultUserWorkspaceID}
         />
       )}
       {showAttachedFileModal && selectedFileNote && (
