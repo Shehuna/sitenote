@@ -633,7 +633,6 @@ const Dashboard = ({
 
         <div className="hierarchy-filters" onDrop={handleDrop} onDragOver={handleDragOver}>
           <div className="filter-instructions">
-            <span>Drag values from cards to filter:</span>
           </div>
           
           {hierarchy.map((column, level) => {

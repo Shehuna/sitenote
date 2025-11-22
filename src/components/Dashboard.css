@@ -470,12 +470,12 @@ tr.selected-row.priority-4 {
 }
 
 .hierarchy-filters {
-  margin-bottom: 20px;
-  padding: 12px;
+  margin-bottom: 15px;
+  padding: 10px;
   background: #f8f9fa;
   border-radius: 8px;
   border: 1px solid #e9ecef;
-  min-height: 15px;
+  min-height: 12px;
 }
 
 .hierarchy-level {
@@ -506,9 +506,9 @@ tr.selected-row.priority-4 {
 }
 
 .clear-hierarchy-btn {
-  background: #6c757d;
+  background: #585f65;
   border: none;
-  color: white;
+  color: rgb(58, 57, 57);
   width: 14px;
   height: 14px;
   border-radius: 50%;
@@ -522,10 +522,10 @@ tr.selected-row.priority-4 {
 .clear-all-hierarchy-btn {
   background: #dc3545;
   border: none;
-  color: white;
-  padding: 3px 6px;
+  color: rgb(6, 6, 6);
+  padding: 2px 4px;
   border-radius: 3px;
-  font-size: 10px;
+  font-size: 12px;
   cursor: pointer;
   margin-left: 6px;
 }
