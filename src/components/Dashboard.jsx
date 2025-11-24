@@ -1227,17 +1227,6 @@ const handleHierarchyChange = (column, value) => {
                   {note.job}
                 </div>
               </div>
-              
-              {notePriority && notePriority.priorityValue > 1 && (
-                <div 
-                  className={`priority-indicator priority-${notePriority.priorityValue}`}
-                  title={
-                    notePriority.priorityValue === 2 ? 'Low Priority' :
-                    notePriority.priorityValue === 3 ? 'Medium Priority' :
-                    notePriority.priorityValue === 4 ? 'High Priority' : 'No Priority'
-                  }
-                />
-              )}
             </div>
 
             <div className="note-content">
@@ -1262,7 +1251,20 @@ const handleHierarchyChange = (column, value) => {
                   <span>({note.documentCount || 0})</span>
                 </button>
               </div>
+              <div className="footer-priority">
+              
+            </div>
               <div className="note-actions">
+                {notePriority && notePriority.priorityValue > 1 && (
+                <div 
+                  className={`priority-indicator priority-${notePriority.priorityValue}`}
+                  title={
+                    notePriority.priorityValue === 2 ? 'Low Priority' :
+                    notePriority.priorityValue === 3 ? 'Medium Priority' :
+                    notePriority.priorityValue === 4 ? 'High Priority' : 'No Priority'
+                  }
+                />
+              )}
                 <button
                   className="action-btn"
                   onClick={(e) => {

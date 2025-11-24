@@ -418,16 +418,24 @@ td {
   text-align: right;
 }
 
-.priority-indicator {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-top: 2px;
+.footer-priority {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  max-width: 40px;
 }
 
-.priority-2 { background: #bdc3c7; } 
-.priority-3 { background: #f1c40f; } 
-.priority-4 { background: #e74c3c; } 
+.note-footer .priority-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin: 0 8px;
+}
+
+.note-footer .priority-2 { background: #bdc3c7; }
+.note-footer .priority-3 { background: #f1c40f; } 
+.note-footer .priority-4 { background: #e74c3c; } 
 
 .note-content {
   margin-bottom: 12px;
@@ -452,14 +460,19 @@ td {
 }
 
 .note-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding-top: 12px;
-  border-top: 1px solid #f0f0f0;
-  margin-top: auto;
-  flex-shrink: 0;
-  min-height: 32px;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding-top: 12px !important;
+  border-top: 1px solid #f0f0f0 !important;
+  margin-top: auto !important;
+  flex-shrink: 0 !important;
+  min-height: 32px !important;
+}
+
+.note-attachments {
+  display: flex !important;
+  align-items: center !important;
 }
 
 .attachment-btn {
@@ -482,8 +495,9 @@ td {
 }
 
 .note-actions {
-  display: flex;
-  gap: 6px;
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
 }
 
 .action-btn {
