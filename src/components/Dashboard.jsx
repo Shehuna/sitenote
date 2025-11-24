@@ -26,7 +26,6 @@ const Dashboard = ({
   onUpdateDefaultWorkspace,
   fetchProjectAndJobs,
 }) => {
-  // Load search state from localStorage on initial render
   const [searchTerm, setSearchTerm] = useState(() => {
     const saved = localStorage.getItem('dashboardSearchTerm');
     return saved || "";
@@ -36,7 +35,6 @@ const Dashboard = ({
     return saved ? JSON.parse(saved) : [];
   });
   
-  // Load filter state from localStorage on initial render
   const [hierarchy, setHierarchy] = useState(() => {
     const saved = localStorage.getItem('dashboardHierarchy');
     return saved ? JSON.parse(saved) : [];
@@ -46,7 +44,6 @@ const Dashboard = ({
     return saved ? JSON.parse(saved) : {};
   });
 
-  // Save search state to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem('dashboardSearchTerm', searchTerm);
   }, [searchTerm]);
@@ -55,7 +52,6 @@ const Dashboard = ({
     localStorage.setItem('dashboardSearchResults', JSON.stringify(searchResults));
   }, [searchResults]);
 
-  // Save filter state to localStorage whenever it changes
   useEffect(() => {
     localStorage.setItem('dashboardHierarchy', JSON.stringify(hierarchy));
   }, [hierarchy]);
@@ -516,6 +512,72 @@ const Dashboard = ({
     }
   };
 
+const getCurrentNotesForLevel = (level) => {
+  if (level === 0) {
+    return searchTerm.trim() ? searchResults : filteredNotes;
+  }
+  
+  let filtered = searchTerm.trim() ? searchResults : filteredNotes;
+  
+  for (let i = 0; i < level; i++) {
+    const column = hierarchy[i];
+    const selectedValue = selectedValues[column];
+    
+    if (selectedValue) {
+      filtered = filtered.filter(note => {
+        if (column === 'date' || column === 'userName') {
+          return note[column] === selectedValue;
+        } else {
+          return note[`${column}Id`] === selectedValue || note[column] === selectedValue;
+        }
+      });
+    }
+  }
+  
+  return filtered;
+};
+
+const getUniqueValues = (column, currentNotes) => {
+  const values = new Set();
+  
+  currentNotes.forEach(note => {
+    let value;
+    
+    if (column === 'date' || column === 'userName') {
+      value = note[column];
+    } else {
+      value = note[column];
+    }
+    
+    if (value) {
+      values.add(value);
+    }
+  });
+  
+  return Array.from(values).sort();
+};
+
+const handleHierarchyChange = (column, value) => {
+  setSelectedValues(prev => ({
+    ...prev,
+    [column]: value
+  }));
+  const columnIndex = hierarchy.indexOf(column);
+  if (columnIndex !== -1) {
+    const newHierarchy = hierarchy.slice(0, columnIndex + 1);
+    const newSelectedValues = { ...selectedValues };
+    
+    hierarchy.forEach((col, index) => {
+      if (index > columnIndex) {
+        delete newSelectedValues[col];
+      }
+    });
+    
+    setHierarchy(newHierarchy);
+    setSelectedValues(newSelectedValues);
+  }
+};
+
   const handleConfirmDelete = async () => {
     if (!noteToDelete) return;
     setIsDeleting(true);
@@ -558,19 +620,17 @@ const Dashboard = ({
     if (response.ok) {
       const data = await response.json();
       
-      const userWorkspaces = data.userWorkspaces || data || []; // Try different possible structures
+      const userWorkspaces = data.userWorkspaces || data || []; 
       setUserWorkspaces(userWorkspaces)
-      // Log all workspace IDs to see what we're working with
       userWorkspaces.forEach((ws, index) => {
         console.log(`Workspace ${index}:`, {
           id: ws.id,
           workspaceID: ws.workspaceID,
-          workspaceId: ws.workspaceId, // try camelCase too
+          workspaceId: ws.workspaceId, 
           role: ws.role
         });
       });
 
-      // Try multiple possible field names
       const workspace = userWorkspaces.find(ws => 
         (ws.workspaceID && ws.workspaceID.toString() === defaultUserWorkspaceID.toString()) ||
         (ws.workspaceId && ws.workspaceId.toString() === defaultUserWorkspaceID.toString()) ||
@@ -741,6 +801,55 @@ const Dashboard = ({
                     </button>
                   </span>
           )}
+           <div className="view-toggle-container" style={{
+            display: 'flex',
+            gap: '8px',
+            alignItems: 'center',
+            height: '36px' 
+          }}>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`view-toggle-btn ${viewMode === 'table' ? 'active' : ''}`}
+              style={{
+                
+                border: '1px solid #ddd',
+                background: viewMode === 'table' ? '#1976d2' : 'white',
+                color: viewMode === 'table' ? 'white' : '#333',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                height: '36px', 
+                width: '36px' 
+              }}
+              title="Table View"
+            >
+              <i className="fas fa-table" />
+              
+            </button>
+            <button
+              onClick={() => setViewMode('cards')}
+              className={`view-toggle-btn ${viewMode === 'cards' ? 'active' : ''}`}
+              style={{
+              
+                border: '1px solid #ddd',
+                background: viewMode === 'cards' ? '#1976d2' : 'white',
+                color: viewMode === 'cards' ? 'white' : '#333',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                height: '36px', 
+                width: '36px' 
+              }}
+              title="Card View"
+            >
+              <i className="fas fa-th" />
+              
+            </button>
+          </div>
           <button
             onClick={handleRefresh}
             style={{
@@ -911,8 +1020,10 @@ const Dashboard = ({
               <tr
                 key={n.id}
                 onClick={() => {
-                  // Combined click handlers
                   handleRowClick(n);
+                }}
+                onDoubleClick={() => {
+                  handleRowDoubleClick(n);
                   const job = jobs.find((j) => j.name === n.job);
                   setViewNote({
                     id: n.id,
@@ -920,7 +1031,6 @@ const Dashboard = ({
                   });
                   setShowViewModal(true);
                 }}
-                onDoubleClick={() => handleRowDoubleClick(n)}
                 className={`${
                   selectedRow === n.id ? "selected-row" : ""
                 } ${focusedRow === n.id ? "focused-row" : ""}`}
@@ -1025,7 +1135,6 @@ const Dashboard = ({
     </table>
   </div>
 ) : (
-  // Grid View (unchanged)
   <div className="notes-grid">
     {!isDataLoaded || initialLoading || searchLoading || loadingFiltered ? (
       [...Array(8)].map((_, i) => (
@@ -1192,7 +1301,9 @@ const Dashboard = ({
     )}
   </div>
 )}
-      </div>
+  </div>
+
+      
 
       {showFilterDialog && (
         <div

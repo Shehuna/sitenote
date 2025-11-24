@@ -112,6 +112,41 @@ const ViewNoteModal = ({
     const d = new Date(iso);
     return isNaN(d) ? '' : d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
   };
+  const formatRelativeTime = (timestamp) => {
+  const now = new Date();
+  const messageTime = new Date(timestamp);
+  const diffInSeconds = Math.floor((now - messageTime) / 1000);
+  
+  if (diffInSeconds < 60) {
+    return 'just now';
+  }
+  
+  const diffInMinutes = Math.floor(diffInSeconds / 60);
+  if (diffInMinutes < 60) {
+    return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
+  }
+  
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  if (diffInHours < 24) {
+    return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+  }
+  
+  const diffInDays = Math.floor(diffInHours / 24);
+  if (diffInDays < 7) {
+    return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+  }
+  
+  const diffInWeeks = Math.floor(diffInDays / 7);
+  if (diffInWeeks < 4) {
+    return `${diffInWeeks} week${diffInWeeks > 1 ? 's' : ''} ago`;
+  }
+  
+  return messageTime.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+};
 
 
   if (loading) {
@@ -152,7 +187,7 @@ const ViewNoteModal = ({
                 <div className="message-content">
                   <div className="message-header">
                     <span className="sender-name">{doc.userName}</span>
-                    <span className="message-time">{formatDate(doc.timeStamp)} - {formatTime(doc.timeStamp)}</span>
+                    <span className="message-time" title={new Date(doc.timeStamp).toLocaleString()}> {formatRelativeTime(doc.timeStamp)} </span>
                   </div>
                   <div className="message-date-below">{formatDate(doc.date)}</div>
                   <div className="message-text">{doc.note}</div>
