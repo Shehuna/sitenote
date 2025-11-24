@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef  } from "react";
 import "./EditNoteModal.css";
 import toast from "react-hot-toast";
 
@@ -77,6 +77,9 @@ const EditNoteModal = ({
     "video/x-msvideo": [".avi"],
   };
 
+
+  const noteTextareaRef = useRef(null);
+
   const MAX_FILE_SIZE = 5 * 1024 * 1024;
   const isValidFileType = (file) => {
     return Object.keys(allowedFileTypes).includes(file.type);
@@ -102,6 +105,27 @@ const EditNoteModal = ({
       }
     }
   }, [note]);
+
+  useEffect(() => {
+    if (activeTab === 'journal' && noteTextareaRef.current) {
+      const timer = setTimeout(() => {
+        noteTextareaRef.current.focus();
+      }, 100);
+
+      return () => clearTimeout(timer);
+    }
+  }, [activeTab]);
+  useEffect(() => {
+    if (note && activeTab === 'journal') {
+      const timer = setTimeout(() => {
+        if (noteTextareaRef.current) {
+          noteTextareaRef.current.focus();
+        }
+      }, 200);
+
+      return () => clearTimeout(timer);
+    }
+  }, [note, activeTab]);
 
   const getMimeType = (fileName) => {
     const ext = fileName?.split(".").pop()?.toLowerCase();
@@ -191,13 +215,16 @@ const EditNoteModal = ({
         const month = String(dateObj.getMonth() + 1).padStart(2, "0");
         const day = String(dateObj.getDate()).padStart(2, "0");
         correctedDate = `${year}-${month}-${day}`;
+
       }
+      const user = JSON.parse(localStorage.getItem("user"));
 
       setJournalData({
         date: correctedDate,
         projectId: projectId || "",
         jobId: jobId || "",
         note: note.note || "",
+        userId: user.id
       });
 
       if (note.id) {
@@ -216,7 +243,7 @@ const EditNoteModal = ({
 
         if (!result) {
           result = priorities.find(
-            (p) => p.noteID == note.id && p.userId == user.id
+            (p) => p.noteID === note.id && p.userId === user.id
           );
           console.log("Found priority (current user):", result);
         }
@@ -371,9 +398,10 @@ const EditNoteModal = ({
     setError(null);
 
     try {
+      let noteIdToReturn = note.id;
       if (!isEditable) {
         await handleUpdatepriority();
-        onClose();
+        onClose(noteIdToReturn);
         refreshNotes();
         return;
       }
@@ -422,6 +450,23 @@ const EditNoteModal = ({
       setIsSubmitting(false);
     }
   };
+
+  const handleSaveShortcut = useCallback((event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+      event.preventDefault();
+      if (!isSubmitting) {
+        handleSaveNote();
+      }
+    }
+  }, [isSubmitting, handleSaveNote]);
+  useEffect(() => {
+    document.addEventListener('keydown', handleSaveShortcut);
+
+    return () => {
+      document.removeEventListener('keydown', handleSaveShortcut);
+    };
+  }, [handleSaveShortcut]);
+
 
   const handleUpdatepriority = async () => {
     try {
@@ -477,6 +522,7 @@ const EditNoteModal = ({
       console.log(
         `Priority ${priorityId ? "updated" : "created"} successfully`
       );
+
       toast.success(
         `Priority ${priorityId ? "updated" : "created"} successfully`
       );
@@ -602,6 +648,7 @@ const EditNoteModal = ({
               <div className="form-group">
                 <label>Notes:</label>
                 <textarea
+                  ref={noteTextareaRef}
                   name="note"
                   value={journalData.note}
                   onChange={handleJournalChange}
@@ -689,9 +736,6 @@ const EditNoteModal = ({
                   </option>
                   <option value="3" className="priority-option-3">
                     Medium
-                  </option>
-                  <option value="2" className="priority-option-2">
-                    Low
                   </option>
                   <option value="1" className="priority-option-1">
                     No Priority
