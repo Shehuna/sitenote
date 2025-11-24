@@ -6,19 +6,22 @@ const ViewNoteModal = ({
   noteId,
   jobId,         
   onClose,
-  currentTheme = 'gray',
+  currentTheme,
   onViewAttachments,
-  priorities = [],
   userid,
   scrollToNoteId,
 }) => {
   const [currentNote, setCurrentNote] = useState(null);
   const [relatedNotes, setRelatedNotes] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [priority, setPriority] = useState(0);
 
   const noteRefs = useRef({});
   const chatContainerRef = useRef(null);
+
+
+
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
 
   const fetchNoteAndRelated = async () => {
@@ -81,10 +84,6 @@ const ViewNoteModal = ({
     }
   };
 
-  const assignPriority = () => {
-    const p = priorities.find(p => p.noteID == noteId && p.userId == userid);
-    setPriority(p?.priorityValue || 0);
-  };
 
   const scrollToCurrentNote = () => {
     const target = scrollToNoteId || noteId;
@@ -100,7 +99,7 @@ const ViewNoteModal = ({
   };
 
   useEffect(() => { fetchNoteAndRelated(); }, [noteId, jobId, userid]);
-  useEffect(() => { assignPriority(); }, [priorities, noteId, userid]);
+
   useEffect(() => { if (!loading && relatedNotes.length) scrollToCurrentNote(); }, [loading, relatedNotes, scrollToNoteId, noteId]);
 
   const formatDate = iso => {
@@ -113,6 +112,42 @@ const ViewNoteModal = ({
     const d = new Date(iso);
     return isNaN(d) ? '' : d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
   };
+  const formatRelativeTime = (timestamp) => {
+  const now = new Date();
+  const messageTime = new Date(timestamp);
+  const diffInSeconds = Math.floor((now - messageTime) / 1000);
+  
+  if (diffInSeconds < 60) {
+    return 'just now';
+  }
+  
+  const diffInMinutes = Math.floor(diffInSeconds / 60);
+  if (diffInMinutes < 60) {
+    return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
+  }
+  
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  if (diffInHours < 24) {
+    return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+  }
+  
+  const diffInDays = Math.floor(diffInHours / 24);
+  if (diffInDays < 7) {
+    return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+  }
+  
+  const diffInWeeks = Math.floor(diffInDays / 7);
+  if (diffInWeeks < 4) {
+    return `${diffInWeeks} week${diffInWeeks > 1 ? 's' : ''} ago`;
+  }
+  
+  return messageTime.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  });
+};
+
 
   if (loading) {
     return (
@@ -124,6 +159,8 @@ const ViewNoteModal = ({
     );
   }
   if (!currentNote) return null;
+
+
 
   return (
     <div className={`view-note-modal-overlay theme-${currentTheme}`} onClick={onClose}>
@@ -144,13 +181,13 @@ const ViewNoteModal = ({
           {relatedNotes.map(doc => (
             <div key={doc.id} ref={el=> (noteRefs.current[doc.id]=el)} className="message-row" id={`related-note-${doc.id}`}>
               <div
-                className={`message received ${doc.id===noteId?'selected':''} priority-${priority}`}
+                className={`message received ${doc.id===noteId?'selected':''}`}
                 style={{borderLeft:doc.id===noteId?'4px solid #3498db':'none',border :'solid 1px #555', background:doc.id===noteId?'#f0f8ff':'white'}}
               >
                 <div className="message-content">
                   <div className="message-header">
                     <span className="sender-name">{doc.userName}</span>
-                    <span className="message-time">{formatDate(doc.timeStamp)} - {formatTime(doc.timeStamp)}</span>
+                    <span className="message-time" title={new Date(doc.timeStamp).toLocaleString()}> {formatRelativeTime(doc.timeStamp)} </span>
                   </div>
                   <div className="message-date-below">{formatDate(doc.date)}</div>
                   <div className="message-text">{doc.note}</div>

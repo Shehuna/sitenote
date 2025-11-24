@@ -137,56 +137,139 @@ const AssignUsers = ({ filteredUsers, projects, jobs, loading, setLoading }) => 
                 </div>
 
                 <div className="form-group">
-                    <label>Select Jobs to Assign:</label>
-                    <div className="jobs-selection-container">
-                        {projects.map(project => {
-                            const projectJobs = jobs.filter(job => job.projectId === project.id && job.status === 1);
-                            
-                            if (projectJobs.length === 0) return null;
+                <label>Select Jobs to Assign:</label>
+                <div 
+                    className="jobs-selection-container"
+                    style={{
+                        maxHeight: '400px',
+                        overflowY: 'auto',
+                        border: '1px solid #ddd',
+                        borderRadius: '4px',
+                        padding: '16px',
+                        backgroundColor: '#fff'
+                    }}
+                >
+                    {projects.map(project => {
+                        const projectJobs = jobs.filter(job => job.projectId === project.id && job.status === 1);
+                        
+                        if (projectJobs.length === 0) return null;
 
-                            return (
-                                <div key={project.id} className="project-jobs-group">
-                                    <h4 className="project-name">{project.text || project.name}</h4>
-                                    <div className="jobs-list">
-                                        {projectJobs.map(job => {
-                                            const isAlreadyAssigned = isJobAlreadyAssigned(job.id);
-                                            const isChecked = assignedJobs.some(assigned => assigned.id === job.id);
-                                            
-                                            return (
-                                                <label 
-                                                    key={job.id} 
-                                                    className={`job-checkbox ${isAlreadyAssigned ? 'disabled' : ''}`}
-                                                    title={isAlreadyAssigned ? 'User already has this job' : ''}
+                        return (
+                            <div 
+                                key={project.id} 
+                                className="project-jobs-group"
+                                style={{ marginBottom: '20px' }}
+                            >
+                                <h4 
+                                    className="project-name"
+                                    style={{
+                                        margin: '0 0 12px 0',
+                                        fontSize: '16px',
+                                        fontWeight: '600',
+                                        color: '#2c3e50',
+                                        borderBottom: '1px solid #eee',
+                                        paddingBottom: '8px'
+                                    }}
+                                >
+                                    {project.text || project.name}
+                                </h4>
+                                <div 
+                                    className="jobs-list"
+                                    style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '8px'
+                                    }}
+                                >
+                                    {projectJobs.map(job => {
+                                        const isAlreadyAssigned = isJobAlreadyAssigned(job.id);
+                                        const isChecked = assignedJobs.some(assigned => assigned.id === job.id);
+                                        
+                                        return (
+                                            <label 
+                                                key={job.id} 
+                                                className={`job-checkbox ${isAlreadyAssigned ? 'disabled' : ''}`}
+                                                title={isAlreadyAssigned ? 'User already has this job' : ''}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'flex-start', 
+                                                    gap: '12px',
+                                                    padding: '8px 12px',
+                                                    borderRadius: '4px',
+                                                    transition: 'background-color 0.2s',
+                                                    cursor: isAlreadyAssigned ? 'not-allowed' : 'pointer',
+                                                    opacity: isAlreadyAssigned ? 0.6 : 1,
+                                                    backgroundColor: isAlreadyAssigned ? '#f5f5f5' : 'transparent'
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    if (!isAlreadyAssigned) {
+                                                        e.target.style.backgroundColor = '#f8f9fa';
+                                                    }
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    if (!isAlreadyAssigned) {
+                                                        e.target.style.backgroundColor = 'transparent';
+                                                    }
+                                                }}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isChecked}
+                                                    onChange={(e) => {
+                                                        if (isAlreadyAssigned) return;
+                                                        
+                                                        if (e.target.checked) {
+                                                            setAssignedJobs(prev => [...prev, job]);
+                                                        } else {
+                                                            setAssignedJobs(prev => prev.filter(j => j.id !== job.id));
+                                                        }
+                                                    }}
+                                                    disabled={isAlreadyAssigned}
+                                                    style={{ 
+                                                        margin: '2px 0 0 0', 
+                                                        width: '16px',
+                                                        height: '16px',
+                                                        flexShrink: 0 
+                                                    }}
+                                                />
+                                                <div
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'space-between',
+                                                        width: '100%',
+                                                        minHeight: '20px'
+                                                    }}
                                                 >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isChecked}
-                                                        onChange={(e) => {
-                                                            if (isAlreadyAssigned) return;
-                                                            
-                                                            if (e.target.checked) {
-                                                                setAssignedJobs(prev => [...prev, job]);
-                                                            } else {
-                                                                setAssignedJobs(prev => prev.filter(j => j.id !== job.id));
-                                                            }
-                                                        }}
-                                                        disabled={isAlreadyAssigned}
-                                                    />
-                                                    <span className="job-name">
+                                                    <span style={{ lineHeight: '1.4' }}>
                                                         {job.name}
-                                                        {isAlreadyAssigned && (
-                                                            <span className="already-assigned-badge">Already Assigned</span>
-                                                        )}
                                                     </span>
-                                                </label>
-                                            );
-                                        })}
-                                    </div>
+                                                    {isAlreadyAssigned && (
+                                                        <span 
+                                                            className="already-assigned-badge"
+                                                            style={{
+                                                                fontSize: '11px',
+                                                                background: '#ffebee',
+                                                                color: '#c62828',
+                                                                padding: '2px 6px',
+                                                                borderRadius: '4px',
+                                                                marginLeft: '12px',
+                                                                flexShrink: 0
+                                                            }}
+                                                        >
+                                                            Already Assigned
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </label>
+                                        );
+                                    })}
                                 </div>
-                            );
-                        })}
-                    </div>
+                            </div>
+                        );
+                    })}
                 </div>
+            </div>
 
                 <div className="selection-info">
                     {assignedJobs.length === 0 ? (

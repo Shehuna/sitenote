@@ -38,10 +38,10 @@ const NewNoteModal = ({
     const [apiError, setApiError] = useState(null);
     const textareaRef = useRef(null);
     const [fetchedProjects, setFetchedProjects] = useState([]);
-    const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
-    //console.log(projects)
 
-      const allowedFileTypes = {
+    const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
+
+    const allowedFileTypes = {
     // Images
     'image/jpeg': ['.jpg', '.jpeg'],
     'image/png': ['.png'],
@@ -78,9 +78,7 @@ const NewNoteModal = ({
   const isValidFileType = (file) => {
     return Object.keys(allowedFileTypes).includes(file.type);
   };
-  /* const isValidFileSize = (file) => {
-    return file.size <= MAX_FILE_SIZE;
-  }; */
+
     useEffect(() => {
         if (selectedWorkspace) {
             const filtered = fetchedProjects.filter(project =>
@@ -118,14 +116,28 @@ const NewNoteModal = ({
             setSelectedDate(formattedDate);
             
             setActiveTab('journal');
-            setSelectedPriority('1'); 
+            setSelectedPriority('1');
+
             if (prefilledData) {
-                const project = fetchedProjects.find(p => p.text === prefilledData.project);
+                const workspace = userworksaces.find(w => w.text === prefilledData.workspace);
+                if (workspace) {
+                    setSelectedWorkspace(workspace.id.toString());
+                }
+
+                const project = projects.find(p => p.name === prefilledData.project);
                 if (project) {
                     setSelectedProject(project.id.toString());
                 }
-                
-                if (prefilledData.job) {
+
+                if (prefilledData.job && project.id.toString()) {
+                    const job = jobs.find(j =>
+                        j.name === prefilledData.job &&
+                        j.projectId?.toString() === project.id.toString() &&
+                        j.status === 1
+                    );
+                    if (job) {
+                        setSelectedJob(job.id.toString());
+                    }
                 }
             } else {
                 setSelectedProject('');
@@ -143,17 +155,17 @@ const NewNoteModal = ({
         }
     }, [isOpen, prefilledData, fetchedProjects]);
 
-    useEffect(() => {
-        if (prefilledData && prefilledData.job && selectedProject) {
-            const job = jobs.find(j => 
-                j.name === prefilledData.job && 
-                j.projectId?.toString() === selectedProject.toString()
-            );
-            if (job) {
-                setSelectedJob(job.id.toString());
-            }
-        }
-    }, [selectedProject, prefilledData, jobs]);
+    // useEffect(() => {
+    //     if (prefilledData && prefilledData.job && selectedProject) {
+    //         const job = jobs.find(j =>
+    //             j.name === prefilledData.job &&
+    //             j.projectId?.toString() === selectedProject.toString()
+    //         );
+    //         if (job) {
+    //             setSelectedJob(job.id.toString());
+    //         }
+    //     }
+    // }, [selectedProject, prefilledData, jobs]);
 
     useEffect(() => {
       if (isOpen) {
@@ -544,7 +556,6 @@ const NewNoteModal = ({
             <option value="">Select Priority</option>
             <option value="4" className="priority-option-4">High</option>
             <option value="3" className="priority-option-3">Medium</option>
-            <option value="2" className="priority-option-2">Low</option>
             <option value="1" className="priority-option-1">No Priority</option>
         </select>
     </div>
@@ -659,7 +670,8 @@ NewNoteModal.propTypes = {
     ),
     prefilledData: PropTypes.shape({
         project: PropTypes.string,
-        job: PropTypes.string
+        job: PropTypes.string,
+        workspace: PropTypes.string
     }),
     defWorkSpaceId: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
 };
