@@ -1590,7 +1590,7 @@ const handleHierarchyChange = (column, value) => {
           onClose={() => {
             setShowEditModal(false);
             fetchPriorities();
-            refreshNotes();
+            
           }}
           refreshNotes={refreshNotes}
           updateNote={updateNote}
