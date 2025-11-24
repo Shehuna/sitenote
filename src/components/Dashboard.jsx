@@ -1165,7 +1165,7 @@ const handleHierarchyChange = (column, value) => {
       </div>
     ) : (
       displayNotes.map((note) => {
-        const notePriority = priorities.find(p => p.noteID === note.id && p.userId === userid);
+        const notePriority = priorities.find(p => p.noteID === note.id);
         
         return (
           <div
