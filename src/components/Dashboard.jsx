@@ -237,93 +237,68 @@ const Dashboard = ({
       setIsDataLoaded(true);
   }, [notes]);
 
-  const fetchFilteredSiteNotes = async () => {
-    const p = selectedValues["project"];
-    const j = selectedValues["job"];
-    const w = selectedValues["workspace"];
-    const d = selectedValues["date"];
-    const u = selectedValues["userName"];
-    if (!p && !j && !w && !d && !u) {
-      setFilteredNotes(notes);
-      return;
+ const fetchFilteredSiteNotes = async () => {
+  const p = selectedValues["project"];
+  const j = selectedValues["job"];
+  const w = selectedValues["workspace"];
+  const d = selectedValues["date"];
+  const u = selectedValues["userName"];
+  
+  // If no filters are selected, show all notes
+  if (!p && !j && !w && !d && !u) {
+    setFilteredNotes(notes);
+    return;
+  }
+  
+  setLoadingFiltered(true);
+  
+  try {
+    // Start with all notes and progressively filter them
+    let filtered = [...notes];
+    
+    // Apply each filter in sequence (AND logic)
+    if (p) {
+      filtered = filtered.filter(note => 
+        note.projectId?.toString() === p.toString() || 
+        note.project === uniqueProjects.find(proj => proj.id.toString() === p.toString())?.text
+      );
     }
-    setLoadingFiltered(true);
-    const map = new Map();
-    try {
-      if (p) {
-        const r = await fetch(
-          `${apiUrl}/SiteNote/GetSiteNotesByProjectId?pageNumber=1&pageSize=200&projectId=${p}&userId=${userid}`
-        );
-        if (r.ok)
-          (await r.json()).siteNotes?.forEach((n) =>
-            map.set(n.id, {
-              ...n,
-              userName: n.UserName || n.userName,
-              documentCount: n.DocumentCount || n.documentCount || 0,
-            })
-          );
-      }
-      if (j) {
-        const r = await fetch(
-          `${apiUrl}/SiteNote/GetSiteNotesByJobId?pageNumber=1&pageSize=200&jobId=${j}&userId=${userid}`
-        );
-        if (r.ok)
-          (await r.json()).siteNotes?.forEach((n) =>
-            map.set(n.id, {
-              ...n,
-              userName: n.UserName || n.userName,
-              documentCount: n.DocumentCount || n.documentCount || 0,
-            })
-          );
-      }
-      if (w) {
-        const r = await fetch(
-          `${apiUrl}/SiteNote/GetSiteNotesByWorkspaceId?pageNumber=1&pageSize=200&workspaceId=${w}&userId=${userid}`
-        );
-        if (r.ok)
-          (await r.json()).siteNotes?.forEach((n) =>
-            map.set(n.id, {
-              ...n,
-              userName: n.UserName || n.userName,
-              documentCount: n.DocumentCount || n.documentCount || 0,
-            })
-          );
-      }
-      if (d) {
-        const r = await fetch(
-          `${apiUrl}/SiteNote/GetSiteNotesByDate?pageNumber=1&pageSize=200&date=${encodeURIComponent(d)}&userId=${userid}`
-        );
-        if (r.ok)
-          (await r.json()).siteNotes?.forEach((n) =>
-            map.set(n.id, {
-              ...n,
-              userName: n.UserName || n.userName,
-              documentCount: n.DocumentCount || n.documentCount || 0,
-            })
-          );
-      }
-      if (u) {
-        const r = await fetch(
-          `${apiUrl}/SiteNote/GetSiteNotesByUsername?pageNumber=1&pageSize=200&username=${encodeURIComponent(u)}&userId=${userid}`
-        );
-        if (r.ok)
-          (await r.json()).siteNotes?.forEach((n) =>
-            map.set(n.id, {
-              ...n,
-              userName: n.UserName || n.userName,
-              documentCount: n.DocumentCount || n.documentCount || 0,
-            })
-          );
-      }
-      setFilteredNotes(Array.from(map.values()));
-    } catch (e) {
-      console.error(e);
-      toast.error("Failed to load filtered notes");
-      setFilteredNotes(notes);
-    } finally {
-      setLoadingFiltered(false);
+    
+    if (j) {
+      filtered = filtered.filter(note => 
+        note.jobId?.toString() === j.toString() || 
+        note.job === uniqueJobs.find(job => job.id.toString() === j.toString())?.text
+      );
     }
-  };
+    
+    if (w) {
+      filtered = filtered.filter(note => 
+        note.workspaceId?.toString() === w.toString() || 
+        note.workspace === uniqueWorkspaces.find(ws => ws.id.toString() === w.toString())?.text
+      );
+    }
+    
+    if (d) {
+      filtered = filtered.filter(note => {
+        const noteDate = new Date(note.date).toISOString().split('T')[0];
+        const filterDate = new Date(d).toISOString().split('T')[0];
+        return noteDate === filterDate;
+      });
+    }
+    
+    if (u) {
+      filtered = filtered.filter(note => note.userName === u);
+    }
+    
+    setFilteredNotes(filtered);
+  } catch (e) {
+    console.error(e);
+    toast.error("Failed to load filtered notes");
+    setFilteredNotes(notes);
+  } finally {
+    setLoadingFiltered(false);
+  }
+};
 
   useEffect(() => {
     if (notes !== undefined && isDataLoaded) {
