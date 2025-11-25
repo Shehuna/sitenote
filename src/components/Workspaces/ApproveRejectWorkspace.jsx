@@ -47,7 +47,7 @@ const ApproveRejectWorkspace = ({ onClose }) => {
                     name: workspace.name,
                     ownerName: workspace.ownerName,
                     status: workspace.status,
-                    ownerUserID: workspace.ownerUserID // Include ownerUserID
+                    ownerUserID: workspace.ownerUserID
                 }));
 
             setPendingWorkspaces(pending);
@@ -126,7 +126,7 @@ const ApproveRejectWorkspace = ({ onClose }) => {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    userID: requesterUserId, // Use requester's user ID
+                    userID: requesterUserId,
                     workspaceID: workspaceId,
                     role: 1,
                     status: 1
@@ -182,7 +182,6 @@ const ApproveRejectWorkspace = ({ onClose }) => {
             const approvedWorkspaces = [];
             const failedWorkspaces = [];
 
-            // Process each selected workspace for approval
             for (const workspaceId of selectedPendingWorkspaces) {
                 try {
                     const workspaceData = workspaceDetails[workspaceId];
@@ -191,7 +190,6 @@ const ApproveRejectWorkspace = ({ onClose }) => {
                         continue;
                     }
 
-                    // Get the requester's user ID from workspace data
                     const requesterUserId = workspaceData.ownerUserID;
                     if (!requesterUserId) {
                         failedWorkspaces.push({ id: workspaceId, reason: 'Requester user ID not found' });
@@ -212,22 +210,12 @@ const ApproveRejectWorkspace = ({ onClose }) => {
                         continue;
                     }
 
-                    // Step 3: Get requester details and check default workspace
+                    // Step 3: Check and update default workspace if needed
                     const requesterDetails = await getUserById(requesterUserId);
                     if (requesterDetails) {
-                        // If requester's defaultWorkspaceId is null, set it to the approved workspace
                         if (requesterDetails.defaultWorkspaceId === null || requesterDetails.defaultWorkspaceId === undefined) {
-                            const defaultUpdated = await updateUserDefaultWorkspace(requesterUserId, workspaceId);
-                            if (!defaultUpdated) {
-                                console.warn(`Failed to update default workspace for requester ${requesterUserId}`);
-                            } else {
-                                console.log(`Set default workspace for requester ${requesterUserId} to ${workspaceId}`);
-                            }
-                        } else {
-                            console.log(`Requester ${requesterUserId} already has default workspace: ${requesterDetails.defaultWorkspaceId}`);
+                            await updateUserDefaultWorkspace(requesterUserId, workspaceId);
                         }
-                    } else {
-                        console.warn(`Could not fetch details for requester ${requesterUserId}`);
                     }
 
                     approvedWorkspaces.push(workspaceId);
@@ -238,30 +226,17 @@ const ApproveRejectWorkspace = ({ onClose }) => {
                 }
             }
 
-            // Show results
             if (approvedWorkspaces.length > 0) {
                 toast.success(`${approvedWorkspaces.length} workspace(s) approved successfully`);
-            }
-            
-            if (failedWorkspaces.length > 0) {
-                toast.error(`${failedWorkspaces.length} workspace(s) failed to approve`);
-                console.error('Failed workspaces:', failedWorkspaces);
-            }
-
-            // Remove approved workspaces from the list
-            if (approvedWorkspaces.length > 0) {
                 setPendingWorkspaces(prev => prev.filter(w => !approvedWorkspaces.includes(w.id)));
                 setSelectedPendingWorkspaces(prev => prev.filter(id => !approvedWorkspaces.includes(id)));
-                
-                // Remove from workspace details
                 const updatedDetails = { ...workspaceDetails };
                 approvedWorkspaces.forEach(id => delete updatedDetails[id]);
                 setWorkspaceDetails(updatedDetails);
             }
-
-            // If all selected were processed, close the modal
-            if (failedWorkspaces.length === 0 && approvedWorkspaces.length > 0) {
-                onClose();
+            
+            if (failedWorkspaces.length > 0) {
+                toast.error(`${failedWorkspaces.length} workspace(s) failed to approve`);
             }
 
         } catch (err) {
@@ -284,7 +259,6 @@ const ApproveRejectWorkspace = ({ onClose }) => {
             const rejectedWorkspaces = [];
             const failedWorkspaces = [];
 
-            // Process each selected workspace for rejection
             for (const workspaceId of selectedPendingWorkspaces) {
                 try {
                     const workspaceData = workspaceDetails[workspaceId];
@@ -293,7 +267,6 @@ const ApproveRejectWorkspace = ({ onClose }) => {
                         continue;
                     }
 
-                    // Update workspace status to 2 (Rejected)
                     const statusUpdated = await updateWorkspaceStatus(workspaceId, 2, workspaceData);
                     if (statusUpdated) {
                         rejectedWorkspaces.push(workspaceId);
@@ -307,30 +280,17 @@ const ApproveRejectWorkspace = ({ onClose }) => {
                 }
             }
 
-            // Show results
             if (rejectedWorkspaces.length > 0) {
                 toast.success(`${rejectedWorkspaces.length} workspace(s) rejected successfully`);
-            }
-            
-            if (failedWorkspaces.length > 0) {
-                toast.error(`${failedWorkspaces.length} workspace(s) failed to reject`);
-                console.error('Failed workspaces:', failedWorkspaces);
-            }
-
-            // Remove rejected workspaces from the list
-            if (rejectedWorkspaces.length > 0) {
                 setPendingWorkspaces(prev => prev.filter(w => !rejectedWorkspaces.includes(w.id)));
                 setSelectedPendingWorkspaces(prev => prev.filter(id => !rejectedWorkspaces.includes(id)));
-                
-                // Remove from workspace details
                 const updatedDetails = { ...workspaceDetails };
                 rejectedWorkspaces.forEach(id => delete updatedDetails[id]);
                 setWorkspaceDetails(updatedDetails);
             }
-
-            // If all selected were processed, close the modal
-            if (failedWorkspaces.length === 0 && rejectedWorkspaces.length > 0) {
-                onClose();
+            
+            if (failedWorkspaces.length > 0) {
+                toast.error(`${failedWorkspaces.length} workspace(s) failed to reject`);
             }
 
         } catch (err) {
@@ -342,80 +302,142 @@ const ApproveRejectWorkspace = ({ onClose }) => {
     };
 
     return (
-        <div className="settings-form">
-            <div className="pending-workspaces-header">
-                <div className="select-all-section">
-                    <label className="select-all-checkbox">
+        <div className="approve-reject-container">
+             <div className="selection-controls">
+                <div className="select-all-group">
+                    <label className="checkbox-container">
                         <input
                             type="checkbox"
                             checked={selectedPendingWorkspaces.length === pendingWorkspaces.length && pendingWorkspaces.length > 0}
                             onChange={handleSelectAll}
                             disabled={pendingWorkspaces.length === 0}
                         />
+                        <span className="checkmark"></span>
                         Select All
                     </label>
-                    <span className="selected-count">
+                    <span className="selection-count">
                         {selectedPendingWorkspaces.length} of {pendingWorkspaces.length} selected
                     </span>
                 </div>
+                
+                {selectedPendingWorkspaces.length > 0 && (
+                    <div className="selection-actions">
+                        <span className="selection-badge">
+                            {selectedPendingWorkspaces.length} selected
+                        </span>
+                    </div>
+                )}
             </div>
 
-            {loadingPendingWorkspaces ? (
-                <div className="loading-message">Loading pending workspaces...</div>
-            ) : pendingWorkspaces.length === 0 ? (
-                <div className="no-data-message">No pending workspace requests</div>
-            ) : (
-                <div className="pending-workspaces-list">
-                    <table className="workspaces-table">
-                        <thead>
-                            <tr>
-                                <th width="50px"></th>
-                                <th>Workspace Name</th>
-                                <th>Requester Name</th>
-                                <th>Requester ID</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {pendingWorkspaces.map((workspace) => (
-                                <tr key={workspace.id}>
-                                    <td>
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedPendingWorkspaces.includes(workspace.id)}
-                                            onChange={() => handleCheckboxChange(workspace.id)}
-                                        />
-                                    </td>
-                                    <td>{workspace.name}</td>
-                                    <td>{workspace.ownerName}</td>
-                                    <td>{workspace.ownerUserID}</td>
-                                    <td>
-                                        <span className="status-badge status-pending">
-                                            Pending
-                                        </span>
-                                    </td>
+            {/* Table Section */}
+            <div className="table-section">
+                {loadingPendingWorkspaces ? (
+                    <div className="loading-state">
+                        <div className="spinner"></div>
+                        <div className="loading-text">Loading workspace requests...</div>
+                    </div>
+                ) : pendingWorkspaces.length === 0 ? (
+                    <div className="empty-state">
+                        <div className="empty-icon">📋</div>
+                        <h3>No Pending Requests</h3>
+                        <p>All workspace requests have been processed.</p>
+                    </div>
+                ) : (
+                    <div className="table-container">
+                        <table className="enhanced-table">
+                            <thead>
+                                <tr>
+                                    <th className="checkbox-column">
+                                        <span>Select</span>
+                                    </th>
+                                    <th className="name-column">
+                                        <span>Workspace Name</span>
+                                    </th>
+                                    <th className="requester-column">
+                                        <span>Requested By</span>
+                                    </th>
+                                    <th className="status-column">
+                                        <span>Status</span>
+                                    </th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
+                            </thead>
+                            <tbody>
+                                {pendingWorkspaces.map((workspace, index) => (
+                                    <tr 
+                                        key={workspace.id} 
+                                        className={`table-row ${selectedPendingWorkspaces.includes(workspace.id) ? 'selected' : ''} ${index % 2 === 0 ? 'even' : 'odd'}`}
+                                    >
+                                        <td className="checkbox-column">
+                                            <label className="checkbox-container small">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedPendingWorkspaces.includes(workspace.id)}
+                                                    onChange={() => handleCheckboxChange(workspace.id)}
+                                                />
+                                                <span className="checkmark small"></span>
+                                            </label>
+                                        </td>
+                                        <td className="name-column">
+                                            <div className="workspace-name">
+                                                <span className="name-text">{workspace.name}</span>
+                                            </div>
+                                        </td>
+                                        <td className="requester-column">
+                                            <div className="requester-info">
+                                                <span className="requester-name">{workspace.ownerName}</span>
+                                            </div>
+                                        </td>
+                                        
+                                        <td className="status-column">
+                                            <span className="status-badge pending">
+                                                <span className="status-dot"></span>
+                                                Pending 
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
 
-            <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
+            {/* Action Buttons */}
+            <div className="action-section">
                 <div className="action-buttons">
                     <button 
                         className="btn-approve" 
                         onClick={handleApproveWorkspaces}
                         disabled={selectedPendingWorkspaces.length === 0 || approvingWorkspace || rejectingWorkspace}
                     >
-                        {approvingWorkspace ? 'Approving...' : `Approve (${selectedPendingWorkspaces.length})`}
+                        {approvingWorkspace ? (
+                            <>
+                                <div className="button-spinner"></div>
+                                Approving...
+                            </>
+                        ) : (
+                            <>
+                                <span className="btn-icon">✓</span>
+                                Approve ({selectedPendingWorkspaces.length})
+                            </>
+                        )}
                     </button>
                     <button 
                         className="btn-reject" 
                         onClick={handleRejectWorkspaces}
                         disabled={selectedPendingWorkspaces.length === 0 || approvingWorkspace || rejectingWorkspace}
                     >
-                        {rejectingWorkspace ? 'Rejecting...' : `Reject (${selectedPendingWorkspaces.length})`}
+                        {rejectingWorkspace ? (
+                            <>
+                                <div className="button-spinner"></div>
+                                Rejecting...
+                            </>
+                        ) : (
+                            <>
+                                <span className="btn-icon">✕</span>
+                                Reject ({selectedPendingWorkspaces.length})
+                            </>
+                        )}
                     </button>
                 </div>
                 <button
@@ -428,6 +450,306 @@ const ApproveRejectWorkspace = ({ onClose }) => {
             </div>
 
             <style jsx>{`
+                .approve-reject-container {
+                    display: flex;
+                    flex-direction: column;
+                    height: 100%;
+                    gap: 1.5rem;
+                }
+
+                /* Header Section */
+                .header-section {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: flex-start;
+                    padding-bottom: 1.5rem;
+                    border-bottom: 1px solid #e2e8f0;
+                }
+
+                .title-section .modal-title {
+                    font-size: 1.5rem;
+                    font-weight: 700;
+                    color: #1f2937;
+                    margin: 0 0 0.25rem 0;
+                }
+
+                .title-section .modal-subtitle {
+                    font-size: 0.875rem;
+                    color: #6b7280;
+                    margin: 0;
+                }
+
+                .stats-section {
+                    display: flex;
+                    gap: 1rem;
+                }
+
+                .stat-card {
+                    text-align: center;
+                    padding: 0.75rem 1rem;
+                    background: #f8fafc;
+                    border-radius: 0.5rem;
+                    border: 1px solid #e2e8f0;
+                    min-width: 80px;
+                }
+
+                .stat-number {
+                    font-size: 1.25rem;
+                    font-weight: 700;
+                    color: #3b82f6;
+                }
+
+                .stat-label {
+                    font-size: 0.75rem;
+                    color: #6b7280;
+                    margin-top: 0.25rem;
+                }
+
+                /* Selection Controls */
+                .selection-controls {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 1rem;
+                    background: #f8fafc;
+                    border-radius: 0.5rem;
+                    border: 1px solid #e2e8f0;
+                }
+
+                .select-all-group {
+                    display: flex;
+                    align-items: center;
+                    gap: 1rem;
+                }
+
+                .checkbox-container {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    font-weight: 600;
+                    color: #374151;
+                    cursor: pointer;
+                    position: relative;
+                }
+
+                .checkbox-container input {
+                    position: absolute;
+                    opacity: 0;
+                    cursor: pointer;
+                }
+
+                .checkmark {
+                    width: 18px;
+                    height: 18px;
+                    border: 2px solid #d1d5db;
+                    border-radius: 4px;
+                    background: white;
+                    transition: all 0.2s ease;
+                }
+
+                .checkmark.small {
+                    width: 16px;
+                    height: 16px;
+                }
+
+                .checkbox-container input:checked + .checkmark {
+                    background: #3b82f6;
+                    border-color: #3b82f6;
+                }
+
+                .checkbox-container input:checked + .checkmark:after {
+                    content: "✓";
+                    color: white;
+                    font-size: 12px;
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                }
+
+                .selection-count {
+                    font-size: 0.875rem;
+                    color: #6b7280;
+                    font-weight: 500;
+                }
+
+                .selection-badge {
+                    background: #3b82f6;
+                    color: white;
+                    padding: 0.25rem 0.75rem;
+                    border-radius: 1rem;
+                    font-size: 0.75rem;
+                    font-weight: 600;
+                }
+
+                /* Table Section */
+                .table-section {
+                    flex: 1;
+                    overflow: hidden;
+                }
+
+                .loading-state {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 3rem;
+                    color: #6b7280;
+                }
+
+                .spinner {
+                    width: 2rem;
+                    height: 2rem;
+                    border: 2px solid #e5e7eb;
+                    border-top: 2px solid #3b82f6;
+                    border-radius: 50%;
+                    animation: spin 1s linear infinite;
+                    margin-bottom: 1rem;
+                }
+
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+
+                .empty-state {
+                    text-align: center;
+                    padding: 3rem;
+                    color: #9ca3af;
+                }
+
+                .empty-icon {
+                    font-size: 3rem;
+                    margin-bottom: 1rem;
+                }
+
+                .empty-state h3 {
+                    font-size: 1.25rem;
+                    margin: 0 0 0.5rem 0;
+                    color: #6b7280;
+                }
+
+                .table-container {
+                    height: 100%;
+                    overflow: auto;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 0.5rem;
+                    background: white;
+                }
+
+                .enhanced-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                }
+
+                .enhanced-table th {
+                    background: #f8fafc;
+                    padding: 1rem;
+                    text-align: left;
+                    font-weight: 600;
+                    color: #374151;
+                    border-bottom: 1px solid #e2e8f0;
+                    font-size: 0.875rem;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                }
+
+                .enhanced-table td {
+                    padding: 1rem;
+                    border-bottom: 1px solid #f1f5f9;
+                }
+
+                .enhanced-table tr:last-child td {
+                    border-bottom: none;
+                }
+
+                .enhanced-table tr:hover {
+                    background: #f8fafc;
+                }
+
+                .enhanced-table tr.selected {
+                    background: #eff6ff;
+                }
+
+                .table-row.even {
+                    background: #fafafa;
+                }
+
+                /* Column Styles */
+                .checkbox-column {
+                    width: 60px;
+                    text-align: center;
+                }
+
+                .name-column {
+                    width: 30%;
+                }
+
+                .requester-column {
+                    width: 25%;
+                }
+
+                .userid-column {
+                    width: 15%;
+                }
+
+                .status-column {
+                    width: 20%;
+                }
+
+                .workspace-name .name-text {
+                    font-weight: 600;
+                    color: #1f2937;
+                }
+
+                .requester-info .requester-name {
+                    color: #374151;
+                }
+
+                .user-id {
+                    color: #6b7280;
+                    font-family: 'Courier New', monospace;
+                    font-size: 0.875rem;
+                }
+
+                .status-badge {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    padding: 0.375rem 0.75rem;
+                    border-radius: 1rem;
+                    font-size: 0.75rem;
+                    font-weight: 600;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                }
+
+                .status-badge.pending {
+                    background: #fef3c7;
+                    color: #d97706;
+                }
+
+                .status-dot {
+                    width: 6px;
+                    height: 6px;
+                    border-radius: 50%;
+                    background: currentColor;
+                }
+
+                /* Action Section */
+                .action-section {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding-top: 1.5rem;
+                    border-top: 1px solid #e2e8f0;
+                }
+
+                .action-buttons {
+                    display: flex;
+                    gap: 1rem;
+                }
+
                 .btn-approve {
                     background: #3b82f6;
                     border: 1px solid #3b82f6;
@@ -438,21 +760,18 @@ const ApproveRejectWorkspace = ({ onClose }) => {
                     cursor: pointer;
                     font-size: 0.9rem;
                     transition: all 0.2s ease;
-                    min-width: 120px;
+                    min-width: 140px;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    justify-content: center;
                 }
 
                 .btn-approve:hover:not(:disabled) {
                     background: #2563eb;
                     border-color: #2563eb;
                     transform: translateY(-1px);
-                    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
-                }
-
-                .btn-approve:disabled {
-                    opacity: 0.6;
-                    cursor: not-allowed;
-                    transform: none;
-                    box-shadow: none;
+                    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
                 }
 
                 .btn-reject {
@@ -465,16 +784,21 @@ const ApproveRejectWorkspace = ({ onClose }) => {
                     cursor: pointer;
                     font-size: 0.9rem;
                     transition: all 0.2s ease;
-                    min-width: 120px;
+                    min-width: 140px;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    justify-content: center;
                 }
 
                 .btn-reject:hover:not(:disabled) {
                     background: #b91c1c;
                     border-color: #b91c1c;
                     transform: translateY(-1px);
-                    box-shadow: 0 4px 8px rgba(220, 38, 38, 0.3);
+                    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
                 }
 
+                .btn-approve:disabled,
                 .btn-reject:disabled {
                     opacity: 0.6;
                     cursor: not-allowed;
@@ -482,108 +806,38 @@ const ApproveRejectWorkspace = ({ onClose }) => {
                     box-shadow: none;
                 }
 
-                .action-buttons {
-                    display: flex;
-                    gap: 1rem;
+                .btn-icon {
+                    font-weight: bold;
                 }
 
-                .pending-workspaces-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 1rem;
-                    padding: 1rem;
-                    background: #f8fafc;
-                    border-radius: 0.5rem;
-                    border: 1px solid #e2e8f0;
-                }
-
-                .select-all-section {
-                    display: flex;
-                    align-items: center;
-                    gap: 1rem;
-                }
-
-                .select-all-checkbox {
-                    display: flex;
-                    align-items: center;
-                    gap: 0.5rem;
-                    font-weight: 600;
-                    color: #374151;
-                    cursor: pointer;
-                }
-
-                .select-all-checkbox input {
+                .button-spinner {
                     width: 16px;
                     height: 16px;
+                    border: 2px solid transparent;
+                    border-top: 2px solid currentColor;
+                    border-radius: 50%;
+                    animation: spin 1s linear infinite;
                 }
 
-                .selected-count {
-                    font-size: 0.875rem;
-                    color: #6b7280;
-                    font-weight: 500;
-                }
-
-                .pending-workspaces-list {
-                    max-height: 400px;
-                    overflow-y: auto;
-                    border: 1px solid #e2e8f0;
-                    border-radius: 0.5rem;
-                }
-
-                .workspaces-table {
-                    width: 100%;
-                    border-collapse: collapse;
+                .btn-close {
                     background: white;
-                }
-
-                .workspaces-table th {
-                    background: #f8fafc;
-                    padding: 0.75rem;
-                    text-align: left;
-                    font-weight: 600;
+                    border: 1px solid #d1d5db;
                     color: #374151;
-                    border-bottom: 1px solid #e2e8f0;
-                }
-
-                .workspaces-table td {
-                    padding: 0.75rem;
-                    border-bottom: 1px solid #e2e8f0;
-                }
-
-                .workspaces-table tr:last-child td {
-                    border-bottom: none;
-                }
-
-                .workspaces-table tr:hover {
-                    background: #f8fafc;
-                }
-
-                .status-badge {
-                    padding: 0.25rem 0.75rem;
-                    border-radius: 9999px;
-                    font-size: 0.75rem;
+                    padding: 0.75rem 1.5rem;
+                    border-radius: 0.5rem;
                     font-weight: 600;
-                    text-transform: uppercase;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
                 }
 
-                .status-pending {
-                    background: #fef3c7;
-                    color: #d97706;
+                .btn-close:hover:not(:disabled) {
+                    background: #f9fafb;
+                    border-color: #9ca3af;
                 }
 
-                .loading-message {
-                    text-align: center;
-                    padding: 2rem;
-                    color: #6b7280;
-                    font-style: italic;
-                }
-
-                .no-data-message {
-                    text-align: center;
-                    padding: 2rem;
-                    color: #9ca3af;
-                    font-style: italic;
+                .btn-close:disabled {
+                    opacity: 0.6;
+                    cursor: not-allowed;
                 }
             `}</style>
         </div>
