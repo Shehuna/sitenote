@@ -6,7 +6,6 @@ import EditNoteModal from "./Modals/EditNoteModal";
 import SettingsModal from "./Modals/SettingsModal";
 import AttachedFileModal from "./Modals/AttachedfileModal.jsx";
 import ViewNoteModal from "./Modals/ViewNoteModal";
-import WorkspaceRequestModal from './Modals/WorkspaceRequestModal';
 import toast from "react-hot-toast";
 
 const Dashboard = ({
@@ -103,7 +102,7 @@ const Dashboard = ({
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'flex-end',
-      gap: '8px'
+      gap: '2px'
     },
     workspaceTopRow: {
       display: 'flex',
@@ -117,29 +116,14 @@ const Dashboard = ({
       padding: '8px 2px',
       display: 'flex',
       alignItems: 'center',
-      gap: '8px',
-      minWidth: '50px',
+      gap: '4px',
+      minWidth: '0px',
       justifyContent: 'center'
     },
-    requestWorkspaceBtn: {
-      background: '#1976d2', // Changed to match dashboard button color
-      color: '#fff',
-      border: 'none',
-      width: 25,
-      height: 25,
-      borderRadius: '50%',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      cursor: 'pointer',
-      fontSize: '14px',
-      transition: 'all 0.2s ease',
-      boxShadow: '0 2px 4px rgba(25, 118, 210, 0.2)'
-    }
+    
   };
 
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [showWorkspaceRequestModal, setShowWorkspaceRequestModal] = useState(false);
   const [showNewModal, setShowNewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedNote, setSelectedNote] = useState(null);
@@ -167,6 +151,7 @@ const Dashboard = ({
   const [isRoleLoading, setIsRoleLoading] = useState(false);
   const [loadingUniques, setLoadingUniques] = useState(true);
   const [userWorkspaces, setUserWorkspaces] = useState()
+  const [userWorkspace, setUserWorkspace] = useState()
   const [focusedRow, setFocusedRow] = useState(null);
   const [selectedRow, setSelectedRow] = useState(null);
   const [searchColumn, setSearchColumn] = useState('');
@@ -186,7 +171,10 @@ const Dashboard = ({
 
   // New function to handle workspace request
   const handleRequestWorkspace = () => {
-    setShowWorkspaceRequestModal(true);
+    setShowRequestWorkspaceModal(true);
+    // You can implement the actual workspace request logic here
+    // For now, we'll just show a toast message
+    toast.success("Workspace request feature coming soon!");
   };
 
   const handleRowDoubleClick = useCallback((note) => {
@@ -255,6 +243,7 @@ const Dashboard = ({
     if (userid && defaultUserWorkspaceID) {
       console.log("Fetching role with workspace ID:", defaultUserWorkspaceID);
       fetchUserWorkspaceRole();
+      fetchWorkspacesByUserId()
       fetchPriorities()
     }
   }, [userid, defaultUserWorkspaceID]);
@@ -667,6 +656,33 @@ const handleHierarchyChange = (column, value) => {
     setIsRoleLoading(false);
   }
 }
+
+const fetchWorkspacesByUserId = async () => {
+    
+    try {
+      const response = await fetch(`${apiUrl}/Workspace/GetWorkspacesByUserId/${userid}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+        }
+      });
+
+    if (response.ok) {
+      const data = await response.json();
+      
+      const userWorkspaces = data.workspaces || data || []; 
+      setUserWorkspace(userWorkspaces)
+      
+    } else {
+      console.error("API response not OK:", response.status);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    setRole(null);
+  } finally {
+    setIsRoleLoading(false);
+  }
+}
   const fetchPriorities = async () => {
     try {
       const response = await fetch(`${apiUrl}/Priority/GetPriorities`, {
@@ -725,21 +741,7 @@ const handleHierarchyChange = (column, value) => {
           {/* Updated Workspace Header Section */}
           <div style={styles.workspaceHeader}>
             <div style={styles.workspaceTopRow}>
-            <button
-                onClick={handleRequestWorkspace}
-                style={styles.requestWorkspaceBtn}
-                onMouseEnter={(e) => {
-                  e.target.style.backgroundColor = '#1565c0';
-                  e.target.style.transform = 'scale(1.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.backgroundColor = '#1976d2';
-                  e.target.style.transform = 'scale(1)';
-                }}
-                title="Request Workspace"
-              >
-                <i className="fas fa-plus" />
-              </button>
+            
               <div style={styles.workspaceName}>
                 
                 {defaultUserWorkspaceName || "No Workspace"}
@@ -1357,60 +1359,7 @@ const handleHierarchyChange = (column, value) => {
 )}
   </div>
 
-      {showRequestWorkspaceModal && (
-        <div
-          className="modal-overlay"
-          onClick={() => setShowRequestWorkspaceModal(false)}
-        >
-          <div
-            className="modal-content"
-            onClick={(e) => e.stopPropagation()}
-            style={{ padding: 24, maxWidth: 400 }}
-          >
-            <i
-              className="fas fa-building"
-              style={{ fontSize: 48, color: "#3498db", marginBottom: 16 }}
-            />
-            <h3>Request New Workspace</h3>
-            <p>
-              This feature allows you to request access to additional workspaces. 
-              Your request will be sent to the administrator for approval.
-            </p>
-            <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 20 }}>
-              <button
-                onClick={() => setShowRequestWorkspaceModal(false)}
-                style={{
-                  padding: "10px 20px",
-                  background: "#fff",
-                  border: "1px solid #bdc3c7",
-                  borderRadius: "4px",
-                  cursor: "pointer"
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  // Implement workspace request logic here
-                  toast.success("Workspace request submitted!");
-                  setShowRequestWorkspaceModal(false);
-                }}
-                style={{
-                  background: "#1976d2",
-                  color: "#fff",
-                  border: "none",
-                  padding: "10px 20px",
-                  borderRadius: "4px",
-                  cursor: "pointer"
-                }}
-              >
-                Submit Request
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      
       {/* Rest of the modals remain exactly the same */}
       {showFilterDialog && (
         <div
@@ -1580,7 +1529,7 @@ const handleHierarchyChange = (column, value) => {
           onUploadDocument={onUploadDocument}
           onDeleteDocument={onDeleteDocument}
           defWorkSpaceId={defaultUserWorkspaceID}
-          userworksaces={uniqueWorkspaces}
+          userworksaces={userWorkspace}
           prefilledData={prefilledData}
         />
       )}
@@ -1590,7 +1539,7 @@ const handleHierarchyChange = (column, value) => {
           onClose={() => {
             setShowEditModal(false);
             fetchPriorities();
-            
+            refreshNotes();
           }}
           refreshNotes={refreshNotes}
           updateNote={updateNote}
@@ -1618,14 +1567,6 @@ const handleHierarchyChange = (column, value) => {
           onDeleteDocument={onDeleteDocument}
         />
       )}
-      {showWorkspaceRequestModal && (
-  <WorkspaceRequestModal
-    isOpen={showWorkspaceRequestModal}
-    onClose={() => setShowWorkspaceRequestModal(false)}
-    refreshNotes={refreshNotes}
-    userid={userid}
-  />
-)}
     </div>
   );
 };

@@ -419,7 +419,7 @@ const NewNoteModal = ({
                                 </option>
                                 {userworksaces.map(workspace => (
                                     <option key={workspace.id} value={workspace.id.toString()}>
-                                        {workspace.text} (ID: {workspace.id})
+                                        {workspace.name} (ID: {workspace.id})
                                     </option>
                                 ))}
                             </select>
