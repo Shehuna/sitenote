@@ -60,7 +60,6 @@ const Dashboard = ({
     localStorage.setItem('dashboardSelectedValues', JSON.stringify(selectedValues));
   }, [selectedValues]);
 
-
   const styles = {
     searchBox: {
       display: 'flex',
@@ -97,7 +96,6 @@ const Dashboard = ({
     clearGroupBtnHover: {
       color: '#333'
     },
-    // Updated styles for workspace header
     workspaceHeader: {
       display: 'flex',
       flexDirection: 'column',
@@ -120,7 +118,6 @@ const Dashboard = ({
       minWidth: '0px',
       justifyContent: 'center'
     },
-    
   };
 
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -157,11 +154,14 @@ const Dashboard = ({
   const [searchColumn, setSearchColumn] = useState('');
   const [prefilledData, setPrefilledData] = useState(null);
   const [showRequestWorkspaceModal, setShowRequestWorkspaceModal] = useState(false);
-  
   const [viewMode, setViewMode] = useState('table'); 
- 
 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
+
+  // Debug effect for prefilledData
+  useEffect(() => {
+    console.log('prefilledData changed:', prefilledData);
+  }, [prefilledData]);
 
   const handleDragStartValue = (column, value) => (e) => {
     e.dataTransfer.setData('column', column);
@@ -169,11 +169,8 @@ const Dashboard = ({
     e.stopPropagation();
   };
 
-  // New function to handle workspace request
   const handleRequestWorkspace = () => {
     setShowRequestWorkspaceModal(true);
-    // You can implement the actual workspace request logic here
-    // For now, we'll just show a toast message
     toast.success("Workspace request feature coming soon!");
   };
 
@@ -196,6 +193,7 @@ const Dashboard = ({
       console.error(e);
     }
   };
+
   const fetchUniqueJobs = async () => {
     try {
       const r = await fetch(
@@ -206,6 +204,7 @@ const Dashboard = ({
       console.error(e);
     }
   };
+
   const fetchUniqueWorkspaces = async () => {
     try {
       const r = await fetch(
@@ -269,68 +268,65 @@ const Dashboard = ({
       setIsDataLoaded(true);
   }, [notes]);
 
- const fetchFilteredSiteNotes = async () => {
-  const p = selectedValues["project"];
-  const j = selectedValues["job"];
-  const w = selectedValues["workspace"];
-  const d = selectedValues["date"];
-  const u = selectedValues["userName"];
-  
-  // If no filters are selected, show all notes
-  if (!p && !j && !w && !d && !u) {
-    setFilteredNotes(notes);
-    return;
-  }
-  
-  setLoadingFiltered(true);
-  
-  try {
-    // Start with all notes and progressively filter them
-    let filtered = [...notes];
+  const fetchFilteredSiteNotes = async () => {
+    const p = selectedValues["project"];
+    const j = selectedValues["job"];
+    const w = selectedValues["workspace"];
+    const d = selectedValues["date"];
+    const u = selectedValues["userName"];
     
-    // Apply each filter in sequence (AND logic)
-    if (p) {
-      filtered = filtered.filter(note => 
-        note.projectId?.toString() === p.toString() || 
-        note.project === uniqueProjects.find(proj => proj.id.toString() === p.toString())?.text
-      );
+    if (!p && !j && !w && !d && !u) {
+      setFilteredNotes(notes);
+      return;
     }
     
-    if (j) {
-      filtered = filtered.filter(note => 
-        note.jobId?.toString() === j.toString() || 
-        note.job === uniqueJobs.find(job => job.id.toString() === j.toString())?.text
-      );
-    }
+    setLoadingFiltered(true);
     
-    if (w) {
-      filtered = filtered.filter(note => 
-        note.workspaceId?.toString() === w.toString() || 
-        note.workspace === uniqueWorkspaces.find(ws => ws.id.toString() === w.toString())?.text
-      );
+    try {
+      let filtered = [...notes];
+      
+      if (p) {
+        filtered = filtered.filter(note => 
+          note.projectId?.toString() === p.toString() || 
+          note.project === uniqueProjects.find(proj => proj.id.toString() === p.toString())?.text
+        );
+      }
+      
+      if (j) {
+        filtered = filtered.filter(note => 
+          note.jobId?.toString() === j.toString() || 
+          note.job === uniqueJobs.find(job => job.id.toString() === j.toString())?.text
+        );
+      }
+      
+      if (w) {
+        filtered = filtered.filter(note => 
+          note.workspaceId?.toString() === w.toString() || 
+          note.workspace === uniqueWorkspaces.find(ws => ws.id.toString() === w.toString())?.text
+        );
+      }
+      
+      if (d) {
+        filtered = filtered.filter(note => {
+          const noteDate = new Date(note.date).toISOString().split('T')[0];
+          const filterDate = new Date(d).toISOString().split('T')[0];
+          return noteDate === filterDate;
+        });
+      }
+      
+      if (u) {
+        filtered = filtered.filter(note => note.userName === u);
+      }
+      
+      setFilteredNotes(filtered);
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to load filtered notes");
+      setFilteredNotes(notes);
+    } finally {
+      setLoadingFiltered(false);
     }
-    
-    if (d) {
-      filtered = filtered.filter(note => {
-        const noteDate = new Date(note.date).toISOString().split('T')[0];
-        const filterDate = new Date(d).toISOString().split('T')[0];
-        return noteDate === filterDate;
-      });
-    }
-    
-    if (u) {
-      filtered = filtered.filter(note => note.userName === u);
-    }
-    
-    setFilteredNotes(filtered);
-  } catch (e) {
-    console.error(e);
-    toast.error("Failed to load filtered notes");
-    setFilteredNotes(notes);
-  } finally {
-    setLoadingFiltered(false);
-  }
-};
+  };
 
   useEffect(() => {
     if (notes !== undefined && isDataLoaded) {
@@ -349,9 +345,11 @@ const Dashboard = ({
       setShowFilterDialog(true);
     }
   };
+
   const handlePriorityUpdate = () => {
     fetchPriorities();
   };
+
   const handleDragOver = (e) => e.preventDefault();
   const handleDragStart = (c) => (e) => e.dataTransfer.setData("column", c);
   const openFilterDialog = (c) => {
@@ -426,47 +424,55 @@ const Dashboard = ({
     },
     []);
 
+  // Fixed keyboard shortcut handler
   const handleKeyDown = useCallback((event) => {
-    if (!focusedRow) return;
+  if (!focusedRow) return;
 
-    const currentIndex = filteredNotes.findIndex(note => note.id === focusedRow);
+  const currentIndex = filteredNotes.findIndex(note => note.id === focusedRow);
 
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      const nextIndex = Math.min(currentIndex + 1, filteredNotes.length - 1);
-      if (nextIndex !== currentIndex) {
-        setFocusedRow(filteredNotes[nextIndex].id);
-        setSelectedRow(filteredNotes[nextIndex].id);
-      }
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      const prevIndex = Math.max(currentIndex - 1, 0);
-      if (prevIndex !== currentIndex) {
-        setFocusedRow(filteredNotes[prevIndex].id);
-        setSelectedRow(filteredNotes[prevIndex].id);
-      }
-    } else if (event.ctrlKey && event.key === 'a' && focusedRow) {
-      event.preventDefault();
-      const selectedNote = filteredNotes.find(note => note.id === focusedRow);
-      if (selectedNote) {
-        setPrefilledData({
-          project: selectedNote.project,
-          job: selectedNote.job
-        });
-        setShowNewModal(true);
-      }
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    const nextIndex = Math.min(currentIndex + 1, filteredNotes.length - 1);
+    if (nextIndex !== currentIndex) {
+      setFocusedRow(filteredNotes[nextIndex].id);
+      setSelectedRow(filteredNotes[nextIndex].id);
     }
-  }, [focusedRow, filteredNotes]);
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    const prevIndex = Math.max(currentIndex - 1, 0);
+    if (prevIndex !== currentIndex) {
+      setFocusedRow(filteredNotes[prevIndex].id);
+      setSelectedRow(filteredNotes[prevIndex].id);
+    }
+  } else if (event.ctrlKey && event.key === 'a' && focusedRow) {
+    event.preventDefault();
+    const selectedNote = filteredNotes.find(note => note.id === focusedRow);
+    if (selectedNote) {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      const currentDateFormatted = `${year}-${month}-${day}`;
 
- 
+      setPrefilledData({
+        date: currentDateFormatted,
+        project: selectedNote.project,
+        job: selectedNote.job,
+        workspace: selectedNote.workspace
+      });
+      setShowNewModal(true);
+    }
+  }
+}, [focusedRow, filteredNotes]);
 
- useEffect(() => {
+  useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [handleKeyDown]);
- const handleRefresh = async () => {
+
+  const handleRefresh = async () => {
     setInitialLoading(true);
     try {
       await refreshNotes();
@@ -487,21 +493,36 @@ const Dashboard = ({
     }
   };
 
+  // Fixed handleAddFromRow function
   const handleAddFromRow = (note) => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    const currentDateFormatted = `${year}-${month}-${day}`;
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  const currentDateFormatted = `${year}-${month}-${day}`;
 
+  console.log('Setting prefilled data from row:', {
+    workspace: note.workspace,
+    project: note.project,
+    job: note.job,
+    date: currentDateFormatted
+  });
 
-    setPrefilledData({
-      date: currentDateFormatted,
-      project: note.project,
-      job: note.job,
-      workspace: note.workspace
-    });
+  // Pass the exact values from the note
+  setPrefilledData({
+    date: currentDateFormatted,
+    project: note.project,  // Use the project name from the note
+    job: note.job,          // Use the job name from the note
+    workspace: note.workspace // Use the workspace name from the note
+  });
 
+  setShowNewModal(true);
+};
+
+  // New function for New Note button
+  const handleNewNoteClick = () => {
+    console.log('Opening from New Note button - clearing prefilled data');
+    setPrefilledData(null);
     setShowNewModal(true);
   };
 
@@ -519,71 +540,71 @@ const Dashboard = ({
     }
   };
 
-const getCurrentNotesForLevel = (level) => {
-  if (level === 0) {
-    return searchTerm.trim() ? searchResults : filteredNotes;
-  }
-  
-  let filtered = searchTerm.trim() ? searchResults : filteredNotes;
-  
-  for (let i = 0; i < level; i++) {
-    const column = hierarchy[i];
-    const selectedValue = selectedValues[column];
-    
-    if (selectedValue) {
-      filtered = filtered.filter(note => {
-        if (column === 'date' || column === 'userName') {
-          return note[column] === selectedValue;
-        } else {
-          return note[`${column}Id`] === selectedValue || note[column] === selectedValue;
-        }
-      });
+  const getCurrentNotesForLevel = (level) => {
+    if (level === 0) {
+      return searchTerm.trim() ? searchResults : filteredNotes;
     }
-  }
-  
-  return filtered;
-};
+    
+    let filtered = searchTerm.trim() ? searchResults : filteredNotes;
+    
+    for (let i = 0; i < level; i++) {
+      const column = hierarchy[i];
+      const selectedValue = selectedValues[column];
+      
+      if (selectedValue) {
+        filtered = filtered.filter(note => {
+          if (column === 'date' || column === 'userName') {
+            return note[column] === selectedValue;
+          } else {
+            return note[`${column}Id`] === selectedValue || note[column] === selectedValue;
+          }
+        });
+      }
+    }
+    
+    return filtered;
+  };
 
-const getUniqueValues = (column, currentNotes) => {
-  const values = new Set();
-  
-  currentNotes.forEach(note => {
-    let value;
+  const getUniqueValues = (column, currentNotes) => {
+    const values = new Set();
     
-    if (column === 'date' || column === 'userName') {
-      value = note[column];
-    } else {
-      value = note[column];
-    }
-    
-    if (value) {
-      values.add(value);
-    }
-  });
-  
-  return Array.from(values).sort();
-};
-
-const handleHierarchyChange = (column, value) => {
-  setSelectedValues(prev => ({
-    ...prev,
-    [column]: value
-  }));
-  const columnIndex = hierarchy.indexOf(column);
-  if (columnIndex !== -1) {
-    const newHierarchy = hierarchy.slice(0, columnIndex + 1);
-    const newSelectedValues = { ...selectedValues };
-    
-    hierarchy.forEach((col, index) => {
-      if (index > columnIndex) {
-        delete newSelectedValues[col];
+    currentNotes.forEach(note => {
+      let value;
+      
+      if (column === 'date' || column === 'userName') {
+        value = note[column];
+      } else {
+        value = note[column];
+      }
+      
+      if (value) {
+        values.add(value);
       }
     });
     
-    setHierarchy(newHierarchy);
-    setSelectedValues(newSelectedValues);
-  }
-};
+    return Array.from(values).sort();
+  };
+
+  const handleHierarchyChange = (column, value) => {
+    setSelectedValues(prev => ({
+      ...prev,
+      [column]: value
+    }));
+    const columnIndex = hierarchy.indexOf(column);
+    if (columnIndex !== -1) {
+      const newHierarchy = hierarchy.slice(0, columnIndex + 1);
+      const newSelectedValues = { ...selectedValues };
+      
+      hierarchy.forEach((col, index) => {
+        if (index > columnIndex) {
+          delete newSelectedValues[col];
+        }
+      });
+      
+      setHierarchy(newHierarchy);
+      setSelectedValues(newSelectedValues);
+    }
+  };
 
   const handleConfirmDelete = async () => {
     if (!noteToDelete) return;
@@ -655,10 +676,9 @@ const handleHierarchyChange = (column, value) => {
   } finally {
     setIsRoleLoading(false);
   }
-}
+};
 
 const fetchWorkspacesByUserId = async () => {
-    
     try {
       const response = await fetch(`${apiUrl}/Workspace/GetWorkspacesByUserId/${userid}`, {
         method: "GET",
@@ -682,7 +702,8 @@ const fetchWorkspacesByUserId = async () => {
   } finally {
     setIsRoleLoading(false);
   }
-}
+};
+
   const fetchPriorities = async () => {
     try {
       const response = await fetch(`${apiUrl}/Priority/GetPriorities`, {
@@ -700,7 +721,7 @@ const fetchWorkspacesByUserId = async () => {
     } catch (error) {
       console.error(error);
     }
-  }
+  };
 
   return (
     <div className="main-content">
@@ -738,15 +759,11 @@ const fetchWorkspacesByUserId = async () => {
             {JSON.parse(localStorage.getItem("user"))?.userName}
           </h1>
           
-          {/* Updated Workspace Header Section */}
           <div style={styles.workspaceHeader}>
             <div style={styles.workspaceTopRow}>
-            
               <div style={styles.workspaceName}>
-                
                 {defaultUserWorkspaceName || "No Workspace"}
               </div>
-              
             </div>
             <button
               onClick={() => setShowSettingsModal(true)}
@@ -778,7 +795,6 @@ const fetchWorkspacesByUserId = async () => {
           </div>
         </div>
 
-        {/* Rest of the component remains exactly the same */}
         <div
             style={styles.searchBox}
             onDrop={handleDrop}
@@ -865,7 +881,6 @@ const fetchWorkspacesByUserId = async () => {
               onClick={() => setViewMode('table')}
               className={`view-toggle-btn ${viewMode === 'table' ? 'active' : ''}`}
               style={{
-                
                 border: '1px solid #ddd',
                 background: viewMode === 'table' ? '#1976d2' : 'white',
                 color: viewMode === 'table' ? 'white' : '#333',
@@ -880,13 +895,11 @@ const fetchWorkspacesByUserId = async () => {
               title="Table View"
             >
               <i className="fas fa-table" />
-              
             </button>
             <button
               onClick={() => setViewMode('cards')}
               className={`view-toggle-btn ${viewMode === 'cards' ? 'active' : ''}`}
               style={{
-              
                 border: '1px solid #ddd',
                 background: viewMode === 'cards' ? '#1976d2' : 'white',
                 color: viewMode === 'cards' ? 'white' : '#333',
@@ -901,7 +914,6 @@ const fetchWorkspacesByUserId = async () => {
               title="Card View"
             >
               <i className="fas fa-th" />
-              
             </button>
           </div>
           <button
@@ -921,7 +933,7 @@ const fetchWorkspacesByUserId = async () => {
             <i className="fas fa-sync-alt" />
           </button>
           <button
-            onClick={() => setShowNewModal(true)}
+            onClick={handleNewNoteClick}
             style={{
               backgroundColor: "#1976d2",
               color: "#fff",
@@ -982,7 +994,6 @@ const fetchWorkspacesByUserId = async () => {
         </div>
 
         {viewMode === 'table' ? (
-  // Table View
   <div className="responsive-table-container">
     <table>
       <thead>
@@ -1306,8 +1317,7 @@ const fetchWorkspacesByUserId = async () => {
                 </button>
               </div>
               <div className="footer-priority">
-              
-            </div>
+              </div>
               <div className="note-actions">
                 {notePriority && notePriority.priorityValue > 1 && (
                 <div 
@@ -1357,10 +1367,8 @@ const fetchWorkspacesByUserId = async () => {
     )}
   </div>
 )}
-  </div>
+      </div>
 
-      
-      {/* Rest of the modals remain exactly the same */}
       {showFilterDialog && (
         <div
           className="modal-overlay"
@@ -1521,7 +1529,11 @@ const fetchWorkspacesByUserId = async () => {
       {showNewModal && (
         <NewNoteModal
           isOpen={showNewModal}
-          onClose={() => setShowNewModal(false)}
+          onClose={() => {
+            console.log('Closing modal, resetting prefilledData');
+            setPrefilledData(null);
+            setShowNewModal(false);
+          }}
           refreshNotes={refreshNotes}
           addSiteNote={addSiteNote}
           projects={projects}

@@ -353,3 +353,9 @@
 .priority-default:hover {
     border-color: #a0aec0;
 }
+.disabled-field-note {
+    font-size: 0.8em;
+    color: #666;
+    font-style: italic;
+    margin-top: 4px;
+}
