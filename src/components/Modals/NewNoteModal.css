@@ -353,3 +353,62 @@
 .priority-default:hover {
     border-color: #a0aec0;
 }
+
+.modal {
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.tab-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; 
+}
+
+.journal-section {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 8px;
+  max-height: 60vh;
+}
+
+@media (max-width: 768px) {
+  .modal {
+    max-height: 85vh;
+    margin: 20px 10px;
+  }
+  
+  .journal-section {
+    max-height: 50vh; 
+  }
+  
+  .form-group textarea {
+    min-height: 80px; 
+  }
+}
+
+.journal-section::-webkit-scrollbar {
+  width: 6px;
+}
+
+.journal-section::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.journal-section::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.journal-section::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+.modal-footer {
+  margin-top: auto;
+  flex-shrink: 0;
+}
