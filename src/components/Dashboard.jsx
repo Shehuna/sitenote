@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import PropTypes from "prop-types";
 import "./Dashboard.css";
 import NewNoteModal from "./Modals/NewNoteModal";
@@ -26,6 +26,7 @@ const Dashboard = ({
   onUpdateDefaultWorkspace,
   fetchProjectAndJobs,
 }) => {
+  // All state declarations consolidated at the top
   const [searchTerm, setSearchTerm] = useState(() => {
     const saved = localStorage.getItem('dashboardSearchTerm');
     return saved || "";
@@ -34,7 +35,6 @@ const Dashboard = ({
     const saved = localStorage.getItem('dashboardSearchResults');
     return saved ? JSON.parse(saved) : [];
   });
-  
   const [hierarchy, setHierarchy] = useState(() => {
     const saved = localStorage.getItem('dashboardHierarchy');
     return saved ? JSON.parse(saved) : [];
@@ -43,6 +43,47 @@ const Dashboard = ({
     const saved = localStorage.getItem('dashboardSelectedValues');
     return saved ? JSON.parse(saved) : {};
   });
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showNewModal, setShowNewModal] = useState(false);
+  const [selectedNote, setSelectedNote] = useState(null);
+  const [showAttachedFileModal, setShowAttachedFileModal] = useState(false);
+  const [selectedFileNote, setSelectedFileNote] = useState(null);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [viewNote, setViewNote] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [noteToDelete, setNoteToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [showFilterDialog, setShowFilterDialog] = useState(false);
+  const [currentFilterColumn, setCurrentFilterColumn] = useState(null);
+  const [uniqueProjects, setUniqueProjects] = useState([]);
+  const [uniqueJobs, setUniqueJobs] = useState([]);
+  const [uniqueWorkspaces, setUniqueWorkspaces] = useState([]);
+  const [uniqueDates, setUniqueDates] = useState([]);
+  const [uniqueUsernames, setUniqueUsernames] = useState([]);
+  const [filteredNotes, setFilteredNotes] = useState([]);
+  const [loadingFiltered, setLoadingFiltered] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [priorities, setPriorities] = useState([]);
+  const [role, setRole] = useState(null);
+  const [isRoleLoading, setIsRoleLoading] = useState(false);
+  const [loadingUniques, setLoadingUniques] = useState(true);
+  const [userWorkspaces, setUserWorkspaces] = useState();
+  const [userWorkspace, setUserWorkspace] = useState();
+  const [focusedRow, setFocusedRow] = useState(null);
+  const [selectedRow, setSelectedRow] = useState(null);
+  const [searchColumn, setSearchColumn] = useState('');
+  const [prefilledData, setPrefilledData] = useState(null);
+  const [showRequestWorkspaceModal, setShowRequestWorkspaceModal] = useState(false);
+  const [viewMode, setViewMode] = useState('table');
+  const [modalSource, setModalSource] = useState('dashboard');
+
+  // Add ref for NewNoteModal
+  const newNoteModalRef = useRef();
+
+  const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
 
   useEffect(() => {
     localStorage.setItem('dashboardSearchTerm', searchTerm);
@@ -119,44 +160,6 @@ const Dashboard = ({
       justifyContent: 'center'
     },
   };
-
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [showNewModal, setShowNewModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedNote, setSelectedNote] = useState(null);
-  const [showAttachedFileModal, setShowAttachedFileModal] = useState(false);
-  const [selectedFileNote, setSelectedFileNote] = useState(null);
-  const [showViewModal, setShowViewModal] = useState(false);
-  const [viewNote, setViewNote] = useState(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [noteToDelete, setNoteToDelete] = useState(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [showFilterDialog, setShowFilterDialog] = useState(false);
-  const [currentFilterColumn, setCurrentFilterColumn] = useState(null);
-  const [uniqueProjects, setUniqueProjects] = useState([]);
-  const [uniqueJobs, setUniqueJobs] = useState([]);
-  const [uniqueWorkspaces, setUniqueWorkspaces] = useState([]);
-  const [uniqueDates, setUniqueDates] = useState([]);
-  const [uniqueUsernames, setUniqueUsernames] = useState([]);
-  const [filteredNotes, setFilteredNotes] = useState([]);
-  const [loadingFiltered, setLoadingFiltered] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [isDataLoaded, setIsDataLoaded] = useState(false);
-  const [priorities, setPriorities] = useState([]);
-  const [role, setRole] = useState(null)
-  const [isRoleLoading, setIsRoleLoading] = useState(false);
-  const [loadingUniques, setLoadingUniques] = useState(true);
-  const [userWorkspaces, setUserWorkspaces] = useState()
-  const [userWorkspace, setUserWorkspace] = useState()
-  const [focusedRow, setFocusedRow] = useState(null);
-  const [selectedRow, setSelectedRow] = useState(null);
-  const [searchColumn, setSearchColumn] = useState('');
-  const [prefilledData, setPrefilledData] = useState(null);
-  const [showRequestWorkspaceModal, setShowRequestWorkspaceModal] = useState(false);
-  const [viewMode, setViewMode] = useState('table'); 
-
-  const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
 
   // Debug effect for prefilledData
   useEffect(() => {
@@ -242,8 +245,8 @@ const Dashboard = ({
     if (userid && defaultUserWorkspaceID) {
       console.log("Fetching role with workspace ID:", defaultUserWorkspaceID);
       fetchUserWorkspaceRole();
-      fetchWorkspacesByUserId()
-      fetchPriorities()
+      fetchWorkspacesByUserId();
+      fetchPriorities();
     }
   }, [userid, defaultUserWorkspaceID]);
 
@@ -426,44 +429,45 @@ const Dashboard = ({
 
   // Fixed keyboard shortcut handler
   const handleKeyDown = useCallback((event) => {
-  if (!focusedRow) return;
+    if (!focusedRow) return;
 
-  const currentIndex = filteredNotes.findIndex(note => note.id === focusedRow);
+    const currentIndex = filteredNotes.findIndex(note => note.id === focusedRow);
 
-  if (event.key === 'ArrowDown') {
-    event.preventDefault();
-    const nextIndex = Math.min(currentIndex + 1, filteredNotes.length - 1);
-    if (nextIndex !== currentIndex) {
-      setFocusedRow(filteredNotes[nextIndex].id);
-      setSelectedRow(filteredNotes[nextIndex].id);
-    }
-  } else if (event.key === 'ArrowUp') {
-    event.preventDefault();
-    const prevIndex = Math.max(currentIndex - 1, 0);
-    if (prevIndex !== currentIndex) {
-      setFocusedRow(filteredNotes[prevIndex].id);
-      setSelectedRow(filteredNotes[prevIndex].id);
-    }
-  } else if (event.ctrlKey && event.key === 'a' && focusedRow) {
-    event.preventDefault();
-    const selectedNote = filteredNotes.find(note => note.id === focusedRow);
-    if (selectedNote) {
-      const today = new Date();
-      const year = today.getFullYear();
-      const month = String(today.getMonth() + 1).padStart(2, '0');
-      const day = String(today.getDate()).padStart(2, '0');
-      const currentDateFormatted = `${year}-${month}-${day}`;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      const nextIndex = Math.min(currentIndex + 1, filteredNotes.length - 1);
+      if (nextIndex !== currentIndex) {
+        setFocusedRow(filteredNotes[nextIndex].id);
+        setSelectedRow(filteredNotes[nextIndex].id);
+      }
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      const prevIndex = Math.max(currentIndex - 1, 0);
+      if (prevIndex !== currentIndex) {
+        setFocusedRow(filteredNotes[prevIndex].id);
+        setSelectedRow(filteredNotes[prevIndex].id);
+      }
+    } else if (event.ctrlKey && event.key === 'a' && focusedRow) {
+      event.preventDefault();
+      const selectedNote = filteredNotes.find(note => note.id === focusedRow);
+      if (selectedNote) {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const currentDateFormatted = `${year}-${month}-${day}`;
 
-      setPrefilledData({
-        date: currentDateFormatted,
-        project: selectedNote.project,
-        job: selectedNote.job,
-        workspace: selectedNote.workspace
-      });
-      setShowNewModal(true);
+        setPrefilledData({
+          date: currentDateFormatted,
+          project: selectedNote.project,
+          job: selectedNote.job,
+          workspace: selectedNote.workspace
+        });
+        setModalSource('grid'); // Set source to grid for keyboard shortcut
+        setShowNewModal(true);
+      }
     }
-  }
-}, [focusedRow, filteredNotes]);
+  }, [focusedRow, filteredNotes]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -493,38 +497,54 @@ const Dashboard = ({
     }
   };
 
-  // Fixed handleAddFromRow function
+  // Fixed handleAddFromRow function - for grid plus button
   const handleAddFromRow = (note) => {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-  const currentDateFormatted = `${year}-${month}-${day}`;
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const currentDateFormatted = `${year}-${month}-${day}`;
 
-  console.log('Setting prefilled data from row:', {
-    workspace: note.workspace,
-    project: note.project,
-    job: note.job,
-    date: currentDateFormatted
-  });
+    console.log('Setting prefilled data from row:', {
+      workspace: note.workspace,
+      project: note.project,
+      job: note.job,
+      date: currentDateFormatted
+    });
 
-  // Pass the exact values from the note
-  setPrefilledData({
-    date: currentDateFormatted,
-    project: note.project,  // Use the project name from the note
-    job: note.job,          // Use the job name from the note
-    workspace: note.workspace // Use the workspace name from the note
-  });
+    // Pass the exact values from the note
+    setPrefilledData({
+      date: currentDateFormatted,
+      project: note.project,  // Use the project name from the note
+      job: note.job,          // Use the job name from the note
+      workspace: note.workspace // Use the workspace name from the note
+    });
 
-  setShowNewModal(true);
-};
+    setModalSource('grid'); // Set source to grid for plus button
+    setShowNewModal(true);
+  };
 
-  // New function for New Note button
+  // New function for New Note button - from dashboard
   const handleNewNoteClick = () => {
     console.log('Opening from New Note button - clearing prefilled data');
     setPrefilledData(null);
+    setModalSource('dashboard'); // Set source to dashboard for new note button
     setShowNewModal(true);
   };
+
+  // Focus the textarea when modal opens from grid source
+  useEffect(() => {
+    if (showNewModal && modalSource === 'grid' && newNoteModalRef.current) {
+      const timer = setTimeout(() => {
+        if (newNoteModalRef.current) {
+          newNoteModalRef.current.focusTextarea();
+          console.log('Focusing textarea from grid source');
+        }
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [showNewModal, modalSource]);
 
   const handleEdit = (note) => {
     setSelectedNote(note);
@@ -645,40 +665,40 @@ const Dashboard = ({
         }
       });
 
-    if (response.ok) {
-      const data = await response.json();
-      
-      const userWorkspaces = data.userWorkspaces || data || []; 
-      setUserWorkspaces(userWorkspaces)
-      userWorkspaces.forEach((ws, index) => {
-        console.log(`Workspace ${index}:`, {
-          id: ws.id,
-          workspaceID: ws.workspaceID,
-          workspaceId: ws.workspaceId, 
-          role: ws.role
+      if (response.ok) {
+        const data = await response.json();
+        
+        const userWorkspaces = data.userWorkspaces || data || []; 
+        setUserWorkspaces(userWorkspaces);
+        userWorkspaces.forEach((ws, index) => {
+          console.log(`Workspace ${index}:`, {
+            id: ws.id,
+            workspaceID: ws.workspaceID,
+            workspaceId: ws.workspaceId, 
+            role: ws.role
+          });
         });
-      });
 
-      const workspace = userWorkspaces.find(ws => 
-        (ws.workspaceID && ws.workspaceID.toString() === defaultUserWorkspaceID.toString()) ||
-        (ws.workspaceId && ws.workspaceId.toString() === defaultUserWorkspaceID.toString()) ||
-        (ws.id && ws.id.toString() === defaultUserWorkspaceID.toString())
-      );
-          
-      const newRole = workspace?.role || null;
-      setRole(newRole);
-    } else {
-      console.error("API response not OK:", response.status);
+        const workspace = userWorkspaces.find(ws => 
+          (ws.workspaceID && ws.workspaceID.toString() === defaultUserWorkspaceID.toString()) ||
+          (ws.workspaceId && ws.workspaceId.toString() === defaultUserWorkspaceID.toString()) ||
+          (ws.id && ws.id.toString() === defaultUserWorkspaceID.toString())
+        );
+            
+        const newRole = workspace?.role || null;
+        setRole(newRole);
+      } else {
+        console.error("API response not OK:", response.status);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      setRole(null);
+    } finally {
+      setIsRoleLoading(false);
     }
-  } catch (error) {
-    console.error("Error:", error);
-    setRole(null);
-  } finally {
-    setIsRoleLoading(false);
-  }
-};
+  };
 
-const fetchWorkspacesByUserId = async () => {
+  const fetchWorkspacesByUserId = async () => {
     try {
       const response = await fetch(`${apiUrl}/Workspace/GetWorkspacesByUserId/${userid}`, {
         method: "GET",
@@ -687,22 +707,22 @@ const fetchWorkspacesByUserId = async () => {
         }
       });
 
-    if (response.ok) {
-      const data = await response.json();
-      
-      const userWorkspaces = data.workspaces || data || []; 
-      setUserWorkspace(userWorkspaces)
-      
-    } else {
-      console.error("API response not OK:", response.status);
+      if (response.ok) {
+        const data = await response.json();
+        
+        const userWorkspaces = data.workspaces || data || []; 
+        setUserWorkspace(userWorkspaces);
+        
+      } else {
+        console.error("API response not OK:", response.status);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      setRole(null);
+    } finally {
+      setIsRoleLoading(false);
     }
-  } catch (error) {
-    console.error("Error:", error);
-    setRole(null);
-  } finally {
-    setIsRoleLoading(false);
-  }
-};
+  };
 
   const fetchPriorities = async () => {
     try {
@@ -994,379 +1014,379 @@ const fetchWorkspacesByUserId = async () => {
         </div>
 
         {viewMode === 'table' ? (
-  <div className="responsive-table-container">
-    <table>
-      <thead>
-        <tr>
-          {[
-            "date",
-            "workspace",
-            "project",
-            "job",
-            "note",
-            "userName",
-            "Attached File",
-          ].map((c) => (
-            <th
-              key={c}
-              draggable={["date","workspace","project","job","userName"].includes(c)}
-              onDragStart={handleDragStart(c)}
-              className={hierarchy.includes(c) ? "hierarchy-column" : ""}
-            >
-              {c === "date" && <i className="fas fa-calendar" />}
-              {c === "workspace" && <i className="fas fa-building" />}
-              {c === "project" && (
-                <i className="fas fa-project-diagram" />
-              )}
-              {c === "job" && <i className="fas fa-tasks" />}
-              {c === "note" && <i className="fas fa-sticky-note" />}
-              {c === "userName" && <i className="fas fa-user" />}
-              {c === "Attached File" && <i className="fas fa-paperclip" />}{" "}
-              {c.charAt(0).toUpperCase() + c.slice(1)}
-            </th>
-          ))}
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {!isDataLoaded ||
-        initialLoading ||
-        searchLoading ||
-        loadingFiltered ||
-        loadingUniques ? (
-          [...Array(5)].map((_, i) => (
-            <tr key={i}>
-              <td colSpan={8}>
-                <div className="skeleton-row">
-                  <div className="skeleton-cell short" />
-                  <div className="skeleton-cell medium" />
-                  <div className="skeleton-cell medium" />
-                  <div className="skeleton-cell medium" />
-                  <div className="skeleton-cell long" />
-                  <div className="skeleton-cell short" />
-                  <div className="skeleton-cell short" />
-                  <div className="skeleton-cell short" />
-                </div>
-              </td>
-            </tr>
-          ))
-        ) : displayNotes.length === 0 ? (
-          <tr>
-            <td
-              colSpan={8}
-              style={{ textAlign: "center", padding: 40, color: "#999" }}
-            >
-              {isDataLoaded && !initialLoading && !loadingUniques ? (
-                <>
-                  <i
-                    className="fas fa-search"
-                    style={{
-                      fontSize: 28,
-                      marginBottom: 12,
-                      display: "block",
-                      opacity: 0.5,
-                    }}
-                  />{" "}
-                  <div>
-                    {searchTerm.trim()
-                      ? "No notes match your search"
-                      : "No notes available"}
-                  </div>
-                </>
-              ) : null}
-            </td>
-          </tr>
-        ) : (
-          displayNotes.map((n) => {
-            const notePriority = priorities.find(
-              (p) => Number(p.noteID) === Number(n.id)
-            );
-            return (
-              <tr
-                key={n.id}
-                onClick={() => {
-                  handleRowClick(n);
-                }}
-                onDoubleClick={() => {
-                  handleRowDoubleClick(n);
-                  const job = jobs.find((j) => j.name === n.job);
-                  setViewNote({
-                    id: n.id,
-                    jobId: job?.id ?? null,
-                  });
-                  setShowViewModal(true);
-                }}
-                className={`${
-                  selectedRow === n.id ? "selected-row" : ""
-                } ${focusedRow === n.id ? "focused-row" : ""}`}
-                style={{ cursor: "pointer" }}
-              >
-                <td>
-                  {new Date(n.date).toLocaleDateString("en-US", {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </td>
-                <td>{n.workspace}</td>
-                <td>{n.project}</td>
-                <td>{n.job}</td>
-                <td className="editable" style={{ position: "relative" }}>
-                  <div style={{ display: "flex", alignItems: "flex-start" }}>
-                    <span style={{ flex: 1 }}>
-                      {n.note.length > 69 ? n.note.substring(0, 69) + "..." : n.note}
-                    </span>
-                    {notePriority && notePriority.priorityValue > 1 && (
-                      <div
-                        className={`priority-dot ${
-                          notePriority.priorityValue === 3
-                            ? "priority-dot-medium"
-                            : notePriority.priorityValue === 4
-                              ? "priority-dot-high"
-                              : ""
-                        }`}
-                        style={{
-                          width: "10px",
-                          height: "10px",
-                          borderRadius: "50%",
-                          position: "absolute",
-                          top: "4px",
-                          right: "4px",
-                          background:
-                            notePriority.priorityValue === 3
-                              ? "#f1c40f"
-                              : notePriority.priorityValue === 4
-                                ? "#e74c3c"
-                                : "#bdc3c7",
+          <div className="responsive-table-container">
+            <table>
+              <thead>
+                <tr>
+                  {[
+                    "date",
+                    "workspace",
+                    "project",
+                    "job",
+                    "note",
+                    "userName",
+                    "Attached File",
+                  ].map((c) => (
+                    <th
+                      key={c}
+                      draggable={["date","workspace","project","job","userName"].includes(c)}
+                      onDragStart={handleDragStart(c)}
+                      className={hierarchy.includes(c) ? "hierarchy-column" : ""}
+                    >
+                      {c === "date" && <i className="fas fa-calendar" />}
+                      {c === "workspace" && <i className="fas fa-building" />}
+                      {c === "project" && (
+                        <i className="fas fa-project-diagram" />
+                      )}
+                      {c === "job" && <i className="fas fa-tasks" />}
+                      {c === "note" && <i className="fas fa-sticky-note" />}
+                      {c === "userName" && <i className="fas fa-user" />}
+                      {c === "Attached File" && <i className="fas fa-paperclip" />}{" "}
+                      {c.charAt(0).toUpperCase() + c.slice(1)}
+                    </th>
+                  ))}
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {!isDataLoaded ||
+                initialLoading ||
+                searchLoading ||
+                loadingFiltered ||
+                loadingUniques ? (
+                  [...Array(5)].map((_, i) => (
+                    <tr key={i}>
+                      <td colSpan={8}>
+                        <div className="skeleton-row">
+                          <div className="skeleton-cell short" />
+                          <div className="skeleton-cell medium" />
+                          <div className="skeleton-cell medium" />
+                          <div className="skeleton-cell medium" />
+                          <div className="skeleton-cell long" />
+                          <div className="skeleton-cell short" />
+                          <div className="skeleton-cell short" />
+                          <div className="skeleton-cell short" />
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : displayNotes.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={8}
+                      style={{ textAlign: "center", padding: 40, color: "#999" }}
+                    >
+                      {isDataLoaded && !initialLoading && !loadingUniques ? (
+                        <>
+                          <i
+                            className="fas fa-search"
+                            style={{
+                              fontSize: 28,
+                              marginBottom: 12,
+                              display: "block",
+                              opacity: 0.5,
+                            }}
+                          />{" "}
+                          <div>
+                            {searchTerm.trim()
+                              ? "No notes match your search"
+                              : "No notes available"}
+                          </div>
+                        </>
+                      ) : null}
+                    </td>
+                  </tr>
+                ) : (
+                  displayNotes.map((n) => {
+                    const notePriority = priorities.find(
+                      (p) => Number(p.noteID) === Number(n.id)
+                    );
+                    return (
+                      <tr
+                        key={n.id}
+                        onClick={() => {
+                          handleRowClick(n);
                         }}
-                        title={
-                          notePriority.priorityValue === 3
-                            ? "Medium Priority"
-                            : notePriority.priorityValue === 4
-                              ? "High Priority"
-                              : "Low Priority"
-                        }
-                      />
-                    )}
+                        onDoubleClick={() => {
+                          handleRowDoubleClick(n);
+                          const job = jobs.find((j) => j.name === n.job);
+                          setViewNote({
+                            id: n.id,
+                            jobId: job?.id ?? null,
+                          });
+                          setShowViewModal(true);
+                        }}
+                        className={`${
+                          selectedRow === n.id ? "selected-row" : ""
+                        } ${focusedRow === n.id ? "focused-row" : ""}`}
+                        style={{ cursor: "pointer" }}
+                      >
+                        <td>
+                          {new Date(n.date).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </td>
+                        <td>{n.workspace}</td>
+                        <td>{n.project}</td>
+                        <td>{n.job}</td>
+                        <td className="editable" style={{ position: "relative" }}>
+                          <div style={{ display: "flex", alignItems: "flex-start" }}>
+                            <span style={{ flex: 1 }}>
+                              {n.note.length > 69 ? n.note.substring(0, 69) + "..." : n.note}
+                            </span>
+                            {notePriority && notePriority.priorityValue > 1 && (
+                              <div
+                                className={`priority-dot ${
+                                  notePriority.priorityValue === 3
+                                    ? "priority-dot-medium"
+                                    : notePriority.priorityValue === 4
+                                      ? "priority-dot-high"
+                                      : ""
+                                }`}
+                                style={{
+                                  width: "10px",
+                                  height: "10px",
+                                  borderRadius: "50%",
+                                  position: "absolute",
+                                  top: "4px",
+                                  right: "4px",
+                                  background:
+                                    notePriority.priorityValue === 3
+                                      ? "#f1c40f"
+                                      : notePriority.priorityValue === 4
+                                        ? "#e74c3c"
+                                        : "#bdc3c7",
+                                }}
+                                title={
+                                  notePriority.priorityValue === 3
+                                    ? "Medium Priority"
+                                    : notePriority.priorityValue === 4
+                                      ? "High Priority"
+                                      : "Low Priority"
+                                }
+                              />
+                            )}
+                          </div>
+                        </td>
+                        <td>{n.userName}</td>
+                        <td
+                          className="file-cell"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewAttachments(n);
+                          }}
+                        >
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            <i className="fas fa-paperclip" style={{ opacity: n.documentCount > 0 ? 1 : 0.3 }} />
+                            <span>({n.documentCount || 0})</span>
+                          </span>
+                        </td>
+                        <td className="table-actions">
+                          <a
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAddFromRow(n);
+                            }}
+                            title="Add"
+                          >
+                            <i className="fas fa-plus" />
+                          </a>
+                          <a
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEdit(n);
+                            }}
+                            title="Edit"
+                          >
+                            <i className="fas fa-edit" />
+                          </a>
+                          <a
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(n);
+                            }}
+                            title="Delete"
+                          >
+                            <i className="fas fa-trash" />
+                          </a>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="notes-grid">
+            {!isDataLoaded || initialLoading || searchLoading || loadingFiltered ? (
+              [...Array(8)].map((_, i) => (
+                <div key={i} className="note-card skeleton">
+                  <div className="skeleton-header">
+                    <div className="skeleton-avatar" />
+                    <div className="skeleton-text short" />
                   </div>
-                </td>
-                <td>{n.userName}</td>
-                <td
-                  className="file-cell"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleViewAttachments(n);
-                  }}
-                >
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                    <i className="fas fa-paperclip" style={{ opacity: n.documentCount > 0 ? 1 : 0.3 }} />
-                    <span>({n.documentCount || 0})</span>
-                  </span>
-                </td>
-                <td className="table-actions">
-                  <a
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleAddFromRow(n);
-                    }}
-                    title="Add"
+                  <div className="skeleton-content">
+                    <div className="skeleton-text long" />
+                  </div>
+                  <div className="skeleton-footer">
+                    <div className="skeleton-actions" />
+                  </div>
+                </div>
+              ))
+            ) : displayNotes.length === 0 ? (
+              <div className="empty-state">
+                <i className="fas fa-search" />
+                <h3>
+                  {searchTerm.trim() ? "No notes match your search" : "No notes available"}
+                </h3>
+                <p>
+                  {searchTerm.trim()
+                    ? "Try adjusting your search terms"
+                    : "Create your first note to get started"}
+                </p>
+              </div>
+            ) : (
+              displayNotes.map((note) => {
+                const notePriority = priorities.find(p => p.noteID === note.id);
+                
+                return (
+                  <div
+                    key={note.id}
+                    className={`note-card ${selectedRow === note.id ? 'selected' : ''}`}
+                    onClick={() => handleRowClick(note)}
+                    onDoubleClick={() => handleRowDoubleClick(note)}
                   >
-                    <i className="fas fa-plus" />
-                  </a>
-                  <a
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleEdit(n);
-                    }}
-                    title="Edit"
-                  >
-                    <i className="fas fa-edit" />
-                  </a>
-                  <a
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(n);
-                    }}
-                    title="Delete"
-                  >
-                    <i className="fas fa-trash" />
-                  </a>
-                </td>
-              </tr>
-            );
-          })
+                    <div className="note-header">
+                      <div className="user-avatar">
+                        <i className="fas fa-user" />
+                      </div>
+                      <div className="note-meta">
+                        <div 
+                          className="note-author draggable-value"
+                          draggable
+                          onDragStart={(e) => handleDragStartValue('userName', note.userName)(e)}
+                          title="Drag to filter by user"
+                        >
+                          {note.userName}
+                        </div>
+                        <div 
+                          className="note-date draggable-value"
+                          draggable
+                          onDragStart={(e) => handleDragStartValue('date', note.date)(e)}
+                          title="Drag to filter by date"
+                        >
+                          {new Date(note.date).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </div>
+                      </div>
+                      
+                      <div className="note-context">
+                        <div 
+                          className="context-item workspace draggable-value"
+                          draggable
+                          onDragStart={(e) => handleDragStartValue('workspace', note.workspace)(e)}
+                          title="Drag to filter by workspace"
+                        >
+                          {note.workspace}
+                        </div>
+                        <div 
+                          className="context-item project draggable-value"
+                          draggable
+                          onDragStart={(e) => handleDragStartValue('project', note.project)(e)}
+                          title="Drag to filter by project"
+                        >
+                          {note.project}
+                        </div>
+                        <div 
+                          className="context-item job draggable-value"
+                          draggable
+                          onDragStart={(e) => handleDragStartValue('job', note.job)(e)}
+                          title="Drag to filter by job"
+                        >
+                          {note.job}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="note-content">
+                      <div className="note-text">
+                        {note.note}
+                      </div>
+                    </div>
+
+                    <div className="note-footer">
+                      <div className="note-attachments">
+                        <button
+                          className="attachment-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewAttachments(note);
+                          }}
+                        >
+                          <i 
+                            className="fas fa-paperclip" 
+                            style={{ opacity: note.documentCount > 0 ? 1 : 0.3 }}
+                          />
+                          <span>({note.documentCount || 0})</span>
+                        </button>
+                      </div>
+                      <div className="footer-priority">
+                      </div>
+                      <div className="note-actions">
+                        {notePriority && notePriority.priorityValue > 1 && (
+                        <div 
+                          className={`priority-indicator priority-${notePriority.priorityValue}`}
+                          title={
+                            notePriority.priorityValue === 2 ? 'Low Priority' :
+                            notePriority.priorityValue === 3 ? 'Medium Priority' :
+                            notePriority.priorityValue === 4 ? 'High Priority' : 'No Priority'
+                          }
+                        />
+                      )}
+                        <button
+                          className="action-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAddFromRow(note);
+                          }}
+                          title="Add New Note"
+                        >
+                          <i className="fas fa-plus" />
+                        </button>
+                        <button
+                          className="action-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit(note);
+                          }}
+                          title="Edit Note"
+                        >
+                          <i className="fas fa-edit" />
+                        </button>
+                        <button
+                          className="action-btn delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(note);
+                          }}
+                          title="Delete Note"
+                        >
+                          <i className="fas fa-trash" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         )}
-      </tbody>
-    </table>
-  </div>
-) : (
-  <div className="notes-grid">
-    {!isDataLoaded || initialLoading || searchLoading || loadingFiltered ? (
-      [...Array(8)].map((_, i) => (
-        <div key={i} className="note-card skeleton">
-          <div className="skeleton-header">
-            <div className="skeleton-avatar" />
-            <div className="skeleton-text short" />
-          </div>
-          <div className="skeleton-content">
-            <div className="skeleton-text long" />
-          </div>
-          <div className="skeleton-footer">
-            <div className="skeleton-actions" />
-          </div>
-        </div>
-      ))
-    ) : displayNotes.length === 0 ? (
-      <div className="empty-state">
-        <i className="fas fa-search" />
-        <h3>
-          {searchTerm.trim() ? "No notes match your search" : "No notes available"}
-        </h3>
-        <p>
-          {searchTerm.trim()
-            ? "Try adjusting your search terms"
-            : "Create your first note to get started"}
-        </p>
-      </div>
-    ) : (
-      displayNotes.map((note) => {
-        const notePriority = priorities.find(p => p.noteID === note.id);
-        
-        return (
-          <div
-            key={note.id}
-            className={`note-card ${selectedRow === note.id ? 'selected' : ''}`}
-            onClick={() => handleRowClick(note)}
-            onDoubleClick={() => handleRowDoubleClick(note)}
-          >
-            <div className="note-header">
-              <div className="user-avatar">
-                <i className="fas fa-user" />
-              </div>
-              <div className="note-meta">
-                <div 
-                  className="note-author draggable-value"
-                  draggable
-                  onDragStart={(e) => handleDragStartValue('userName', note.userName)(e)}
-                  title="Drag to filter by user"
-                >
-                  {note.userName}
-                </div>
-                <div 
-                  className="note-date draggable-value"
-                  draggable
-                  onDragStart={(e) => handleDragStartValue('date', note.date)(e)}
-                  title="Drag to filter by date"
-                >
-                  {new Date(note.date).toLocaleDateString("en-US", {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </div>
-              </div>
-              
-              <div className="note-context">
-                <div 
-                  className="context-item workspace draggable-value"
-                  draggable
-                  onDragStart={(e) => handleDragStartValue('workspace', note.workspace)(e)}
-                  title="Drag to filter by workspace"
-                >
-                  {note.workspace}
-                </div>
-                <div 
-                  className="context-item project draggable-value"
-                  draggable
-                  onDragStart={(e) => handleDragStartValue('project', note.project)(e)}
-                  title="Drag to filter by project"
-                >
-                  {note.project}
-                </div>
-                <div 
-                  className="context-item job draggable-value"
-                  draggable
-                  onDragStart={(e) => handleDragStartValue('job', note.job)(e)}
-                  title="Drag to filter by job"
-                >
-                  {note.job}
-                </div>
-              </div>
-            </div>
-
-            <div className="note-content">
-              <div className="note-text">
-                {note.note}
-              </div>
-            </div>
-
-            <div className="note-footer">
-              <div className="note-attachments">
-                <button
-                  className="attachment-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleViewAttachments(note);
-                  }}
-                >
-                  <i 
-                    className="fas fa-paperclip" 
-                    style={{ opacity: note.documentCount > 0 ? 1 : 0.3 }}
-                  />
-                  <span>({note.documentCount || 0})</span>
-                </button>
-              </div>
-              <div className="footer-priority">
-              </div>
-              <div className="note-actions">
-                {notePriority && notePriority.priorityValue > 1 && (
-                <div 
-                  className={`priority-indicator priority-${notePriority.priorityValue}`}
-                  title={
-                    notePriority.priorityValue === 2 ? 'Low Priority' :
-                    notePriority.priorityValue === 3 ? 'Medium Priority' :
-                    notePriority.priorityValue === 4 ? 'High Priority' : 'No Priority'
-                  }
-                />
-              )}
-                <button
-                  className="action-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleAddFromRow(note);
-                  }}
-                  title="Add New Note"
-                >
-                  <i className="fas fa-plus" />
-                </button>
-                <button
-                  className="action-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleEdit(note);
-                  }}
-                  title="Edit Note"
-                >
-                  <i className="fas fa-edit" />
-                </button>
-                <button
-                  className="action-btn delete"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDelete(note);
-                  }}
-                  title="Delete Note"
-                >
-                  <i className="fas fa-trash" />
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })
-    )}
-  </div>
-)}
       </div>
 
       {showFilterDialog && (
@@ -1528,6 +1548,7 @@ const fetchWorkspacesByUserId = async () => {
       )}
       {showNewModal && (
         <NewNoteModal
+          ref={newNoteModalRef}
           isOpen={showNewModal}
           onClose={() => {
             console.log('Closing modal, resetting prefilledData');
@@ -1543,6 +1564,7 @@ const fetchWorkspacesByUserId = async () => {
           defWorkSpaceId={defaultUserWorkspaceID}
           userworksaces={userWorkspace}
           prefilledData={prefilledData}
+          source={modalSource}
         />
       )}
       {showEditModal && selectedNote && (

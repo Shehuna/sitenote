@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import PropTypes from 'prop-types';
 import Modal from './Modal';
 import './NewNoteModal.css';
 import toast from 'react-hot-toast';
 
-const NewNoteModal = ({
+const NewNoteModal = forwardRef(({
     isOpen,
     onClose,
     projects = [],
@@ -15,8 +15,9 @@ const NewNoteModal = ({
     onDeleteDocument,
     prefilledData = null,
     defWorkSpaceId,
-    userworksaces = []
-}) => {
+    userworksaces = [],
+    source = 'dashboard'
+}, ref) => {
     // State declarations
     const [activeTab, setActiveTab] = useState('journal');
     const [selectedProject, setSelectedProject] = useState('');
@@ -39,6 +40,7 @@ const NewNoteModal = ({
     const [areDropdownsDisabled, setAreDropdownsDisabled] = useState(false);
 
     const textareaRef = useRef(null);
+    const hasFocusedRef = useRef(false);
     const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
 
     // Constants
@@ -53,6 +55,56 @@ const NewNoteModal = ({
         'video/mpeg': ['.mpeg'], 'video/ogg': ['.ogv'], 'video/webm': ['.webm'],
         'video/quicktime': ['.mov'], 'video/x-msvideo': ['.avi']
     };
+
+    // Expose focus method to parent component
+    useImperativeHandle(ref, () => ({
+        focusTextarea: () => {
+            if (textareaRef.current) {
+                const focus = () => {
+                    textareaRef.current.focus();
+                    console.log('Textarea focused via parent ref');
+                };
+                
+                // Try multiple times with delays
+                setTimeout(focus, 100);
+                setTimeout(focus, 300);
+                setTimeout(focus, 500);
+            }
+        }
+    }));
+
+    // Internal focus logic for grid source
+    useEffect(() => {
+        if (isOpen && source === 'grid' && !hasFocusedRef.current) {
+            const focusTextarea = () => {
+                if (textareaRef.current && document.contains(textareaRef.current)) {
+                    textareaRef.current.focus();
+                    hasFocusedRef.current = true;
+                    console.log('Textarea focused internally for grid');
+                    return true;
+                }
+                return false;
+            };
+
+            // Try multiple times
+            const timeout1 = setTimeout(() => focusTextarea(), 200);
+            const timeout2 = setTimeout(() => focusTextarea(), 400);
+            const timeout3 = setTimeout(() => focusTextarea(), 600);
+            
+            return () => {
+                clearTimeout(timeout1);
+                clearTimeout(timeout2);
+                clearTimeout(timeout3);
+            };
+        }
+    }, [isOpen, source]);
+
+    // Reset focus flag when modal closes
+    useEffect(() => {
+        if (!isOpen) {
+            hasFocusedRef.current = false;
+        }
+    }, [isOpen]);
 
     // Filter projects based on selected workspace
     useEffect(() => {
@@ -625,7 +677,7 @@ const NewNoteModal = ({
             )}
         </Modal>
     );
-};
+});
 
 NewNoteModal.propTypes = {
     isOpen: PropTypes.bool.isRequired,
@@ -661,7 +713,8 @@ NewNoteModal.propTypes = {
             name: PropTypes.string.isRequired,
             text: PropTypes.string
         })
-    )
+    ),
+    source: PropTypes.oneOf(['grid', 'dashboard'])
 };
 
 NewNoteModal.defaultProps = {
@@ -669,7 +722,8 @@ NewNoteModal.defaultProps = {
     jobs: [],
     prefilledData: null,
     defWorkSpaceId: null,
-    userworksaces: []
+    userworksaces: [],
+    source: 'dashboard'
 };
 
 export default NewNoteModal;
