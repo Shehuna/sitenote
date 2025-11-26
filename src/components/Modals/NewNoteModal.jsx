@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo , useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import Modal from './Modal';
 import './NewNoteModal.css';
@@ -7,15 +7,15 @@ import toast from 'react-hot-toast';
 const NewNoteModal = ({
     isOpen,
     onClose,
-    projects =[],
+    projects = [],
     jobs = [],
     refreshNotes,
     addSiteNote,
     onUploadDocument,
+    onDeleteDocument,
     prefilledData = null,
     defWorkSpaceId,
-    userworksaces
-    
+    userworksaces = []
 }) => {
     const [activeTab, setActiveTab] = useState('journal');
     const [selectedProject, setSelectedProject] = useState('');
@@ -39,45 +39,49 @@ const NewNoteModal = ({
     const textareaRef = useRef(null);
     const [fetchedProjects, setFetchedProjects] = useState([]);
 
+    const [areDropdownsDisabled, setAreDropdownsDisabled] = useState(false);
+    
     const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
 
     const allowedFileTypes = {
-    // Images
-    'image/jpeg': ['.jpg', '.jpeg'],
-    'image/png': ['.png'],
-    'image/gif': ['.gif'],
-    'image/webp': ['.webp'],
-    'image/svg+xml': ['.svg'],
-    
-    // Documents
-    'application/pdf': ['.pdf'],
-    'application/msword': ['.doc'],
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-    'application/vnd.ms-excel': ['.xls'],
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-    'application/vnd.ms-powerpoint': ['.ppt'],
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
-    'text/plain': ['.txt'],
-    
-    // Audio
-    'audio/mpeg': ['.mp3'],
-    'audio/wav': ['.wav'],
-    'audio/ogg': ['.ogg'],
-    'audio/aac': ['.aac'],
-    
-    // Video
-    'video/mp4': ['.mp4'],
-    'video/mpeg': ['.mpeg'],
-    'video/ogg': ['.ogv'],
-    'video/webm': ['.webm'],
-    'video/quicktime': ['.mov'],
-    'video/x-msvideo': ['.avi']
-  };
+        'image/jpeg': ['.jpg', '.jpeg'],
+        'image/png': ['.png'],
+        'image/gif': ['.gif'],
+        'image/webp': ['.webp'],
+        'image/svg+xml': ['.svg'],
+        'application/pdf': ['.pdf'],
+        'application/msword': ['.doc'],
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+        'application/vnd.ms-excel': ['.xls'],
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+        'application/vnd.ms-powerpoint': ['.ppt'],
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
+        'text/plain': ['.txt'],
+        'audio/mpeg': ['.mp3'],
+        'audio/wav': ['.wav'],
+        'audio/ogg': ['.ogg'],
+        'audio/aac': ['.aac'],
+        'video/mp4': ['.mp4'],
+        'video/mpeg': ['.mpeg'],
+        'video/ogg': ['.ogv'],
+        'video/webm': ['.webm'],
+        'video/quicktime': ['.mov'],
+        'video/x-msvideo': ['.avi']
+    };
 
-  const MAX_FILE_SIZE = 5 * 1024 * 1024;
-  const isValidFileType = (file) => {
-    return Object.keys(allowedFileTypes).includes(file.type);
-  };
+    const MAX_FILE_SIZE = 5 * 1024 * 1024;
+    
+    const isValidFileType = (file) => {
+        return Object.keys(allowedFileTypes).includes(file.type);
+    };
+
+    // Debug effect
+    useEffect(() => {
+        console.log('NewNoteModal - prefilledData:', prefilledData);
+        console.log('NewNoteModal - projects:', projects);
+        console.log('NewNoteModal - jobs:', jobs);
+        console.log('NewNoteModal - userworksaces:', userworksaces);
+    }, [prefilledData, projects, jobs, userworksaces]);
 
     useEffect(() => {
         if (selectedWorkspace) {
@@ -85,22 +89,22 @@ const NewNoteModal = ({
                 project.workspaceID?.toString() === selectedWorkspace.toString() 
             );
             setFilteredProjects(filtered);
-            if (!filtered.some(project => project.id.toString() === selectedProject.toString() ) ) {
+            if (!filtered.some(project => project.id.toString() === selectedProject.toString())) {
                 setSelectedProject('');
             }
         } else {
             setFilteredProjects([]);
             setSelectedProject('');
         }
-    }, [selectedWorkspace, projects, selectedProject]);
+    }, [selectedWorkspace, fetchedProjects, selectedProject]);
   
     useEffect(() => {
         if (selectedProject) {
             const filtered = jobs.filter(job =>
-                job.projectId?.toString() === selectedProject.toString() && job.status == 1
+                job.projectId?.toString() === selectedProject.toString() && job.status === 1
             );
             setFilteredJobs(filtered);
-            if (!filtered.some(job => job.id.toString() === selectedJob.toString() ) ) {
+            if (!filtered.some(job => job.id.toString() === selectedJob.toString())) {
                 setSelectedJob('');
             }
         } else {
@@ -118,31 +122,11 @@ const NewNoteModal = ({
             setActiveTab('journal');
             setSelectedPriority('1');
 
-            if (prefilledData) {
-                const workspace = userworksaces.find(w => w.text === prefilledData.workspace);
-                if (workspace) {
-                    setSelectedWorkspace(workspace.id.toString());
-                }
-
-                const project = projects.find(p => p.name === prefilledData.project);
-                if (project) {
-                    setSelectedProject(project.id.toString());
-                }
-
-                if (prefilledData.job && project.id.toString()) {
-                    const job = jobs.find(j =>
-                        j.name === prefilledData.job &&
-                        j.projectId?.toString() === project.id.toString() &&
-                        j.status === 1
-                    );
-                    if (job) {
-                        setSelectedJob(job.id.toString());
-                    }
-                }
-            } else {
-                setSelectedProject('');
-                setSelectedJob('');
-            }
+            // Reset everything first
+            setSelectedWorkspace('');
+            setSelectedProject('');
+            setSelectedJob('');
+            setAreDropdownsDisabled(false);
             
             setNoteContent('');
             setDocuments([]);
@@ -152,32 +136,113 @@ const NewNoteModal = ({
             setErrors({});
             setIsSaving(false);
             setApiError(null);
-        }
-    }, [isOpen, prefilledData, fetchedProjects]);
 
-    // useEffect(() => {
-    //     if (prefilledData && prefilledData.job && selectedProject) {
-    //         const job = jobs.find(j =>
-    //             j.name === prefilledData.job &&
-    //             j.projectId?.toString() === selectedProject.toString()
-    //         );
-    //         if (job) {
-    //             setSelectedJob(job.id.toString());
-    //         }
-    //     }
-    // }, [selectedProject, prefilledData, jobs]);
+            // THEN check if we have prefilledData and set values accordingly
+            if (prefilledData) {
+                console.log('Setting from prefilledData:', prefilledData);
+                setAreDropdownsDisabled(true);
+                
+                // Set date if provided
+                if (prefilledData.date) {
+                    setSelectedDate(prefilledData.date);
+                }
+
+                // Find and set workspace
+                if (prefilledData.workspace) {
+                    const workspace = userworksaces.find(w => 
+                        w.name === prefilledData.workspace || 
+                        w.text === prefilledData.workspace
+                    );
+                    if (workspace) {
+                        console.log('Found workspace:', workspace);
+                        setSelectedWorkspace(workspace.id.toString());
+                    } else {
+                        console.log('Workspace not found for:', prefilledData.workspace);
+                    }
+                }
+
+                // Find and set project - look in both fetchedProjects and projects
+                if (prefilledData.project) {
+                    let project = fetchedProjects.find(p => 
+                        p.name === prefilledData.project || 
+                        p.text === prefilledData.project
+                    );
+                    
+                    if (!project) {
+                        project = projects.find(p => 
+                            p.name === prefilledData.project || 
+                            p.text === prefilledData.project
+                        );
+                    }
+                    
+                    if (project) {
+                        console.log('Found project:', project);
+                        setSelectedProject(project.id.toString());
+                    } else {
+                        console.log('Project not found for:', prefilledData.project);
+                    }
+                }
+
+                // Find and set job - wait for project to be set first
+                if (prefilledData.job && prefilledData.project) {
+                    // We need to wait for the project to be set and filteredJobs to update
+                    setTimeout(() => {
+                        const job = jobs.find(j =>
+                            j.name === prefilledData.job &&
+                            j.status === 1
+                        );
+                        if (job) {
+                            console.log('Found job:', job);
+                            setSelectedJob(job.id.toString());
+                        } else {
+                            console.log('Job not found for:', prefilledData.job);
+                        }
+                    }, 100);
+                }
+            }
+        }
+    }, [isOpen, prefilledData, fetchedProjects, projects, jobs, userworksaces]);
+
+    // Additional effect to handle job selection after project is set
+    useEffect(() => {
+        if (prefilledData && prefilledData.job && selectedProject) {
+            const job = jobs.find(j =>
+                j.name === prefilledData.job &&
+                j.projectId?.toString() === selectedProject.toString() &&
+                j.status === 1
+            );
+            if (job) {
+                console.log('Found job in second effect:', job);
+                setSelectedJob(job.id.toString());
+            }
+        }
+    }, [selectedProject, prefilledData, jobs]);
 
     useEffect(() => {
-      if (isOpen) {
-        const user = JSON.parse(localStorage.getItem('user'));
-        const userId = user ? user.id : 1;
-        fetch(`${apiUrl}/SiteNote/GetUniqueProjectsWithWorkspace?userId=${userId}`)
-          .then(r => r.json())
-          .then(d => setFetchedProjects(d.projects || []))
-          .catch(e => console.error(e));
-      }
-    }, [isOpen]);
-     
+        if (isOpen) {
+            const user = JSON.parse(localStorage.getItem('user'));
+            const userId = user ? user.id : 1;
+            fetch(`${apiUrl}/SiteNote/GetUniqueProjectsWithWorkspace?userId=${userId}`)
+                .then(r => r.json())
+                .then(d => {
+                    console.log('Fetched projects:', d.projects);
+                    setFetchedProjects(d.projects || []);
+                    
+                    // After fetching projects, try to set the project if we have prefilledData
+                    if (prefilledData && prefilledData.project) {
+                        const project = d.projects.find(p => 
+                            p.name === prefilledData.project || 
+                            p.text === prefilledData.project
+                        );
+                        if (project) {
+                            console.log('Found project after fetch:', project);
+                            setSelectedProject(project.id.toString());
+                        }
+                    }
+                })
+                .catch(e => console.error(e));
+        }
+    }, [isOpen, apiUrl, prefilledData]);
 
     const handleSaveJournal = async () => {
         const newErrors = {};
@@ -185,7 +250,6 @@ const NewNoteModal = ({
         if (!selectedJob) newErrors.job = "Please select a job";
         if (!selectedDate) newErrors.date = "Please select a date";
         if (!noteContent.trim()) newErrors.note = "Note content is required";
-        //if (!selectedPriority) newErrors.priority = "Please select a priority";
 
         if (Object.keys(newErrors).length > 0) {
             setErrors(newErrors);
@@ -211,7 +275,7 @@ const NewNoteModal = ({
             if (!siteNoteId) {
                 throw new Error("Failed to retrieve SiteNoteId from the saved note.");
             } 
-            console.log(siteNoteId)
+            
             console.log("Journal note saved successfully. SiteNoteId:", siteNoteId);
 
             for (const doc of documents) {
@@ -229,14 +293,13 @@ const NewNoteModal = ({
             }
 
             console.log("All documents processed.");
-            await handleAddPriority(siteNoteId,  user.id)
+            await handleAddPriority(siteNoteId, user.id);
             
             setTimeout(() => {
-            if (textareaRef.current) {
-                textareaRef.current.focus();
-            }
-        }, 0);
-        
+                if (textareaRef.current) {
+                    textareaRef.current.focus();
+                }
+            }, 0);
         
             refreshNotes();
             onClose();
@@ -247,11 +310,10 @@ const NewNoteModal = ({
             setIsSaving(false);
         }
     };
+
     const handleSaveShortcut = useCallback((event) => {
         if ((event.ctrlKey || event.metaKey) && event.key === 's') {
             event.preventDefault(); 
-            setNoteContent('');
-        
             if (!isSaving) {
                 handleSaveJournal();
             }
@@ -268,6 +330,7 @@ const NewNoteModal = ({
         };
     }, [isOpen, handleSaveShortcut]);
 
+    // Document handling functions
     const handleAddDocument = () => {
         setCurrentDocumentBeingEdited(null);
         setNewDocument({ name: '', file: null });
@@ -291,19 +354,14 @@ const NewNoteModal = ({
 
     const handleDocumentFileChange = (e) => {
         const file = e.target.files[0];
-    setError('');
+        setError('');
 
-    if (!isValidFileType(file)) {
-      setError('Invalid file type! ');
-      setSelectedFile(null);
-      return;
-    }
+        if (!isValidFileType(file)) {
+            setError('Invalid file type! ');
+            setSelectedFile(null);
+            return;
+        }
 
-    /* if (!isValidFileSize(file)) {
-      setError(`File size too large. Maximum allowed size is 5MB.`);
-      setSelectedFile(null);
-      return;
-    } */
         setNewDocument(prev => ({ ...prev, file: e.target.files[0] }));
     };
 
@@ -350,33 +408,33 @@ const NewNoteModal = ({
         setErrors({});
     };
 
-    const handleAddPriority =  async (noteId, userId) =>{
+    const handleAddPriority = async (noteId, userId) => {
         try {
-          const response = await fetch(
-            `${process.env.REACT_APP_API_BASE_URL}/api/Priority/AddPriority`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                noteID: noteId,
-                priorityValue: selectedPriority,
-                userId: userId
-              }),
-            }
-          );
+            const response = await fetch(
+                `${process.env.REACT_APP_API_BASE_URL}/api/Priority/AddPriority`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        noteID: noteId,
+                        priorityValue: selectedPriority,
+                        userId: userId
+                    }),
+                }
+            );
 
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || "Failed to save note");
-          }
-          toast.success('Note Successfully Saved')
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || "Failed to save note");
+            }
+            toast.success('Note Successfully Saved');
         } catch (error) {
-          console.error("API Error:", error);
-          throw error;
+            console.error("API Error:", error);
+            throw error;
         }
-    }
+    };
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="New Note">
@@ -399,7 +457,6 @@ const NewNoteModal = ({
                 >
                     Priority
                 </button>
-                
             </div>
 
             <div className="tab-content">
@@ -411,18 +468,17 @@ const NewNoteModal = ({
                                 value={selectedWorkspace}
                                 onChange={(e) => {
                                     setSelectedWorkspace(e.target.value);
-                                    //setErrors(prev => ({ ...prev, project: undefined, job: undefined }));
                                 }}
+                                disabled={areDropdownsDisabled}
                             >
-                                <option value="">
-                                    Select Workspace
-                                </option>
+                                <option value="">Select Workspace</option>
                                 {userworksaces.map(workspace => (
                                     <option key={workspace.id} value={workspace.id.toString()}>
-                                        {workspace.text} (ID: {workspace.id})
+                                        {workspace.name} (ID: {workspace.id})
                                     </option>
                                 ))}
                             </select>
+                            
                         </div>
                         <div className="form-group">
                             <label>Project</label>
@@ -433,6 +489,7 @@ const NewNoteModal = ({
                                     setSelectedProject(e.target.value);
                                     setErrors(prev => ({ ...prev, project: undefined, job: undefined }));
                                 }}
+                                disabled={areDropdownsDisabled}
                             >
                                 <option value="">Select Project</option>
                                 {filteredProjects && filteredProjects.map(project => (
@@ -441,6 +498,7 @@ const NewNoteModal = ({
                                     </option>
                                 ))}
                             </select>
+                            
                         </div>
 
                         <div className="form-group">
@@ -452,7 +510,7 @@ const NewNoteModal = ({
                                     setSelectedJob(e.target.value);
                                     setErrors(prev => ({ ...prev, job: undefined }));
                                 }}
-                                disabled={!selectedProject}
+                                disabled={areDropdownsDisabled || !selectedProject}
                             >
                                 <option value="">Select Job</option>
                                 {filteredJobs && filteredJobs.map(job => (
@@ -461,6 +519,7 @@ const NewNoteModal = ({
                                     </option>
                                 ))}
                             </select>
+                            
                         </div>
 
                         <div className="form-group">
@@ -541,25 +600,27 @@ const NewNoteModal = ({
                             )}
                         </div>
                     </div>
-                ): (<div className="journal-section">
-    <div className="form-group">
-        <label className="priority-label">Priority</label>
-        {errors.priority && <span className="error-message-inline">{errors.priority}</span>}
-        <select
-            value={selectedPriority}
-            onChange={(e) => {
-                setSelectedPriority(e.target.value);
-                setErrors(prev => ({ ...prev, priority: undefined }));
-            }}
-            className={`priority-select ${selectedPriority ? `priority-${selectedPriority}` : 'priority-default'} ${errors.priority ? 'error' : ''}`}
-        >
-            <option value="">Select Priority</option>
-            <option value="4" className="priority-option-4">High</option>
-            <option value="3" className="priority-option-3">Medium</option>
-            <option value="1" className="priority-option-1">No Priority</option>
-        </select>
-    </div>
-</div>)}
+                ) : (
+                    <div className="journal-section">
+                        <div className="form-group">
+                            <label className="priority-label">Priority</label>
+                            {errors.priority && <span className="error-message-inline">{errors.priority}</span>}
+                            <select
+                                value={selectedPriority}
+                                onChange={(e) => {
+                                    setSelectedPriority(e.target.value);
+                                    setErrors(prev => ({ ...prev, priority: undefined }));
+                                }}
+                                className={`priority-select ${selectedPriority ? `priority-${selectedPriority}` : 'priority-default'} ${errors.priority ? 'error' : ''}`}
+                            >
+                                <option value="">Select Priority</option>
+                                <option value="4" className="priority-option-4">High</option>
+                                <option value="3" className="priority-option-3">Medium</option>
+                                <option value="1" className="priority-option-1">No Priority</option>
+                            </select>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {apiError && (
@@ -615,7 +676,7 @@ const NewNoteModal = ({
                             )}
 
                             {error && (
-                                <p style={{color: 'red'}}>{error}</p>
+                                <p style={{ color: 'red' }}>{error}</p>
                             )}
                         </div>
 
@@ -653,7 +714,7 @@ NewNoteModal.propTypes = {
     refreshNotes: PropTypes.func.isRequired,
     addSiteNote: PropTypes.func.isRequired,
     onUploadDocument: PropTypes.func.isRequired,
-    onDeleteDocument: PropTypes.func.isRequired,
+    onDeleteDocument: PropTypes.func,
     projects: PropTypes.arrayOf(
         PropTypes.shape({
             id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
@@ -671,16 +732,25 @@ NewNoteModal.propTypes = {
     prefilledData: PropTypes.shape({
         project: PropTypes.string,
         job: PropTypes.string,
-        workspace: PropTypes.string
+        workspace: PropTypes.string,
+        date: PropTypes.string
     }),
-    defWorkSpaceId: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
+    defWorkSpaceId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    userworksaces: PropTypes.arrayOf(
+        PropTypes.shape({
+            id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+            name: PropTypes.string.isRequired,
+            text: PropTypes.string
+        })
+    )
 };
 
 NewNoteModal.defaultProps = {
     projects: [],
     jobs: [],
     prefilledData: null,
-    defWorkSpaceId: null
+    defWorkSpaceId: null,
+    userworksaces: []
 };
 
 export default NewNoteModal;
