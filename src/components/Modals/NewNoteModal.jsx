@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import Modal from './Modal';
 import './NewNoteModal.css';
@@ -17,6 +17,7 @@ const NewNoteModal = ({
     defWorkSpaceId,
     userworksaces = []
 }) => {
+    // State declarations
     const [activeTab, setActiveTab] = useState('journal');
     const [selectedProject, setSelectedProject] = useState('');
     const [selectedPriority, setSelectedPriority] = useState('1');
@@ -32,57 +33,28 @@ const NewNoteModal = ({
     const [currentDocumentBeingEdited, setCurrentDocumentBeingEdited] = useState(null);
     const [errors, setErrors] = useState({});
     const [error, setError] = useState(null);
-    const [selectedFile, setSelectedFile] = useState(null);
-    
     const [isSaving, setIsSaving] = useState(false);
     const [apiError, setApiError] = useState(null);
-    const textareaRef = useRef(null);
     const [fetchedProjects, setFetchedProjects] = useState([]);
-
     const [areDropdownsDisabled, setAreDropdownsDisabled] = useState(false);
-    
+
+    const textareaRef = useRef(null);
     const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
 
-    const allowedFileTypes = {
-        'image/jpeg': ['.jpg', '.jpeg'],
-        'image/png': ['.png'],
-        'image/gif': ['.gif'],
-        'image/webp': ['.webp'],
-        'image/svg+xml': ['.svg'],
-        'application/pdf': ['.pdf'],
-        'application/msword': ['.doc'],
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-        'application/vnd.ms-excel': ['.xls'],
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-        'application/vnd.ms-powerpoint': ['.ppt'],
-        'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
-        'text/plain': ['.txt'],
-        'audio/mpeg': ['.mp3'],
-        'audio/wav': ['.wav'],
-        'audio/ogg': ['.ogg'],
-        'audio/aac': ['.aac'],
-        'video/mp4': ['.mp4'],
-        'video/mpeg': ['.mpeg'],
-        'video/ogg': ['.ogv'],
-        'video/webm': ['.webm'],
-        'video/quicktime': ['.mov'],
-        'video/x-msvideo': ['.avi']
+    // Constants
+    const ALLOWED_FILE_TYPES = {
+        'image/jpeg': ['.jpg', '.jpeg'], 'image/png': ['.png'], 'image/gif': ['.gif'],
+        'image/webp': ['.webp'], 'image/svg+xml': ['.svg'], 'application/pdf': ['.pdf'],
+        'application/msword': ['.doc'], 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+        'application/vnd.ms-excel': ['.xls'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+        'application/vnd.ms-powerpoint': ['.ppt'], 'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
+        'text/plain': ['.txt'], 'audio/mpeg': ['.mp3'], 'audio/wav': ['.wav'],
+        'audio/ogg': ['.ogg'], 'audio/aac': ['.aac'], 'video/mp4': ['.mp4'],
+        'video/mpeg': ['.mpeg'], 'video/ogg': ['.ogv'], 'video/webm': ['.webm'],
+        'video/quicktime': ['.mov'], 'video/x-msvideo': ['.avi']
     };
 
-    const MAX_FILE_SIZE = 5 * 1024 * 1024;
-    
-    const isValidFileType = (file) => {
-        return Object.keys(allowedFileTypes).includes(file.type);
-    };
-
-    // Debug effect
-    useEffect(() => {
-        console.log('NewNoteModal - prefilledData:', prefilledData);
-        console.log('NewNoteModal - projects:', projects);
-        console.log('NewNoteModal - jobs:', jobs);
-        console.log('NewNoteModal - userworksaces:', userworksaces);
-    }, [prefilledData, projects, jobs, userworksaces]);
-
+    // Filter projects based on selected workspace
     useEffect(() => {
         if (selectedWorkspace) {
             const filtered = fetchedProjects.filter(project =>
@@ -98,6 +70,7 @@ const NewNoteModal = ({
         }
     }, [selectedWorkspace, fetchedProjects, selectedProject]);
   
+    // Filter jobs based on selected project
     useEffect(() => {
         if (selectedProject) {
             const filtered = jobs.filter(job =>
@@ -113,6 +86,7 @@ const NewNoteModal = ({
         }
     }, [selectedProject, jobs, selectedJob]);
 
+    // Initialize modal state when opened
     useEffect(() => {
         if (isOpen) {
             const today = new Date();
@@ -122,12 +96,11 @@ const NewNoteModal = ({
             setActiveTab('journal');
             setSelectedPriority('1');
 
-            // Reset everything first
+            // Reset states
             setSelectedWorkspace('');
             setSelectedProject('');
             setSelectedJob('');
             setAreDropdownsDisabled(false);
-            
             setNoteContent('');
             setDocuments([]);
             setNewDocument({ name: '', file: null });
@@ -137,113 +110,83 @@ const NewNoteModal = ({
             setIsSaving(false);
             setApiError(null);
 
-            // THEN check if we have prefilledData and set values accordingly
+            // Handle prefilled data
             if (prefilledData) {
-                console.log('Setting from prefilledData:', prefilledData);
                 setAreDropdownsDisabled(true);
-                
-                // Set date if provided
                 if (prefilledData.date) {
                     setSelectedDate(prefilledData.date);
                 }
-
-                // Find and set workspace
-                if (prefilledData.workspace) {
-                    const workspace = userworksaces.find(w => 
-                        w.name === prefilledData.workspace || 
-                        w.text === prefilledData.workspace
-                    );
-                    if (workspace) {
-                        console.log('Found workspace:', workspace);
-                        setSelectedWorkspace(workspace.id.toString());
-                    } else {
-                        console.log('Workspace not found for:', prefilledData.workspace);
-                    }
-                }
-
-                // Find and set project - look in both fetchedProjects and projects
-                if (prefilledData.project) {
-                    let project = fetchedProjects.find(p => 
-                        p.name === prefilledData.project || 
-                        p.text === prefilledData.project
-                    );
-                    
-                    if (!project) {
-                        project = projects.find(p => 
-                            p.name === prefilledData.project || 
-                            p.text === prefilledData.project
-                        );
-                    }
-                    
-                    if (project) {
-                        console.log('Found project:', project);
-                        setSelectedProject(project.id.toString());
-                    } else {
-                        console.log('Project not found for:', prefilledData.project);
-                    }
-                }
-
-                // Find and set job - wait for project to be set first
-                if (prefilledData.job && prefilledData.project) {
-                    // We need to wait for the project to be set and filteredJobs to update
-                    setTimeout(() => {
-                        const job = jobs.find(j =>
-                            j.name === prefilledData.job &&
-                            j.status === 1
-                        );
-                        if (job) {
-                            console.log('Found job:', job);
-                            setSelectedJob(job.id.toString());
-                        } else {
-                            console.log('Job not found for:', prefilledData.job);
-                        }
-                    }, 100);
-                }
             }
         }
-    }, [isOpen, prefilledData, fetchedProjects, projects, jobs, userworksaces]);
+    }, [isOpen, prefilledData]);
 
-    // Additional effect to handle job selection after project is set
+    // Fetch projects and handle prefilled data matching
     useEffect(() => {
-        if (prefilledData && prefilledData.job && selectedProject) {
+        if (isOpen) {
+            const user = JSON.parse(localStorage.getItem('user'));
+            const userId = user ? user.id : 1;
+            
+            fetch(`${apiUrl}/SiteNote/GetUniqueProjectsWithWorkspace?userId=${userId}`)
+                .then(r => r.json())
+                .then(d => {
+                    const projectsData = d.projects || [];
+                    setFetchedProjects(projectsData);
+                    
+                    if (prefilledData) {
+                        handlePrefilledDataMatching(projectsData);
+                    }
+                })
+                .catch(e => console.error('Error fetching projects:', e));
+        }
+    }, [isOpen, apiUrl, prefilledData]);
+
+    // Handle prefilled data matching
+    const handlePrefilledDataMatching = useCallback((projectsData) => {
+        if (!prefilledData) return;
+
+        // Set workspace
+        if (prefilledData.workspace) {
+            const workspace = userworksaces.find(w => 
+                w.name === prefilledData.workspace || w.text === prefilledData.workspace
+            );
+            if (workspace) {
+                setSelectedWorkspace(workspace.id.toString());
+            }
+        }
+
+        // Set project
+        if (prefilledData.project) {
+            let project = projectsData.find(p => 
+                p.name === prefilledData.project || p.text === prefilledData.project
+            );
+            
+            if (!project) {
+                project = projects.find(p => 
+                    p.name === prefilledData.project || p.text === prefilledData.project
+                );
+            }
+            
+            if (project) {
+                setSelectedProject(project.id.toString());
+            }
+        }
+    }, [prefilledData, userworksaces, projects]);
+
+    // Handle job selection after project is set
+    useEffect(() => {
+        if (prefilledData?.job && selectedProject) {
             const job = jobs.find(j =>
                 j.name === prefilledData.job &&
                 j.projectId?.toString() === selectedProject.toString() &&
                 j.status === 1
             );
             if (job) {
-                console.log('Found job in second effect:', job);
                 setSelectedJob(job.id.toString());
             }
         }
     }, [selectedProject, prefilledData, jobs]);
 
-    useEffect(() => {
-        if (isOpen) {
-            const user = JSON.parse(localStorage.getItem('user'));
-            const userId = user ? user.id : 1;
-            fetch(`${apiUrl}/SiteNote/GetUniqueProjectsWithWorkspace?userId=${userId}`)
-                .then(r => r.json())
-                .then(d => {
-                    console.log('Fetched projects:', d.projects);
-                    setFetchedProjects(d.projects || []);
-                    
-                    // After fetching projects, try to set the project if we have prefilledData
-                    if (prefilledData && prefilledData.project) {
-                        const project = d.projects.find(p => 
-                            p.name === prefilledData.project || 
-                            p.text === prefilledData.project
-                        );
-                        if (project) {
-                            console.log('Found project after fetch:', project);
-                            setSelectedProject(project.id.toString());
-                        }
-                    }
-                })
-                .catch(e => console.error(e));
-        }
-    }, [isOpen, apiUrl, prefilledData]);
-
+    // Save journal note
     const handleSaveJournal = async () => {
         const newErrors = {};
         if (!selectedProject) newErrors.project = "Please select a project";
@@ -261,7 +204,6 @@ const NewNoteModal = ({
 
         try {
             const user = JSON.parse(localStorage.getItem('user'));
-           
             const noteData = {
                 note: noteContent,
                 date: new Date(selectedDate).toISOString(),
@@ -274,33 +216,16 @@ const NewNoteModal = ({
 
             if (!siteNoteId) {
                 throw new Error("Failed to retrieve SiteNoteId from the saved note.");
-            } 
-            
-            console.log("Journal note saved successfully. SiteNoteId:", siteNoteId);
+            }
 
+            // Upload documents
             for (const doc of documents) {
                 if (doc.file) {
-                    console.log(`Uploading staged document: ${doc.name} (${doc.file.name})`);
-                    
-                    const uploadResult = await onUploadDocument(doc.name, doc.file, siteNoteId);
-                    
-                    if (uploadResult.success) {
-                        console.log(`Document "${doc.name}" uploaded successfully.`);
-                    } else {
-                        console.error(`Failed to upload document "${doc.name}":`, uploadResult.error);
-                    }
+                    await onUploadDocument(doc.name, doc.file, siteNoteId);
                 }
             }
 
-            console.log("All documents processed.");
             await handleAddPriority(siteNoteId, user.id);
-            
-            setTimeout(() => {
-                if (textareaRef.current) {
-                    textareaRef.current.focus();
-                }
-            }, 0);
-        
             refreshNotes();
             onClose();
         } catch (error) {
@@ -311,23 +236,19 @@ const NewNoteModal = ({
         }
     };
 
+    // Keyboard shortcut for save
     const handleSaveShortcut = useCallback((event) => {
-        if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+        if ((event.ctrlKey || event.metaKey) && event.key === 's' && !isSaving) {
             event.preventDefault(); 
-            if (!isSaving) {
-                handleSaveJournal();
-            }
+            handleSaveJournal();
         }
     }, [isSaving, handleSaveJournal]);
 
     useEffect(() => {
         if (isOpen) {
             document.addEventListener('keydown', handleSaveShortcut);
+            return () => document.removeEventListener('keydown', handleSaveShortcut);
         }
-
-        return () => {
-            document.removeEventListener('keydown', handleSaveShortcut);
-        };
     }, [isOpen, handleSaveShortcut]);
 
     // Document handling functions
@@ -347,9 +268,12 @@ const NewNoteModal = ({
 
     const handleDeleteDocument = (indexToDelete) => {
         if (window.confirm('Are you sure you want to remove this document from the list? It will not be saved.')) {
-            const updatedDocuments = documents.filter((_, i) => i !== indexToDelete);
-            setDocuments(updatedDocuments);
+            setDocuments(prev => prev.filter((_, i) => i !== indexToDelete));
         }
+    };
+
+    const isValidFileType = (file) => {
+        return Object.keys(ALLOWED_FILE_TYPES).includes(file.type);
     };
 
     const handleDocumentFileChange = (e) => {
@@ -357,12 +281,11 @@ const NewNoteModal = ({
         setError('');
 
         if (!isValidFileType(file)) {
-            setError('Invalid file type! ');
-            setSelectedFile(null);
+            setError('Invalid file type!');
             return;
         }
 
-        setNewDocument(prev => ({ ...prev, file: e.target.files[0] }));
+        setNewDocument(prev => ({ ...prev, file }));
     };
 
     const handleDocumentSubmit = () => {
@@ -373,9 +296,6 @@ const NewNoteModal = ({
         }
         if (!currentDocumentBeingEdited && !newDocument.file) {
             newDocErrors.newDocumentFile = "Please select a file to add.";
-        }
-        if (currentDocumentBeingEdited && !currentDocumentBeingEdited.file && !newDocument.file) {
-            newDocErrors.newDocumentFile = "Please select a file or retain the existing one.";
         }
 
         if (Object.keys(newDocErrors).length > 0) {
@@ -391,15 +311,11 @@ const NewNoteModal = ({
         };
 
         if (currentDocumentBeingEdited) {
-            setDocuments(prevDocs =>
-                prevDocs.map(doc =>
-                    doc.id === currentDocumentBeingEdited.id
-                        ? { ...doc, ...docToStage }
-                        : doc
-                )
-            );
+            setDocuments(prev => prev.map(doc => 
+                doc.id === currentDocumentBeingEdited.id ? { ...doc, ...docToStage } : doc
+            ));
         } else {
-            setDocuments(prevDocs => [...prevDocs, docToStage]);
+            setDocuments(prev => [...prev, docToStage]);
         }
 
         setShowDocumentModal(false);
@@ -410,20 +326,15 @@ const NewNoteModal = ({
 
     const handleAddPriority = async (noteId, userId) => {
         try {
-            const response = await fetch(
-                `${process.env.REACT_APP_API_BASE_URL}/api/Priority/AddPriority`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        noteID: noteId,
-                        priorityValue: selectedPriority,
-                        userId: userId
-                    }),
-                }
-            );
+            const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Priority/AddPriority`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    noteID: noteId,
+                    priorityValue: selectedPriority,
+                    userId: userId
+                }),
+            });
 
             if (!response.ok) {
                 const errorData = await response.json();
@@ -436,214 +347,224 @@ const NewNoteModal = ({
         }
     };
 
-    return (
-        <Modal isOpen={isOpen} onClose={onClose} title="New Note">
-            <div className="tabs">
-                <button
-                    className={`tab-button ${activeTab === 'journal' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('journal')}
-                >
-                    Journal
-                </button>
-                <button
-                    className={`tab-button ${activeTab === 'documents' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('documents')}
-                >
-                    Documents ({documents.length})
-                </button>
-                <button
-                    className={`tab-button ${activeTab === 'priority' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('priority')}
-                >
-                    Priority
+    // Tab content components
+    const renderJournalTab = () => (
+        <div className="journal-section">
+            <div className="form-row">
+                <div className="form-group">
+                    <label>Workspace</label>
+                    <select
+                        value={selectedWorkspace}
+                        onChange={(e) => setSelectedWorkspace(e.target.value)}
+                        disabled={areDropdownsDisabled}
+                    >
+                        <option value="">Select Workspace</option>
+                        {userworksaces.map(workspace => (
+                            <option key={workspace.id} value={workspace.id.toString()}>
+                                {workspace.name}
+                            </option>
+                        ))}
+                    </select>
+                    
+                </div>
+                
+                <div className="form-group">
+                    <label>Project {errors.project && <span className="error-message-inline">{errors.project}</span>}</label>
+                    <select
+                        value={selectedProject}
+                        onChange={(e) => {
+                            setSelectedProject(e.target.value);
+                            setErrors(prev => ({ ...prev, project: undefined, job: undefined }));
+                        }}
+                        disabled={areDropdownsDisabled}
+                    >
+                        <option value="">Select Project</option>
+                        {filteredProjects.map(project => (
+                            <option key={project.id} value={project.id.toString()}>
+                                {project.text}
+                            </option>
+                        ))}
+                    </select>
+                    
+                </div>
+            </div>
+
+            <div className="form-row">
+                <div className="form-group">
+                    <label>Job {errors.job && <span className="error-message-inline">{errors.job}</span>}</label>
+                    <select
+                        value={selectedJob}
+                        onChange={(e) => {
+                            setSelectedJob(e.target.value);
+                            setErrors(prev => ({ ...prev, job: undefined }));
+                        }}
+                        disabled={areDropdownsDisabled || !selectedProject}
+                    >
+                        <option value="">Select Job</option>
+                        {filteredJobs.map(job => (
+                            <option key={job.id} value={job.id.toString()}>
+                                {job.name}
+                            </option>
+                        ))}
+                    </select>
+                    
+                </div>
+
+                <div className="form-group">
+                    <label>Date {errors.date && <span className="error-message-inline">{errors.date}</span>}</label>
+                    <input
+                        type="date"
+                        value={selectedDate}
+                        onChange={(e) => {
+                            setSelectedDate(e.target.value);
+                            setErrors(prev => ({ ...prev, date: undefined }));
+                        }}
+                    />
+                </div>
+            </div>
+
+            <div className="form-group full-width">
+                <label>Note {errors.note && <span className="error-message-inline">{errors.note}</span>}</label>
+                <textarea
+                    ref={textareaRef}
+                    value={noteContent}
+                    onChange={(e) => {
+                        setNoteContent(e.target.value);
+                        setErrors(prev => ({ ...prev, note: undefined }));
+                    }}
+                    placeholder="Write your note here..."
+                    rows="4"
+                />
+            </div>
+        </div>
+    );
+
+    const renderDocumentsTab = () => (
+        <div className="documents-section">
+            <div className="document-actions">
+                <button className="add-button" onClick={handleAddDocument}>
+                    Add Document
                 </button>
             </div>
 
-            <div className="tab-content">
-                {activeTab === 'journal' ? (
-                    <div className="journal-section">
-                        <div className="form-group">
-                            <label>Workspace</label>
-                            <select
-                                value={selectedWorkspace}
-                                onChange={(e) => {
-                                    setSelectedWorkspace(e.target.value);
-                                }}
-                                disabled={areDropdownsDisabled}
-                            >
-                                <option value="">Select Workspace</option>
-                                {userworksaces.map(workspace => (
-                                    <option key={workspace.id} value={workspace.id.toString()}>
-                                        {workspace.name} (ID: {workspace.id})
-                                    </option>
-                                ))}
-                            </select>
-                            
-                        </div>
-                        <div className="form-group">
-                            <label>Project</label>
-                            {errors.project && <span className="error-message-inline">{errors.project}</span>}
-                            <select
-                                value={selectedProject}
-                                onChange={(e) => {
-                                    setSelectedProject(e.target.value);
-                                    setErrors(prev => ({ ...prev, project: undefined, job: undefined }));
-                                }}
-                                disabled={areDropdownsDisabled}
-                            >
-                                <option value="">Select Project</option>
-                                {filteredProjects && filteredProjects.map(project => (
-                                    <option key={project.id} value={project.id.toString()}>
-                                        {project.text} (ID: {project.id})
-                                    </option>
-                                ))}
-                            </select>
-                            
-                        </div>
-
-                        <div className="form-group">
-                            <label>Job</label>
-                            {errors.job && <span className="error-message-inline">{errors.job}</span>}
-                            <select
-                                value={selectedJob}
-                                onChange={(e) => {
-                                    setSelectedJob(e.target.value);
-                                    setErrors(prev => ({ ...prev, job: undefined }));
-                                }}
-                                disabled={areDropdownsDisabled || !selectedProject}
-                            >
-                                <option value="">Select Job</option>
-                                {filteredJobs && filteredJobs.map(job => (
-                                    <option key={job.id} value={job.id.toString()}>
-                                        {job.name} (ID: {job.id})
-                                    </option>
-                                ))}
-                            </select>
-                            
-                        </div>
-
-                        <div className="form-group">
-                            <label>Date</label>
-                            {errors.date && <span className="error-message-inline">{errors.date}</span>}
-                            <input
-                                type="date"
-                                value={selectedDate}
-                                onChange={(e) => {
-                                    setSelectedDate(e.target.value);
-                                    setErrors(prev => ({ ...prev, date: undefined }));
-                                }}
-                            />
-                        </div>
-
-                        <div className="form-group">
-                            <label>Note</label>
-                            {errors.note && <span className="error-message-inline">{errors.note}</span>}
-                            <textarea
-                                ref={textareaRef}
-                                value={noteContent}
-                                onChange={(e) => {
-                                    setNoteContent(e.target.value);
-                                    setErrors(prev => ({ ...prev, note: undefined }));
-                                }}
-                                placeholder="Write your note here..."
-                                rows="6"
-                            />
-                        </div>
-                        {errors.priority && <span className="error-message-inline">{errors.priority}</span>}
-                    </div>
-                ) : activeTab === 'documents' ? (
-                    <div className="documents-section">
-                        <div className="document-actions">
-                            <button
-                                className="add-button"
-                                onClick={handleAddDocument}
-                            >
-                                Add Document
-                            </button>
-                        </div>
-
-                        <div className="documents-list">
-                            {documents.length === 0 ? (
-                                <p>No documents attached</p>
-                            ) : (
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Document Name</th>
-                                            <th>File Name</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {documents.map((doc, index) => (
-                                            <tr key={doc.id || index}>
-                                                <td>{doc.name}</td>
-                                                <td>{doc.fileName || 'N/A'}</td>
-                                                <td>
-                                                    <button
-                                                        onClick={() => handleEditDocument(doc)}
-                                                        className="edit-button"
-                                                    >
-                                                        Edit
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDeleteDocument(index)}
-                                                        className="delete-button"
-                                                    >
-                                                        Delete
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            )}
-                        </div>
-                    </div>
+            <div className="documents-list">
+                {documents.length === 0 ? (
+                    <p className="no-documents">No documents attached</p>
                 ) : (
-                    <div className="journal-section">
-                        <div className="form-group">
-                            <label className="priority-label">Priority</label>
-                            {errors.priority && <span className="error-message-inline">{errors.priority}</span>}
-                            <select
-                                value={selectedPriority}
-                                onChange={(e) => {
-                                    setSelectedPriority(e.target.value);
-                                    setErrors(prev => ({ ...prev, priority: undefined }));
-                                }}
-                                className={`priority-select ${selectedPriority ? `priority-${selectedPriority}` : 'priority-default'} ${errors.priority ? 'error' : ''}`}
-                            >
-                                <option value="">Select Priority</option>
-                                <option value="4" className="priority-option-4">High</option>
-                                <option value="3" className="priority-option-3">Medium</option>
-                                <option value="1" className="priority-option-1">No Priority</option>
-                            </select>
-                        </div>
-                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Document Name</th>
+                                <th>File Name</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {documents.map((doc, index) => (
+                                <tr key={doc.id || index}>
+                                    <td>{doc.name}</td>
+                                    <td>{doc.fileName || 'N/A'}</td>
+                                    <td>
+                                        <button onClick={() => handleEditDocument(doc)} className="edit-button">
+                                            Edit
+                                        </button>
+                                        <button onClick={() => handleDeleteDocument(index)} className="delete-button">
+                                            Delete
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 )}
             </div>
+        </div>
+    );
 
-            {apiError && (
-                <div className="error-message">
-                    {apiError}
-                    <button onClick={() => setApiError(null)} className="dismiss-error">X</button>
-                </div>
-            )}
-
-            <div className="modal-footer">
-                <button className="cancel-button" onClick={onClose} disabled={isSaving}>
-                    Cancel
-                </button>
-
-                <button
-                    className="save-button"
-                    onClick={handleSaveJournal}
-                    disabled={isSaving}
+    const renderPriorityTab = () => (
+        <div className="journal-section">
+            <div className="form-group">
+                <label className="priority-label">Priority {errors.priority && <span className="error-message-inline">{errors.priority}</span>}</label>
+                <select
+                    value={selectedPriority}
+                    onChange={(e) => {
+                        setSelectedPriority(e.target.value);
+                        setErrors(prev => ({ ...prev, priority: undefined }));
+                    }}
+                    className={`priority-select ${selectedPriority ? `priority-${selectedPriority}` : ''} ${errors.priority ? 'error' : ''}`}
                 >
-                    {isSaving ? "Saving..." : "Save"}
-                </button>
+                    <option value="">Select Priority</option>
+                    <option value="4" className="priority-option-4">High</option>
+                    <option value="3" className="priority-option-3">Medium</option>
+                    <option value="1" className="priority-option-1">No Priority</option>
+                </select>
+            </div>
+        </div>
+    );
+
+    const renderTabContent = () => {
+        switch (activeTab) {
+            case 'journal': return renderJournalTab();
+            case 'documents': return renderDocumentsTab();
+            case 'priority': return renderPriorityTab();
+            default: return renderJournalTab();
+        }
+    };
+
+    return (
+        <Modal 
+            isOpen={isOpen} 
+            onClose={onClose} 
+            title="New Note"
+            className="new-note-modal"
+            maxHeight="85vh"
+        >
+            <div className="modal-content-wrapper">
+                <div className="tabs-container">
+                    <div className="tabs">
+                        <button 
+                            className={`tab-button ${activeTab === 'journal' ? 'active' : ''}`} 
+                            onClick={() => setActiveTab('journal')}
+                        >
+                            Journal
+                        </button>
+                        <button 
+                            className={`tab-button ${activeTab === 'documents' ? 'active' : ''}`} 
+                            onClick={() => setActiveTab('documents')}
+                        >
+                            Documents ({documents.length})
+                        </button>
+                        <button 
+                            className={`tab-button ${activeTab === 'priority' ? 'active' : ''}`} 
+                            onClick={() => setActiveTab('priority')}
+                        >
+                            Priority
+                        </button>
+                    </div>
+                </div>
+
+                <div className="tab-content-scrollable">
+                    {renderTabContent()}
+                </div>
+
+                {apiError && (
+                    <div className="error-message sticky-error">
+                        {apiError}
+                        <button onClick={() => setApiError(null)} className="dismiss-error">×</button>
+                    </div>
+                )}
+
+                <div className="modal-footer sticky-footer">
+                    <button className="cancel-button" onClick={onClose} disabled={isSaving}>
+                        Cancel
+                    </button>
+                    <button className="save-button" onClick={handleSaveJournal} disabled={isSaving}>
+                        {isSaving ? "Saving..." : "Save"}
+                    </button>
+                </div>
             </div>
 
+            {/* Document Modal */}
             {showDocumentModal && (
                 <div className="document-modal-overlay">
                     <div className="document-modal">
@@ -674,9 +595,8 @@ const NewNoteModal = ({
                             {newDocument.file && (
                                 <p>Selected file: {newDocument.file.name}</p>
                             )}
-
                             {error && (
-                                <p style={{ color: 'red' }}>{error}</p>
+                                <p className="file-error">{error}</p>
                             )}
                         </div>
 
@@ -692,7 +612,6 @@ const NewNoteModal = ({
                             >
                                 Cancel
                             </button>
-
                             <button
                                 onClick={handleDocumentSubmit}
                                 className="submit-button"
