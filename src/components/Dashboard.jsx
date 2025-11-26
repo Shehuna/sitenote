@@ -1138,6 +1138,8 @@ const fetchWorkspacesByUserId = async () => {
                               : notePriority.priorityValue === 4
                                 ? "#e74c3c"
                                 : "#bdc3c7",
+                                cursor: "pointer", 
+                                zIndex: 1 
                         }}
                         title={
                           notePriority.priorityValue === 3
@@ -1146,6 +1148,12 @@ const fetchWorkspacesByUserId = async () => {
                               ? "High Priority"
                               : "Low Priority"
                         }
+                        onClick={(e) => {
+                        e.stopPropagation(); 
+                        handleEdit(n); 
+                        setTimeout(() => {
+                        }, 100);
+                      }}
                       />
                     )}
                   </div>
@@ -1322,11 +1330,18 @@ const fetchWorkspacesByUserId = async () => {
                 {notePriority && notePriority.priorityValue > 1 && (
                 <div 
                   className={`priority-indicator priority-${notePriority.priorityValue}`}
+                  style={{
+                    cursor: "pointer"
+                  }}
                   title={
                     notePriority.priorityValue === 2 ? 'Low Priority' :
                     notePriority.priorityValue === 3 ? 'Medium Priority' :
                     notePriority.priorityValue === 4 ? 'High Priority' : 'No Priority'
                   }
+                  onClick={(e) => {
+                  e.stopPropagation();
+                  handleEdit(note); 
+                }}
                 />
               )}
                 <button
@@ -1562,6 +1577,7 @@ const fetchWorkspacesByUserId = async () => {
           priorities={priorities}
           defaultUserWorkspaceID={defaultUserWorkspaceID}
           onPriorityUpdate={handlePriorityUpdate}
+          openToPriorityTab={true}
         />
       )}
       {showAttachedFileModal && selectedFileNote && (
