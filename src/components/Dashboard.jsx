@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import PropTypes from "prop-types";
 import "./Dashboard.css";
 import NewNoteModal from "./Modals/NewNoteModal";
@@ -26,6 +26,7 @@ const Dashboard = ({
   onUpdateDefaultWorkspace,
   fetchProjectAndJobs,
 }) => {
+  // All state declarations consolidated at the top
   const [searchTerm, setSearchTerm] = useState(() => {
     const saved = localStorage.getItem('dashboardSearchTerm');
     return saved || "";
@@ -34,7 +35,6 @@ const Dashboard = ({
     const saved = localStorage.getItem('dashboardSearchResults');
     return saved ? JSON.parse(saved) : [];
   });
-  
   const [hierarchy, setHierarchy] = useState(() => {
     const saved = localStorage.getItem('dashboardHierarchy');
     return saved ? JSON.parse(saved) : [];
@@ -43,6 +43,47 @@ const Dashboard = ({
     const saved = localStorage.getItem('dashboardSelectedValues');
     return saved ? JSON.parse(saved) : {};
   });
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showNewModal, setShowNewModal] = useState(false);
+  const [selectedNote, setSelectedNote] = useState(null);
+  const [showAttachedFileModal, setShowAttachedFileModal] = useState(false);
+  const [selectedFileNote, setSelectedFileNote] = useState(null);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [viewNote, setViewNote] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [noteToDelete, setNoteToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [showFilterDialog, setShowFilterDialog] = useState(false);
+  const [currentFilterColumn, setCurrentFilterColumn] = useState(null);
+  const [uniqueProjects, setUniqueProjects] = useState([]);
+  const [uniqueJobs, setUniqueJobs] = useState([]);
+  const [uniqueWorkspaces, setUniqueWorkspaces] = useState([]);
+  const [uniqueDates, setUniqueDates] = useState([]);
+  const [uniqueUsernames, setUniqueUsernames] = useState([]);
+  const [filteredNotes, setFilteredNotes] = useState([]);
+  const [loadingFiltered, setLoadingFiltered] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
+  const [priorities, setPriorities] = useState([]);
+  const [role, setRole] = useState(null);
+  const [isRoleLoading, setIsRoleLoading] = useState(false);
+  const [loadingUniques, setLoadingUniques] = useState(true);
+  const [userWorkspaces, setUserWorkspaces] = useState();
+  const [userWorkspace, setUserWorkspace] = useState();
+  const [focusedRow, setFocusedRow] = useState(null);
+  const [selectedRow, setSelectedRow] = useState(null);
+  const [searchColumn, setSearchColumn] = useState('');
+  const [prefilledData, setPrefilledData] = useState(null);
+  const [showRequestWorkspaceModal, setShowRequestWorkspaceModal] = useState(false);
+  const [viewMode, setViewMode] = useState('table');
+  const [modalSource, setModalSource] = useState('dashboard');
+
+  // Add ref for NewNoteModal
+  const newNoteModalRef = useRef();
+
+  const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
 
   useEffect(() => {
     localStorage.setItem('dashboardSearchTerm', searchTerm);
@@ -119,44 +160,6 @@ const Dashboard = ({
       justifyContent: 'center'
     },
   };
-
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [showNewModal, setShowNewModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedNote, setSelectedNote] = useState(null);
-  const [showAttachedFileModal, setShowAttachedFileModal] = useState(false);
-  const [selectedFileNote, setSelectedFileNote] = useState(null);
-  const [showViewModal, setShowViewModal] = useState(false);
-  const [viewNote, setViewNote] = useState(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [noteToDelete, setNoteToDelete] = useState(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [showFilterDialog, setShowFilterDialog] = useState(false);
-  const [currentFilterColumn, setCurrentFilterColumn] = useState(null);
-  const [uniqueProjects, setUniqueProjects] = useState([]);
-  const [uniqueJobs, setUniqueJobs] = useState([]);
-  const [uniqueWorkspaces, setUniqueWorkspaces] = useState([]);
-  const [uniqueDates, setUniqueDates] = useState([]);
-  const [uniqueUsernames, setUniqueUsernames] = useState([]);
-  const [filteredNotes, setFilteredNotes] = useState([]);
-  const [loadingFiltered, setLoadingFiltered] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [isDataLoaded, setIsDataLoaded] = useState(false);
-  const [priorities, setPriorities] = useState([]);
-  const [role, setRole] = useState(null)
-  const [isRoleLoading, setIsRoleLoading] = useState(false);
-  const [loadingUniques, setLoadingUniques] = useState(true);
-  const [userWorkspaces, setUserWorkspaces] = useState()
-  const [userWorkspace, setUserWorkspace] = useState()
-  const [focusedRow, setFocusedRow] = useState(null);
-  const [selectedRow, setSelectedRow] = useState(null);
-  const [searchColumn, setSearchColumn] = useState('');
-  const [prefilledData, setPrefilledData] = useState(null);
-  const [showRequestWorkspaceModal, setShowRequestWorkspaceModal] = useState(false);
-  const [viewMode, setViewMode] = useState('table'); 
-
-  const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
 
   // Debug effect for prefilledData
   useEffect(() => {
@@ -238,12 +241,88 @@ const Dashboard = ({
     }
   };
 
+  // Fetch notes for a specific column/value from server-side endpoints.
+  const fetchNotesByColumnAndValue = async (column, value) => {
+    if (!value || !userid) return [];
+    let url = "";
+    try {
+      if (column === "userName") {
+        url = `${apiUrl}/SiteNote/GetSiteNotesByUsername?pageNumber=1&pageSize=200&username=${encodeURIComponent(value)}&userId=${userid}`;
+      } else if (column === "date") {
+        url = `${apiUrl}/SiteNote/GetSiteNotesByDate?pageNumber=1&pageSize=200&date=${encodeURIComponent(value)}&userId=${userid}`;
+      } else if (column === "workspace") {
+        url = `${apiUrl}/SiteNote/GetSiteNotesByWorkspaceId?pageNumber=1&pageSize=200&workspaceId=${encodeURIComponent(value)}&userId=${userid}`;
+      } else if (column === "project") {
+        url = `${apiUrl}/SiteNote/GetSiteNotesByProjectId?pageNumber=1&pageSize=200&projectId=${encodeURIComponent(value)}&userId=${userid}`;
+      } else if (column === "job") {
+        url = `${apiUrl}/SiteNote/GetSiteNotesByJobId?pageNumber=1&pageSize=200&jobId=${encodeURIComponent(value)}&userId=${userid}`;
+      }
+
+      if (!url) return [];
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('fetch error');
+      const d = await r.json();
+      const arr = d.siteNotes || [];
+      return arr.map(n => ({
+        ...n,
+        userName: n.UserName || n.userName,
+        documentCount: n.DocumentCount || n.documentCount || 0,
+      }));
+    } catch (e) {
+      console.error(e);
+      return [];
+    }
+  };
+
+  // Call server for each selected filter and merge (OR) the results.
+  const fetchCombinedServerFilters = async (selectedObj) => {
+    const sv = selectedObj || selectedValues || {};
+    const keys = Object.keys(sv).filter(k => sv[k] !== undefined && sv[k] !== null && sv[k] !== "");
+    if (keys.length === 0) {
+      setFilteredNotes(notes);
+      return;
+    }
+
+    setLoadingFiltered(true);
+    try {
+      const promises = keys.map(k => fetchNotesByColumnAndValue(k, sv[k]));
+      const results = await Promise.all(promises);
+      const all = results.flat();
+      // dedupe by id
+      const byId = {};
+      all.forEach(n => { if (n && n.id !== undefined) byId[n.id] = n; });
+      const merged = Object.values(byId);
+      setFilteredNotes(merged);
+    } catch (e) {
+      console.error(e);
+      // fallback to client-side OR filtering
+      const keys2 = keys;
+      const filtered = notes.filter(note => keys2.some(k => {
+        const val = sv[k];
+        if (!val && val !== 0) return false;
+        if (k === 'date') {
+          const noteDate = new Date(note.date).toISOString().split('T')[0];
+          const filterDate = new Date(val).toISOString().split('T')[0];
+          return noteDate === filterDate;
+        }
+        if (k === 'userName') return note.userName === val || note.userId?.toString() === val.toString();
+        if (k === 'project') return note.projectId?.toString() === val.toString() || note.project === val;
+        if (k === 'job') return note.jobId?.toString() === val.toString() || note.job === val;
+        if (k === 'workspace') return note.workspaceId?.toString() === val.toString() || note.workspace === val;
+        return false;
+      }));
+      setFilteredNotes(filtered);
+    } finally {
+      setLoadingFiltered(false);
+    }
+  };
+
   useEffect(() => {
     if (userid && defaultUserWorkspaceID) {
       console.log("Fetching role with workspace ID:", defaultUserWorkspaceID);
       fetchUserWorkspaceRole();
-      fetchWorkspacesByUserId()
-      fetchPriorities()
+      fetchWorkspacesByUserId();
+      fetchPriorities();
     }
   }, [userid, defaultUserWorkspaceID]);
 
@@ -329,20 +408,37 @@ const Dashboard = ({
   };
 
   useEffect(() => {
+    // Run combined server filtering on initial notes load only.
+    // Individual filter changes call `fetchCombinedServerFilters` directly
+    // from their handlers to avoid duplicate requests.
     if (notes !== undefined && isDataLoaded) {
       setInitialLoading(false);
-      fetchFilteredSiteNotes();
+      fetchCombinedServerFilters();
     }
-  }, [notes, isDataLoaded, selectedValues]);
+  }, [notes, isDataLoaded]);
 
   const handleDrop = (e) => {
     e.preventDefault();
     const c = e.dataTransfer.getData("column");
-    if (["date","workspace","project","job","userName"].includes(c) && !hierarchy.includes(c)) {
-      setHierarchy([...hierarchy, c]);
-      setSelectedValues({ ...selectedValues, [c]: "" });
+    const v = e.dataTransfer.getData("value");
+    if (["date","workspace","project","job","userName"].includes(c)) {
+      if (!hierarchy.includes(c)) {
+        setHierarchy(prev => [...prev, c]);
+      }
+
+      // If a specific value was dragged, set it and fetch combined results.
+      if (v) {
+        const newSelected = { ...selectedValues, [c]: v };
+        setSelectedValues(newSelected);
+        fetchCombinedServerFilters(newSelected);
+      } else {
+        // create empty selection for the column (meaning All)
+        const newSelected = { ...selectedValues, [c]: selectedValues[c] || "" };
+        setSelectedValues(newSelected);
+        // Do not open the dialog automatically when attribute is just added
+      }
+
       setCurrentFilterColumn(c);
-      setShowFilterDialog(true);
     }
   };
 
@@ -357,14 +453,19 @@ const Dashboard = ({
     setShowFilterDialog(true);
   };
   const handleFilterSelect = (val) => {
-    setSelectedValues((p) => ({ ...p, [currentFilterColumn]: val }));
+    const newSelected = { ...selectedValues };
+    if (val === "" || val === null) delete newSelected[currentFilterColumn];
+    else newSelected[currentFilterColumn] = val;
+    setSelectedValues(newSelected);
     setShowFilterDialog(false);
+    fetchCombinedServerFilters(newSelected);
   };
   const removeHierarchyLevel = (c) => {
     setHierarchy(hierarchy.filter((x) => x !== c));
     const v = { ...selectedValues };
     delete v[c];
     setSelectedValues(v);
+    fetchCombinedServerFilters(v);
   };
   const clearAllFilters = () => {
     setHierarchy([]);
@@ -426,44 +527,45 @@ const Dashboard = ({
 
   // Fixed keyboard shortcut handler
   const handleKeyDown = useCallback((event) => {
-  if (!focusedRow) return;
+    if (!focusedRow) return;
 
-  const currentIndex = filteredNotes.findIndex(note => note.id === focusedRow);
+    const currentIndex = filteredNotes.findIndex(note => note.id === focusedRow);
 
-  if (event.key === 'ArrowDown') {
-    event.preventDefault();
-    const nextIndex = Math.min(currentIndex + 1, filteredNotes.length - 1);
-    if (nextIndex !== currentIndex) {
-      setFocusedRow(filteredNotes[nextIndex].id);
-      setSelectedRow(filteredNotes[nextIndex].id);
-    }
-  } else if (event.key === 'ArrowUp') {
-    event.preventDefault();
-    const prevIndex = Math.max(currentIndex - 1, 0);
-    if (prevIndex !== currentIndex) {
-      setFocusedRow(filteredNotes[prevIndex].id);
-      setSelectedRow(filteredNotes[prevIndex].id);
-    }
-  } else if (event.ctrlKey && event.key === 'a' && focusedRow) {
-    event.preventDefault();
-    const selectedNote = filteredNotes.find(note => note.id === focusedRow);
-    if (selectedNote) {
-      const today = new Date();
-      const year = today.getFullYear();
-      const month = String(today.getMonth() + 1).padStart(2, '0');
-      const day = String(today.getDate()).padStart(2, '0');
-      const currentDateFormatted = `${year}-${month}-${day}`;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      const nextIndex = Math.min(currentIndex + 1, filteredNotes.length - 1);
+      if (nextIndex !== currentIndex) {
+        setFocusedRow(filteredNotes[nextIndex].id);
+        setSelectedRow(filteredNotes[nextIndex].id);
+      }
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      const prevIndex = Math.max(currentIndex - 1, 0);
+      if (prevIndex !== currentIndex) {
+        setFocusedRow(filteredNotes[prevIndex].id);
+        setSelectedRow(filteredNotes[prevIndex].id);
+      }
+    } else if (event.ctrlKey && event.key === 'a' && focusedRow) {
+      event.preventDefault();
+      const selectedNote = filteredNotes.find(note => note.id === focusedRow);
+      if (selectedNote) {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const currentDateFormatted = `${year}-${month}-${day}`;
 
-      setPrefilledData({
-        date: currentDateFormatted,
-        project: selectedNote.project,
-        job: selectedNote.job,
-        workspace: selectedNote.workspace
-      });
-      setShowNewModal(true);
+        setPrefilledData({
+          date: currentDateFormatted,
+          project: selectedNote.project,
+          job: selectedNote.job,
+          workspace: selectedNote.workspace
+        });
+        setModalSource('grid'); // Set source to grid for keyboard shortcut
+        setShowNewModal(true);
+      }
     }
-  }
-}, [focusedRow, filteredNotes]);
+  }, [focusedRow, filteredNotes]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -493,38 +595,54 @@ const Dashboard = ({
     }
   };
 
-  // Fixed handleAddFromRow function
+  // Fixed handleAddFromRow function - for grid plus button
   const handleAddFromRow = (note) => {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-  const currentDateFormatted = `${year}-${month}-${day}`;
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const currentDateFormatted = `${year}-${month}-${day}`;
 
-  console.log('Setting prefilled data from row:', {
-    workspace: note.workspace,
-    project: note.project,
-    job: note.job,
-    date: currentDateFormatted
-  });
+    console.log('Setting prefilled data from row:', {
+      workspace: note.workspace,
+      project: note.project,
+      job: note.job,
+      date: currentDateFormatted
+    });
 
-  // Pass the exact values from the note
-  setPrefilledData({
-    date: currentDateFormatted,
-    project: note.project,  // Use the project name from the note
-    job: note.job,          // Use the job name from the note
-    workspace: note.workspace // Use the workspace name from the note
-  });
+    // Pass the exact values from the note
+    setPrefilledData({
+      date: currentDateFormatted,
+      project: note.project,  // Use the project name from the note
+      job: note.job,          // Use the job name from the note
+      workspace: note.workspace // Use the workspace name from the note
+    });
 
-  setShowNewModal(true);
-};
+    setModalSource('grid'); // Set source to grid for plus button
+    setShowNewModal(true);
+  };
 
-  // New function for New Note button
+  // New function for New Note button - from dashboard
   const handleNewNoteClick = () => {
     console.log('Opening from New Note button - clearing prefilled data');
     setPrefilledData(null);
+    setModalSource('dashboard'); // Set source to dashboard for new note button
     setShowNewModal(true);
   };
+
+  // Focus the textarea when modal opens from grid source
+  useEffect(() => {
+    if (showNewModal && modalSource === 'grid' && newNoteModalRef.current) {
+      const timer = setTimeout(() => {
+        if (newNoteModalRef.current) {
+          newNoteModalRef.current.focusTextarea();
+          console.log('Focusing textarea from grid source');
+        }
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [showNewModal, modalSource]);
 
   const handleEdit = (note) => {
     setSelectedNote(note);
@@ -586,24 +704,19 @@ const Dashboard = ({
   };
 
   const handleHierarchyChange = (column, value) => {
-    setSelectedValues(prev => ({
-      ...prev,
-      [column]: value
-    }));
-    const columnIndex = hierarchy.indexOf(column);
-    if (columnIndex !== -1) {
-      const newHierarchy = hierarchy.slice(0, columnIndex + 1);
-      const newSelectedValues = { ...selectedValues };
-      
-      hierarchy.forEach((col, index) => {
-        if (index > columnIndex) {
-          delete newSelectedValues[col];
-        }
-      });
-      
-      setHierarchy(newHierarchy);
-      setSelectedValues(newSelectedValues);
+    // Update only this column's selected value. Preserve downstream filters.
+    const newSelected = { ...selectedValues };
+    if (value === "" || value === null) delete newSelected[column];
+    else newSelected[column] = value;
+
+    // If column not already part of hierarchy, add it
+    if (!hierarchy.includes(column)) {
+      setHierarchy(prev => [...prev, column]);
     }
+
+    setSelectedValues(newSelected);
+    // Re-run combined server filters with the updated selection
+    fetchCombinedServerFilters(newSelected);
   };
 
   const handleConfirmDelete = async () => {
@@ -645,40 +758,40 @@ const Dashboard = ({
         }
       });
 
-    if (response.ok) {
-      const data = await response.json();
-      
-      const userWorkspaces = data.userWorkspaces || data || []; 
-      setUserWorkspaces(userWorkspaces)
-      userWorkspaces.forEach((ws, index) => {
-        console.log(`Workspace ${index}:`, {
-          id: ws.id,
-          workspaceID: ws.workspaceID,
-          workspaceId: ws.workspaceId, 
-          role: ws.role
+      if (response.ok) {
+        const data = await response.json();
+        
+        const userWorkspaces = data.userWorkspaces || data || []; 
+        setUserWorkspaces(userWorkspaces);
+        userWorkspaces.forEach((ws, index) => {
+          console.log(`Workspace ${index}:`, {
+            id: ws.id,
+            workspaceID: ws.workspaceID,
+            workspaceId: ws.workspaceId, 
+            role: ws.role
+          });
         });
-      });
 
-      const workspace = userWorkspaces.find(ws => 
-        (ws.workspaceID && ws.workspaceID.toString() === defaultUserWorkspaceID.toString()) ||
-        (ws.workspaceId && ws.workspaceId.toString() === defaultUserWorkspaceID.toString()) ||
-        (ws.id && ws.id.toString() === defaultUserWorkspaceID.toString())
-      );
-          
-      const newRole = workspace?.role || null;
-      setRole(newRole);
-    } else {
-      console.error("API response not OK:", response.status);
+        const workspace = userWorkspaces.find(ws => 
+          (ws.workspaceID && ws.workspaceID.toString() === defaultUserWorkspaceID.toString()) ||
+          (ws.workspaceId && ws.workspaceId.toString() === defaultUserWorkspaceID.toString()) ||
+          (ws.id && ws.id.toString() === defaultUserWorkspaceID.toString())
+        );
+            
+        const newRole = workspace?.role || null;
+        setRole(newRole);
+      } else {
+        console.error("API response not OK:", response.status);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      setRole(null);
+    } finally {
+      setIsRoleLoading(false);
     }
-  } catch (error) {
-    console.error("Error:", error);
-    setRole(null);
-  } finally {
-    setIsRoleLoading(false);
-  }
-};
+  };
 
-const fetchWorkspacesByUserId = async () => {
+  const fetchWorkspacesByUserId = async () => {
     try {
       const response = await fetch(`${apiUrl}/Workspace/GetWorkspacesByUserId/${userid}`, {
         method: "GET",
@@ -687,22 +800,22 @@ const fetchWorkspacesByUserId = async () => {
         }
       });
 
-    if (response.ok) {
-      const data = await response.json();
-      
-      const userWorkspaces = data.workspaces || data || []; 
-      setUserWorkspace(userWorkspaces)
-      
-    } else {
-      console.error("API response not OK:", response.status);
+      if (response.ok) {
+        const data = await response.json();
+        
+        const userWorkspaces = data.workspaces || data || []; 
+        setUserWorkspace(userWorkspaces);
+        
+      } else {
+        console.error("API response not OK:", response.status);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      setRole(null);
+    } finally {
+      setIsRoleLoading(false);
     }
-  } catch (error) {
-    console.error("Error:", error);
-    setRole(null);
-  } finally {
-    setIsRoleLoading(false);
-  }
-};
+  };
 
   const fetchPriorities = async () => {
     try {
@@ -953,8 +1066,23 @@ const fetchWorkspacesByUserId = async () => {
           
           {hierarchy.map((column, level) => {
             const currentNotes = getCurrentNotesForLevel(level);
-            const uniqueValues = getUniqueValues(column, currentNotes);
-            
+            const derived = getUniqueValues(column, currentNotes);
+
+            let serverOptions = [];
+            if (column === 'project' && uniqueProjects && uniqueProjects.length > 0) {
+              serverOptions = uniqueProjects.map(o => ({ id: o.id, text: o.text || o }));
+            } else if (column === 'job' && uniqueJobs && uniqueJobs.length > 0) {
+              serverOptions = uniqueJobs.map(o => ({ id: o.id, text: o.text || o }));
+            } else if (column === 'workspace' && uniqueWorkspaces && uniqueWorkspaces.length > 0) {
+              serverOptions = uniqueWorkspaces.map(o => ({ id: o.id, text: o.text || o }));
+            } else if (column === 'date' && uniqueDates && uniqueDates.length > 0) {
+              serverOptions = uniqueDates.map(o => ({ id: o.id || o, text: o.text || o }));
+            } else if (column === 'userName' && uniqueUsernames && uniqueUsernames.length > 0) {
+              serverOptions = uniqueUsernames.map(o => ({ id: o.id || o, text: o.text || o }));
+            }
+
+            const finalOptions = serverOptions.length > 0 ? serverOptions : derived.map(v => ({ id: v, text: v }));
+
             return (
               <div key={column} className="hierarchy-level">
                 <label>
@@ -964,9 +1092,9 @@ const fetchWorkspacesByUserId = async () => {
                     onChange={(e) => handleHierarchyChange(column, e.target.value)}
                   >
                     <option value="">All {column}s</option>
-                    {uniqueValues.map(value => (
-                      <option key={value} value={value}>
-                        {value}
+                    {finalOptions.map(opt => (
+                      <option key={opt.id} value={column === 'date' || column === 'userName' ? opt.text : opt.id}>
+                        {opt.text}
                       </option>
                     ))}
                   </select>
@@ -1302,11 +1430,11 @@ const fetchWorkspacesByUserId = async () => {
               </div>
             </div>
 
-            <div className="note-content">
-              <div className="note-text">
-                {note.note}
-              </div>
-            </div>
+                    <div className="note-content">
+                      <div className="note-text">
+                        {note.note}
+                      </div>
+                    </div>
 
             <div className="note-footer">
               <div className="note-attachments">
@@ -1543,6 +1671,7 @@ const fetchWorkspacesByUserId = async () => {
       )}
       {showNewModal && (
         <NewNoteModal
+          ref={newNoteModalRef}
           isOpen={showNewModal}
           onClose={() => {
             console.log('Closing modal, resetting prefilledData');
@@ -1558,6 +1687,7 @@ const fetchWorkspacesByUserId = async () => {
           defWorkSpaceId={defaultUserWorkspaceID}
           userworksaces={userWorkspace}
           prefilledData={prefilledData}
+          source={modalSource}
         />
       )}
       {showEditModal && selectedNote && (
