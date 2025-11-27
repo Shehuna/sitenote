@@ -603,19 +603,19 @@ const Dashboard = ({
     const day = String(today.getDate()).padStart(2, '0');
     const currentDateFormatted = `${year}-${month}-${day}`;
 
-    console.log('Setting prefilled data from row:', {
-      workspace: note.workspace,
-      project: note.project,
-      job: note.job,
-      date: currentDateFormatted
-    });
+    console.log('=== DASHBOARD DEBUG ===');
+    console.log('Note data:', note);
+    console.log('Note ID:', note.id);
+    console.log('Note UserId:', note.userId);
+    console.log('Current User ID:', JSON.parse(localStorage.getItem('user'))?.id);
 
     // Pass the exact values from the note
     setPrefilledData({
       date: currentDateFormatted,
       project: note.project,  // Use the project name from the note
       job: note.job,          // Use the job name from the note
-      workspace: note.workspace // Use the workspace name from the note
+      workspace: note.workspace, // Use the workspace name from the note
+      userId: note.userId
     });
 
     setModalSource('grid'); // Set source to grid for plus button
@@ -806,7 +806,7 @@ const Dashboard = ({
 
   const fetchWorkspacesByUserId = async () => {
     try {
-      const response = await fetch(`${apiUrl}/Workspace/GetWorkspacesByUserId/${userid}`, {
+      const response = await fetch(`${apiUrl}/Workspace/GetActiveWorkspacesNameByUserId/${userid}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json; charset=utf-8",

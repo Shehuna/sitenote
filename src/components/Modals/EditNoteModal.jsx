@@ -39,6 +39,24 @@ const EditNoteModal = ({
   const [selectedPriority, setSelectedPriority] = useState("");
   const [priorityId, setPriorityId] = useState("");
 
+  // Get current user
+  const getCurrentUser = () => {
+    const user = JSON.parse(localStorage.getItem('user'));
+    return user || { id: 1 };
+  };
+
+  // Permission logic - only creator can edit
+  const currentUser = getCurrentUser();
+  const isCreator = note?.userId && note.userId.toString() === currentUser.id.toString();
+  const canEditNote = isCreator;
+
+  console.log('EditNoteModal Permission Debug:', {
+    noteUserId: note?.userId,
+    currentUserId: currentUser.id,
+    isCreator,
+    canEditNote
+  });
+
   const allowedFileTypes = {
     // Images
     "image/jpeg": [".jpg", ".jpeg"],
@@ -77,16 +95,12 @@ const EditNoteModal = ({
     "video/x-msvideo": [".avi"],
   };
 
-
   const noteTextareaRef = useRef(null);
 
   const MAX_FILE_SIZE = 5 * 1024 * 1024;
   const isValidFileType = (file) => {
     return Object.keys(allowedFileTypes).includes(file.type);
   };
-  /* const isValidFileSize = (file) => {
-    return file.size <= MAX_FILE_SIZE;
-  }; */
 
   useEffect(() => {
     if (note) {
@@ -115,6 +129,7 @@ const EditNoteModal = ({
       return () => clearTimeout(timer);
     }
   }, [activeTab]);
+  
   useEffect(() => {
     if (note && activeTab === 'journal') {
       const timer = setTimeout(() => {
@@ -198,6 +213,7 @@ const EditNoteModal = ({
       setIsLoadingDocuments(false);
     }
   }, []);
+
   useEffect(() => {
     if (note) {
       const projectId = note.projectId
@@ -215,8 +231,8 @@ const EditNoteModal = ({
         const month = String(dateObj.getMonth() + 1).padStart(2, "0");
         const day = String(dateObj.getDate()).padStart(2, "0");
         correctedDate = `${year}-${month}-${day}`;
-
       }
+      
       const user = JSON.parse(localStorage.getItem("user"));
 
       setJournalData({
@@ -277,14 +293,14 @@ const EditNoteModal = ({
   };
 
   const handleJournalChange = (e) => {
-    if (!isEditable) return;
+    if (!isEditable || !canEditNote) return;
 
     const { name, value } = e.target;
     setJournalData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleAddDocument = () => {
-    if (!isEditable) return;
+    if (!isEditable || !canEditNote) return;
 
     setNewDocument({ name: "", file: null, siteNoteId: "", userId: "" });
     setShowDocumentModal(true);
@@ -292,7 +308,8 @@ const EditNoteModal = ({
   };
 
   const handleDocumentFileChange = (e) => {
-    if (!isEditable) return;
+    if (!isEditable || !canEditNote) return;
+    
     const file = e.target.files[0];
     setError("");
     if (!isValidFileType(file)) {
@@ -301,17 +318,12 @@ const EditNoteModal = ({
       return;
     }
 
-    /*  if (!isValidFileSize(file)) {
-      setError(`File size too large. Maximum allowed size is 5MB.`);
-      setSelectedFile(null);
-      return;
-    } */
     setNewDocument((prev) => ({ ...prev, file: e.target.files[0] }));
   };
 
   const handleDocumentSubmit = async () => {
-    if (!isEditable) {
-      setError("Cannot add documents to notes older than 24 hours");
+    if (!isEditable || !canEditNote) {
+      setError("Cannot add documents to notes older than 24 hours or you don't have permission");
       return;
     }
 
@@ -334,14 +346,6 @@ const EditNoteModal = ({
         newDocument.name,
         newDocument.file,
         note.id
-
-        /* note.id, 
-        null, 
-        
-        {
-          name: newDocument.name,
-          file: newDocument.file 
-        } */
       );
 
       const newDocWithDownloadUrl = {
@@ -399,6 +403,16 @@ const EditNoteModal = ({
 
     try {
       let noteIdToReturn = note.id;
+      
+      // If user is not creator, only allow priority update
+      if (!canEditNote) {
+        await handleUpdatepriority();
+        onClose(noteIdToReturn);
+        refreshNotes();
+        return;
+      }
+
+      // If note is older than 24 hours, only allow priority update
       if (!isEditable) {
         await handleUpdatepriority();
         onClose(noteIdToReturn);
@@ -418,7 +432,7 @@ const EditNoteModal = ({
         journalData.jobId !== originalJobId
       ) {
         setError(
-          "Cannot update project or job information. Only the note content and date can be updated."
+          "Cannot update this record. You can only update the notes you created."
         );
         setIsSubmitting(false);
         return;
@@ -454,11 +468,12 @@ const EditNoteModal = ({
   const handleSaveShortcut = useCallback((event) => {
     if ((event.ctrlKey || event.metaKey) && event.key === 's') {
       event.preventDefault();
-      if (!isSubmitting) {
+      if (!isSubmitting && canEditNote) {
         handleSaveNote();
       }
     }
-  }, [isSubmitting, handleSaveNote]);
+  }, [isSubmitting, handleSaveNote, canEditNote]);
+
   useEffect(() => {
     document.addEventListener('keydown', handleSaveShortcut);
 
@@ -466,7 +481,6 @@ const EditNoteModal = ({
       document.removeEventListener('keydown', handleSaveShortcut);
     };
   }, [handleSaveShortcut]);
-
 
   const handleUpdatepriority = async () => {
     try {
@@ -540,10 +554,10 @@ const EditNoteModal = ({
         <div className="modal-header">
           <h2>
             Edit Note{" "}
-            {!isEditable && (
+            {(!isEditable || !canEditNote) && (
               <i
-                className="fas fa-edit"
-                title="Only priority can be edited"
+                className="fas fa-eye"
+                title={!canEditNote ? "View only - Only creator can edit" : "Only priority can be edited"}
               ></i>
             )}
           </h2>
@@ -557,11 +571,18 @@ const EditNoteModal = ({
           </button>
         </div>
 
-        {!isEditable && (
+        {!canEditNote && (
+          <div className="edit-warning">
+            Only the person who created this note can update it.
+          </div>
+        )}
+
+        {!isEditable && canEditNote && (
           <div className="edit-warning">
             This note is older than 24 hours. Only the priority can be updated.
           </div>
         )}
+
         <div className="tabs">
           <button
             className={`tab-button ${activeTab === "journal" ? "active" : ""}`}
@@ -596,7 +617,7 @@ const EditNoteModal = ({
                   value={journalData.date}
                   onChange={handleJournalChange}
                   required
-                  disabled={!isEditable || isSubmitting}
+                  disabled={!isEditable || !canEditNote || isSubmitting}
                 />
               </div>
 
@@ -607,7 +628,7 @@ const EditNoteModal = ({
                   value={journalData.projectId}
                   onChange={handleJournalChange}
                   required
-                  disabled={!isEditable || isSubmitting}
+                  disabled={!isEditable || !canEditNote || isSubmitting}
                 >
                   <option value="">Select Project</option>
                   {projects.filter(project => 
@@ -628,7 +649,7 @@ const EditNoteModal = ({
                   onChange={handleJournalChange}
                   required
                   disabled={
-                    !isEditable || !journalData.projectId || isSubmitting
+                    !isEditable || !canEditNote || !journalData.projectId || isSubmitting
                   }
                 >
                   <option value="">Select Job</option>
@@ -654,7 +675,7 @@ const EditNoteModal = ({
                   onChange={handleJournalChange}
                   rows={6}
                   required
-                  disabled={!isEditable || isSubmitting}
+                  disabled={!isEditable || !canEditNote || isSubmitting}
                 />
               </div>
             </div>
@@ -666,7 +687,7 @@ const EditNoteModal = ({
                 <p>Loading documents...</p>
               ) : (
                 <>
-                  {
+                  {canEditNote && isEditable && (
                     <div className="document-actions">
                       <button
                         onClick={handleAddDocument}
@@ -676,7 +697,7 @@ const EditNoteModal = ({
                         Add Document
                       </button>
                     </div>
-                  }
+                  )}
 
                   <div className="documents-list">
                     {documents.length === 0 ? (
@@ -717,13 +738,12 @@ const EditNoteModal = ({
             <div className="journal-section">
               <div className="form-group">
                 <label>Priority</label>
-
                 <select
                   value={selectedPriority}
                   onChange={(e) => {
                     setSelectedPriority(e.target.value);
                   }}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !canEditNote}
                   className={`priority-select ${
                     selectedPriority
                       ? `priority-${selectedPriority}`
@@ -752,9 +772,9 @@ const EditNoteModal = ({
             className="cancel-button"
             disabled={isSubmitting}
           >
-            {isEditable ? "Cancel" : "Close"}
+            {canEditNote ? "Cancel" : "Close"}
           </button>
-          {
+          {canEditNote && (
             <button
               onClick={handleSaveNote}
               className="save-button"
@@ -762,7 +782,7 @@ const EditNoteModal = ({
             >
               {isSubmitting ? "Saving..." : "Save"}
             </button>
-          }
+          )}
         </div>
 
         {showDocumentModal && (
@@ -782,7 +802,7 @@ const EditNoteModal = ({
                     }))
                   }
                   required
-                  disabled={isSubmitting || !isEditable}
+                  disabled={isSubmitting || !isEditable || !canEditNote}
                 />
               </div>
 
@@ -792,7 +812,7 @@ const EditNoteModal = ({
                   type="file"
                   onChange={handleDocumentFileChange}
                   required
-                  disabled={isSubmitting || !isEditable}
+                  disabled={isSubmitting || !isEditable || !canEditNote}
                 />
               </div>
 
@@ -811,7 +831,8 @@ const EditNoteModal = ({
                     isSubmitting ||
                     !newDocument.name.trim() ||
                     !newDocument.file ||
-                    !isEditable
+                    !isEditable ||
+                    !canEditNote
                   }
                 >
                   {isSubmitting ? "Saving..." : "Save Document"}
