@@ -144,20 +144,10 @@ const ApproveRejectWorkspace = ({ onClose }) => {
     // Update workspace status
     const updateWorkspaceStatus = async (workspaceId, status, workspaceData) => {
         try {
-            const response = await fetch(`${API_URL}/api/Workspace/UpdateWorkspace/${workspaceId}`, {
-                method: 'PUT',
+            const response = await fetch(`${API_URL}/api/Workspace/UpdateStatus/${workspaceId}`, {
+                method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    id: workspaceId,
-                    name: workspaceData.name,
-                    ownerUserID: workspaceData.ownerUserID,
-                    ownerType: workspaceData.ownerType,
-                    ownerName: workspaceData.ownerName,
-                    email: workspaceData.email,
-                    phone: workspaceData.phone,
-                    addressLine1: workspaceData.addressLine1,
-                    city: workspaceData.city,
-                    country: workspaceData.country,
                     status: status
                 }),
             });

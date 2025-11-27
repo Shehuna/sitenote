@@ -10,6 +10,7 @@ const NewNoteModal = forwardRef(({
     projects = [],
     jobs = [],
     refreshNotes,
+    refreshFilteredNotes,
     addSiteNote,
     onUploadDocument,
     onDeleteDocument,
@@ -279,6 +280,7 @@ const NewNoteModal = forwardRef(({
 
             await handleAddPriority(siteNoteId, user.id);
             refreshNotes();
+            refreshFilteredNotes()
             onClose();
         } catch (error) {
             console.error("Save error:", error);

@@ -1664,6 +1664,7 @@ const Dashboard = ({
             setShowNewModal(false);
           }}
           refreshNotes={refreshNotes}
+          refreshFilteredNotes={fetchFilteredSiteNotes}
           addSiteNote={addSiteNote}
           projects={projects}
           jobs={jobs}
