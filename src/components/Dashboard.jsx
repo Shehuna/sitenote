@@ -721,24 +721,37 @@ const Dashboard = ({
 
   const handleConfirmDelete = async () => {
     if (!noteToDelete) return;
+
     setIsDeleting(true);
+
+    const url = new URL(`${apiUrl}/SiteNote/DeleteSiteNote/${noteToDelete.id}`);
+    url.searchParams.append('userId', userid);
+
     try {
-      const r = await fetch(
-        `${apiUrl}/SiteNote/DeleteSiteNote/${noteToDelete.id}`,
-        { method: "DELETE" }
-      );
-      if (!r.ok) throw new Error();
-      toast.success("Deleted");
+      const response = await fetch(url.toString(), {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Delete failed");
+      }
+
+      toast.success("Note deleted successfully");
       await refreshNotes();
       await fetchFilteredSiteNotes();
     } catch (e) {
-      toast.error(e.message);
+      console.error("Delete error:", e);
+      toast.error(e.message || "Failed to delete note");
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirm(false);
       setNoteToDelete(null);
     }
-  };
+};
 
   const handleViewAttachments = (note) => {
     setSelectedFileNote(note);
