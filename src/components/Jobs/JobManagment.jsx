@@ -40,9 +40,9 @@ const JobManagment = ({defWorkId, updateProjectsAndJobs}) => {
     }, [isEditJobOpen, selectedJob, jobs]);
     
 
-
   const handleAddJob = async () => {
         try {
+            const finalDescription = newJobDescription.trim() || newJobName;
             const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Job/AddJob`, {
                 method: 'POST',
                 headers: {
@@ -120,6 +120,7 @@ const JobManagment = ({defWorkId, updateProjectsAndJobs}) => {
 
   const handleEditJob = async () => {
         try {
+            const finalDescription = newJobDescription.trim() || newJobName;
             const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Job/UpdateJob/${selectedJob}`, {
                 method: 'PUT',
                 headers: {
