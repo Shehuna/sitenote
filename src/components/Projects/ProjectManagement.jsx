@@ -15,6 +15,7 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
      const [workspaceName, setWorkspaceName] = useState('');
      const [loading, setLoading] = useState(true);
      const [error, setError] = useState(null);
+     const [previousProjectName, setPreviousProjectName] = useState('');
 
      const API_URL = process.env.REACT_APP_API_BASE_URL
 
@@ -101,10 +102,14 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
         }
     };
     useEffect(() => {
-    if (newProjectName) {
+    if (newProjectName && (!newProjectDescription || newProjectDescription === previousProjectName)) {
         setNewProjectDescription(newProjectName);
     }
-}, [newProjectName]);
+    }, [newProjectName]);
+
+    useEffect(() => {
+    setPreviousProjectName(newProjectName);
+    }, [newProjectName]);
 
      const handleAddProject = async () => {
         try {

@@ -15,6 +15,7 @@ const JobManagment = ({defWorkId, updateProjectsAndJobs}) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [jobs, setJobs] = useState([]);
+    const [previousJobName, setPreviousJobName] = useState('');
 
    useEffect(() => {
             fetchInitialData();
@@ -38,12 +39,15 @@ const JobManagment = ({defWorkId, updateProjectsAndJobs}) => {
             setNewJobDescription('');
         }
     }, [isEditJobOpen, selectedJob, jobs]);
+     
     useEffect(() => {
-    if (newJobName) {
+    if (newJobName && (!newJobDescription || newJobDescription === previousJobName)) {
         setNewJobDescription(newJobName);
     }
-}, [newJobName]); 
-    
+    }, [newJobName]); 
+    useEffect(() => {
+    setPreviousJobName(newJobName);
+    }, [newJobName]);
 
   const handleAddJob = async () => {
         try {
