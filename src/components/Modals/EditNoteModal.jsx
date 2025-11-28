@@ -43,14 +43,23 @@ const EditNoteModal = ({
 
   const noteTextareaRef = useRef(null);
 
+  // Get current user
   const getCurrentUser = () => {
     const user = JSON.parse(localStorage.getItem('user'));
     return user || { id: 1 };
   };
 
+  // Permission logic - only creator can edit
   const currentUser = getCurrentUser();
   const isCreator = note?.userId && note.userId.toString() === currentUser.id.toString();
   const canEditNote = isCreator;
+
+  console.log('EditNoteModal Permission Debug:', {
+    noteUserId: note?.userId,
+    currentUserId: currentUser.id,
+    isCreator,
+    canEditNote
+  });
 
   const allowedFileTypes = {
     "image/jpeg": [".jpg", ".jpeg"],
@@ -137,6 +146,7 @@ const EditNoteModal = ({
     }
   }, [activeTab]);
 
+  
   useEffect(() => {
     if (note && activeTab === 'journal') {
       const timer = setTimeout(() => {
@@ -220,6 +230,7 @@ const EditNoteModal = ({
         correctedDate = `${year}-${month}-${day}`;
       }
 
+      
       const user = JSON.parse(localStorage.getItem("user"));
 
       setJournalData({
@@ -281,6 +292,7 @@ const EditNoteModal = ({
 
   const handleDocumentFileChange = (e) => {
     if (!isEditable || !canEditNote) return;
+    
     const file = e.target.files[0];
     setError("");
     if (!file) return;
@@ -288,7 +300,8 @@ const EditNoteModal = ({
       setError("Invalid file type! ");
       return;
     }
-    setNewDocument((prev) => ({ ...prev, file }));
+
+    setNewDocument((prev) => ({ ...prev, file: e.target.files[0] }));
   };
 
   const handleDocumentSubmit = async () => {
@@ -395,6 +408,7 @@ const EditNoteModal = ({
     try {
       let noteIdToReturn = note.id;
 
+      // If user is not creator, only allow priority update
       if (!canEditNote) {
         await handleUpdatepriority();
         onClose(noteIdToReturn);
@@ -402,6 +416,7 @@ const EditNoteModal = ({
         return;
       }
 
+      // If note is older than 24 hours, only allow priority update
       if (!isEditable) {
         await handleUpdatepriority();
         onClose(noteIdToReturn);
@@ -420,7 +435,9 @@ const EditNoteModal = ({
         journalData.projectId !== originalProjectId ||
         journalData.jobId !== originalJobId
       ) {
-        setError("Cannot update this record. You can only update the notes you created.");
+        setError(
+          "Cannot update this record. You can only update the notes you created."
+        );
         setIsSubmitting(false);
         return;
       }
@@ -692,7 +709,11 @@ const EditNoteModal = ({
         </div>
 
         <div className="modal-footer">
-          <button onClick={onClose} className="cancel-button" disabled={isSubmitting}>
+          <button
+            onClick={onClose}
+            className="cancel-button"
+            disabled={isSubmitting}
+          >
             {canEditNote ? "Cancel" : "Close"}
           </button>
           {canEditNote && (
