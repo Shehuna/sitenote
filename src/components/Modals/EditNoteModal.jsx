@@ -37,15 +37,12 @@ const EditNoteModal = ({
   const [selectedPriority, setSelectedPriority] = useState("");
   const [priorityId, setPriorityId] = useState("");
 
-<<<<<<< HEAD
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const connectionRef = useRef(null);
 
   const noteTextareaRef = useRef(null);
 
-=======
->>>>>>> 1ed7676be894112045b250de85df859fc6dcb1cf
   // Get current user
   const getCurrentUser = () => {
     const user = JSON.parse(localStorage.getItem('user'));
@@ -90,7 +87,6 @@ const EditNoteModal = ({
     "video/x-msvideo": [".avi"],
   };
 
-<<<<<<< HEAD
   const isValidFileType = (file) => Object.keys(allowedFileTypes).includes(file.type);
 
   useEffect(() => {
@@ -122,14 +118,6 @@ const EditNoteModal = ({
       }
     };
   }, [showDocumentModal]);
-=======
-  const noteTextareaRef = useRef(null);
-
-  const MAX_FILE_SIZE = 5 * 1024 * 1024;
-  const isValidFileType = (file) => {
-    return Object.keys(allowedFileTypes).includes(file.type);
-  };
->>>>>>> 1ed7676be894112045b250de85df859fc6dcb1cf
 
   useEffect(() => {
     if (note) {
@@ -157,10 +145,6 @@ const EditNoteModal = ({
       return () => clearTimeout(timer);
     }
   }, [activeTab]);
-<<<<<<< HEAD
-
-=======
->>>>>>> 1ed7676be894112045b250de85df859fc6dcb1cf
   
   useEffect(() => {
     if (note && activeTab === 'journal') {
@@ -244,10 +228,6 @@ const EditNoteModal = ({
         const day = String(dateObj.getDate()).padStart(2, "0");
         correctedDate = `${year}-${month}-${day}`;
       }
-<<<<<<< HEAD
-
-=======
->>>>>>> 1ed7676be894112045b250de85df859fc6dcb1cf
       
       const user = JSON.parse(localStorage.getItem("user"));
 
@@ -297,22 +277,13 @@ const EditNoteModal = ({
 
   const handleJournalChange = (e) => {
     if (!isEditable || !canEditNote) return;
-<<<<<<< HEAD
-=======
-
->>>>>>> 1ed7676be894112045b250de85df859fc6dcb1cf
     const { name, value } = e.target;
     setJournalData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleAddDocument = () => {
     if (!isEditable || !canEditNote) return;
-<<<<<<< HEAD
     setNewDocument({ name: "", file: null });
-=======
-
-    setNewDocument({ name: "", file: null, siteNoteId: "", userId: "" });
->>>>>>> 1ed7676be894112045b250de85df859fc6dcb1cf
     setShowDocumentModal(true);
     setError(null);
   };
@@ -358,7 +329,6 @@ const EditNoteModal = ({
       formData.append("SiteNoteId", note.id);
       formData.append("UserId", user?.id || 1);
 
-<<<<<<< HEAD
       const headers = {};
       if (connectionRef.current?.connectionId) {
         headers["X-Connection-Id"] = connectionRef.current.connectionId;
@@ -369,13 +339,6 @@ const EditNoteModal = ({
         body: formData,
         headers
       });
-=======
-      const savedDoc = await uploadDocument(
-        newDocument.name,
-        newDocument.file,
-        note.id
-      );
->>>>>>> 1ed7676be894112045b250de85df859fc6dcb1cf
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
@@ -442,11 +405,7 @@ const EditNoteModal = ({
 
     try {
       let noteIdToReturn = note.id;
-<<<<<<< HEAD
-
-=======
       
->>>>>>> 1ed7676be894112045b250de85df859fc6dcb1cf
       // If user is not creator, only allow priority update
       if (!canEditNote) {
         await handleUpdatepriority();
@@ -650,13 +609,9 @@ const EditNoteModal = ({
                   value={journalData.jobId}
                   onChange={handleJournalChange}
                   required
-<<<<<<< HEAD
-                  disabled={!isEditable || !canEditNote || !journalData.projectId || isSubmitting}
-=======
                   disabled={
                     !isEditable || !canEditNote || !journalData.projectId || isSubmitting
                   }
->>>>>>> 1ed7676be894112045b250de85df859fc6dcb1cf
                 >
                   <option value="">Select Job</option>
                   {jobs
@@ -739,21 +694,9 @@ const EditNoteModal = ({
                 <label>Priority</label>
                 <select
                   value={selectedPriority}
-<<<<<<< HEAD
                   onChange={(e) => setSelectedPriority(e.target.value)}
                   disabled={isSubmitting || !canEditNote}
                   className={`priority-select ${selectedPriority ? `priority-${selectedPriority}` : "priority-default"}`}
-=======
-                  onChange={(e) => {
-                    setSelectedPriority(e.target.value);
-                  }}
-                  disabled={isSubmitting || !canEditNote}
-                  className={`priority-select ${
-                    selectedPriority
-                      ? `priority-${selectedPriority}`
-                      : "priority-default"
-                  }`}
->>>>>>> 1ed7676be894112045b250de85df859fc6dcb1cf
                 >
                   <option value="">Select Priority</option>
                   <option value="4" className="priority-option-4">High</option>
@@ -774,15 +717,11 @@ const EditNoteModal = ({
             {canEditNote ? "Cancel" : "Close"}
           </button>
           {canEditNote && (
-<<<<<<< HEAD
-            <button onClick={handleSaveNote} className="save-button" disabled={isSubmitting}>
-=======
             <button
               onClick={handleSaveNote}
               className="save-button"
               disabled={isSubmitting}
             >
->>>>>>> 1ed7676be894112045b250de85df859fc6dcb1cf
               {isSubmitting ? "Saving..." : "Save"}
             </button>
           )}
@@ -790,7 +729,6 @@ const EditNoteModal = ({
 
         {showDocumentModal && (
           <div className="document-modal-overlay">
-<<<<<<< HEAD
             <div className="document-modal" style={{ maxWidth: "560px" }}>
               {isUploading && (
                 <div style={{ height: "6px", background: "#e0e0e0", borderRadius: "8px 8px 0 0", overflow: "hidden" , marginBottom: "10px" }}>
@@ -858,35 +796,6 @@ const EditNoteModal = ({
                     Uploading... {uploadProgress}%
                   </div>
                 )}
-=======
-            <div className="document-modal">
-              <h3>Add Document</h3>
-              {error && <p className="error-message">{error}</p>}
-              <div className="form-group">
-                <label>Document Name:</label>
-                <input
-                  type="text"
-                  value={newDocument.name}
-                  onChange={(e) =>
-                    setNewDocument((prev) => ({
-                      ...prev,
-                      name: e.target.value,
-                    }))
-                  }
-                  required
-                  disabled={isSubmitting || !isEditable || !canEditNote}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>File:</label>
-                <input
-                  type="file"
-                  onChange={handleDocumentFileChange}
-                  required
-                  disabled={isSubmitting || !isEditable || !canEditNote}
-                />
->>>>>>> 1ed7676be894112045b250de85df859fc6dcb1cf
               </div>
 
               <div className="modal-actions" style={{ padding: "16px", borderTop: "1px solid #eee", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
@@ -895,7 +804,6 @@ const EditNoteModal = ({
                 </button>
                 <button
                   onClick={handleDocumentSubmit}
-<<<<<<< HEAD
                   disabled={isUploading || !newDocument.name.trim() || !newDocument.file}
                   style={{
                     padding: "10px 20px",
@@ -905,16 +813,6 @@ const EditNoteModal = ({
                     borderRadius: "6px",
                     fontWeight: "600"
                   }}
-=======
-                  className="submit-button"
-                  disabled={
-                    isSubmitting ||
-                    !newDocument.name.trim() ||
-                    !newDocument.file ||
-                    !isEditable ||
-                    !canEditNote
-                  }
->>>>>>> 1ed7676be894112045b250de85df859fc6dcb1cf
                 >
                   {isUploading ? `Uploading ${uploadProgress}%` : "Save Document"}
                 </button>
@@ -927,9 +825,4 @@ const EditNoteModal = ({
   );
 };
 
-<<<<<<< HEAD
 export default EditNoteModal;
-=======
-export default EditNoteModal;
-
->>>>>>> 1ed7676be894112045b250de85df859fc6dcb1cf
