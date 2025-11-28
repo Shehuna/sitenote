@@ -3,39 +3,92 @@ import './UserJobManagement.css';
 
 const UserJobManagement = ({ defWorkID }) => {
     const [userJobData, setUserJobData] = useState([]);
+    const [workspaceUsers, setWorkspaceUsers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedJobs, setSelectedJobs] = useState({}); // { userId: { userJobId: true } }
 
     useEffect(() => {
-        fetchUserJobData();
-    }, []);
+        if (defWorkID) {
+            fetchWorkspaceUsers();
+        }
+    }, [defWorkID]);
 
-    const fetchUserJobData = async () => {
+    // Fetch users from the workspace
+    const fetchWorkspaceUsers = async () => {
         setLoading(true);
         setError(null);
 
         try {
-            const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/UserJobAuth/GetUserJobDetails`);
+            console.log('Fetching workspace users for ID:', defWorkID);
+            const response = await fetch(
+                `${process.env.REACT_APP_API_BASE_URL}/api/UserWorkspace/GetUsersByWorkspaceId/${defWorkID}`
+            );
+            
+            if (!response.ok) {
+                throw new Error(`Failed to fetch workspace users: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            console.log('Workspace Users API Response:', data);
+            
+            // Extract users from the API response
+            const users = data.users || [];
+            console.log('Extracted workspace users:', users);
+            setWorkspaceUsers(users);
+            
+            // After getting workspace users, fetch their job data
+            await fetchUserJobData(users);
+            
+        } catch (err) {
+            setError(err.message);
+            console.error('Workspace Users API Error:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Fetch user job data for workspace users
+    const fetchUserJobData = async (workspaceUsersList) => {
+        try {
+            console.log('Fetching user job data for workspace users:', workspaceUsersList);
+            const response = await fetch(
+                `${process.env.REACT_APP_API_BASE_URL}/api/UserJobAuth/GetUserJobDetails`
+            );
             
             if (!response.ok) {
                 throw new Error(`Failed to fetch user job data: ${response.status}`);
             }
             
             const data = await response.json();
-            console.log('API Response:', data);
+            console.log('User Job Data API Response:', data);
             
             // Handle different response structures
-            const userJobs = data.data || data.userJobs || data || [];
-            setUserJobData(userJobs);
+            const allUserJobs = data.data || data.userJobs || data || [];
+            console.log('All user jobs from API:', allUserJobs);
+            
+            // Extract user IDs from workspace users
+            const workspaceUserIds = workspaceUsersList.map(user => user.userId);
+            console.log('Workspace User IDs to filter by:', workspaceUserIds);
+            
+            // Filter user job data to only include users from the workspace
+            const filteredUserJobs = allUserJobs.filter(item => 
+                workspaceUserIds.includes(item.userId)
+            );
+            
+            console.log('Filtered User Jobs (workspace users only):', filteredUserJobs);
+            setUserJobData(filteredUserJobs);
             
         } catch (err) {
             setError(err.message);
-            console.error('API Error:', err);
-        } finally {
-            setLoading(false);
+            console.error('User Job Data API Error:', err);
         }
+    };
+
+    // Refresh both workspace users and job data
+    const refreshData = async () => {
+        await fetchWorkspaceUsers();
     };
 
     // Group user job data by user
@@ -44,15 +97,21 @@ const UserJobManagement = ({ defWorkID }) => {
         
         userJobData.forEach(item => {
             if (!groupedByUser[item.userId]) {
+                // Find the workspace user info to get additional details
+                const workspaceUser = workspaceUsers.find(user => user.userId === item.userId);
+                
                 groupedByUser[item.userId] = {
                     userInfo: {
                         id: item.userId,
-                        fname: item.fname,
-                        lname: item.lname,
-                        userName: item.userName,
-                        email: item.email,
+                        fname: item.fname || workspaceUser?.fname,
+                        lname: item.lname || workspaceUser?.lname,
+                        userName: item.userName || workspaceUser?.userName,
+                        email: item.email || workspaceUser?.email,
                         role: item.role,
-                        status: item.status
+                        status: item.status,
+                        workspaceRole: workspaceUser?.roleInWorkspace,
+                        workspaceStatus: workspaceUser?.statusInWorkspace,
+                        joinedAt: workspaceUser?.joinedAt
                     },
                     jobs: []
                 };
@@ -72,7 +131,7 @@ const UserJobManagement = ({ defWorkID }) => {
         });
         
         return Object.values(groupedByUser);
-    }, [userJobData]);
+    }, [userJobData, workspaceUsers]);
 
     // Handle checkbox selection
     const handleCheckboxChange = (userId, userJobId) => {
@@ -114,12 +173,15 @@ const UserJobManagement = ({ defWorkID }) => {
 
         try {
             const denyPromises = selectedUserJobIds.map(async (userJobId) => {
-                const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/UserJobAuth/DeleteUserJob/${userJobId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json',
+                const response = await fetch(
+                    `${process.env.REACT_APP_API_BASE_URL}/api/UserJobAuth/DeleteUserJob/${userJobId}`, 
+                    {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
                     }
-                });
+                );
                 return response.ok;
             });
 
@@ -135,7 +197,7 @@ const UserJobManagement = ({ defWorkID }) => {
                 });
                 
                 // Refresh the data
-                fetchUserJobData();
+                await refreshData();
                 alert(`Successfully denied permission for ${selectedUserJobIds.length} job(s)`);
             } else {
                 throw new Error('Failed to deny permission for some jobs');
@@ -212,27 +274,40 @@ const UserJobManagement = ({ defWorkID }) => {
         return jobs.some(job => selectedJobs[userId]?.[job.userJobId]);
     };
 
-    // Get job status badge
-    const getJobStatusBadge = (status) => {
+    // Get workspace role badge
+    const getWorkspaceRoleBadge = (role) => {
+        const roleMap = {
+            1: { text: 'Admin', class: 'role-admin' },
+            2: { text: 'Manager', class: 'role-manager' },
+            3: { text: 'Member', class: 'role-member' },
+            4: { text: 'Viewer', class: 'role-viewer' }
+        };
+        
+        const roleInfo = roleMap[role] || { text: 'Unknown', class: 'role-unknown' };
+        return <span className={`role-badge ${roleInfo.class}`}>{roleInfo.text}</span>;
+    };
+
+    // Get workspace status badge
+    const getWorkspaceStatusBadge = (status) => {
         const statusMap = {
             1: { text: 'Active', class: 'status-active' },
             2: { text: 'Inactive', class: 'status-inactive' },
-            3: { text: 'Completed', class: 'status-completed' },
-            4: { text: 'Pending', class: 'status-pending' }
+            0: { text: 'Pending', class: 'status-pending' }
         };
         
         const statusInfo = statusMap[status] || { text: 'Unknown', class: 'status-unknown' };
         return <span className={`status-badge ${statusInfo.class}`}>{statusInfo.text}</span>;
     };
 
-    if (loading) return <div className="loading-message">Loading user job data...</div>;
+    if (loading) return <div className="loading-message">Loading workspace user data...</div>;
     if (error) return <div className="error-message">Error: {error}</div>;
 
     return (
         <div className="user-job-management">
             <div className="user-job-header">
                 <h2>User Job Permissions</h2>
-                <p>Manage user permissions for different jobs</p>
+                <p>Manage job permissions for users in this workspace </p>
+               
             </div>
 
             {/* Controls */}
@@ -247,7 +322,7 @@ const UserJobManagement = ({ defWorkID }) => {
                     />
                 </div>
                 <button 
-                    onClick={fetchUserJobData}
+                    onClick={refreshData}
                     className="refresh-btn"
                     title="Refresh Data"
                 >
@@ -271,8 +346,9 @@ const UserJobManagement = ({ defWorkID }) => {
                     return (
                         <div key={user.id} className="user-card">
                             <div className="user-info">
-                                <h3 className="user-name">{user.fname} {user.lname}</h3>
-                                <p className="user-email">{user.email}</p>
+                                <div className="user-main-info">
+                                    <h3 className="user-name">{user.fname} {user.lname}</h3>
+                                </div>
                                 
                             </div>
 
@@ -357,13 +433,11 @@ const UserJobManagement = ({ defWorkID }) => {
                         <>
                             <i className="fas fa-users"></i>
                             <h3>No users with job permissions</h3>
-                            <p>There are currently no users with job permissions assigned</p>
-                            <button 
-                                onClick={fetchUserJobData}
-                                className="refresh-btn"
-                            >
-                                <i className="fas fa-sync-alt"></i> Refresh Data
-                            </button>
+                            <p>
+                                There are currently no users in workspace {defWorkID} with job permissions assigned.
+                                {workspaceUsers.length > 0 && ` ${workspaceUsers.length} user${workspaceUsers.length !== 1 ? 's' : ''} found in workspace.`}
+                            </p>
+                            
                         </>
                     )}
                 </div>
@@ -373,3 +447,4 @@ const UserJobManagement = ({ defWorkID }) => {
 };
 
 export default UserJobManagement;
+

@@ -22,24 +22,17 @@ const JobPermissionManagement = ({ defId, users, userId }) => {
         setError(null);
 
         try {
-            const projectsUrl = `${process.env.REACT_APP_API_BASE_URL}/api/SiteNote/GetUniqueProjects?userId=${userId}`;
-            const jobsUrl = `${process.env.REACT_APP_API_BASE_URL}/api/Job/GetJobs`;
-            const userWorkspaceURL = `${process.env.REACT_APP_API_BASE_URL}/api/UserWorkspace/GetUserWorkspaces`;
+            const projectsUrl = `${process.env.REACT_APP_API_BASE_URL}/api/Project/GetProjectsByUserJobPermission/${userId}/${defId}`;
+            const userURL = `${process.env.REACT_APP_API_BASE_URL}/api/UserWorkspace/GetUsersByWorkspaceId/${defId}`;
 
-            const [projectsRes, jobsRes, userWorkRes] = await Promise.all([
+            const [projectsRes, userRes] = await Promise.all([
                 fetch(projectsUrl, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                 }),
-                fetch(jobsUrl, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                }),
-                fetch(userWorkspaceURL, {
+                fetch(userURL, {
                     method: 'GET',
                     headers: {
                         'Content-Type': 'application/json',
@@ -48,33 +41,23 @@ const JobPermissionManagement = ({ defId, users, userId }) => {
             ]);
 
             if (!projectsRes.ok) throw new Error(`Projects API error: ${projectsRes.status}`);
-            if (!jobsRes.ok) throw new Error(`Jobs API error: ${jobsRes.status}`);
-            if (!userWorkRes.ok) throw new Error(`UserWorkspace API error: ${userWorkRes.status}`);
+            if (!userRes.ok) throw new Error(`UserWorkspace API error: ${userRes.status}`);
 
             let projectsData = await projectsRes.json();
-            let jobsData = await jobsRes.json();
-            let userData = await userWorkRes.json();
+            let userData = await userRes.json();
 
             projectsData = projectsData.projects || [];
-            jobsData = jobsData.jobs || [];
-            userData = userData.userWorkspaces || [];
+            userData = userData.users || [];
 
             setProjects(projectsData);
-            setJobs(jobsData);
-            await getUserData(userData);
+            setFilteredUsers(userData);
+            
         } catch (err) {
             setError(err.message);
             console.error('API Error:', err);
         } finally {
             setLoading(false);
         }
-    };
-
-    const getUserData = async (userWorkspaces) => {
-        const filteredUserWork = userWorkspaces.filter(userWorkspace => userWorkspace.workspaceID == defId);
-        const userIds = [...new Set(filteredUserWork.map(work => work.userID))];
-        const uniqueUsers = userIds.map(id => users.find(u => u.id === id)).filter(Boolean);
-        setFilteredUsers(uniqueUsers);
     };
 
     if (error) return <div className="error-message">Error: {error}</div>;
@@ -116,13 +99,13 @@ const JobPermissionManagement = ({ defId, users, userId }) => {
                             users={users}
                             filteredUsers={filteredUsers}
                             projects={projects}
-                            jobs={jobs}
+                            
                             loading={loading}
                             setLoading={setLoading}
                         />
                     )}
                     {activeTab === 'userJobs' && (
-                        <UserJobManagement defId={defId} users={users} />
+                        <UserJobManagement defWorkID={defId}  />
                     )}
                     {activeTab === 'copy' && (
                         <CopyJobs 
@@ -147,3 +130,4 @@ const JobPermissionManagement = ({ defId, users, userId }) => {
 };
 
 export default JobPermissionManagement;
+

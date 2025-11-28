@@ -1,15 +1,84 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import toast from 'react-hot-toast';
 
-const GrantDenyJobs = ({ defId, users, filteredUsers, projects, jobs, loading, setLoading }) => {
+const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
     const [selectedUsers, setSelectedUsers] = useState([]); 
     const [selectedProject, setSelectedProject] = useState('');
     const [selectedJob, setSelectedJob] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [showDropdown, setShowDropdown] = useState(false);
+    const [jobs, setJobs] = useState([]);
+    const [loadingJobs, setLoadingJobs] = useState(false);
 
     const user = JSON.parse(localStorage.getItem('user'));
     const API_URL = process.env.REACT_APP_API_BASE_URL;
+
+    // Fetch jobs when selectedProject changes
+    useEffect(() => {
+        const fetchJobs = async () => {
+            if (!selectedProject) {
+                setJobs([]);
+                setSelectedJob('');
+                return;
+            }
+
+            setLoadingJobs(true);
+            try {
+                console.log('Fetching jobs for user:', user.id, 'and project:', selectedProject);
+                
+                const response = await fetch(
+                    `${API_URL}/api/UserJobAuth/GetJobsByUserAndProject/${user.id}/${selectedProject}`,
+                    {
+                        method: 'GET',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        }
+                    }
+                );
+
+                console.log('Response status:', response.status);
+                console.log('Response ok:', response.ok);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('API Error Response:', errorText);
+                    throw new Error(`Failed to fetch jobs: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                console.log('API Response data:', data);
+                
+                // Handle different possible response structures
+                let jobsArray = [];
+                
+                if (Array.isArray(data)) {
+                    jobsArray = data;
+                } else if (data.jobs && Array.isArray(data.jobs)) {
+                    jobsArray = data.jobs;
+                } else if (data.userJobs && Array.isArray(data.userJobs)) {
+                    jobsArray = data.userJobs;
+                } else if (data.data && Array.isArray(data.data)) {
+                    jobsArray = data.data;
+                } else {
+                    console.warn('Unexpected API response structure:', data);
+                    jobsArray = [];
+                }
+
+                console.log('Processed jobs array:', jobsArray);
+                setJobs(jobsArray);
+                
+            } catch (error) {
+                console.error('Error fetching jobs:', error);
+                toast.error(`Failed to load jobs: ${error.message}`);
+                setJobs([]);
+            } finally {
+                setLoadingJobs(false);
+            }
+        };
+
+        fetchJobs();
+    }, [selectedProject, user?.id, API_URL]);
 
     const searchResults = useMemo(() => {
         if (!searchTerm.trim()) return [];
@@ -40,7 +109,7 @@ const GrantDenyJobs = ({ defId, users, filteredUsers, projects, jobs, loading, s
             for (const selectedUser of selectedUsers) {
                 try {
                     const userJobsResponse = await fetch(
-                        `${API_URL}/api/UserJobAuth/GetUserJobsByUserId/${selectedUser.id}`,
+                        `${API_URL}/api/UserJobAuth/GetUserJobsByUserId/${selectedUser.userId}`,
                         {
                             method: 'GET',
                             headers: { 'Content-Type': 'application/json' }
@@ -67,7 +136,7 @@ const GrantDenyJobs = ({ defId, users, filteredUsers, projects, jobs, loading, s
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
-                                    userId: selectedUser.id,
+                                    userId: selectedUser.userId,
                                     jobId: selectedJob,
                                     userIDScreen: user.id
                                 })
@@ -215,6 +284,7 @@ const GrantDenyJobs = ({ defId, users, filteredUsers, projects, jobs, loading, s
         setSelectedJob('');
         setSearchTerm('');
         setShowDropdown(false);
+        setJobs([]);
     };
 
     const handleSelectUser = (user) => {
@@ -241,6 +311,22 @@ const GrantDenyJobs = ({ defId, users, filteredUsers, projects, jobs, loading, s
         } else if (e.key === 'Backspace' && searchTerm === '' && selectedUsers.length > 0) {
             handleRemoveUser(selectedUsers[selectedUsers.length - 1].id);
         }
+    };
+
+    const handleProjectChange = (e) => {
+        const projectId = e.target.value;
+        setSelectedProject(projectId);
+        setSelectedJob(''); // Reset job when project changes
+    };
+
+    // Safe job display name function
+    const getJobDisplayName = (job) => {
+        return job.name || job.text || job.jobName || `Job ${job.id}`;
+    };
+
+    // Safe job ID function
+    const getJobId = (job) => {
+        return job.id || job.jobId;
     };
 
     return (
@@ -314,11 +400,11 @@ const GrantDenyJobs = ({ defId, users, filteredUsers, projects, jobs, loading, s
                     <label>Project:</label>
                     <select
                         value={selectedProject}
-                        onChange={(e) => setSelectedProject(e.target.value)}
+                        onChange={handleProjectChange}
                     >
                         <option value="">Select Project</option>
                         {projects.map(project => (
-                            <option key={project.id} value={project.id}>{project.text}</option>
+                            <option key={project.id} value={project.id}>{project.name}</option>
                         ))}
                     </select>
                 </div>
@@ -328,13 +414,27 @@ const GrantDenyJobs = ({ defId, users, filteredUsers, projects, jobs, loading, s
                     <select
                         value={selectedJob}
                         onChange={(e) => setSelectedJob(e.target.value)}
-                        disabled={!selectedProject}
+                        disabled={!selectedProject || loadingJobs}
                     >
                         <option value="">Select Job</option>
-                        {jobs.filter(job => (job.status == 1 && job.projectId === parseInt(selectedProject))).map(job => (
-                            <option key={job.id} value={job.id}>{job.name}</option>
-                        ))}
+                        {loadingJobs ? (
+                            <option value="" disabled>Loading jobs...</option>
+                        ) : (
+                            jobs
+                                .filter(job => job.status == 1 || job.status === undefined) // Only active jobs or jobs without status
+                                .map(job => (
+                                    <option key={getJobId(job)} value={getJobId(job)}>
+                                        {getJobDisplayName(job)}
+                                    </option>
+                                ))
+                        )}
                     </select>
+                    {loadingJobs && (
+                        <div className="loading-indicator">Loading jobs...</div>
+                    )}
+                    {!loadingJobs && selectedProject && jobs.length === 0 && (
+                        <div className="no-jobs-message">No jobs available for this project</div>
+                    )}
                 </div>
             </div>
 
@@ -342,14 +442,14 @@ const GrantDenyJobs = ({ defId, users, filteredUsers, projects, jobs, loading, s
                 <button 
                     className="btn-primary" 
                     onClick={handleGrantPermission} 
-                    disabled={selectedUsers.length === 0 || !selectedProject || !selectedJob || loading}
+                    disabled={selectedUsers.length === 0 || !selectedProject || !selectedJob || loading || loadingJobs}
                 >
                     {loading ? 'Granting...' : `Grant to ${selectedUsers.length} User${selectedUsers.length !== 1 ? 's' : ''}`}
                 </button>
                 <button 
                     className="btn-danger" 
                     onClick={handleDenyPermission} 
-                    disabled={selectedUsers.length === 0 || !selectedProject || !selectedJob || loading}
+                    disabled={selectedUsers.length === 0 || !selectedProject || !selectedJob || loading || loadingJobs}
                 >
                     {loading ? 'Denying...' : `Deny to ${selectedUsers.length} User${selectedUsers.length !== 1 ? 's' : ''}`}
                 </button>
@@ -359,3 +459,4 @@ const GrantDenyJobs = ({ defId, users, filteredUsers, projects, jobs, loading, s
 };
 
 export default GrantDenyJobs;
+
