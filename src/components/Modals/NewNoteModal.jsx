@@ -181,9 +181,15 @@ const NewNoteModal = forwardRef(({
         fetchAllSearchData();
     }, [isOpen, apiUrl]);
 
-    // Fetch projects when workspace changes
+    // Fetch projects when workspace changes OR when prefilled data is provided
     useEffect(() => {
         const fetchProjectsByWorkspace = async () => {
+            // If we have prefilled project data, use it directly
+            if (prefilledData?.projectId && selectedWorkspace === prefilledData.workspaceId?.toString()) {
+                console.log('Using prefilled project data');
+                return;
+            }
+
             if (!selectedWorkspace) {
                 setFilteredProjects([]);
                 setSelectedProject('');
@@ -216,11 +222,17 @@ const NewNoteModal = forwardRef(({
         };
 
         fetchProjectsByWorkspace();
-    }, [selectedWorkspace, apiUrl]);
+    }, [selectedWorkspace, apiUrl, prefilledData]);
 
-    // Fetch jobs when project changes
+    // Fetch jobs when project changes OR when prefilled data is provided
     useEffect(() => {
         const fetchJobsByProject = async () => {
+            // If we have prefilled job data, use it directly
+            if (prefilledData?.jobId && selectedProject === prefilledData.projectId?.toString()) {
+                console.log('Using prefilled job data');
+                return;
+            }
+
             if (!selectedProject) {
                 setFilteredJobs([]);
                 setSelectedJob('');
@@ -253,24 +265,34 @@ const NewNoteModal = forwardRef(({
         };
 
         fetchJobsByProject();
-    }, [selectedProject, apiUrl]);
+    }, [selectedProject, apiUrl, prefilledData]);
 
     // Initialize modal state when opened
     useEffect(() => {
         if (isOpen) {
             const today = new Date();
             const formattedDate = today.toISOString().split('T')[0];
-            setSelectedDate(formattedDate);
+            setSelectedDate(prefilledData?.date || formattedDate);
             
             setActiveTab('journal');
             setSelectedPriority('1');
 
-            // Reset states
-            setSelectedWorkspace('');
-            setSelectedProject('');
-            setSelectedJob('');
-            setAreDropdownsDisabled(false);
-            setNoteContent('');
+            // Only reset if no prefilled data
+            if (!prefilledData) {
+                setSelectedWorkspace('');
+                setSelectedProject('');
+                setSelectedJob('');
+                setAreDropdownsDisabled(false);
+                setNoteContent('');
+                setFilteredProjects([]);
+                setFilteredJobs([]);
+                setSelectedProjectData(null);
+                setSelectedJobData(null);
+            } else {
+                setAreDropdownsDisabled(true);
+            }
+
+            // Always reset these states
             setDocuments([]);
             setNewDocument({ name: '', file: null });
             setShowDocumentModal(false);
@@ -278,31 +300,96 @@ const NewNoteModal = forwardRef(({
             setErrors({});
             setIsSaving(false);
             setApiError(null);
-            setFilteredProjects([]);
-            setFilteredJobs([]);
-            setSelectedProjectData(null);
-            setSelectedJobData(null);
-
-            if (prefilledData) {
-                setAreDropdownsDisabled(true);
-                if (prefilledData.date) {
-                    setSelectedDate(prefilledData.date);
-                }
-            }
         }
     }, [isOpen, prefilledData]);
 
-    // Handle prefilled data matching for workspace
+    // Handle prefilled data for workspace, project, and job
     useEffect(() => {
-        if (isOpen && prefilledData?.workspace) {
-            const workspace = userworksaces.find(w => 
-                w && w.name && (w.name === prefilledData.workspace || w.text === prefilledData.workspace)
-            );
-            if (workspace) {
-                setSelectedWorkspace(workspace.id.toString());
+        if (isOpen && prefilledData) {
+            console.log('Prefilled data received:', prefilledData);
+            
+            setAreDropdownsDisabled(true);
+            
+            // Set date if provided
+            if (prefilledData.date) {
+                setSelectedDate(prefilledData.date);
+            }
+
+            // Set workspace if provided
+            if (prefilledData.workspaceId) {
+                setSelectedWorkspace(prefilledData.workspaceId.toString());
+                console.log('✓ Workspace pre-filled:', prefilledData.workspaceId);
+            } else if (prefilledData.workspace) {
+                const workspace = userworksaces.find(w => 
+                    w && w.name && (w.name === prefilledData.workspace || w.text === prefilledData.workspace)
+                );
+                if (workspace) {
+                    setSelectedWorkspace(workspace.id.toString());
+                    console.log('✓ Workspace found by name:', workspace.name);
+                }
+            }
+
+            // Set project if provided - create project data object
+            if (prefilledData.projectId) {
+                const projectData = {
+                    id: prefilledData.projectId,
+                    projectId: prefilledData.projectId,
+                    name: prefilledData.project || 'Project',
+                    workspaceId: prefilledData.workspaceId
+                };
+                setSelectedProjectData(projectData);
+                setSelectedProject(prefilledData.projectId.toString());
+                console.log('✓ Project pre-filled:', prefilledData.projectId);
+            } else if (prefilledData.project) {
+                // Try to find project by name if ID not provided
+                const project = projects.find(p => 
+                    p && p.name && p.name === prefilledData.project
+                );
+                if (project) {
+                    setSelectedProjectData(project);
+                    setSelectedProject(project.id.toString());
+                    console.log('✓ Project found by name:', project.name);
+                }
+            }
+
+            // Set job if provided - create job data object
+            if (prefilledData.jobId) {
+                const jobData = {
+                    id: prefilledData.jobId,
+                    jobId: prefilledData.jobId,
+                    name: prefilledData.job || 'Job',
+                    projectId: prefilledData.projectId
+                };
+                setSelectedJobData(jobData);
+                setSelectedJob(prefilledData.jobId.toString());
+                console.log('✓ Job pre-filled:', prefilledData.jobId);
+            } else if (prefilledData.job) {
+                // Try to find job by name if ID not provided
+                const job = jobs.find(j => 
+                    j && j.name && j.name === prefilledData.job
+                );
+                if (job) {
+                    setSelectedJobData(job);
+                    setSelectedJob(job.id.toString());
+                    console.log('✓ Job found by name:', job.name);
+                }
             }
         }
-    }, [isOpen, prefilledData, userworksaces]);
+    }, [isOpen, prefilledData, userworksaces, projects, jobs]);
+
+    // Debug useEffect to log current state
+    useEffect(() => {
+        if (isOpen) {
+            console.log('Current modal state:', {
+                selectedWorkspace,
+                selectedProject,
+                selectedJob,
+                selectedProjectData,
+                selectedJobData,
+                prefilledData
+            });
+        }
+    }, [isOpen, selectedWorkspace, selectedProject, selectedJob, selectedProjectData, selectedJobData, prefilledData]);
 
     // Client-side search function
     const performSearch = useCallback((query) => {
@@ -714,6 +801,7 @@ const NewNoteModal = forwardRef(({
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Type to search for workspace, project, or job..."
                         className="search-input"
+                        disabled={areDropdownsDisabled}
                     />
                     {isSearching && <div className="search-spinner">🔍 Searching...</div>}
                 </div>
@@ -864,6 +952,7 @@ const NewNoteModal = forwardRef(({
                                 setSelectedDate(e.target.value);
                                 setErrors(prev => ({ ...prev, date: undefined }));
                             }}
+                            disabled={areDropdownsDisabled}
                         />
                     </div>
                 </div>
@@ -1102,7 +1191,10 @@ NewNoteModal.propTypes = {
         project: PropTypes.string,
         job: PropTypes.string,
         workspace: PropTypes.string,
-        date: PropTypes.string
+        date: PropTypes.string,
+        projectId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+        jobId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+        workspaceId: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
     }),
     defWorkSpaceId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     userworksaces: PropTypes.arrayOf(
