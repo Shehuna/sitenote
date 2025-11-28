@@ -1125,4 +1125,3 @@ NewNoteModal.defaultProps = {
 };
 
 export default NewNoteModal;
-

@@ -440,7 +440,7 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
                     onClick={() => setIsUserWorkspaceOpen(true)}
                     disabled={!((userRole === "Admin" || workspaceRole == 1) && selectedWorkspace)}
                 >
-                    User Workspace
+                    Add User to Workspace
                 </button>
                 <button
                     className="btn-secondary"
