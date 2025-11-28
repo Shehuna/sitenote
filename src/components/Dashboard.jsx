@@ -1742,3 +1742,4 @@ Dashboard.propTypes = {
 Dashboard.defaultProps = { projects: [], jobs: [] };
 
 export default Dashboard;
+
