@@ -10,6 +10,7 @@ const NewNoteModal = forwardRef(({
     projects = [],
     jobs = [],
     refreshNotes,
+    refreshFilteredNotes,
     addSiteNote,
     onUploadDocument,
     onDeleteDocument,
@@ -38,6 +39,8 @@ const NewNoteModal = forwardRef(({
     const [apiError, setApiError] = useState(null);
     const [fetchedProjects, setFetchedProjects] = useState([]);
     const [areDropdownsDisabled, setAreDropdownsDisabled] = useState(false);
+    const [isLoadingProjects, setIsLoadingProjects] = useState(false);
+    const [isLoadingJobs, setIsLoadingJobs] = useState(false);
 
     const textareaRef = useRef(null);
     const hasFocusedRef = useRef(false);
@@ -54,6 +57,12 @@ const NewNoteModal = forwardRef(({
         'audio/ogg': ['.ogg'], 'audio/aac': ['.aac'], 'video/mp4': ['.mp4'],
         'video/mpeg': ['.mpeg'], 'video/ogg': ['.ogv'], 'video/webm': ['.webm'],
         'video/quicktime': ['.mov'], 'video/x-msvideo': ['.avi']
+    };
+
+    // Get current user
+    const getCurrentUser = () => {
+        const user = JSON.parse(localStorage.getItem('user'));
+        return user || { id: 1 }; // fallback to user ID 1 if not found
     };
 
     // Expose focus method to parent component
@@ -106,37 +115,89 @@ const NewNoteModal = forwardRef(({
         }
     }, [isOpen]);
 
-    // Filter projects based on selected workspace
+    // Fetch projects when workspace changes
     useEffect(() => {
-        if (selectedWorkspace) {
-            const filtered = fetchedProjects.filter(project =>
-                project.workspaceID?.toString() === selectedWorkspace.toString() 
-            );
-            setFilteredProjects(filtered);
-            if (!filtered.some(project => project.id.toString() === selectedProject.toString())) {
+        const fetchProjectsByWorkspace = async () => {
+            if (!selectedWorkspace) {
+                setFilteredProjects([]);
                 setSelectedProject('');
+                return;
             }
-        } else {
-            setFilteredProjects([]);
-            setSelectedProject('');
-        }
-    }, [selectedWorkspace, fetchedProjects, selectedProject]);
-  
-    // Filter jobs based on selected project
-    useEffect(() => {
-        if (selectedProject) {
-            const filtered = jobs.filter(job =>
-                job.projectId?.toString() === selectedProject.toString() && job.status === 1
-            );
-            setFilteredJobs(filtered);
-            if (!filtered.some(job => job.id.toString() === selectedJob.toString())) {
+
+            setIsLoadingProjects(true);
+            try {
+                const user = getCurrentUser();
+                const response = await fetch(
+                    `${apiUrl}/Project/GetProjectsByUserJobPermission/${user.id}/${selectedWorkspace}`
+                );
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch projects');
+                }
+                
+                const data = await response.json();
+                
+                // Handle the API response structure
+                const projectsData = data.projects || [];
+                setFilteredProjects(projectsData);
+                
+                // Reset project selection when workspace changes
+                setSelectedProject('');
                 setSelectedJob('');
+                setFilteredJobs([]);
+                
+            } catch (error) {
+                console.error('Error fetching projects:', error);
+                setApiError('Failed to load projects');
+                setFilteredProjects([]);
+            } finally {
+                setIsLoadingProjects(false);
             }
-        } else {
-            setFilteredJobs([]);
-            setSelectedJob('');
-        }
-    }, [selectedProject, jobs, selectedJob]);
+        };
+
+        fetchProjectsByWorkspace();
+    }, [selectedWorkspace, apiUrl]);
+
+    // Fetch jobs when project changes
+    useEffect(() => {
+        const fetchJobsByProject = async () => {
+            if (!selectedProject) {
+                setFilteredJobs([]);
+                setSelectedJob('');
+                return;
+            }
+
+            setIsLoadingJobs(true);
+            try {
+                const user = getCurrentUser();
+                const response = await fetch(
+                    `${apiUrl}/UserJobAuth/GetJobsByUserAndProject/${user.id}/${selectedProject}`
+                );
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch jobs');
+                }
+                
+                const data = await response.json();
+                
+                // Handle the API response structure
+                const jobsData = data.jobs || [];
+                setFilteredJobs(jobsData);
+                
+                // Reset job selection when project changes
+                setSelectedJob('');
+                
+            } catch (error) {
+                console.error('Error fetching jobs:', error);
+                setApiError('Failed to load jobs');
+                setFilteredJobs([]);
+            } finally {
+                setIsLoadingJobs(false);
+            }
+        };
+
+        fetchJobsByProject();
+    }, [selectedProject, apiUrl]);
 
     // Initialize modal state when opened
     useEffect(() => {
@@ -161,6 +222,8 @@ const NewNoteModal = forwardRef(({
             setErrors({});
             setIsSaving(false);
             setApiError(null);
+            setFilteredProjects([]);
+            setFilteredJobs([]);
 
             // Handle prefilled data
             if (prefilledData) {
@@ -172,32 +235,9 @@ const NewNoteModal = forwardRef(({
         }
     }, [isOpen, prefilledData]);
 
-    // Fetch projects and handle prefilled data matching
+    // Handle prefilled data matching for workspace
     useEffect(() => {
-        if (isOpen) {
-            const user = JSON.parse(localStorage.getItem('user'));
-            const userId = user ? user.id : 1;
-            
-            fetch(`${apiUrl}/SiteNote/GetUniqueProjectsWithWorkspace?userId=${userId}`)
-                .then(r => r.json())
-                .then(d => {
-                    const projectsData = d.projects || [];
-                    setFetchedProjects(projectsData);
-                    
-                    if (prefilledData) {
-                        handlePrefilledDataMatching(projectsData);
-                    }
-                })
-                .catch(e => console.error('Error fetching projects:', e));
-        }
-    }, [isOpen, apiUrl, prefilledData]);
-
-    // Handle prefilled data matching
-    const handlePrefilledDataMatching = useCallback((projectsData) => {
-        if (!prefilledData) return;
-
-        // Set workspace
-        if (prefilledData.workspace) {
+        if (isOpen && prefilledData?.workspace) {
             const workspace = userworksaces.find(w => 
                 w.name === prefilledData.workspace || w.text === prefilledData.workspace
             );
@@ -205,38 +245,33 @@ const NewNoteModal = forwardRef(({
                 setSelectedWorkspace(workspace.id.toString());
             }
         }
+    }, [isOpen, prefilledData, userworksaces]);
 
-        // Set project
-        if (prefilledData.project) {
-            let project = projectsData.find(p => 
+    // Handle prefilled data matching for project (after projects are loaded)
+    useEffect(() => {
+        if (prefilledData?.project && filteredProjects.length > 0) {
+            const project = filteredProjects.find(p => 
                 p.name === prefilledData.project || p.text === prefilledData.project
             );
-            
-            if (!project) {
-                project = projects.find(p => 
-                    p.name === prefilledData.project || p.text === prefilledData.project
-                );
-            }
             
             if (project) {
                 setSelectedProject(project.id.toString());
             }
         }
-    }, [prefilledData, userworksaces, projects]);
+    }, [filteredProjects, prefilledData]);
 
-    // Handle job selection after project is set
+    // Handle prefilled data matching for job (after jobs are loaded)
     useEffect(() => {
-        if (prefilledData?.job && selectedProject) {
-            const job = jobs.find(j =>
-                j.name === prefilledData.job &&
-                j.projectId?.toString() === selectedProject.toString() &&
-                j.status === 1
+        if (prefilledData?.job && filteredJobs.length > 0) {
+            const job = filteredJobs.find(j => 
+                j.jobName === prefilledData.job || j.name === prefilledData.job
             );
+            
             if (job) {
-                setSelectedJob(job.id.toString());
+                setSelectedJob(job.jobId.toString());
             }
         }
-    }, [selectedProject, prefilledData, jobs]);
+    }, [filteredJobs, prefilledData]);
 
     // Save journal note
     const handleSaveJournal = async () => {
@@ -255,7 +290,7 @@ const NewNoteModal = forwardRef(({
         setApiError(null);
 
         try {
-            const user = JSON.parse(localStorage.getItem('user'));
+            const user = getCurrentUser();
             const noteData = {
                 note: noteContent,
                 date: new Date(selectedDate).toISOString(),
@@ -279,6 +314,7 @@ const NewNoteModal = forwardRef(({
 
             await handleAddPriority(siteNoteId, user.id);
             refreshNotes();
+            refreshFilteredNotes()
             onClose();
         } catch (error) {
             console.error("Save error:", error);
@@ -428,14 +464,18 @@ const NewNoteModal = forwardRef(({
                             setSelectedProject(e.target.value);
                             setErrors(prev => ({ ...prev, project: undefined, job: undefined }));
                         }}
-                        disabled={areDropdownsDisabled}
+                        disabled={areDropdownsDisabled || !selectedWorkspace || isLoadingProjects}
                     >
                         <option value="">Select Project</option>
-                        {filteredProjects.map(project => (
-                            <option key={project.id} value={project.id.toString()}>
-                                {project.text}
-                            </option>
-                        ))}
+                        {isLoadingProjects ? (
+                            <option value="" disabled>Loading projects...</option>
+                        ) : (
+                            filteredProjects.map(project => (
+                                <option key={project.id} value={project.id.toString()}>
+                                    {project.name}
+                                </option>
+                            ))
+                        )}
                     </select>
                     
                 </div>
@@ -450,14 +490,18 @@ const NewNoteModal = forwardRef(({
                             setSelectedJob(e.target.value);
                             setErrors(prev => ({ ...prev, job: undefined }));
                         }}
-                        disabled={areDropdownsDisabled || !selectedProject}
+                        disabled={areDropdownsDisabled || !selectedProject || isLoadingJobs}
                     >
                         <option value="">Select Job</option>
-                        {filteredJobs.map(job => (
-                            <option key={job.id} value={job.id.toString()}>
-                                {job.name}
-                            </option>
-                        ))}
+                        {isLoadingJobs ? (
+                            <option value="" disabled>Loading jobs...</option>
+                        ) : (
+                            filteredJobs.map(job => (
+                                <option key={job.jobId} value={job.jobId.toString()}>
+                                    {job.jobName}
+                                </option>
+                            ))
+                        )}
                     </select>
                     
                 </div>

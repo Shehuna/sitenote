@@ -663,19 +663,19 @@ const formatRelativeTime = (dateString) => {
     const day = String(today.getDate()).padStart(2, '0');
     const currentDateFormatted = `${year}-${month}-${day}`;
 
-    console.log('Setting prefilled data from row:', {
-      workspace: note.workspace,
-      project: note.project,
-      job: note.job,
-      date: currentDateFormatted
-    });
+    console.log('=== DASHBOARD DEBUG ===');
+    console.log('Note data:', note);
+    console.log('Note ID:', note.id);
+    console.log('Note UserId:', note.userId);
+    console.log('Current User ID:', JSON.parse(localStorage.getItem('user'))?.id);
 
     // Pass the exact values from the note
     setPrefilledData({
       date: currentDateFormatted,
       project: note.project,  // Use the project name from the note
       job: note.job,          // Use the job name from the note
-      workspace: note.workspace // Use the workspace name from the note
+      workspace: note.workspace, // Use the workspace name from the note
+      userId: note.userId
     });
 
     setModalSource('grid'); // Set source to grid for plus button
@@ -781,24 +781,37 @@ const formatRelativeTime = (dateString) => {
 
   const handleConfirmDelete = async () => {
     if (!noteToDelete) return;
+
     setIsDeleting(true);
+
+    const url = new URL(`${apiUrl}/SiteNote/DeleteSiteNote/${noteToDelete.id}`);
+    url.searchParams.append('userId', userid);
+
     try {
-      const r = await fetch(
-        `${apiUrl}/SiteNote/DeleteSiteNote/${noteToDelete.id}`,
-        { method: "DELETE" }
-      );
-      if (!r.ok) throw new Error();
-      toast.success("Deleted");
+      const response = await fetch(url.toString(), {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Delete failed");
+      }
+
+      toast.success("Note deleted successfully");
       await refreshNotes();
       await fetchFilteredSiteNotes();
     } catch (e) {
-      toast.error(e.message);
+      console.error("Delete error:", e);
+      toast.error(e.message || "Failed to delete note");
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirm(false);
       setNoteToDelete(null);
     }
-  };
+};
 
   const handleViewAttachments = (note) => {
     setSelectedFileNote(note);
@@ -853,7 +866,7 @@ const formatRelativeTime = (dateString) => {
 
   const fetchWorkspacesByUserId = async () => {
     try {
-      const response = await fetch(`${apiUrl}/Workspace/GetWorkspacesByUserId/${userid}`, {
+      const response = await fetch(`${apiUrl}/Workspace/GetActiveWorkspacesNameByUserId/${userid}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json; charset=utf-8",
@@ -1758,6 +1771,7 @@ const formatRelativeTime = (dateString) => {
             setShowNewModal(false);
           }}
           refreshNotes={refreshNotes}
+          refreshFilteredNotes={fetchFilteredSiteNotes}
           addSiteNote={addSiteNote}
           projects={projects}
           jobs={jobs}
