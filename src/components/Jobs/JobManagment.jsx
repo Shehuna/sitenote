@@ -38,6 +38,11 @@ const JobManagment = ({defWorkId, updateProjectsAndJobs}) => {
             setNewJobDescription('');
         }
     }, [isEditJobOpen, selectedJob, jobs]);
+    useEffect(() => {
+    if (newJobName) {
+        setNewJobDescription(newJobName);
+    }
+}, [newJobName]); 
     
 
   const handleAddJob = async () => {
