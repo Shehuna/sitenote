@@ -77,10 +77,14 @@ const Dashboard = ({
   const [searchColumn, setSearchColumn] = useState('');
   const [prefilledData, setPrefilledData] = useState(null);
   const [showRequestWorkspaceModal, setShowRequestWorkspaceModal] = useState(false);
-  const [viewMode, setViewMode] = useState('table');
+  const [currentUser, setCurrentUser] = useState(null);
+  const [viewMode, setViewMode] = useState(() => {
+  const saved = localStorage.getItem('dashboardViewMode');
+  return saved || 'cards';
+});
   const [modalSource, setModalSource] = useState('dashboard');
 
-  // Add ref for NewNoteModal
+ 
   const newNoteModalRef = useRef();
 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
@@ -100,6 +104,10 @@ const Dashboard = ({
   useEffect(() => {
     localStorage.setItem('dashboardSelectedValues', JSON.stringify(selectedValues));
   }, [selectedValues]);
+  useEffect(() => {
+  localStorage.setItem('dashboardViewMode', viewMode);
+}, [viewMode]);
+
 
   const styles = {
     searchBox: {
@@ -240,6 +248,58 @@ const Dashboard = ({
       console.error(e);
     }
   };
+ const getHash = (str) => {
+  if (!str) return 0;
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return Math.abs(hash);
+};
+useEffect(() => {
+  const fetchCurrentUser = async () => {
+    try {
+      const response = await fetch(`${apiUrl}/api/UserManagement/GetUserById/${userid}`);
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentUser(data.user);
+      }
+    } catch (error) {
+      console.error('Error fetching user:', error);
+    }
+  };
+  
+  if (userid) {
+    fetchCurrentUser();
+  }
+}, [userid, apiUrl]);
+
+const formatRelativeTime = (dateString) => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInMs = now - date;
+  const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+  const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+  const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+
+  if (diffInMinutes < 1) {
+    return 'Just now';
+  } else if (diffInMinutes < 60) {
+    return `${diffInMinutes} min ago`;
+  } else if (diffInHours < 24) {
+    return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+  } else if (diffInDays === 1) {
+    return 'Yesterday';
+  } else if (diffInDays < 7) {
+    return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+  } else {
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  }
+};
 
   // Fetch notes for a specific column/value from server-side endpoints.
   const fetchNotesByColumnAndValue = async (column, value) => {
@@ -1229,13 +1289,15 @@ const Dashboard = ({
                 } ${focusedRow === n.id ? "focused-row" : ""}`}
                 style={{ cursor: "pointer" }}
               >
-                <td>
-                  {new Date(n.date).toLocaleDateString("en-US", {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </td>
+                <td
+                title={new Date(n.date).toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                })}
+              >
+                {formatRelativeTime(n.date)}
+              </td>
                 <td>{n.workspace}</td>
                 <td>{n.project}</td>
                 <td>{n.job}</td>
@@ -1376,9 +1438,23 @@ const Dashboard = ({
             onDoubleClick={() => handleRowDoubleClick(note)}
           >
             <div className="note-header">
-              <div className="user-avatar">
+            <div className="user-avatar-wrapper">
+            <div className="user-avatar">
+              {note.userName ? (
+                (() => {
+                  const names = note.userName.trim().split(/\s+/);
+                  const firstInitial = names[0] ? names[0].charAt(0).toUpperCase() : '';
+                  const lastInitial = names.length > 1 ? names[names.length - 1].charAt(0).toUpperCase() : '';
+                  return firstInitial + lastInitial;
+                })()
+              ) : (
                 <i className="fas fa-user" />
-              </div>
+              )}
+            </div>
+            <div className="user-tooltip">
+              {note.userName || "Unknown User"}
+            </div>
+          </div>
               <div className="note-meta">
                 <div 
                   className="note-author draggable-value"
@@ -1386,39 +1462,23 @@ const Dashboard = ({
                   onDragStart={(e) => handleDragStartValue('userName', note.userName)(e)}
                   title="Drag to filter by user"
                 >
-                  {note.userName}
+                  
                 </div>
                 <div 
                   className="note-date draggable-value"
                   draggable
                   onDragStart={(e) => handleDragStartValue('date', note.date)(e)}
-                  title="Drag to filter by date"
-                >
-                  {new Date(note.date).toLocaleDateString("en-US", {
+                  title={new Date(note.date).toLocaleDateString("en-US", {
                     year: "numeric",
                     month: "short",
                     day: "numeric",
                   })}
+                >
+                  {formatRelativeTime(note.date)}
                 </div>
               </div>
               
               <div className="note-context">
-                <div 
-                  className="context-item workspace draggable-value"
-                  draggable
-                  onDragStart={(e) => handleDragStartValue('workspace', note.workspace)(e)}
-                  title="Drag to filter by workspace"
-                >
-                  {note.workspace}
-                </div>
-                <div 
-                  className="context-item project draggable-value"
-                  draggable
-                  onDragStart={(e) => handleDragStartValue('project', note.project)(e)}
-                  title="Drag to filter by project"
-                >
-                  {note.project}
-                </div>
                 <div 
                   className="context-item job draggable-value"
                   draggable
@@ -1427,6 +1487,25 @@ const Dashboard = ({
                 >
                   {note.job}
                 </div>
+                <div className="context-item workspace-project">
+                  <span 
+                    className="draggable-value"
+                    draggable
+                    onDragStart={(e) => handleDragStartValue('workspace', note.workspace)(e)}
+                    title="Drag to filter by workspace"
+                  >
+                    {note.workspace}
+                  </span>
+                  /
+                  <span 
+                    className="draggable-value"
+                    draggable
+                    onDragStart={(e) => handleDragStartValue('project', note.project)(e)}
+                    title="Drag to filter by project"
+                  >
+                    {note.project}
+                  </span>
+                </div>                
               </div>
             </div>
 
@@ -1739,8 +1818,9 @@ Dashboard.propTypes = {
   onUploadDocument: PropTypes.func.isRequired,
   onDeleteDocument: PropTypes.func.isRequired,
   onLogout: PropTypes.func.isRequired,
+  userData: PropTypes.object,
 };
 
-Dashboard.defaultProps = { projects: [], jobs: [] };
+Dashboard.defaultProps = { projects: [], jobs: [],userData: null };
 
 export default Dashboard;

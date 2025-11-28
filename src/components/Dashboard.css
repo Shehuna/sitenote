@@ -314,7 +314,7 @@ td {
   background: white;
   border: 1px solid #e1e8ed;
   border-radius: 12px;
-  padding: 16px;
+  padding: 16px 16px 8px 16px !important;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   transition: all 0.3s ease;
   cursor: pointer;
@@ -324,6 +324,7 @@ td {
   min-height: 200px;
   box-sizing: border-box;
   overflow: hidden;
+  margin-bottom: 0 !important;
 }
 
 .note-card:hover {
@@ -348,17 +349,65 @@ td {
 }
 
 .user-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: #3498db;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 14px;
-  flex-shrink: 0;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 50% !important;
+  background: #3498db !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: white !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  flex-shrink: 0 !important;
+  border: 2px solid white !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
 }
+.user-avatar-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.user-avatar-wrapper:hover .user-tooltip {
+  visibility: visible;
+  opacity: 1;
+}
+
+.user-tooltip {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  bottom: -35px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #2c3e50;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  z-index: 1000;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border: 1px solid #34495e;
+}
+
+.user-tooltip::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 5px solid #2c3e50;
+}
+/* Color variations */
+.user-avatar:nth-child(4n+1) { background: #3498db !important; }
+.user-avatar:nth-child(4n+2) { background: #e74c3c !important; }
+.user-avatar:nth-child(4n+3) { background: #2ecc71 !important; }
+.user-avatar:nth-child(4n+4) { background: #f39c12 !important; }
 
 .note-meta {
   flex: 1;
@@ -372,7 +421,19 @@ td {
   padding: 4px 6px;
   margin: 2px 0;
 }
-
+.context-item.job {
+  font-weight: bold !important;
+  color: #000 !important;
+}
+.context-item.workspace-project {
+  max-width: none !important; 
+  text-align: left !important;
+  margin-right: 0 !important;
+  padding-right: 0 !important;
+  white-space: normal !important; 
+  overflow: visible !important; 
+  text-overflow: unset !important; 
+}
 .draggable-value:hover {
   background: #e3f2fd;
   border: 1px dashed #1976d2;
@@ -395,6 +456,7 @@ td {
 .note-date {
   font-size: 12px;
   color: #7f8c8d;
+  margin-top: -4px !important;
 }
 
 .note-context {
@@ -427,10 +489,10 @@ td {
 }
 
 .note-footer .priority-indicator {
-  width: 12px;
-  height: 12px;
+  width: 10px !important; 
+  height: 10px !important; 
   border-radius: 50%;
-  margin: 0 8px;
+  margin: 0 6px !important; 
 }
 
 .note-footer .priority-2 { background: #bdc3c7; }
@@ -438,18 +500,18 @@ td {
 .note-footer .priority-4 { background: #e74c3c; } 
 
 .note-content {
-  margin-bottom: 12px;
+  margin-bottom: 0 !important; 
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 80px;
+  min-height: 50px !important; 
 }
 
 .note-text {
   color: #2c3e50;
-  line-height: 1.5;
-  font-size: 14px;
-  font-weight: 500;
+  line-height: 1.4 !important; 
+  font-size: 16px;
+  font-weight: 700;
   display: -webkit-box;
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
@@ -457,17 +519,21 @@ td {
   flex: 1;
   word-wrap: break-word;
   overflow-wrap: break-word;
+  margin-bottom: 4px !important; 
 }
 
 .note-footer {
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  padding-top: 12px !important;
+  padding: 0 !important; 
+  padding-bottom: 0 !important;
   border-top: 1px solid #f0f0f0 !important;
   margin-top: auto !important;
   flex-shrink: 0 !important;
-  min-height: 32px !important;
+  min-height: 24px !important;
+  font-size: 11px !important;
+  gap: 0 !important;
 }
 
 .note-attachments {
@@ -480,12 +546,12 @@ td {
   border: none;
   color: #7f8c8d;
   cursor: pointer;
-  padding: 6px 10px;
-  border-radius: 6px;
-  font-size: 12px;
+  padding: 4px 8px !important;
+  border-radius: 4px !important; 
+  font-size: 11px !important; 
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px !important; 
   transition: all 0.2s ease;
 }
 
@@ -503,15 +569,15 @@ td {
 .action-btn {
   background: none !important;
   border: none;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  width: 24px !important; 
+  height: 24px !important; 
+  border-radius: 4px !important; 
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   color: #7f8c8d;
-  font-size: 13px;
+  font-size: 11px !important; 
   transition: all 0.2s ease;
 }
 
@@ -537,7 +603,7 @@ td {
   }
   
   .note-text {
-    font-size: 15px;
+    font-size: 20px;
   }
 }
 
@@ -567,25 +633,28 @@ td {
   }
   
   .note-header {
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-wrap: nowrap !important; 
+    gap: 12px;
   }
   
   .note-context {
-    flex-direction: row;
-    margin-left: 0;
-    padding-left: 0;
-    width: 100%;
-    justify-content: flex-start;
-    gap: 8px;
+    flex-direction: column !important;
+    margin-left: auto !important; 
+    padding-left: 8px !important;
+    width: auto !important; 
+    justify-content: flex-start !important;
+    gap: 2px !important;
   }
   
   .context-item {
-    max-width: none;
-    flex: 1;
-    text-align: left;
+    max-width: 120px !important; 
+    flex: none !important; 
+    text-align: right !important; 
+    background: transparent !important; 
+    padding: 0 !important; 
   }
 }
+
 
 @media (max-width: 767px) {
   .notes-grid {
@@ -601,32 +670,34 @@ td {
   }
   
   .note-header {
-    flex-direction: column;
+    flex-direction: row !important; 
     align-items: flex-start;
-    gap: 8px;
+    gap: 12px;
+    flex-wrap: nowrap !important; 
   }
   
   .note-meta {
-    width: 100%;
+    width: auto;
+    flex: 1;
   }
   
   .note-context {
-    flex-direction: row;
-    margin-left: 0;
-    padding-left: 0;
-    width: 100%;
-    justify-content: space-between;
-    gap: 8px;
+    flex-direction: column !important; 
+    margin-left: auto !important; 
+    padding-left: 8px !important;
+    width: auto !important; 
+    justify-content: flex-start !important;
+    gap: 2px !important;
   }
   
   .context-item {
-    max-width: none;
-    flex: 1;
-    text-align: center;
-    font-size: 10px;
-    padding: 2px 4px;
-    background: #f8f9fa;
-    border-radius: 4px;
+    max-width: 120px !important; 
+    flex: none !important;
+    text-align: right !important; 
+    font-size: 11px !important;
+    background: transparent !important; 
+    padding: 0 !important; 
+    border-radius: 0 !important;
   }
   
   .note-text {
@@ -635,13 +706,13 @@ td {
   }
   
   .note-footer {
-    flex-direction: column;
+    flex-direction: row !important; 
     gap: 8px;
-    align-items: stretch;
+    align-items: center;
   }
   
   .note-actions {
-    justify-content: center;
+    justify-content: flex-end;
   }
 }
 
@@ -656,7 +727,7 @@ td {
   }
   
   .note-header {
-    gap: 6px;
+    gap: 8px;
   }
   
   .user-avatar {
@@ -674,8 +745,8 @@ td {
   }
   
   .context-item {
-    font-size: 9px;
-    padding: 1px 3px;
+    font-size: 10px !important;
+    max-width: 100px !important; 
   }
   
   .note-text {
@@ -692,6 +763,11 @@ td {
     width: 26px;
     height: 26px;
     font-size: 12px;
+  }
+  
+  .note-footer {
+    flex-wrap: nowrap !important;
+    min-height: 24px !important;
   }
 }
 
