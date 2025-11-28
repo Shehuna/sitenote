@@ -678,7 +678,7 @@ const EditNoteModal = ({
                 <select
                   value={selectedPriority}
                   onChange={(e) => setSelectedPriority(e.target.value)}
-                  disabled={isSubmitting || !canEditNote}
+                  disabled={isSubmitting }
                   className={`priority-select ${selectedPriority ? `priority-${selectedPriority}` : "priority-default"}`}
                 >
                   <option value="">Select Priority</option>
@@ -693,9 +693,9 @@ const EditNoteModal = ({
 
         <div className="modal-footer">
           <button onClick={onClose} className="cancel-button" disabled={isSubmitting}>
-            {canEditNote ? "Cancel" : "Close"}
+            {"Close"}
           </button>
-          {canEditNote && (
+          {(
             <button onClick={handleSaveNote} className="save-button" disabled={isSubmitting}>
               {isSubmitting ? "Saving..." : "Save"}
             </button>
