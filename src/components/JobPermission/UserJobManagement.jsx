@@ -21,7 +21,6 @@ const UserJobManagement = ({ defWorkID }) => {
         setError(null);
 
         try {
-            console.log('Fetching workspace users for ID:', defWorkID);
             const response = await fetch(
                 `${process.env.REACT_APP_API_BASE_URL}/api/UserWorkspace/GetUsersByWorkspaceId/${defWorkID}`
             );
@@ -31,11 +30,7 @@ const UserJobManagement = ({ defWorkID }) => {
             }
             
             const data = await response.json();
-            console.log('Workspace Users API Response:', data);
-            
-            // Extract users from the API response
             const users = data.users || [];
-            console.log('Extracted workspace users:', users);
             setWorkspaceUsers(users);
             
             // After getting workspace users, fetch their job data
@@ -52,7 +47,6 @@ const UserJobManagement = ({ defWorkID }) => {
     // Fetch user job data for workspace users
     const fetchUserJobData = async (workspaceUsersList) => {
         try {
-            console.log('Fetching user job data for workspace users:', workspaceUsersList);
             const response = await fetch(
                 `${process.env.REACT_APP_API_BASE_URL}/api/UserJobAuth/GetUserJobDetails`
             );
@@ -62,22 +56,16 @@ const UserJobManagement = ({ defWorkID }) => {
             }
             
             const data = await response.json();
-            console.log('User Job Data API Response:', data);
-            
-            // Handle different response structures
             const allUserJobs = data.data || data.userJobs || data || [];
-            console.log('All user jobs from API:', allUserJobs);
             
             // Extract user IDs from workspace users
             const workspaceUserIds = workspaceUsersList.map(user => user.userId);
-            console.log('Workspace User IDs to filter by:', workspaceUserIds);
             
             // Filter user job data to only include users from the workspace
             const filteredUserJobs = allUserJobs.filter(item => 
                 workspaceUserIds.includes(item.userId)
             );
             
-            console.log('Filtered User Jobs (workspace users only):', filteredUserJobs);
             setUserJobData(filteredUserJobs);
             
         } catch (err) {
@@ -86,18 +74,12 @@ const UserJobManagement = ({ defWorkID }) => {
         }
     };
 
-    // Refresh both workspace users and job data
-    const refreshData = async () => {
-        await fetchWorkspaceUsers();
-    };
-
     // Group user job data by user
     const usersWithJobs = useMemo(() => {
         const groupedByUser = {};
         
         userJobData.forEach(item => {
             if (!groupedByUser[item.userId]) {
-                // Find the workspace user info to get additional details
                 const workspaceUser = workspaceUsers.find(user => user.userId === item.userId);
                 
                 groupedByUser[item.userId] = {
@@ -107,11 +89,6 @@ const UserJobManagement = ({ defWorkID }) => {
                         lname: item.lname || workspaceUser?.lname,
                         userName: item.userName || workspaceUser?.userName,
                         email: item.email || workspaceUser?.email,
-                        role: item.role,
-                        status: item.status,
-                        workspaceRole: workspaceUser?.roleInWorkspace,
-                        workspaceStatus: workspaceUser?.statusInWorkspace,
-                        joinedAt: workspaceUser?.joinedAt
                     },
                     jobs: []
                 };
@@ -123,10 +100,6 @@ const UserJobManagement = ({ defWorkID }) => {
                 jobName: item.jobName,
                 jobDescription: item.jobDescription,
                 projectId: item.projectId,
-                jobStatus: item.jobStatus,
-                jobOwnerId: item.jobOwnerId,
-                timestamp: item.timestamp,
-                userIDScreen: item.userIDScreen
             });
         });
         
@@ -189,15 +162,13 @@ const UserJobManagement = ({ defWorkID }) => {
             const allSuccessful = results.every(result => result);
             
             if (allSuccessful) {
-                // Clear selections for this user
                 setSelectedJobs(prev => {
                     const newSelected = { ...prev };
                     delete newSelected[userId];
                     return newSelected;
                 });
                 
-                // Refresh the data
-                await refreshData();
+                await fetchWorkspaceUsers();
                 alert(`Successfully denied permission for ${selectedUserJobIds.length} job(s)`);
             } else {
                 throw new Error('Failed to deny permission for some jobs');
@@ -218,12 +189,10 @@ const UserJobManagement = ({ defWorkID }) => {
         return usersWithJobs.filter(userGroup => {
             const user = userGroup.userInfo;
             
-            // Check user fields
             const userMatches = user.userName?.toLowerCase().includes(searchLower) ||
                               user.email?.toLowerCase().includes(searchLower) ||
                               `${user.fname} ${user.lname}`.toLowerCase().includes(searchLower);
 
-            // Check if any of user's jobs match the search
             const jobMatches = userGroup.jobs.some(job => 
                 job.jobName?.toLowerCase().includes(searchLower) ||
                 job.jobDescription?.toLowerCase().includes(searchLower)
@@ -238,23 +207,19 @@ const UserJobManagement = ({ defWorkID }) => {
         const userJobsList = userGroup.jobs;
         
         if (!searchTerm) {
-            // No search term - show all jobs
             return userJobsList;
         }
 
         const searchLower = searchTerm.toLowerCase();
         const user = userGroup.userInfo;
         
-        // Check if user matches the search
         const userMatches = user.userName?.toLowerCase().includes(searchLower) ||
                            user.email?.toLowerCase().includes(searchLower) ||
                            `${user.fname} ${user.lname}`.toLowerCase().includes(searchLower);
 
         if (userMatches) {
-            // User matches search - show ALL their jobs
             return userJobsList;
         } else {
-            // User doesn't match search, but might have matching jobs - show only matching jobs
             return userJobsList.filter(job => 
                 job.jobName?.toLowerCase().includes(searchLower) ||
                 job.jobDescription?.toLowerCase().includes(searchLower)
@@ -274,69 +239,72 @@ const UserJobManagement = ({ defWorkID }) => {
         return jobs.some(job => selectedJobs[userId]?.[job.userJobId]);
     };
 
-    // Get workspace role badge
-    const getWorkspaceRoleBadge = (role) => {
-        const roleMap = {
-            1: { text: 'Admin', class: 'role-admin' },
-            2: { text: 'Manager', class: 'role-manager' },
-            3: { text: 'Member', class: 'role-member' },
-            4: { text: 'Viewer', class: 'role-viewer' }
-        };
-        
-        const roleInfo = roleMap[role] || { text: 'Unknown', class: 'role-unknown' };
-        return <span className={`role-badge ${roleInfo.class}`}>{roleInfo.text}</span>;
-    };
-
-    // Get workspace status badge
-    const getWorkspaceStatusBadge = (status) => {
-        const statusMap = {
-            1: { text: 'Active', class: 'status-active' },
-            2: { text: 'Inactive', class: 'status-inactive' },
-            0: { text: 'Pending', class: 'status-pending' }
-        };
-        
-        const statusInfo = statusMap[status] || { text: 'Unknown', class: 'status-unknown' };
-        return <span className={`status-badge ${statusInfo.class}`}>{statusInfo.text}</span>;
-    };
-
     if (loading) return <div className="loading-message">Loading workspace user data...</div>;
     if (error) return <div className="error-message">Error: {error}</div>;
 
     return (
-        <div className="user-job-management">
-            <div className="user-job-header">
-                <h2>User Job Permissions</h2>
-                <p>Manage job permissions for users in this workspace </p>
-               
-            </div>
-
-            {/* Controls */}
-            <div className="user-job-controls">
-                <div className="search-bar">
-                    <i className="fas fa-search"></i>
+        <div className="user-job-management" style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            height: '100%', 
+            maxHeight: '400px',
+            overflow: 'hidden',
+            padding: '0 8px' // Added padding to prevent edge issues
+        }}>
+           
+            {/* Compact Controls - Fixed Width Search */}
+            <div style={{ 
+                display: 'flex', 
+                gap: '8px', 
+                marginBottom: '12px',
+                flexShrink: 0,
+                padding: '0 4px', // Added padding
+                justifyContent: 'center' // Center the search box
+            }}>
+                <div style={{ 
+                    position: 'relative', 
+                    width: '95%', // Fixed width to prevent overflow
+                    maxWidth: '300px' // Maximum width limit
+                }}>
+                    <i className="fas fa-search" style={{ 
+                        position: 'absolute', 
+                        left: '8px', 
+                        top: '50%', 
+                        transform: 'translateY(-50%)', 
+                        color: '#999',
+                        fontSize: '12px'
+                    }}></i>
                     <input
                         type="text"
-                        placeholder="Search users or job names..."
+                        placeholder="Search users or jobs..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
+                        style={{
+                            width: '100%', // Takes full width of container
+                            padding: '6px 6px 6px 24px',
+                            border: '1px solid #ddd',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            height: '32px',
+                            boxSizing: 'border-box' // Ensures padding doesn't affect width
+                        }}
                     />
                 </div>
-                <button 
-                    onClick={refreshData}
-                    className="refresh-btn"
-                    title="Refresh Data"
-                >
-                    <i className="fas fa-sync-alt"></i> Refresh
-                </button>
             </div>
 
-            {/* Users List */}
-            <div className="users-list">
+            {/* Users List - Compact */}
+            <div style={{ 
+                flex: 1, 
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                padding: '0 4px' // Added padding
+            }}>
                 {filteredUsers.map(userGroup => {
                     const user = userGroup.userInfo;
                     const jobsToDisplay = getJobsToDisplayForUser(userGroup);
                     
-                    // Don't show users with no jobs to display
                     if (jobsToDisplay.length === 0) return null;
 
                     const allSelected = areAllJobsSelectedForUser(user.id, jobsToDisplay);
@@ -344,107 +312,222 @@ const UserJobManagement = ({ defWorkID }) => {
                     const selectedCount = anySelected ? Object.values(selectedJobs[user.id] || {}).filter(Boolean).length : 0;
 
                     return (
-                        <div key={user.id} className="user-card">
-                            <div className="user-info">
-                                <div className="user-main-info">
-                                    <h3 className="user-name">{user.fname} {user.lname}</h3>
+                        <div key={user.id} style={{
+                            border: '1px solid #e1e5e9',
+                            borderRadius: '4px',
+                            padding: '8px',
+                            background: 'white'
+                        }}>
+                            {/* User Header - Compact */}
+                            <div style={{ 
+                                marginBottom: '8px',
+                                paddingBottom: '6px',
+                                borderBottom: '1px solid #f0f0f0'
+                            }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <h4 style={{ 
+                                        margin: '0', 
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        color: '#333'
+                                    }}>
+                                        {user.fname} {user.lname}
+                                    </h4>
+                                    <span style={{ 
+                                        fontSize: '10px',
+                                        color: '#666'
+                                    }}>
+                                        {jobsToDisplay.length} job{jobsToDisplay.length !== 1 ? 's' : ''}
+                                        {anySelected && ` • ${selectedCount} selected`}
+                                    </span>
                                 </div>
-                                
+                                <div style={{ 
+                                    fontSize: '10px',
+                                    color: '#666',
+                                    marginTop: '2px'
+                                }}>
+                                    {user.email}
+                                </div>
                             </div>
 
-                            <div className="user-jobs-section">
-                                <div className="jobs-section-header">
-                                    <h4 className="jobs-section-title">
-                                        Job Permissions ({jobsToDisplay.length} job{jobsToDisplay.length !== 1 ? 's' : ''})
-                                        {anySelected && <span className="selected-count"> - {selectedCount} selected</span>}
-                                    </h4>
-                                    <div className="bulk-actions">
-                                        <label className="select-all-checkbox">
+                            {/* Bulk Actions - Compact */}
+                            <div style={{ 
+                                display: 'flex', 
+                                justifyContent: 'space-between', 
+                                alignItems: 'center',
+                                marginBottom: '6px'
+                            }}>
+                                <label style={{ 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    gap: '4px',
+                                    cursor: 'pointer',
+                                    fontSize: '11px'
+                                }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={allSelected}
+                                        onChange={() => handleSelectAllForUser(user.id, jobsToDisplay)}
+                                        style={{ 
+                                            width: '12px',
+                                            height: '12px'
+                                        }}
+                                    />
+                                    Select All
+                                </label>
+                                {anySelected && (
+                                    <button 
+                                        onClick={() => handleDenyPermissionForUser(user.id)}
+                                        style={{
+                                            padding: '4px 8px',
+                                            background: '#dc3545',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '3px',
+                                            cursor: 'pointer',
+                                            fontSize: '10px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '4px'
+                                        }}
+                                    >
+                                        <i className="fas fa-ban" style={{ fontSize: '8px' }}></i>
+                                        Deny ({selectedCount})
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Jobs List - Compact with Larger Font */}
+                            <div style={{ 
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '4px',
+                                maxHeight: '120px',
+                                overflowY: 'auto'
+                            }}>
+                                {jobsToDisplay.map(job => {
+                                    const isSelected = selectedJobs[user.id]?.[job.userJobId] || false;
+                                    
+                                    return (
+                                        <label key={job.userJobId} style={{
+                                            display: 'flex',
+                                            alignItems: 'flex-start',
+                                            gap: '6px',
+                                            padding: '5px 6px', // Slightly increased padding
+                                            borderRadius: '3px',
+                                            cursor: 'pointer',
+                                            backgroundColor: isSelected ? '#f8f9fa' : 'transparent',
+                                            border: '1px solid #f0f0f0',
+                                            fontSize: '12px' // Increased from 11px to 12px
+                                        }}>
                                             <input
                                                 type="checkbox"
-                                                checked={allSelected}
-                                                onChange={() => handleSelectAllForUser(user.id, jobsToDisplay)}
+                                                checked={isSelected}
+                                                onChange={() => handleCheckboxChange(user.id, job.userJobId)}
+                                                style={{ 
+                                                    marginTop: '2px',
+                                                    width: '12px',
+                                                    height: '12px',
+                                                    flexShrink: 0
+                                                }}
                                             />
-                                            Select All
-                                        </label>
-                                        {anySelected && (
-                                            <button 
-                                                onClick={() => handleDenyPermissionForUser(user.id)}
-                                                className="deny-selected-btn"
-                                                title="Deny Permission for Selected Jobs"
-                                            >
-                                                <i className="fas fa-ban"></i>
-                                                Deny Selected ({selectedCount})
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="jobs-list">
-                                    {jobsToDisplay.map(job => {
-                                        const isSelected = selectedJobs[user.id]?.[job.userJobId] || false;
-                                        
-                                        return (
-                                            <div key={job.userJobId} className="job-item">
-                                                <div className="job-info">
-                                                    <label className="job-checkbox">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={isSelected}
-                                                            onChange={() => handleCheckboxChange(user.id, job.userJobId)}
-                                                        />
-                                                        <div className="job-details">
-                                                            <span className="job-name">{job.jobName}</span>
-                                                            {job.jobDescription && (
-                                                                <span className="job-description">{job.jobDescription}</span>
-                                                            )}
-                                                            <div className="job-meta">
-                                                                <span className="job-id">Job ID: {job.jobId}</span>
-                                                                <span className="project-id">Project ID: {job.projectId}</span>
-                                                                
-                                                            </div>
-                                                        </div>
-                                                    </label>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ 
+                                                    fontWeight: '500',
+                                                    marginBottom: '2px',
+                                                    lineHeight: '1.3', // Slightly increased line height
+                                                    fontSize: '12px' // Increased job name font size
+                                                }}>
+                                                    {job.jobName}
                                                 </div>
+                                                <div style={{ 
+                                                    fontSize: '10px', // Increased from 9px to 10px
+                                                    color: '#666',
+                                                    lineHeight: '1.2'
+                                                }}>
+                                                    ID: {job.jobId} • Project: {job.projectId}
+                                                </div>
+                                                {job.jobDescription && (
+                                                    <div style={{ 
+                                                        fontSize: '10px', // Increased from 9px to 10px
+                                                        color: '#666',
+                                                        marginTop: '2px', // Slightly increased margin
+                                                        lineHeight: '1.2'
+                                                    }}>
+                                                        {job.jobDescription}
+                                                    </div>
+                                                )}
                                             </div>
-                                        );
-                                    })}
-                                </div>
+                                        </label>
+                                    );
+                                })}
                             </div>
                         </div>
                     );
                 })}
-            </div>
 
-            {filteredUsers.filter(userGroup => getJobsToDisplayForUser(userGroup).length > 0).length === 0 && (
-                <div className="no-results">
-                    {searchTerm ? (
-                        <>
-                            <i className="fas fa-search"></i>
-                            <h3>No users or jobs found</h3>
-                            <p>No users or jobs match your search criteria "{searchTerm}"</p>
-                            <button 
-                                onClick={() => setSearchTerm('')}
-                                className="clear-search-btn"
-                            >
-                                Clear Search
-                            </button>
-                        </>
-                    ) : (
-                        <>
-                            <i className="fas fa-users"></i>
-                            <h3>No users with job permissions</h3>
-                            <p>
-                                There are currently no users in workspace {defWorkID} with job permissions assigned.
-                                {workspaceUsers.length > 0 && ` ${workspaceUsers.length} user${workspaceUsers.length !== 1 ? 's' : ''} found in workspace.`}
-                            </p>
-                            
-                        </>
-                    )}
-                </div>
-            )}
+                {filteredUsers.filter(userGroup => getJobsToDisplayForUser(userGroup).length > 0).length === 0 && (
+                    <div style={{ 
+                        textAlign: 'center', 
+                        padding: '20px 12px',
+                        color: '#666'
+                    }}>
+                        {searchTerm ? (
+                            <>
+                                <i className="fas fa-search" style={{ 
+                                    fontSize: '20px', 
+                                    marginBottom: '8px',
+                                    opacity: 0.5
+                                }}></i>
+                                <h4 style={{ 
+                                    margin: '0 0 6px 0',
+                                    fontSize: '12px',
+                                    color: '#333'
+                                }}>No users or jobs found</h4>
+                                <p style={{ 
+                                    margin: '0 0 10px 0',
+                                    fontSize: '11px'
+                                }}>No matches for "{searchTerm}"</p>
+                                <button 
+                                    onClick={() => setSearchTerm('')}
+                                    style={{
+                                        padding: '4px 12px',
+                                        background: '#6c757d',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '3px',
+                                        cursor: 'pointer',
+                                        fontSize: '10px'
+                                    }}
+                                >
+                                    Clear Search
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <i className="fas fa-users" style={{ 
+                                    fontSize: '20px', 
+                                    marginBottom: '8px',
+                                    opacity: 0.5
+                                }}></i>
+                                <h4 style={{ 
+                                    margin: '0 0 6px 0',
+                                    fontSize: '12px',
+                                    color: '#333'
+                                }}>No users with job permissions</h4>
+                                <p style={{ 
+                                    margin: '0',
+                                    fontSize: '11px'
+                                }}>
+                                    No users in workspace have job permissions assigned.
+                                </p>
+                            </>
+                        )}
+                    </div>
+                )}
+            </div>
         </div>
     );
 };
 
 export default UserJobManagement;
-

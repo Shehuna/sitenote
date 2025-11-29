@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import Modal from '../Modals/Modal';
+import toast from 'react-hot-toast';
 
 const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
      const [projects, setProjects] = useState([])
@@ -117,7 +118,7 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
             });
 
             if (!response.ok) throw new Error('Failed to add project');
-
+            toast.success("Project Added Successfully")
             await updateProjectsAndJobs()
             fetchProjects();
             setNewProjectName('');
@@ -146,7 +147,7 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
         });
 
         if (!response.ok) throw new Error('Failed to update project');
-
+        toast.success("Project Updated Successfully")
         fetchProjects();
         setNewProjectName('');
         setNewProjectStatus(1);
