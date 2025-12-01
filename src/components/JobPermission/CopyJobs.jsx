@@ -76,62 +76,6 @@ const CopyJobs = ({ filteredUsers, loading, setLoading, defWorkId }) => {
         }
     };
 
-    // Check if target users already have the jobs when they are selected
-    const checkTargetUsersJobs = async () => {
-        if (targetUsers.length === 0 || defaultWorkspaceJobs.length === 0) return;
-
-        const alerts = [];
-        
-        for (const targetUser of targetUsers) {
-            try {
-                const targetJobs = await fetchUserJobs(targetUser.userId);
-                
-                // Check which jobs the target user already has
-                const existingJobs = defaultWorkspaceJobs.filter(sourceJob => 
-                    targetJobs.some(targetJob => targetJob.jobId === sourceJob.jobId)
-                );
-
-                if (existingJobs.length > 0) {
-                    // Filter jobs that are in the same workspace
-                    const existingJobsInSameWorkspace = existingJobs.filter(job => 
-                        targetJobs.some(targetJob => 
-                            targetJob.jobId === job.jobId && 
-                            targetJob.workspaceId === job.workspaceId
-                        )
-                    );
-
-                    if (existingJobsInSameWorkspace.length > 0) {
-                        const jobNames = existingJobsInSameWorkspace.map(job => job.jobName).join(', ');
-                        alerts.push({
-                            userName: targetUser.userName,
-                            jobNames: jobNames,
-                            count: existingJobsInSameWorkspace.length
-                        });
-                    }
-                }
-            } catch (error) {
-                console.error(`Error checking jobs for user ${targetUser.userName}:`, error);
-            }
-        }
-
-        // Show alerts if any user already has the jobs
-        if (alerts.length > 0) {
-            alerts.forEach(alert => {
-                toast.error(
-                    `${alert.userName} already has ${alert.count} job(s): ${alert.jobNames}`, 
-                    { duration: 6000 }
-                );
-            });
-        }
-    };
-
-    // Check target users' jobs when source jobs or target users change
-    useEffect(() => {
-        if (defaultWorkspaceJobs.length > 0 && targetUsers.length > 0) {
-            checkTargetUsersJobs();
-        }
-    }, [targetUsers, defaultWorkspaceJobs]);
-
     const handleCopyJobs = async () => {
         if (!sourceUser) {
             toast.error('Please select a source user');
@@ -152,8 +96,8 @@ const CopyJobs = ({ filteredUsers, loading, setLoading, defWorkId }) => {
         try {
             const copyPromises = [];
             const successfulCopies = [];
-            const failedCopies = [];
             const alreadyHadJobs = [];
+            const failedCopies = [];
 
             for (const targetUser of targetUsers) {
                 try {
@@ -169,11 +113,19 @@ const CopyJobs = ({ filteredUsers, loading, setLoading, defWorkId }) => {
                     );
 
                     // Check if user already had any jobs
-                    const existingJobsCount = defaultWorkspaceJobs.length - jobsToCopy.length;
-                    if (existingJobsCount > 0) {
+                    const existingJobs = defaultWorkspaceJobs.filter(sourceJob => 
+                        targetJobs.some(targetJob => 
+                            targetJob.jobId === sourceJob.jobId && 
+                            targetJob.workspaceId === sourceJob.workspaceId
+                        )
+                    );
+
+                    // Track jobs that were already assigned
+                    if (existingJobs.length > 0) {
                         alreadyHadJobs.push({
                             userName: targetUser.userName,
-                            count: existingJobsCount
+                            count: existingJobs.length,
+                            jobNames: existingJobs.map(job => job.jobName).join(', ')
                         });
                     }
 
@@ -199,7 +151,8 @@ const CopyJobs = ({ filteredUsers, loading, setLoading, defWorkId }) => {
 
                     successfulCopies.push({
                         user: targetUser.userName,
-                        jobsCount: jobsToCopy.length
+                        jobsCount: jobsToCopy.length,
+                        jobNames: jobsToCopy.map(job => job.jobName).join(', ')
                     });
                 } catch (error) {
                     failedCopies.push(targetUser.userName);
@@ -207,30 +160,32 @@ const CopyJobs = ({ filteredUsers, loading, setLoading, defWorkId }) => {
                 }
             }
 
-            // Show warnings about users who already had jobs
-            if (alreadyHadJobs.length > 0) {
-                const warningMessage = alreadyHadJobs.map(a => 
-                    `${a.userName} (already had ${a.count} job(s))`
-                ).join(', ');
-                toast.warning(`Some users already had jobs: ${warningMessage}`);
-            }
-
             if (copyPromises.length > 0) {
                 await Promise.allSettled(copyPromises);
             }
 
-            if (successfulCopies.length > 0) {
-                const successMessage = successfulCopies.map(s => 
-                    `${s.user} (${s.jobsCount} jobs)`
-                ).join(', ');
-                toast.success(`Jobs copied successfully to: ${successMessage}`);
-            }
+            // Show notifications only after processing is complete
+            
+            // Show success notifications for copied jobs
+            successfulCopies.forEach(copy => {
+                toast.success(`${copy.user}: Successfully copied ${copy.jobsCount} job(s) - ${copy.jobNames}`, {
+                    duration: 5000
+                });
+            });
 
+            // Show "already has this job" notifications
+            alreadyHadJobs.forEach(info => {
+                toast.error(`${info.userName}: Already has ${info.count} job(s) - ${info.jobNames}`, {
+                    duration: 5000
+                });
+            });
+
+            // Show failed copies
             if (failedCopies.length > 0) {
                 toast.error(`Failed to copy jobs to: ${failedCopies.join(', ')}`);
             }
 
-            // Show summary if no jobs were copied to anyone
+            // Show summary if no jobs were copied
             if (successfulCopies.length === 0 && alreadyHadJobs.length > 0) {
                 toast.info('All target users already had these jobs. No new jobs were copied.');
             }
@@ -253,7 +208,7 @@ const CopyJobs = ({ filteredUsers, loading, setLoading, defWorkId }) => {
         setDefaultWorkspaceJobs([]);
     };
 
-    const handleSelectTargetUser = async (selectedUser) => {
+    const handleSelectTargetUser = (selectedUser) => {
         if (!targetUsers.some(selected => selected.userId === selectedUser.userId)) {
             setTargetUsers(prev => [...prev, selectedUser]);
         }
@@ -317,7 +272,7 @@ const CopyJobs = ({ filteredUsers, loading, setLoading, defWorkId }) => {
                             </small>
                             {defaultWorkspaceJobs.length > 0 && (
                                 <div className="job-list">
-                                    <small>Jobs to copy: {defaultWorkspaceJobs.map(job => job.jobName).join(', ')}</small>
+                                    <small>Jobs available to copy: {defaultWorkspaceJobs.map(job => job.jobName).join(', ')}</small>
                                 </div>
                             )}
                         </div>
