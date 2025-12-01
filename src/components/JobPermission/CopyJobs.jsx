@@ -1,11 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import toast from 'react-hot-toast';
 
-const CopyJobs = ({ filteredUsers, loading, setLoading }) => {
+const CopyJobs = ({ filteredUsers, loading, setLoading, defWorkId }) => {
     const [sourceUser, setSourceUser] = useState('');
     const [targetUsers, setTargetUsers] = useState([]);
     const [copySearchTerm, setCopySearchTerm] = useState('');
     const [showCopyDropdown, setShowCopyDropdown] = useState(false);
+    const [sourceUserJobs, setSourceUserJobs] = useState([]);
+    const [defaultWorkspaceJobs, setDefaultWorkspaceJobs] = useState([]);
 
     const user = JSON.parse(localStorage.getItem('user'));
     const API_URL = process.env.REACT_APP_API_BASE_URL;
@@ -16,8 +18,119 @@ const CopyJobs = ({ filteredUsers, loading, setLoading }) => {
         return filteredUsers.filter(user => 
             user.userName.toLowerCase().includes(copySearchTerm.toLowerCase()) ||
             user.email?.toLowerCase().includes(copySearchTerm.toLowerCase())
-        ).filter(user => !targetUsers.some(selected => selected.id === user.id) && user.id !== sourceUser);
+        ).filter(user => !targetUsers.some(selected => selected.userId === user.userId) && user.userId !== parseInt(sourceUser));
     }, [copySearchTerm, filteredUsers, targetUsers, sourceUser]);
+
+    // Fetch source user's jobs when source user changes
+    useEffect(() => {
+        if (sourceUser && defWorkId) {
+            fetchSourceUserJobs();
+        }
+    }, [sourceUser, defWorkId]);
+
+    // Function to fetch jobs for any user
+    const fetchUserJobs = async (userId) => {
+        try {
+            const response = await fetch(
+                `${API_URL}/api/SiteNote/SearchJobs?userId=${userId}`,
+                {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                }
+            );
+
+            if (!response.ok) {
+                console.error(`Failed to fetch jobs for user ${userId}`);
+                return [];
+            }
+
+            const data = await response.json();
+            return data.results || [];
+        } catch (error) {
+            console.error(`Error fetching jobs for user ${userId}:`, error);
+            return [];
+        }
+    };
+
+    const fetchSourceUserJobs = async () => {
+        try {
+            const allJobs = await fetchUserJobs(sourceUser);
+            setSourceUserJobs(allJobs);
+
+            // Filter jobs that belong to the default workspace
+            const workspaceJobs = allJobs.filter(job => 
+                job.workspaceId === defWorkId
+            );
+            
+            setDefaultWorkspaceJobs(workspaceJobs);
+            
+            // Show info about the jobs found
+            if (workspaceJobs.length === 0 && allJobs.length > 0) {
+                toast.info(`Source user has ${allJobs.length} jobs but none in the default workspace (ID: ${defWorkId})`);
+            }
+            
+        } catch (error) {
+            console.error('Error fetching source user jobs:', error);
+            setSourceUserJobs([]);
+            setDefaultWorkspaceJobs([]);
+        }
+    };
+
+    // Check if target users already have the jobs when they are selected
+    const checkTargetUsersJobs = async () => {
+        if (targetUsers.length === 0 || defaultWorkspaceJobs.length === 0) return;
+
+        const alerts = [];
+        
+        for (const targetUser of targetUsers) {
+            try {
+                const targetJobs = await fetchUserJobs(targetUser.userId);
+                
+                // Check which jobs the target user already has
+                const existingJobs = defaultWorkspaceJobs.filter(sourceJob => 
+                    targetJobs.some(targetJob => targetJob.jobId === sourceJob.jobId)
+                );
+
+                if (existingJobs.length > 0) {
+                    // Filter jobs that are in the same workspace
+                    const existingJobsInSameWorkspace = existingJobs.filter(job => 
+                        targetJobs.some(targetJob => 
+                            targetJob.jobId === job.jobId && 
+                            targetJob.workspaceId === job.workspaceId
+                        )
+                    );
+
+                    if (existingJobsInSameWorkspace.length > 0) {
+                        const jobNames = existingJobsInSameWorkspace.map(job => job.jobName).join(', ');
+                        alerts.push({
+                            userName: targetUser.userName,
+                            jobNames: jobNames,
+                            count: existingJobsInSameWorkspace.length
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error(`Error checking jobs for user ${targetUser.userName}:`, error);
+            }
+        }
+
+        // Show alerts if any user already has the jobs
+        if (alerts.length > 0) {
+            alerts.forEach(alert => {
+                toast.error(
+                    `${alert.userName} already has ${alert.count} job(s): ${alert.jobNames}`, 
+                    { duration: 6000 }
+                );
+            });
+        }
+    };
+
+    // Check target users' jobs when source jobs or target users change
+    useEffect(() => {
+        if (defaultWorkspaceJobs.length > 0 && targetUsers.length > 0) {
+            checkTargetUsersJobs();
+        }
+    }, [targetUsers, defaultWorkspaceJobs]);
 
     const handleCopyJobs = async () => {
         if (!sourceUser) {
@@ -30,65 +143,52 @@ const CopyJobs = ({ filteredUsers, loading, setLoading }) => {
             return;
         }
 
+        if (defaultWorkspaceJobs.length === 0) {
+            toast.error('No jobs found in the default workspace to copy');
+            return;
+        }
+
         setLoading(true);
         try {
-            // Get source user's jobs
-            const sourceJobsResponse = await fetch(
-                `${API_URL}/api/UserJobAuth/GetUserJobsByUserId/${sourceUser}`,
-                {
-                    method: 'GET',
-                    headers: { 'Content-Type': 'application/json' }
-                }
-            );
-
-            if (!sourceJobsResponse.ok) {
-                throw new Error('Failed to fetch source user jobs');
-            }
-
-            const sourceJobsData = await sourceJobsResponse.json();
-            const sourceJobs = sourceJobsData.userJobs || [];
-
-            if (sourceJobs.length === 0) {
-                toast.info('Source user has no jobs to copy');
-                return;
-            }
-
-            // Copy jobs to target users
             const copyPromises = [];
             const successfulCopies = [];
             const failedCopies = [];
+            const alreadyHadJobs = [];
 
             for (const targetUser of targetUsers) {
                 try {
-                    // Get target user's current jobs to avoid duplicates
-                    const targetJobsResponse = await fetch(
-                        `${API_URL}/api/UserJobAuth/GetUserJobsByUserId/${targetUser.id}`,
-                        {
-                            method: 'GET',
-                            headers: { 'Content-Type': 'application/json' }
-                        }
+                    // Get target user's current jobs
+                    const targetJobs = await fetchUserJobs(targetUser.userId);
+
+                    // Filter out jobs that target user already has
+                    const jobsToCopy = defaultWorkspaceJobs.filter(sourceJob => 
+                        !targetJobs.some(targetJob => 
+                            targetJob.jobId === sourceJob.jobId && 
+                            targetJob.workspaceId === sourceJob.workspaceId
+                        )
                     );
 
-                    if (!targetJobsResponse.ok) {
-                        failedCopies.push(targetUser.userName);
+                    // Check if user already had any jobs
+                    const existingJobsCount = defaultWorkspaceJobs.length - jobsToCopy.length;
+                    if (existingJobsCount > 0) {
+                        alreadyHadJobs.push({
+                            userName: targetUser.userName,
+                            count: existingJobsCount
+                        });
+                    }
+
+                    // Skip if no new jobs to copy
+                    if (jobsToCopy.length === 0) {
                         continue;
                     }
 
-                    const targetJobsData = await targetJobsResponse.json();
-                    const targetJobs = targetJobsData.userJobs || [];
-
-                    // Filter out jobs that target user already has
-                    const jobsToCopy = sourceJobs.filter(sourceJob => 
-                        !targetJobs.some(targetJob => targetJob.jobId === sourceJob.jobId)
-                    );
-
-                    // Add new jobs
+                    // Add new jobs using the UserJobAuth endpoint
                     for (const job of jobsToCopy) {
                         const copyPromise = fetch(`${API_URL}/api/UserJobAuth/AddUserJob`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
-                                userId: targetUser.id,
+                                userId: targetUser.userId,
                                 jobId: job.jobId,
                                 userIDScreen: user.id
                             })
@@ -107,6 +207,14 @@ const CopyJobs = ({ filteredUsers, loading, setLoading }) => {
                 }
             }
 
+            // Show warnings about users who already had jobs
+            if (alreadyHadJobs.length > 0) {
+                const warningMessage = alreadyHadJobs.map(a => 
+                    `${a.userName} (already had ${a.count} job(s))`
+                ).join(', ');
+                toast.warning(`Some users already had jobs: ${warningMessage}`);
+            }
+
             if (copyPromises.length > 0) {
                 await Promise.allSettled(copyPromises);
             }
@@ -120,6 +228,11 @@ const CopyJobs = ({ filteredUsers, loading, setLoading }) => {
 
             if (failedCopies.length > 0) {
                 toast.error(`Failed to copy jobs to: ${failedCopies.join(', ')}`);
+            }
+
+            // Show summary if no jobs were copied to anyone
+            if (successfulCopies.length === 0 && alreadyHadJobs.length > 0) {
+                toast.info('All target users already had these jobs. No new jobs were copied.');
             }
 
             resetCopyForm();
@@ -136,18 +249,20 @@ const CopyJobs = ({ filteredUsers, loading, setLoading }) => {
         setTargetUsers([]);
         setCopySearchTerm('');
         setShowCopyDropdown(false);
+        setSourceUserJobs([]);
+        setDefaultWorkspaceJobs([]);
     };
 
-    const handleSelectTargetUser = (user) => {
-        if (!targetUsers.some(selected => selected.id === user.id)) {
-            setTargetUsers(prev => [...prev, user]);
+    const handleSelectTargetUser = async (selectedUser) => {
+        if (!targetUsers.some(selected => selected.userId === selectedUser.userId)) {
+            setTargetUsers(prev => [...prev, selectedUser]);
         }
         setCopySearchTerm('');
         setShowCopyDropdown(false);
     };
 
     const handleRemoveTargetUser = (userId) => {
-        setTargetUsers(prev => prev.filter(user => user.id !== userId));
+        setTargetUsers(prev => prev.filter(user => user.userId !== userId));
     };
 
     const handleCopySearchChange = (e) => {
@@ -160,8 +275,16 @@ const CopyJobs = ({ filteredUsers, loading, setLoading }) => {
         if (e.key === 'Enter' && copySearchTerm.trim() && copySearchResults.length > 0) {
             handleSelectTargetUser(copySearchResults[0]);
         } else if (e.key === 'Backspace' && copySearchTerm === '' && targetUsers.length > 0) {
-            handleRemoveTargetUser(targetUsers[targetUsers.length - 1].id);
+            handleRemoveTargetUser(targetUsers[targetUsers.length - 1].userId);
         }
+    };
+
+    const handleSourceUserChange = (e) => {
+        const userId = e.target.value;
+        setSourceUser(userId);
+        // Reset jobs when user changes
+        setSourceUserJobs([]);
+        setDefaultWorkspaceJobs([]);
     };
 
     return (
@@ -171,13 +294,34 @@ const CopyJobs = ({ filteredUsers, loading, setLoading }) => {
                     <label>Source User:</label>
                     <select
                         value={sourceUser}
-                        onChange={(e) => setSourceUser(e.target.value)}
+                        onChange={handleSourceUserChange}
                     >
                         <option value="">Select Source User</option>
                         {filteredUsers.map(user => (
-                            <option key={user.id} value={user.id}>{user.userName}</option>
+                            <option key={user.userId} value={user.userId}>{user.userName}</option>
                         ))}
                     </select>
+                    
+                    {defWorkId && (
+                        <div className="workspace-info">
+                            <small>Default Workspace ID: {defWorkId}</small>
+                        </div>
+                    )}
+                    
+                    {sourceUser && (
+                        <div className="jobs-info">
+                            <small>
+                                Found {defaultWorkspaceJobs.length} job(s) in default workspace 
+                                {sourceUserJobs.length > 0 && 
+                                    ` (out of ${sourceUserJobs.length} total jobs)`}
+                            </small>
+                            {defaultWorkspaceJobs.length > 0 && (
+                                <div className="job-list">
+                                    <small>Jobs to copy: {defaultWorkspaceJobs.map(job => job.jobName).join(', ')}</small>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 <div className="form-group">
@@ -198,7 +342,7 @@ const CopyJobs = ({ filteredUsers, loading, setLoading }) => {
                                 <div className="user-dropdown">
                                     {copySearchResults.map(user => (
                                         <div
-                                            key={user.id}
+                                            key={user.userId}
                                             className="dropdown-item"
                                             onClick={() => handleSelectTargetUser(user)}
                                         >
@@ -216,14 +360,14 @@ const CopyJobs = ({ filteredUsers, loading, setLoading }) => {
 
                         <div className="selected-users-container">
                             {targetUsers.map(user => (
-                                <div key={user.id} className="user-tag">
+                                <div key={user.userId} className="user-tag">
                                     <span className="user-tag-name">
                                         {user.userName}
                                     </span>
                                     <button
                                         type="button"
                                         className="remove-user-btn"
-                                        onClick={() => handleRemoveTargetUser(user.id)}
+                                        onClick={() => handleRemoveTargetUser(user.userId)}
                                         title="Remove user"
                                     >
                                         ×
@@ -249,9 +393,9 @@ const CopyJobs = ({ filteredUsers, loading, setLoading }) => {
                 <button 
                     className="btn-primary" 
                     onClick={handleCopyJobs} 
-                    disabled={!sourceUser || targetUsers.length === 0 || loading}
+                    disabled={!sourceUser || targetUsers.length === 0 || defaultWorkspaceJobs.length === 0 || loading}
                 >
-                    {loading ? 'Copying...' : `Copy Jobs to ${targetUsers.length} User${targetUsers.length !== 1 ? 's' : ''}`}
+                    {loading ? 'Copying...' : `Copy ${defaultWorkspaceJobs.length} Jobs to ${targetUsers.length} User${targetUsers.length !== 1 ? 's' : ''}`}
                 </button>
             </div>
         </div>
@@ -259,4 +403,3 @@ const CopyJobs = ({ filteredUsers, loading, setLoading }) => {
 };
 
 export default CopyJobs;
-

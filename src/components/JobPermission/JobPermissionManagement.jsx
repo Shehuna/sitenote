@@ -129,6 +129,7 @@ const JobPermissionManagement = ({ defId, users, userId }) => {
                         filteredUsers={filteredUsers}
                         loading={loading}
                         setLoading={setLoading}
+                        defWorkId={defId}
                     />
                 )}
                 {activeTab === 'assign' && (
