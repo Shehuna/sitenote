@@ -26,7 +26,6 @@ const Dashboard = ({
   onUpdateDefaultWorkspace,
   fetchProjectAndJobs,
 }) => {
-  // All state declarations consolidated at the top
   const [searchTerm, setSearchTerm] = useState(() => {
     const saved = localStorage.getItem('dashboardSearchTerm');
     return saved || "";
@@ -337,44 +336,61 @@ const formatRelativeTime = (dateString) => {
     }
   };
 
+  const fetchSiteNotesWithFilters = async (filters) => {
+    if (!userid) return [];
+    try {
+      const url = new URL(`${apiUrl}/SiteNote/GetSiteNotesWithFilters`);
+      url.searchParams.append('pageNumber', '1');
+      url.searchParams.append('pageSize', '200');
+      url.searchParams.append('userId', userid);
+
+      if (filters) {
+        if (filters.userName) url.searchParams.append('username', filters.userName);
+        if (filters.project) url.searchParams.append('projectId', filters.project);
+        if (filters.job) url.searchParams.append('jobId', filters.job);
+        if (filters.workspace) url.searchParams.append('workspaceId', filters.workspace);
+        if (filters.date) {
+          const d = new Date(filters.date);
+          if (!isNaN(d)) {
+            const iso = d.toISOString().split('T')[0];
+            url.searchParams.append('date', iso);
+          } else {
+            url.searchParams.append('date', filters.date);
+          }
+        }
+      }
+
+      const r = await fetch(url.toString());
+      if (!r.ok) throw new Error('Fetch failed');
+      const d = await r.json();
+      const arr = d.siteNotes || [];
+      return arr.map(n => ({
+        ...n,
+        userName: n.UserName || n.userName,
+        documentCount: n.DocumentCount || n.documentCount || 0,
+      }));
+    } catch (e) {
+      console.error('fetchSiteNotesWithFilters error', e);
+      return [];
+    }
+  };
+
   // Call server for each selected filter and merge (OR) the results.
   const fetchCombinedServerFilters = async (selectedObj) => {
     const sv = selectedObj || selectedValues || {};
-    const keys = Object.keys(sv).filter(k => sv[k] !== undefined && sv[k] !== null && sv[k] !== "");
-    if (keys.length === 0) {
+    const hasAny = Object.keys(sv).some(k => sv[k] !== undefined && sv[k] !== null && sv[k] !== "");
+    if (!hasAny) {
       setFilteredNotes(notes);
       return;
     }
 
     setLoadingFiltered(true);
     try {
-      const promises = keys.map(k => fetchNotesByColumnAndValue(k, sv[k]));
-      const results = await Promise.all(promises);
-      const all = results.flat();
-      // dedupe by id
-      const byId = {};
-      all.forEach(n => { if (n && n.id !== undefined) byId[n.id] = n; });
-      const merged = Object.values(byId);
-      setFilteredNotes(merged);
+      const data = await fetchSiteNotesWithFilters(sv);
+      setFilteredNotes(data);
     } catch (e) {
-      console.error(e);
-      // fallback to client-side OR filtering
-      const keys2 = keys;
-      const filtered = notes.filter(note => keys2.some(k => {
-        const val = sv[k];
-        if (!val && val !== 0) return false;
-        if (k === 'date') {
-          const noteDate = new Date(note.date).toISOString().split('T')[0];
-          const filterDate = new Date(val).toISOString().split('T')[0];
-          return noteDate === filterDate;
-        }
-        if (k === 'userName') return note.userName === val || note.userId?.toString() === val.toString();
-        if (k === 'project') return note.projectId?.toString() === val.toString() || note.project === val;
-        if (k === 'job') return note.jobId?.toString() === val.toString() || note.job === val;
-        if (k === 'workspace') return note.workspaceId?.toString() === val.toString() || note.workspace === val;
-        return false;
-      }));
-      setFilteredNotes(filtered);
+      console.error('fetchCombinedServerFilters error', e);
+      setFilteredNotes(notes);
     } finally {
       setLoadingFiltered(false);
     }
@@ -423,46 +439,18 @@ const formatRelativeTime = (dateString) => {
     }
     
     setLoadingFiltered(true);
-    
     try {
-      let filtered = [...notes];
-      
-      if (p) {
-        filtered = filtered.filter(note => 
-          note.projectId?.toString() === p.toString() || 
-          note.project === uniqueProjects.find(proj => proj.id.toString() === p.toString())?.text
-        );
-      }
-      
-      if (j) {
-        filtered = filtered.filter(note => 
-          note.jobId?.toString() === j.toString() || 
-          note.job === uniqueJobs.find(job => job.id.toString() === j.toString())?.text
-        );
-      }
-      
-      if (w) {
-        filtered = filtered.filter(note => 
-          note.workspaceId?.toString() === w.toString() || 
-          note.workspace === uniqueWorkspaces.find(ws => ws.id.toString() === w.toString())?.text
-        );
-      }
-      
-      if (d) {
-        filtered = filtered.filter(note => {
-          const noteDate = new Date(note.date).toISOString().split('T')[0];
-          const filterDate = new Date(d).toISOString().split('T')[0];
-          return noteDate === filterDate;
-        });
-      }
-      
-      if (u) {
-        filtered = filtered.filter(note => note.userName === u);
-      }
-      
-      setFilteredNotes(filtered);
+      const filters = {
+        project: p,
+        job: j,
+        workspace: w,
+        date: d,
+        userName: u,
+      };
+      const data = await fetchSiteNotesWithFilters(filters);
+      setFilteredNotes(data.length ? data : notes);
     } catch (e) {
-      console.error(e);
+      console.error('fetchFilteredSiteNotes error', e);
       toast.error("Failed to load filtered notes");
       setFilteredNotes(notes);
     } finally {
@@ -471,9 +459,6 @@ const formatRelativeTime = (dateString) => {
   };
 
   useEffect(() => {
-    // Run combined server filtering on initial notes load only.
-    // Individual filter changes call `fetchCombinedServerFilters` directly
-    // from their handlers to avoid duplicate requests.
     if (notes !== undefined && isDataLoaded) {
       setInitialLoading(false);
       fetchCombinedServerFilters();
