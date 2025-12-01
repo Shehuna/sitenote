@@ -440,9 +440,9 @@ const UserManagement = () => {
                  <div className="settings-action-buttons">
                      
                     
-                     <button className="btn-secondary" onClick={() => setIsChangeUserPassOpen(true)} disabled={!selectedUser}>
+                     {/* <button className="btn-secondary" onClick={() => setIsChangeUserPassOpen(true)} disabled={!selectedUser}>
                                  Change Password
-                     </button>
+                     </button> */}
                      <button className="btn-secondary" onClick={() => setIsChangeUserStatusOpen(true)} disabled={!selectedUser}>
                                  Change Status
                      </button>
