@@ -1388,45 +1388,36 @@ const formatRelativeTime = (dateString) => {
                       {n.note.length > 69 ? n.note.substring(0, 69) + "..." : n.note}
                     </span>
                     {notePriority && notePriority.priorityValue > 1 && (
-                      <div
-                        className={`priority-dot ${
-                          notePriority.priorityValue === 3
-                            ? "priority-dot-medium"
-                            : notePriority.priorityValue === 4
-                              ? "priority-dot-high"
-                              : ""
-                        }`}
-                        style={{
-                          width: "10px",
-                          height: "10px",
-                          borderRadius: "50%",
-                          position: "absolute",
-                          top: "4px",
-                          right: "4px",
-                          background:
-                            notePriority.priorityValue === 3
-                              ? "#f1c40f"
-                              : notePriority.priorityValue === 4
-                                ? "#e74c3c"
-                                : "#bdc3c7",
-                                cursor: "pointer", 
-                                zIndex: 1 
-                        }}
-                        title={
-                          notePriority.priorityValue === 3
-                            ? "Medium Priority"
-                            : notePriority.priorityValue === 4
-                              ? "High Priority"
-                              : "Low Priority"
-                        }
-                        onClick={(e) => {
-                        e.stopPropagation(); 
-                        handleEdit(n); 
-                        setTimeout(() => {
-                        }, 100);
+                    <div 
+                      className={`priority-dot priority-dot-${notePriority.priorityValue}`}
+                      style={{
+                        width: "10px",
+                        height: "10px",
+                        borderRadius: "50%",
+                        position: "absolute",
+                        top: "4px",
+                        right: "4px",
+                        cursor: "pointer", 
+                        zIndex: 1 
                       }}
-                      />
-                    )}
+                      title={
+                        notePriority.priorityValue === 3
+                          ? "Medium Priority"
+                          : notePriority.priorityValue === 4
+                            ? "High Priority"
+                            : "Low Priority"
+                      }
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedNoteForPriority(n);
+                        setPriorityDropdownPosition({
+                          x: e.clientX,
+                          y: e.clientY
+                        });
+                        setShowPriorityDropdown(true);
+                      }}
+                    />
+                  )}
                   </div>
                 </td>
                 <td>{n.userName}</td>
@@ -1615,7 +1606,7 @@ const formatRelativeTime = (dateString) => {
               <div className="footer-priority">
               </div>
               <div className="note-actions">
-                {notePriority && (
+                {notePriority && notePriority.priorityValue > 1 && (
                 <div 
                   className={`priority-indicator priority-${notePriority.priorityValue}`}
                   style={{ cursor: "pointer" }}
