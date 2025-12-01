@@ -37,6 +37,7 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
     const [editingWorkspace, setEditingWorkspace] = useState(false);
     
     const [isManageUsersOpen, setIsManageUsersOpen] = useState(false);
+    const [addingUser, setAddingUser] = useState(false);
 
     const COUNTRY_OPTIONS = [
         "United States",
@@ -331,7 +332,56 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
     };
 
     const addUserToWorkSpace = async() => {
+        if (!selectedUser || !selectedWorkspace) {
+            toast.error('Please select a user and workspace');
+            return;
+        }
+
         try {
+            setAddingUser(true);
+            
+            // First, check if user already exists in this workspace
+            const userInWorkspaceCheck = await fetch(
+                `${API_URL}/api/UserWorkspace/CheckUserInWorkspace/${selectedUser}/${selectedWorkspace}`,
+                {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                }
+            );
+
+            if (userInWorkspaceCheck.ok) {
+                const checkData = await userInWorkspaceCheck.json();
+                if (checkData.exists) {
+                    toast.error('User is already in this workspace');
+                    setAddingUser(false);
+                    return;
+                }
+            }
+
+            // Get user details to check if they have a default workspace
+            const userResponse = await fetch(
+                `${API_URL}/api/UserManagement/GetUserById/${selectedUser}`,
+                {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                }
+            );
+
+            if (!userResponse.ok) {
+                const errorData = await userResponse.json();
+                throw new Error(errorData.message || 'Failed to fetch user details');
+            }
+
+            const userData = await userResponse.json();
+            const user = userData.user || userData;
+            
+            // Check if user already has a default workspace
+            const hasDefaultWorkspace = user.defaultWorkspaceId && 
+                                       user.defaultWorkspaceId !== null && 
+                                       user.defaultWorkspaceId !== 0 && 
+                                       user.defaultWorkspaceId !== undefined;
+            
+            // Add user to workspace
             const response = await fetch(`${API_URL}/api/UserWorkspace/AddUserWorkspace`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -343,39 +393,66 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
                 }),
             });
 
-            if (!response.ok) throw new Error('Failed to add user to workspace');
-            toast.success('User Added to workspace Successfully')
-            await updateUserDefaultWorkspace(selectedUser)
-            const user = JSON.parse(localStorage.getItem('user'));
-            fetchWorkspaces(user.id);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to add user to workspace');
+            }
+            
+            // Only update default workspace if user doesn't have one
+            if (!hasDefaultWorkspace) {
+                try {
+                    await updateUserDefaultWorkspace(selectedUser);
+                    toast.success('User added to workspace and default workspace set successfully');
+                } catch (updateError) {
+                    // Even if default workspace update fails, the user was still added to workspace
+                    toast.success('User added to workspace (failed to set default workspace)');
+                    console.error('Failed to update default workspace:', updateError);
+                }
+            } else {
+                toast.success('User added to workspace (kept existing default workspace)');
+            }
+            
+            // Reset selection
+            setSelectedUser('');
+            
+            // Refresh data
+            const loggedInUser = JSON.parse(localStorage.getItem('user'));
+            fetchWorkspaces(loggedInUser.id);
+            
+            // Close modal after successful addition
+            setTimeout(() => {
+                setIsUserWorkspaceOpen(false);
+            }, 1500);
+            
         } catch (err) {
-            setError(err.message);
             console.error('Error adding user to workspace:', err);
+            toast.error(err.message || 'Failed to add user to workspace');
+        } finally {
+            setAddingUser(false);
         }
+    }
+
+    const updateUserDefaultWorkspace = async (userId) => {
+        const response = await fetch(`${API_URL}/api/UserManagement/UpdateDefaultWorkspaceByUserId/${userId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                defaultWorkspaceId: selectedWorkspace
+            }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to update default workspace');
+        }
+        
+        return await response.json();
     }
 
     const updateDefWorkspace = async () =>{
         onUpdateDefaultWorkspace(selectedWorkspace, workspaceName)
         setIsChangeWorkspaceOpen(false)
         await updateUserDefaultWorkspace(ownerUserID)
-    }
-
-    const updateUserDefaultWorkspace = async (userId) =>{
-        try {
-            const response = await fetch(`${API_URL}/api/UserManagement/UpdateDefaultWorkspaceByUserId/${userId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    defaultWorkspaceId: selectedWorkspace
-                }),
-            });
-
-            if (!response.ok) throw new Error('Failed to update default workspace');
-            else toast.success('Default workspace updated successfully')
-        } catch (err) {
-            setError(err.message);
-            console.error('Error updating default workspace:', err);
-        }
     }
 
     const handleOptionClick = (works) => {
@@ -759,14 +836,20 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
                                     </option>
                                 ))}
                             </select>
+                           
                         </div>
                         <div className="modal-footer">
-                            <button className="btn-primary" disabled={!selectedUser}  onClick={addUserToWorkSpace}>
-                                Add
+                            <button 
+                                className="btn-primary" 
+                                disabled={!selectedUser || addingUser}  
+                                onClick={addUserToWorkSpace}
+                            >
+                                {addingUser ? 'Adding...' : 'Add to Workspace'}
                             </button>
                             <button
                                 className="btn-close"
                                 onClick={() => setIsUserWorkspaceOpen(false)}
+                                disabled={addingUser}
                             >
                                 Cancel
                             </button>
@@ -815,6 +898,7 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
                     </div>
                 </div>
             </Modal>
+            
             {/* Manage Users Modal */}
             <ManageWorkspaceUsersModal
             isOpen={isManageUsersOpen}

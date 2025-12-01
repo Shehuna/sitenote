@@ -379,7 +379,7 @@ const AssignUsers = ({ filteredUsers, projects, jobs, loading, setLoading, defId
                     disabled={!assignUser || assignedJobs.length === 0 || loading}
                     style={{
                         padding: '8px 16px',
-                        backgroundColor: assignedJobs.length > 0 ? '#28a745' : '#6c757d',
+                        backgroundColor: assignedJobs.length > 0 ? '#2f55ddff' : '#6c757d',
                         color: 'white',
                         border: 'none',
                         borderRadius: '4px',
