@@ -78,6 +78,9 @@ const Dashboard = ({
   const [prefilledData, setPrefilledData] = useState(null);
   const [showRequestWorkspaceModal, setShowRequestWorkspaceModal] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [showPriorityDropdown, setShowPriorityDropdown] = useState(false);
+  const [priorityDropdownPosition, setPriorityDropdownPosition] = useState({ x: 0, y: 0 });
+  const [selectedNoteForPriority, setSelectedNoteForPriority] = useState(null);
   const [viewMode, setViewMode] = useState(() => {
   const saved = localStorage.getItem('dashboardViewMode');
   return saved || 'cards';
@@ -486,16 +489,13 @@ const formatRelativeTime = (dateString) => {
         setHierarchy(prev => [...prev, c]);
       }
 
-      // If a specific value was dragged, set it and fetch combined results.
       if (v) {
         const newSelected = { ...selectedValues, [c]: v };
         setSelectedValues(newSelected);
         fetchCombinedServerFilters(newSelected);
       } else {
-        // create empty selection for the column (meaning All)
         const newSelected = { ...selectedValues, [c]: selectedValues[c] || "" };
         setSelectedValues(newSelected);
-        // Do not open the dialog automatically when attribute is just added
       }
 
       setCurrentFilterColumn(c);
@@ -505,6 +505,74 @@ const formatRelativeTime = (dateString) => {
   const handlePriorityUpdate = () => {
     fetchPriorities();
   };
+  const handlePriorityChange = async (priorityValue) => {
+  if (!selectedNoteForPriority) return;
+
+  try {
+    const user = JSON.parse(localStorage.getItem("user"));
+    
+    console.log('=== DOT DROPDOWN DEBUG ===');
+    console.log('Selected note:', selectedNoteForPriority);
+    console.log('Existing priorities:', priorities);
+    
+    const existingPriority = priorities.find(p => p.noteID == selectedNoteForPriority.id);
+    console.log('Existing priority for this note:', existingPriority);
+    console.log('Priority value to set:', priorityValue);
+    
+    let response;
+    
+    if (existingPriority && existingPriority.id) {
+      console.log("Updating existing priority ID:", existingPriority.id);
+      const updateUrl = `${process.env.REACT_APP_API_BASE_URL}/api/Priority/UpdatePriority/${existingPriority.id}`;
+      console.log("Update URL:", updateUrl);
+      
+      response = await fetch(updateUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          priorityValue: priorityValue,
+        }),
+      });
+    } else {
+      console.log("Creating new priority");
+      const createUrl = `${process.env.REACT_APP_API_BASE_URL}/api/Priority/AddPriority`;
+      console.log("Create URL:", createUrl);
+      
+      response = await fetch(createUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          noteID: selectedNoteForPriority.id,
+          priorityValue: priorityValue,
+          userId: user.id,
+        }),
+      });
+    }
+
+    console.log("Response status:", response.status, response.statusText);
+    
+    if (response.ok) {
+      toast.success('Priority updated successfully');
+      handlePriorityUpdate(); 
+      await refreshNotes();
+    } else {
+      const errorText = await response.text();
+      console.error('API Error response:', errorText);
+      throw new Error(`Failed to update priority: ${response.status} ${response.statusText}`);
+    }
+    
+  } catch (error) {
+    console.error('Error updating priority:', error);
+    toast.error('Failed to update priority. Please try again.');
+  } finally {
+    setShowPriorityDropdown(false);
+    setSelectedNoteForPriority(null);
+  }
+};
 
   const handleDragOver = (e) => e.preventDefault();
   const handleDragStart = (c) => (e) => e.dataTransfer.setData("column", c);
@@ -1547,21 +1615,23 @@ const formatRelativeTime = (dateString) => {
               <div className="footer-priority">
               </div>
               <div className="note-actions">
-                {notePriority && notePriority.priorityValue > 1 && (
+                {notePriority && (
                 <div 
                   className={`priority-indicator priority-${notePriority.priorityValue}`}
-                  style={{
-                    cursor: "pointer"
-                  }}
+                  style={{ cursor: "pointer" }}
                   title={
-                    notePriority.priorityValue === 2 ? 'Low Priority' :
                     notePriority.priorityValue === 3 ? 'Medium Priority' :
                     notePriority.priorityValue === 4 ? 'High Priority' : 'No Priority'
                   }
                   onClick={(e) => {
-                  e.stopPropagation();
-                  handleEdit(note); 
-                }}
+                    e.stopPropagation();
+                    setSelectedNoteForPriority(note);
+                    setPriorityDropdownPosition({
+                      x: e.clientX,
+                      y: e.clientY
+                    });
+                    setShowPriorityDropdown(true);
+                  }}
                 />
               )}
                 <button
@@ -1729,6 +1799,36 @@ const formatRelativeTime = (dateString) => {
           </div>
         </div>
       )}
+      {showPriorityDropdown && selectedNoteForPriority && (
+  <div 
+    className="priority-dropdown-overlay"
+    onClick={() => setShowPriorityDropdown(false)}
+  >
+    <div 
+      className="priority-dropdown"
+      style={{
+        position: 'fixed',
+        left: Math.min(priorityDropdownPosition.x, window.innerWidth - 200),
+        top: Math.min(priorityDropdownPosition.y, window.innerHeight - 200),
+        zIndex: 1000
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="priority-option" onClick={() => handlePriorityChange(1)}>
+        <div className="priority-color-dot priority-1" />
+        <span className="priority-label">No Priority</span>
+      </div>
+      <div className="priority-option" onClick={() => handlePriorityChange(3)}>
+        <div className="priority-color-dot priority-3" />
+        <span className="priority-label">Medium Priority</span>
+      </div>
+      <div className="priority-option" onClick={() => handlePriorityChange(4)}>
+        <div className="priority-color-dot priority-4" />
+        <span className="priority-label">High Priority</span>
+      </div>
+    </div>
+  </div>
+)}
 
       {showSettingsModal && (
         <SettingsModal
