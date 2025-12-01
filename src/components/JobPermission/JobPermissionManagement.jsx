@@ -122,7 +122,7 @@ const JobPermissionManagement = ({ defId, users, userId }) => {
                     />
                 )}
                 {activeTab === 'userJobs' && (
-                    <UserJobManagement defWorkID={defId}  />
+                    <UserJobManagement defWorkID={defId} fetchedUsers={filteredUsers}  />
                 )}
                 {activeTab === 'copy' && (
                     <CopyJobs 

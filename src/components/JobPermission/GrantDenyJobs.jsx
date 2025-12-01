@@ -77,7 +77,7 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
         return filteredUsers.filter(user => 
             user.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
             user.email?.toLowerCase().includes(searchTerm.toLowerCase())
-        ).filter(user => !selectedUsers.some(selected => selected.id === user.id));
+        ).filter(user => !selectedUsers.some(selected => selected.userId === user.userId)); // FIXED: Changed selected.id to selected.userId
     }, [searchTerm, filteredUsers, selectedUsers]);
 
     const handleGrantPermission = async () => {
@@ -202,7 +202,7 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
             for (const selectedUser of selectedUsers) {
                 try {
                     const userJobsResponse = await fetch(
-                        `${API_URL}/api/UserJobAuth/GetUserJobsByUserId/${selectedUser.id}`,
+                        `${API_URL}/api/UserJobAuth/GetUserJobsByUserId/${selectedUser.userId}`, // FIXED: Changed selectedUser.id to selectedUser.userId
                         {
                             method: 'GET',
                             headers: { 'Content-Type': 'application/json' }
@@ -268,7 +268,7 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
     };
 
     const handleSelectUser = (user) => {
-        if (!selectedUsers.some(selected => selected.id === user.id)) {
+        if (!selectedUsers.some(selected => selected.userId === user.userId)) { // FIXED: Changed selected.id to selected.userId
             setSelectedUsers(prev => [...prev, user]);
         }
         setSearchTerm('');
@@ -276,7 +276,7 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
     };
 
     const handleRemoveUser = (userId) => {
-        setSelectedUsers(prev => prev.filter(user => user.id !== userId));
+        setSelectedUsers(prev => prev.filter(user => user.userId !== userId)); // FIXED: Changed user.id to user.userId
     };
 
     const handleSearchChange = (e) => {
@@ -289,7 +289,7 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
         if (e.key === 'Enter' && searchTerm.trim() && searchResults.length > 0) {
             handleSelectUser(searchResults[0]);
         } else if (e.key === 'Backspace' && searchTerm === '' && selectedUsers.length > 0) {
-            handleRemoveUser(selectedUsers[selectedUsers.length - 1].id);
+            handleRemoveUser(selectedUsers[selectedUsers.length - 1].userId); // FIXED: Changed .id to .userId
         }
     };
 
@@ -314,7 +314,7 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
                 <div className="form-group" style={{ marginBottom: '0' }}>
                     <label style={{ fontSize: '12px', marginBottom: '4px', fontWeight: '500' }}>Select Users:</label>
                     <div className="user-selection-container">
-                        <div className="search-input-container">
+                        <div className="search-input-container" style={{ position: 'relative' }}>
                             <input
                                 type="text"
                                 placeholder="Search users..."
@@ -344,11 +344,12 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
                                     maxHeight: '120px',
                                     overflowY: 'auto',
                                     zIndex: 10,
-                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                    marginTop: '2px'
                                 }}>
                                     {searchResults.map(user => (
                                         <div
-                                            key={user.id}
+                                            key={user.userId} // FIXED: Changed user.id to user.userId
                                             style={{
                                                 padding: '6px 8px',
                                                 cursor: 'pointer',
@@ -380,7 +381,7 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
                             padding: '2px'
                         }}>
                             {selectedUsers.map(user => (
-                                <div key={user.id} style={{
+                                <div key={user.userId} style={{ // FIXED: Changed user.id to user.userId
                                     display: 'flex',
                                     alignItems: 'center',
                                     backgroundColor: '#e3f2fd',
@@ -394,7 +395,7 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
                                     </span>
                                     <button
                                         type="button"
-                                        onClick={() => handleRemoveUser(user.id)}
+                                        onClick={() => handleRemoveUser(user.userId)} // FIXED: Changed user.id to user.userId
                                         style={{
                                             background: 'none',
                                             border: 'none',

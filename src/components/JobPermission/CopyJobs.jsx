@@ -256,13 +256,7 @@ const CopyJobs = ({ filteredUsers, loading, setLoading, defWorkId }) => {
                             <option key={user.userId} value={user.userId}>{user.userName}</option>
                         ))}
                     </select>
-                    
-                    {defWorkId && (
-                        <div className="workspace-info">
-                            <small>Default Workspace ID: {defWorkId}</small>
-                        </div>
-                    )}
-                    
+                   
                     {sourceUser && (
                         <div className="jobs-info">
                             <small>
