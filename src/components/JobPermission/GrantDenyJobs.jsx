@@ -25,12 +25,12 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
             setLoadingJobs(true);
             try {
                 console.log('Fetching jobs for user:', user.id, 'and project:', selectedProject);
-                
+
                 const response = await fetch(
                     `${API_URL}/api/UserJobAuth/GetJobsByUserAndProject/${user.id}/${selectedProject}`,
                     {
                         method: 'GET',
-                        headers: { 
+                        headers: {
                             'Content-Type': 'application/json',
                             'Accept': 'application/json'
                         }
@@ -48,10 +48,10 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
 
                 const data = await response.json();
                 console.log('API Response data:', data);
-                
+
                 // Handle different possible response structures
                 let jobsArray = [];
-                
+
                 if (Array.isArray(data)) {
                     jobsArray = data;
                 } else if (data.jobs && Array.isArray(data.jobs)) {
@@ -67,7 +67,7 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
 
                 console.log('Processed jobs array:', jobsArray);
                 setJobs(jobsArray);
-                
+
             } catch (error) {
                 console.error('Error fetching jobs:', error);
                 toast.error(`Failed to load jobs: ${error.message}`);
@@ -86,7 +86,7 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
         return filteredUsers.filter(user => 
             user.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
             user.email?.toLowerCase().includes(searchTerm.toLowerCase())
-        ).filter(user => !selectedUsers.some(selected => selected.id === user.id));
+        ).filter(user => !selectedUsers.some(selected => selected.userId === user.userId)); // FIXED: Changed selected.id to selected.userId
     }, [searchTerm, filteredUsers, selectedUsers]);
 
     const handleGrantPermission = async () => {
@@ -212,7 +212,7 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
             for (const selectedUser of selectedUsers) {
                 try {
                     const userJobsResponse = await fetch(
-                        `${API_URL}/api/UserJobAuth/GetUserJobsByUserId/${selectedUser.id}`,
+                        `${API_URL}/api/UserJobAuth/GetUserJobsByUserId/${selectedUser.userId}`, // FIXED: Changed selectedUser.id to selectedUser.userId
                         {
                             method: 'GET',
                             headers: { 'Content-Type': 'application/json' }
@@ -241,8 +241,6 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
                                 return { user: selectedUser, success: true };
                             })
                         );
-                    } else {
-                        console.log(`User ${selectedUser.userName} does not have permission for job ID: ${selectedJob}`);
                     }
                 } catch (error) {
                     console.error(`Error processing user ${selectedUser.userName}:`, error);
@@ -256,16 +254,8 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
                     result.status === 'fulfilled' && result.value.success
                 ).length;
 
-                const failedDeletions = results.filter(result => 
-                    result.status === 'rejected'
-                ).length;
-
                 if (successfulDeletions > 0) {
                     toast.success(`Permissions denied for ${successfulDeletions} user(s)`);
-                }
-
-                if (failedDeletions > 0) {
-                    toast.error(`Failed to deny permissions for ${failedDeletions} user(s)`);
                 }
             } else {
                 toast.info('None of the selected users had permissions for this job');
@@ -288,7 +278,7 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
     };
 
     const handleSelectUser = (user) => {
-        if (!selectedUsers.some(selected => selected.id === user.id)) {
+        if (!selectedUsers.some(selected => selected.userId === user.userId)) { // FIXED: Changed selected.id to selected.userId
             setSelectedUsers(prev => [...prev, user]);
         }
         setSearchTerm('');
@@ -296,7 +286,7 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
     };
 
     const handleRemoveUser = (userId) => {
-        setSelectedUsers(prev => prev.filter(user => user.id !== userId));
+        setSelectedUsers(prev => prev.filter(user => user.userId !== userId)); // FIXED: Changed user.id to user.userId
     };
 
     const handleSearchChange = (e) => {
@@ -309,7 +299,7 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
         if (e.key === 'Enter' && searchTerm.trim() && searchResults.length > 0) {
             handleSelectUser(searchResults[0]);
         } else if (e.key === 'Backspace' && searchTerm === '' && selectedUsers.length > 0) {
-            handleRemoveUser(selectedUsers[selectedUsers.length - 1].id);
+            handleRemoveUser(selectedUsers[selectedUsers.length - 1].userId); // FIXED: Changed .id to .userId
         }
     };
 
@@ -330,34 +320,60 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
     };
 
     return (
-        <div className="tab-content">
-            <div className="settings-form">
-                <div className="form-group">
-                    <label>Select Users:</label>
+        <div className="tab-content" style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '400px' }}>
+            <div className="settings-form" style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {/* User Selection - Compact */}
+                <div className="form-group" style={{ marginBottom: '0' }}>
+                    <label style={{ fontSize: '12px', marginBottom: '4px', fontWeight: '500' }}>Select Users:</label>
                     <div className="user-selection-container">
-                        <div className="search-input-container">
+                        <div className="search-input-container" style={{ position: 'relative' }}>
                             <input
                                 type="text"
-                                placeholder="Search users by name or email..."
+                                placeholder="Search users..."
                                 value={searchTerm}
                                 onChange={handleSearchChange}
                                 onKeyDown={handleKeyDown}
                                 onFocus={() => setShowDropdown(searchTerm.length > 0)}
-                                className="user-search-input"
+                                style={{
+                                    width: '100%',
+                                    padding: '6px 8px',
+                                    fontSize: '12px',
+                                    border: '1px solid #ddd',
+                                    borderRadius: '4px',
+                                    height: '32px'
+                                }}
                             />
                             
                             {showDropdown && searchResults.length > 0 && (
-                                <div className="user-dropdown">
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '100%',
+                                    left: 0,
+                                    right: 0,
+                                    background: 'white',
+                                    border: '1px solid #ddd',
+                                    borderRadius: '4px',
+                                    maxHeight: '120px',
+                                    overflowY: 'auto',
+                                    zIndex: 10,
+                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                    marginTop: '2px'
+                                }}>
                                     {searchResults.map(user => (
                                         <div
-                                            key={user.id}
-                                            className="dropdown-item"
+                                            key={user.userId} // FIXED: Changed user.id to user.userId
+                                            style={{
+                                                padding: '6px 8px',
+                                                cursor: 'pointer',
+                                                borderBottom: '1px solid #f5f5f5',
+                                                fontSize: '11px'
+                                            }}
                                             onClick={() => handleSelectUser(user)}
                                         >
-                                            <div className="user-info">
-                                                <span className="user-name">{user.userName}</span>
+                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <span style={{ fontWeight: '500' }}>{user.userName}</span>
                                                 {user.email && (
-                                                    <span className="user-email">{user.email}</span>
+                                                    <span style={{ fontSize: '10px', color: '#666' }}>{user.email}</span>
                                                 )}
                                             </div>
                                         </div>
@@ -366,17 +382,47 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
                             )}
                         </div>
 
-                        <div className="selected-users-container">
+                        <div style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: '4px',
+                            marginBottom: '4px',
+                            minHeight: '28px',
+                            maxHeight: '56px',
+                            overflowY: 'auto',
+                            padding: '2px'
+                        }}>
                             {selectedUsers.map(user => (
-                                <div key={user.id} className="user-tag">
-                                    <span className="user-tag-name">
+                                <div key={user.userId} style={{ // FIXED: Changed user.id to user.userId
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    backgroundColor: '#e3f2fd',
+                                    border: '1px solid #bbdefb',
+                                    borderRadius: '12px',
+                                    padding: '2px 6px',
+                                    fontSize: '11px'
+                                }}>
+                                    <span style={{ color: '#1976d2', marginRight: '4px' }}>
                                         {user.userName}
                                     </span>
                                     <button
                                         type="button"
-                                        className="remove-user-btn"
-                                        onClick={() => handleRemoveUser(user.id)}
-                                        title="Remove user"
+                                        onClick={() => handleRemoveUser(user.userId)} // FIXED: Changed user.id to user.userId
+                                        style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            color: '#1976d2',
+                                            cursor: 'pointer',
+                                            fontSize: '12px',
+                                            fontWeight: 'bold',
+                                            padding: '0',
+                                            width: '12px',
+                                            height: '12px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            borderRadius: '50%'
+                                        }}
                                     >
                                         ×
                                     </button>
@@ -384,11 +430,11 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
                             ))}
                         </div>
 
-                        <div className="selection-info">
+                        <div style={{ fontSize: '11px', color: '#666' }}>
                             {selectedUsers.length === 0 ? (
-                                <span className="info-text">No users selected</span>
+                                <span>No users selected</span>
                             ) : (
-                                <span className="info-text">
+                                <span>
                                     {selectedUsers.length} user{selectedUsers.length !== 1 ? 's' : ''} selected
                                 </span>
                             )}
@@ -396,11 +442,20 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
                     </div>
                 </div>
 
-                <div className="form-group">
-                    <label>Project:</label>
+                {/* Project Selection - Compact */}
+                <div className="form-group" style={{ marginBottom: '0' }}>
+                    <label style={{ fontSize: '12px', marginBottom: '4px', fontWeight: '500' }}>Project:</label>
                     <select
                         value={selectedProject}
                         onChange={handleProjectChange}
+                        style={{
+                            width: '100%',
+                            padding: '6px 8px',
+                            fontSize: '12px',
+                            border: '1px solid #ddd',
+                            borderRadius: '4px',
+                            height: '32px'
+                        }}
                     >
                         <option value="">Select Project</option>
                         {projects.map(project => (
@@ -409,19 +464,28 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
                     </select>
                 </div>
 
-                <div className="form-group">
-                    <label>Job:</label>
+                {/* Job Selection - Compact */}
+                <div className="form-group" style={{ marginBottom: '0' }}>
+                    <label style={{ fontSize: '12px', marginBottom: '4px', fontWeight: '500' }}>Job:</label>
                     <select
                         value={selectedJob}
                         onChange={(e) => setSelectedJob(e.target.value)}
                         disabled={!selectedProject || loadingJobs}
+                        style={{
+                            width: '100%',
+                            padding: '6px 8px',
+                            fontSize: '12px',
+                            border: '1px solid #ddd',
+                            borderRadius: '4px',
+                            height: '32px'
+                        }}
                     >
                         <option value="">Select Job</option>
                         {loadingJobs ? (
                             <option value="" disabled>Loading jobs...</option>
                         ) : (
                             jobs
-                                .filter(job => job.status == 1 || job.status === undefined) // Only active jobs or jobs without status
+                                .filter(job => job.status == 1 || job.status === undefined)
                                 .map(job => (
                                     <option key={getJobId(job)} value={getJobId(job)}>
                                         {getJobDisplayName(job)}
@@ -430,28 +494,55 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
                         )}
                     </select>
                     {loadingJobs && (
-                        <div className="loading-indicator">Loading jobs...</div>
-                    )}
-                    {!loadingJobs && selectedProject && jobs.length === 0 && (
-                        <div className="no-jobs-message">No jobs available for this project</div>
+                        <div style={{ fontSize: '11px', marginTop: '2px' }}>Loading jobs...</div>
                     )}
                 </div>
             </div>
 
-            <div className="settings-action-buttons">
-                <button 
-                    className="btn-primary" 
+            {/* Action Buttons - Compact */}
+            <div style={{
+                marginTop: '12px',
+                paddingTop: '12px',
+                borderTop: '1px solid #eee',
+                flexShrink: 0,
+                display: 'flex',
+                gap: '8px'
+            }}>
+                <button
                     onClick={handleGrantPermission} 
                     disabled={selectedUsers.length === 0 || !selectedProject || !selectedJob || loading || loadingJobs}
+                    style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        backgroundColor: selectedUsers.length > 0 && selectedProject && selectedJob ? '#1976d2' : '#6c757d',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: (selectedUsers.length > 0 && selectedProject && selectedJob && !loading) ? 'pointer' : 'not-allowed',
+                        fontSize: '12px',
+                        fontWeight: '500',
+                        height: '32px'
+                    }}
                 >
-                    {loading ? 'Granting...' : `Grant to ${selectedUsers.length} User${selectedUsers.length !== 1 ? 's' : ''}`}
+                    {loading ? 'Granting...' : `Grant (${selectedUsers.length})`}
                 </button>
-                <button 
-                    className="btn-danger" 
+                <button
                     onClick={handleDenyPermission} 
                     disabled={selectedUsers.length === 0 || !selectedProject || !selectedJob || loading || loadingJobs}
+                    style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        backgroundColor: selectedUsers.length > 0 && selectedProject && selectedJob ? '#dc3545' : '#6c757d',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: (selectedUsers.length > 0 && selectedProject && selectedJob && !loading) ? 'pointer' : 'not-allowed',
+                        fontSize: '12px',
+                        fontWeight: '500',
+                        height: '32px'
+                    }}
                 >
-                    {loading ? 'Denying...' : `Deny to ${selectedUsers.length} User${selectedUsers.length !== 1 ? 's' : ''}`}
+                    {loading ? 'Denying...' : `Deny (${selectedUsers.length})`}
                 </button>
             </div>
         </div>

@@ -181,9 +181,13 @@ const NewNoteModal = forwardRef(({
         fetchAllSearchData();
     }, [isOpen, apiUrl]);
 
-    // Fetch projects when workspace changes
+    // Fetch projects when workspace changes OR when prefilled data is provided
     useEffect(() => {
         const fetchProjectsByWorkspace = async () => {
+            if (prefilledData?.projectId && selectedWorkspace === prefilledData.workspaceId?.toString()) {
+                return;
+            }
+
             if (!selectedWorkspace) {
                 setFilteredProjects([]);
                 setSelectedProject('');
@@ -216,11 +220,15 @@ const NewNoteModal = forwardRef(({
         };
 
         fetchProjectsByWorkspace();
-    }, [selectedWorkspace, apiUrl]);
+    }, [selectedWorkspace, apiUrl, prefilledData]);
 
-    // Fetch jobs when project changes
+    // Fetch jobs when project changes OR when prefilled data is provided
     useEffect(() => {
         const fetchJobsByProject = async () => {
+            if (prefilledData?.jobId && selectedProject === prefilledData.projectId?.toString()) {
+                return;
+            }
+
             if (!selectedProject) {
                 setFilteredJobs([]);
                 setSelectedJob('');
@@ -253,24 +261,32 @@ const NewNoteModal = forwardRef(({
         };
 
         fetchJobsByProject();
-    }, [selectedProject, apiUrl]);
+    }, [selectedProject, apiUrl, prefilledData]);
 
     // Initialize modal state when opened
     useEffect(() => {
         if (isOpen) {
             const today = new Date();
             const formattedDate = today.toISOString().split('T')[0];
-            setSelectedDate(formattedDate);
+            setSelectedDate(prefilledData?.date || formattedDate);
             
             setActiveTab('journal');
             setSelectedPriority('1');
 
-            // Reset states
-            setSelectedWorkspace('');
-            setSelectedProject('');
-            setSelectedJob('');
-            setAreDropdownsDisabled(false);
-            setNoteContent('');
+            if (!prefilledData) {
+                setSelectedWorkspace('');
+                setSelectedProject('');
+                setSelectedJob('');
+                setAreDropdownsDisabled(false);
+                setNoteContent('');
+                setFilteredProjects([]);
+                setFilteredJobs([]);
+                setSelectedProjectData(null);
+                setSelectedJobData(null);
+            } else {
+                setAreDropdownsDisabled(true);
+            }
+
             setDocuments([]);
             setNewDocument({ name: '', file: null });
             setShowDocumentModal(false);
@@ -278,31 +294,68 @@ const NewNoteModal = forwardRef(({
             setErrors({});
             setIsSaving(false);
             setApiError(null);
-            setFilteredProjects([]);
-            setFilteredJobs([]);
-            setSelectedProjectData(null);
-            setSelectedJobData(null);
-
-            if (prefilledData) {
-                setAreDropdownsDisabled(true);
-                if (prefilledData.date) {
-                    setSelectedDate(prefilledData.date);
-                }
-            }
         }
     }, [isOpen, prefilledData]);
 
-    // Handle prefilled data matching for workspace
+    // Handle prefilled data for workspace, project, and job
     useEffect(() => {
-        if (isOpen && prefilledData?.workspace) {
-            const workspace = userworksaces.find(w => 
-                w && w.name && (w.name === prefilledData.workspace || w.text === prefilledData.workspace)
-            );
-            if (workspace) {
-                setSelectedWorkspace(workspace.id.toString());
+        if (isOpen && prefilledData) {
+            setAreDropdownsDisabled(true);
+            
+            if (prefilledData.date) {
+                setSelectedDate(prefilledData.date);
+            }
+
+            if (prefilledData.workspaceId) {
+                setSelectedWorkspace(prefilledData.workspaceId.toString());
+            } else if (prefilledData.workspace) {
+                const workspace = userworksaces.find(w => 
+                    w && w.name && (w.name === prefilledData.workspace || w.text === prefilledData.workspace)
+                );
+                if (workspace) {
+                    setSelectedWorkspace(workspace.id.toString());
+                }
+            }
+
+            if (prefilledData.projectId) {
+                const projectData = {
+                    id: prefilledData.projectId,
+                    projectId: prefilledData.projectId,
+                    name: prefilledData.project || 'Project',
+                    workspaceId: prefilledData.workspaceId
+                };
+                setSelectedProjectData(projectData);
+                setSelectedProject(prefilledData.projectId.toString());
+            } else if (prefilledData.project) {
+                const project = projects.find(p => 
+                    p && p.name && p.name === prefilledData.project
+                );
+                if (project) {
+                    setSelectedProjectData(project);
+                    setSelectedProject(project.id.toString());
+                }
+            }
+
+            if (prefilledData.jobId) {
+                const jobData = {
+                    id: prefilledData.jobId,
+                    jobId: prefilledData.jobId,
+                    name: prefilledData.job || 'Job',
+                    projectId: prefilledData.projectId
+                };
+                setSelectedJobData(jobData);
+                setSelectedJob(prefilledData.jobId.toString());
+            } else if (prefilledData.job) {
+                const job = jobs.find(j => 
+                    j && j.name && j.name === prefilledData.job
+                );
+                if (job) {
+                    setSelectedJobData(job);
+                    setSelectedJob(job.id.toString());
+                }
             }
         }
-    }, [isOpen, prefilledData, userworksaces]);
+    }, [isOpen, prefilledData, userworksaces, projects, jobs]);
 
     // Client-side search function
     const performSearch = useCallback((query) => {
@@ -358,11 +411,10 @@ const NewNoteModal = forwardRef(({
         return () => clearTimeout(timer);
     }, [searchQuery, performSearch, isOpen]);
 
-    // Get project options for dropdown - always include selected project data
+    // Get project options for dropdown
     const getProjectOptions = () => {
         const options = [...filteredProjects];
         
-        // Always include selected project data if available and not already in the list
         if (selectedProjectData && (selectedProjectData.id || selectedProjectData.projectId)) {
             const projectId = (selectedProjectData.id || selectedProjectData.projectId).toString();
             const exists = options.some(p => {
@@ -378,11 +430,10 @@ const NewNoteModal = forwardRef(({
         return options.filter(project => project && (project.id || project.projectId));
     };
 
-    // Get job options for dropdown - always include selected job data
+    // Get job options for dropdown
     const getJobOptions = () => {
         const options = [...filteredJobs];
         
-        // Always include selected job data if available and not already in the list
         if (selectedJobData && (selectedJobData.id || selectedJobData.jobId)) {
             const jobId = (selectedJobData.id || selectedJobData.jobId).toString();
             const exists = options.some(j => {
@@ -398,13 +449,10 @@ const NewNoteModal = forwardRef(({
         return options.filter(job => job && (job.id || job.jobId));
     };
 
-    // Handle search result selection with sequential API calls
+    // Handle search result selection
     const handleSearchResultSelect = useCallback(async (result) => {
-        console.log('Selected search result:', result);
-        
         if (!result) return;
 
-        // Clear current selections first
         setSelectedWorkspace('');
         setSelectedProject('');
         setSelectedJob('');
@@ -415,24 +463,17 @@ const NewNoteModal = forwardRef(({
         setApiError(null);
 
         try {
-            // Step 1: Set workspace immediately from the search result
             if (result.workspaceId) {
                 const matchingWorkspace = userworksaces.find(workspace => 
                     workspace && workspace.id && workspace.id.toString() === result.workspaceId.toString()
                 );
                 if (matchingWorkspace) {
                     setSelectedWorkspace(matchingWorkspace.id.toString());
-                    console.log('✓ Workspace set to:', matchingWorkspace.name);
-                } else {
-                    console.warn('No matching workspace found for ID:', result.workspaceId);
                 }
             }
 
-            // Step 2: Get project details directly by project ID
             if (result.projectId) {
                 setIsLoadingProjects(true);
-                console.log('🔄 Fetching project with ID:', result.projectId);
-                
                 try {
                     const projectResponse = await fetch(
                         `${apiUrl}/Project/GetProjectById/${result.projectId}`
@@ -440,38 +481,25 @@ const NewNoteModal = forwardRef(({
                     
                     if (projectResponse.ok) {
                         const projectData = await projectResponse.json();
-                        console.log('✓ Project API response:', projectData);
-                        
                         const normalizedProject = normalizeProjectData(projectData, result);
                         if (normalizedProject) {
                             setSelectedProjectData(normalizedProject);
                             setSelectedProject(normalizedProject.id.toString());
-                            console.log('✓ Project set to:', normalizedProject.name, 'ID:', normalizedProject.id.toString());
-                        } else {
-                            throw new Error('Invalid project data received from API');
                         }
-                    } else {
-                        throw new Error(`Project API failed with status: ${projectResponse.status}`);
                     }
                 } catch (projectError) {
-                    console.warn('Project API failed, using fallback data:', projectError);
                     const fallbackProject = normalizeProjectData(null, result);
                     if (fallbackProject) {
                         setSelectedProjectData(fallbackProject);
                         setSelectedProject(fallbackProject.id.toString());
-                        console.log('✓ Project fallback set to:', fallbackProject.name);
                     }
                 }
             }
 
-            // Step 3: Get job details directly by job ID
             if (result.jobId) {
-                // Small delay to ensure project state is updated
                 await new Promise(resolve => setTimeout(resolve, 100));
                 
                 setIsLoadingJobs(true);
-                console.log('🔄 Fetching job with ID:', result.jobId);
-                
                 try {
                     const jobResponse = await fetch(
                         `${apiUrl}/Job/GetJobById/${result.jobId}`
@@ -479,35 +507,23 @@ const NewNoteModal = forwardRef(({
                     
                     if (jobResponse.ok) {
                         const jobData = await jobResponse.json();
-                        console.log('✓ Job API response:', jobData);
-                        
                         const normalizedJob = normalizeJobData(jobData, result);
                         if (normalizedJob) {
                             setSelectedJobData(normalizedJob);
-                            const jobId = normalizedJob.id.toString();
-                            setSelectedJob(jobId);
-                            console.log('✓ Job set to:', normalizedJob.name, 'ID:', jobId);
-                        } else {
-                            throw new Error('Invalid job data received from API');
+                            setSelectedJob(normalizedJob.id.toString());
                         }
-                    } else {
-                        throw new Error(`Job API failed with status: ${jobResponse.status}`);
                     }
                 } catch (jobError) {
-                    console.warn('Job API failed, using fallback data:', jobError);
                     const fallbackJob = normalizeJobData(null, result);
                     if (fallbackJob) {
                         setSelectedJobData(fallbackJob);
                         setSelectedJob(fallbackJob.id.toString());
-                        console.log('✓ Job fallback set to:', fallbackJob.name);
                     }
                 }
             }
 
-            console.log('✅ All dropdowns populated successfully');
-
         } catch (error) {
-            console.error('❌ Error in search result selection:', error);
+            console.error('Error in search result selection:', error);
             setApiError(`Failed to load selection: ${error.message}`);
         } finally {
             setIsLoadingProjects(false);
@@ -518,7 +534,6 @@ const NewNoteModal = forwardRef(({
         setShowSearchResults(false);
         setSearchResults([]);
         
-        // Focus on note textarea after selection
         setTimeout(() => {
             if (textareaRef.current) {
                 textareaRef.current.focus();
@@ -714,6 +729,7 @@ const NewNoteModal = forwardRef(({
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Type to search for workspace, project, or job..."
                         className="search-input"
+                        disabled={areDropdownsDisabled}
                     />
                     {isSearching && <div className="search-spinner">🔍 Searching...</div>}
                 </div>
@@ -765,110 +781,104 @@ const NewNoteModal = forwardRef(({
             <div className="journal-section">
                 {renderSearchSection()}
                 
-                <div className="form-row">
-                    <div className="form-group">
-                        <label>Workspace</label>
-                        <select
-                            value={selectedWorkspace}
-                            onChange={(e) => setSelectedWorkspace(e.target.value)}
-                            disabled={areDropdownsDisabled}
-                        >
-                            <option value="">Select Workspace</option>
-                            {userworksaces.map(workspace => (
-                                workspace && workspace.id && (
-                                    <option key={workspace.id} value={workspace.id.toString()}>
-                                        {workspace.name}
+                <div className="form-group">
+                    <label>Workspace</label>
+                    <select
+                        value={selectedWorkspace}
+                        onChange={(e) => setSelectedWorkspace(e.target.value)}
+                        disabled={areDropdownsDisabled}
+                    >
+                        <option value="">Select Workspace</option>
+                        {userworksaces.map(workspace => (
+                            workspace && workspace.id && (
+                                <option key={workspace.id} value={workspace.id.toString()}>
+                                    {workspace.name}
+                                </option>
+                            )
+                        ))}
+                    </select>
+                </div>
+                
+                <div className="form-group">
+                    <label>Project {errors.project && <span className="error-message-inline">{errors.project}</span>}</label>
+                    <select
+                        value={selectedProject}
+                        onChange={(e) => {
+                            setSelectedProject(e.target.value);
+                            const selectedProjectObj = projectOptions.find(p => {
+                                const pId = (p.id || p.projectId)?.toString();
+                                return pId === e.target.value;
+                            });
+                            setSelectedProjectData(selectedProjectObj || null);
+                            setErrors(prev => ({ ...prev, project: undefined, job: undefined }));
+                        }}
+                        disabled={areDropdownsDisabled || !selectedWorkspace || isLoadingProjects}
+                    >
+                        <option value="">Select Project</option>
+                        {isLoadingProjects ? (
+                            <option value="" disabled>Loading projects...</option>
+                        ) : (
+                            projectOptions.map(project => {
+                                const projectId = (project.id || project.projectId)?.toString();
+                                const projectName = project.name || project.projectName || 'Unnamed Project';
+                                
+                                return projectId ? (
+                                    <option key={projectId} value={projectId}>
+                                        {projectName}
                                     </option>
-                                )
-                            ))}
-                        </select>
-                        
-                    </div>
-                    
-                    <div className="form-group">
-                        <label>Project {errors.project && <span className="error-message-inline">{errors.project}</span>}</label>
-                        <select
-                            value={selectedProject}
-                            onChange={(e) => {
-                                setSelectedProject(e.target.value);
-                                const selectedProjectObj = projectOptions.find(p => {
-                                    const pId = (p.id || p.projectId)?.toString();
-                                    return pId === e.target.value;
-                                });
-                                setSelectedProjectData(selectedProjectObj || null);
-                                setErrors(prev => ({ ...prev, project: undefined, job: undefined }));
-                            }}
-                            disabled={areDropdownsDisabled || !selectedWorkspace || isLoadingProjects}
-                        >
-                            <option value="">Select Project</option>
-                            {isLoadingProjects ? (
-                                <option value="" disabled>Loading projects...</option>
-                            ) : (
-                                projectOptions.map(project => {
-                                    const projectId = (project.id || project.projectId)?.toString();
-                                    const projectName = project.name || project.projectName || 'Unnamed Project';
-                                    
-                                    return projectId ? (
-                                        <option key={projectId} value={projectId}>
-                                            {projectName}
-                                        </option>
-                                    ) : null;
-                                })
-                            )}
-                        </select>
-                        
-                    </div>
+                                ) : null;
+                            })
+                        )}
+                    </select>
                 </div>
 
-                <div className="form-row">
-                    <div className="form-group">
-                        <label>Job {errors.job && <span className="error-message-inline">{errors.job}</span>}</label>
-                        <select
-                            value={selectedJob}
-                            onChange={(e) => {
-                                setSelectedJob(e.target.value);
-                                const selectedJobObj = jobOptions.find(j => {
-                                    const jId = (j.id || j.jobId)?.toString();
-                                    return jId === e.target.value;
-                                });
-                                setSelectedJobData(selectedJobObj || null);
-                                setErrors(prev => ({ ...prev, job: undefined }));
-                            }}
-                            disabled={areDropdownsDisabled || !selectedProject || isLoadingJobs}
-                        >
-                            <option value="">Select Job</option>
-                            {isLoadingJobs ? (
-                                <option value="" disabled>Loading jobs...</option>
-                            ) : (
-                                jobOptions.map(job => {
-                                    const jobId = (job.id || job.jobId)?.toString();
-                                    const jobName = job.jobName || job.name || 'Unnamed Job';
-                                    
-                                    return jobId ? (
-                                        <option key={jobId} value={jobId}>
-                                            {jobName}
-                                        </option>
-                                    ) : null;
-                                })
-                            )}
-                        </select>
-                        
-                    </div>
-
-                    <div className="form-group">
-                        <label>Date {errors.date && <span className="error-message-inline">{errors.date}</span>}</label>
-                        <input
-                            type="date"
-                            value={selectedDate}
-                            onChange={(e) => {
-                                setSelectedDate(e.target.value);
-                                setErrors(prev => ({ ...prev, date: undefined }));
-                            }}
-                        />
-                    </div>
+                <div className="form-group">
+                    <label>Job {errors.job && <span className="error-message-inline">{errors.job}</span>}</label>
+                    <select
+                        value={selectedJob}
+                        onChange={(e) => {
+                            setSelectedJob(e.target.value);
+                            const selectedJobObj = jobOptions.find(j => {
+                                const jId = (j.id || j.jobId)?.toString();
+                                return jId === e.target.value;
+                            });
+                            setSelectedJobData(selectedJobObj || null);
+                            setErrors(prev => ({ ...prev, job: undefined }));
+                        }}
+                        disabled={areDropdownsDisabled || !selectedProject || isLoadingJobs}
+                    >
+                        <option value="">Select Job</option>
+                        {isLoadingJobs ? (
+                            <option value="" disabled>Loading jobs...</option>
+                        ) : (
+                            jobOptions.map(job => {
+                                const jobId = (job.id || job.jobId)?.toString();
+                                const jobName = job.jobName || job.name || 'Unnamed Job';
+                                
+                                return jobId ? (
+                                    <option key={jobId} value={jobId}>
+                                        {jobName}
+                                    </option>
+                                ) : null;
+                            })
+                        )}
+                    </select>
                 </div>
 
-                <div className="form-group full-width">
+                <div className="form-group">
+                    <label>Date {errors.date && <span className="error-message-inline">{errors.date}</span>}</label>
+                    <input
+                        type="date"
+                        value={selectedDate}
+                        onChange={(e) => {
+                            setSelectedDate(e.target.value);
+                            setErrors(prev => ({ ...prev, date: undefined }));
+                        }}
+                        disabled={areDropdownsDisabled}
+                    />
+                </div>
+
+                <div className="form-group">
                     <label>Note {errors.note && <span className="error-message-inline">{errors.note}</span>}</label>
                     <textarea
                         ref={textareaRef}
@@ -878,7 +888,7 @@ const NewNoteModal = forwardRef(({
                             setErrors(prev => ({ ...prev, note: undefined }));
                         }}
                         placeholder="Write your note here..."
-                        rows="4"
+                        rows="6"
                     />
                 </div>
             </div>
@@ -887,6 +897,7 @@ const NewNoteModal = forwardRef(({
 
     const renderDocumentsTab = () => (
         <div className="documents-section">
+            <h3>Attached Documents</h3>
             <div className="document-actions">
                 <button className="add-button" onClick={handleAddDocument}>
                     Add Document
@@ -895,7 +906,7 @@ const NewNoteModal = forwardRef(({
 
             <div className="documents-list">
                 {documents.length === 0 ? (
-                    <p className="no-documents">No documents attached</p>
+                    <p>No documents attached</p>
                 ) : (
                     <table>
                         <thead>
@@ -910,7 +921,7 @@ const NewNoteModal = forwardRef(({
                                 <tr key={doc.id || index}>
                                     <td>{doc.name}</td>
                                     <td>{doc.fileName || 'N/A'}</td>
-                                    <td>
+                                    <td className="document-actions-cell">
                                         <button onClick={() => handleEditDocument(doc)} className="edit-button">
                                             Edit
                                         </button>
@@ -930,7 +941,7 @@ const NewNoteModal = forwardRef(({
     const renderPriorityTab = () => (
         <div className="journal-section">
             <div className="form-group">
-                <label className="priority-label">Priority {errors.priority && <span className="error-message-inline">{errors.priority}</span>}</label>
+                <label>Priority {errors.priority && <span className="error-message-inline">{errors.priority}</span>}</label>
                 <select
                     value={selectedPriority}
                     onChange={(e) => {
@@ -958,49 +969,48 @@ const NewNoteModal = forwardRef(({
     };
 
     return (
-        <Modal 
-            isOpen={isOpen} 
-            onClose={onClose} 
-            title="New Note"
-            className="new-note-modal"
-            maxHeight="85vh"
-        >
-            <div className="modal-content-wrapper">
-                <div className="tabs-container">
-                    <div className="tabs">
-                        <button 
-                            className={`tab-button ${activeTab === 'journal' ? 'active' : ''}`} 
-                            onClick={() => setActiveTab('journal')}
-                        >
-                            Journal
-                        </button>
-                        <button 
-                            className={`tab-button ${activeTab === 'documents' ? 'active' : ''}`} 
-                            onClick={() => setActiveTab('documents')}
-                        >
-                            Documents ({documents.length})
-                        </button>
-                        <button 
-                            className={`tab-button ${activeTab === 'priority' ? 'active' : ''}`} 
-                            onClick={() => setActiveTab('priority')}
-                        >
-                            Priority
-                        </button>
-                    </div>
-                </div>
-
-                <div className="tab-content-scrollable">
-                    {renderTabContent()}
+        <div className="edit-note-modal-overlay">
+            <div className="edit-note-modal">
+                <div className="modal-header">
+                    <h2>New Note</h2>
+                    <button className="close-button" onClick={onClose} disabled={isSaving}>
+                        ×
+                    </button>
                 </div>
 
                 {apiError && (
-                    <div className="error-message sticky-error">
+                    <div className="error-message">
                         {apiError}
                         <button onClick={() => setApiError(null)} className="dismiss-error">×</button>
                     </div>
                 )}
 
-                <div className="modal-footer sticky-footer">
+                <div className="tabs">
+                    <button 
+                        className={`tab-button ${activeTab === 'journal' ? 'active' : ''}`} 
+                        onClick={() => setActiveTab('journal')}
+                    >
+                        Journal
+                    </button>
+                    <button 
+                        className={`tab-button ${activeTab === 'documents' ? 'active' : ''}`} 
+                        onClick={() => setActiveTab('documents')}
+                    >
+                        Documents ({documents.length})
+                    </button>
+                    <button 
+                        className={`tab-button ${activeTab === 'priority' ? 'active' : ''}`} 
+                        onClick={() => setActiveTab('priority')}
+                    >
+                        Priority
+                    </button>
+                </div>
+
+                <div className="tab-content">
+                    {renderTabContent()}
+                </div>
+
+                <div className="modal-footer">
                     <button className="cancel-button" onClick={onClose} disabled={isSaving}>
                         Cancel
                     </button>
@@ -1008,68 +1018,73 @@ const NewNoteModal = forwardRef(({
                         {isSaving ? "Saving..." : "Save"}
                     </button>
                 </div>
-            </div>
 
-            {/* Document Modal */}
-            {showDocumentModal && (
-                <div className="document-modal-overlay">
-                    <div className="document-modal">
-                        <h3>{currentDocumentBeingEdited ? 'Edit Document' : 'Add Document'}</h3>
+                {/* Document Modal */}
+                {showDocumentModal && (
+                    <div className="document-modal-overlay">
+                        <div className="document-modal">
+                            <div className="modal-header">
+                                <h3>{currentDocumentBeingEdited ? 'Edit Document' : 'Add Document'}</h3>
+                                <button className="close-button" onClick={() => setShowDocumentModal(false)}>
+                                    ×
+                                </button>
+                            </div>
 
-                        <div className="form-group">
-                            <label>Document Name:</label>
-                            {errors.newDocumentName && <span className="error-message-inline">{errors.newDocumentName}</span>}
-                            <input
-                                type="text"
-                                value={newDocument.name}
-                                onChange={(e) => setNewDocument(prev => ({ ...prev, name: e.target.value }))}
-                                required
-                            />
-                        </div>
+                            <div className="form-group">
+                                <label>Document Name:</label>
+                                {errors.newDocumentName && <span className="error-message-inline">{errors.newDocumentName}</span>}
+                                <input
+                                    type="text"
+                                    value={newDocument.name}
+                                    onChange={(e) => setNewDocument(prev => ({ ...prev, name: e.target.value }))}
+                                    required
+                                />
+                            </div>
 
-                        <div className="form-group">
-                            <label>File:</label>
-                            {errors.newDocumentFile && <span className="error-message-inline">{errors.newDocumentFile}</span>}
-                            <input
-                                type="file"
-                                onChange={handleDocumentFileChange}
-                                required={!currentDocumentBeingEdited}
-                            />
-                            {currentDocumentBeingEdited?.fileName && !newDocument.file && (
-                                <p>Current file: {currentDocumentBeingEdited.fileName}</p>
-                            )}
-                            {newDocument.file && (
-                                <p>Selected file: {newDocument.file.name}</p>
-                            )}
-                            {error && (
-                                <p className="file-error">{error}</p>
-                            )}
-                        </div>
+                            <div className="form-group">
+                                <label>File:</label>
+                                {errors.newDocumentFile && <span className="error-message-inline">{errors.newDocumentFile}</span>}
+                                <input
+                                    type="file"
+                                    onChange={handleDocumentFileChange}
+                                    required={!currentDocumentBeingEdited}
+                                />
+                                {currentDocumentBeingEdited?.fileName && !newDocument.file && (
+                                    <p>Current file: {currentDocumentBeingEdited.fileName}</p>
+                                )}
+                                {newDocument.file && (
+                                    <p>Selected file: {newDocument.file.name}</p>
+                                )}
+                                {error && (
+                                    <p className="file-error">{error}</p>
+                                )}
+                            </div>
 
-                        <div className="modal-actions">
-                            <button
-                                onClick={() => {
-                                    setShowDocumentModal(false);
-                                    setCurrentDocumentBeingEdited(null);
-                                    setNewDocument({ name: '', file: null });
-                                    setErrors({});
-                                }}
-                                className="cancel-button"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleDocumentSubmit}
-                                className="submit-button"
-                                disabled={!newDocument.name.trim() || (!newDocument.file && !currentDocumentBeingEdited?.fileName)}
-                            >
-                                OK
-                            </button>
+                            <div className="modal-actions">
+                                <button
+                                    onClick={() => {
+                                        setShowDocumentModal(false);
+                                        setCurrentDocumentBeingEdited(null);
+                                        setNewDocument({ name: '', file: null });
+                                        setErrors({});
+                                    }}
+                                    className="cancel-button"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleDocumentSubmit}
+                                    className="submit-button"
+                                    disabled={!newDocument.name.trim() || (!newDocument.file && !currentDocumentBeingEdited?.fileName)}
+                                >
+                                    OK
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </Modal>
+                )}
+            </div>
+        </div>
     );
 });
 
@@ -1102,7 +1117,10 @@ NewNoteModal.propTypes = {
         project: PropTypes.string,
         job: PropTypes.string,
         workspace: PropTypes.string,
-        date: PropTypes.string
+        date: PropTypes.string,
+        projectId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+        jobId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+        workspaceId: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
     }),
     defWorkSpaceId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     userworksaces: PropTypes.arrayOf(
