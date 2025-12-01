@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import Modal from '../Modals/Modal';
 import ApproveRejectWorkspace from './ApproveRejectWorkspace';
 import toast from 'react-hot-toast';
+import ManageWorkspaceUsersModal from './ManageWorkspaceUsersModal';
 
 const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}) => {
     
@@ -35,6 +36,8 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
     const [addingWorkspace, setAddingWorkspace] = useState(false);
     const [editingWorkspace, setEditingWorkspace] = useState(false);
     
+    const [isManageUsersOpen, setIsManageUsersOpen] = useState(false);
+
     const COUNTRY_OPTIONS = [
         "United States",
         "Canada",
@@ -440,13 +443,20 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
                     onClick={() => setIsUserWorkspaceOpen(true)}
                     disabled={!((userRole === "Admin" || workspaceRole == 1) && selectedWorkspace)}
                 >
-                    User Workspace
+                    Add User to Workspace
                 </button>
                 <button
                     className="btn-secondary"
                     onClick={() => setIsChangeWorkspaceOpen(true)}
                 >
                     Select Workspace
+                </button>
+                <button
+                className="btn-secondary"
+                onClick={() => setIsManageUsersOpen(true)}
+                disabled={!selectedWorkspace || (userRole !== "Admin" && workspaceRole !== 1)}
+                >
+                Manage Users
                 </button>
             </div>
             <div className="settings-lookup-list">
@@ -805,6 +815,14 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
                     </div>
                 </div>
             </Modal>
+            {/* Manage Users Modal */}
+            <ManageWorkspaceUsersModal
+            isOpen={isManageUsersOpen}
+            onClose={() => setIsManageUsersOpen(false)}
+            workspaceId={selectedWorkspace}
+            workspaceName={workspaces.find(w => w.id === parseInt(selectedWorkspace))?.name || ''}
+            allUsers={users}
+            />
         </div>
     );
 }

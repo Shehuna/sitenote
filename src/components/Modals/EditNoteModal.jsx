@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback, useRef  } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import "./EditNoteModal.css";
 import toast from "react-hot-toast";
+import * as signalR from "@microsoft/signalr";
 
 const EditNoteModal = ({
   note,
@@ -28,17 +29,20 @@ const EditNoteModal = ({
   const [newDocument, setNewDocument] = useState({
     name: "",
     file: null,
-    siteNoteId: "",
-    userId: "",
   });
 
   const [activeTab, setActiveTab] = useState("journal");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
   const [selectedPriority, setSelectedPriority] = useState("");
   const [priorityId, setPriorityId] = useState("");
+
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const connectionRef = useRef(null);
+
+  const noteTextareaRef = useRef(null);
 
   // Get current user
   const getCurrentUser = () => {
@@ -59,35 +63,23 @@ const EditNoteModal = ({
   });
 
   const allowedFileTypes = {
-    // Images
     "image/jpeg": [".jpg", ".jpeg"],
     "image/png": [".png"],
     "image/gif": [".gif"],
     "image/webp": [".webp"],
     "image/svg+xml": [".svg"],
-
-    // Documents
     "application/pdf": [".pdf"],
     "application/msword": [".doc"],
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [
-      ".docx",
-    ],
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
     "application/vnd.ms-excel": [".xls"],
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [
-      ".xlsx",
-    ],
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
     "application/vnd.ms-powerpoint": [".ppt"],
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation":
-      [".pptx"],
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"],
     "text/plain": [".txt"],
-
-    // Audio
     "audio/mpeg": [".mp3"],
     "audio/wav": [".wav"],
     "audio/ogg": [".ogg"],
     "audio/aac": [".aac"],
-
-    // Video
     "video/mp4": [".mp4"],
     "video/mpeg": [".mpeg"],
     "video/ogg": [".ogv"],
@@ -96,12 +88,37 @@ const EditNoteModal = ({
     "video/x-msvideo": [".avi"],
   };
 
-  const noteTextareaRef = useRef(null);
+  const isValidFileType = (file) => Object.keys(allowedFileTypes).includes(file.type);
 
-  const MAX_FILE_SIZE = 5 * 1024 * 1024;
-  const isValidFileType = (file) => {
-    return Object.keys(allowedFileTypes).includes(file.type);
-  };
+  useEffect(() => {
+    if (showDocumentModal && !connectionRef.current) {
+      const connect = async () => {
+        try {
+          const connection = new signalR.HubConnectionBuilder()
+            .withUrl(`${process.env.REACT_APP_API_BASE_URL}/hubs/uploadprogress`)
+            .withAutomaticReconnect()
+            .build();
+
+          connection.on("ReceiveProgress", (percent) => {
+            setUploadProgress(Math.round(percent));
+          });
+
+          await connection.start();
+          connectionRef.current = connection;
+        } catch (err) {
+          console.warn("SignalR not available", err);
+        }
+      };
+      connect();
+    }
+
+    return () => {
+      if (connectionRef.current) {
+        connectionRef.current.stop();
+        connectionRef.current = null;
+      }
+    };
+  }, [showDocumentModal]);
 
   useEffect(() => {
     if (openToPriorityTab) {
@@ -132,7 +149,6 @@ const EditNoteModal = ({
       const timer = setTimeout(() => {
         noteTextareaRef.current.focus();
       }, 100);
-
       return () => clearTimeout(timer);
     }
   }, [activeTab]);
@@ -144,7 +160,6 @@ const EditNoteModal = ({
           noteTextareaRef.current.focus();
         }
       }, 200);
-
       return () => clearTimeout(timer);
     }
   }, [note, activeTab]);
@@ -152,29 +167,17 @@ const EditNoteModal = ({
   const getMimeType = (fileName) => {
     const ext = fileName?.split(".").pop()?.toLowerCase();
     switch (ext) {
-      case "pdf":
-        return "application/pdf";
-      case "jpg":
-      case "jpeg":
-        return "image/jpeg";
-      case "png":
-        return "image/png";
-      case "gif":
-        return "image/gif";
-      case "doc":
-        return "application/msword";
-      case "docx":
-        return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-      case "xls":
-        return "application/vnd.ms-excel";
-      case "xlsx":
-        return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-      case "txt":
-        return "text/plain";
-      case "html":
-        return "text/html";
-      default:
-        return "application/octet-stream";
+      case "pdf": return "application/pdf";
+      case "jpg": case "jpeg": return "image/jpeg";
+      case "png": return "image/png";
+      case "gif": return "image/gif";
+      case "doc": return "application/msword";
+      case "docx": return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      case "xls": return "application/vnd.ms-excel";
+      case "xlsx": return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+      case "txt": return "text/plain";
+      case "html": return "text/html";
+      default: return "application/octet-stream";
     }
   };
 
@@ -185,15 +188,11 @@ const EditNoteModal = ({
 
       const response = await fetch(
         `${process.env.REACT_APP_API_BASE_URL}/api/Documents/GetDocumentMetadataByReference?siteNoteId=${referenceId}`,
-        {
-          headers: { accept: "application/json" },
-        }
+        { headers: { accept: "application/json" } }
       );
 
       if (!response.ok) {
-        throw new Error(
-          `Failed to fetch documents: ${response.status} ${response.statusText}`
-        );
+        throw new Error(`Failed to fetch documents: ${response.status} ${response.statusText}`);
       }
 
       var docs = await response.json();
@@ -201,15 +200,12 @@ const EditNoteModal = ({
 
       setDocuments(
         docs.map((doc) => {
-          const fileType = doc.fileName?.split(".").pop();
-
           const downloadApiTriggerUrl = `${process.env.REACT_APP_API_BASE_URL}/api/Documents/DownloadDocument/${doc.id}`;
-
           return {
             ...doc,
-            fileType: fileType,
+            fileType: doc.fileName?.split(".").pop(),
             fileUrl: null,
-            downloadApiTriggerUrl: downloadApiTriggerUrl,
+            downloadApiTriggerUrl,
           };
         })
       );
@@ -256,32 +252,19 @@ const EditNoteModal = ({
 
       if (note.id) {
         const user = JSON.parse(localStorage.getItem("user"));
-        console.log("=== PRIORITY DEBUG ===");
-        console.log("Note ID:", note.id);
-        console.log("Current User ID:", user.id);
-        console.log("All priorities:", priorities);
-
         let result = priorities.find((p) => p.noteID == note.id);
-        console.log("Found priority (any user):", result);
-
         if (!result) {
           result = priorities.find(
             (p) => p.noteID === note.id && p.userId === user.id
           );
-          console.log("Found priority (current user):", result);
         }
-
         if (result) {
-          console.log("✅ Setting priorityId:", result.id);
-          console.log("✅ Setting selectedPriority:", result.priorityValue);
           setSelectedPriority(result.priorityValue.toString());
           setPriorityId(result.id.toString());
         } else {
-          console.log("❌ No priority found for this note");
           setSelectedPriority("1");
           setPriorityId("");
         }
-        console.log("=== END DEBUG ===");
       }
     }
   }, [note, fetchDocumentsByReference, projects, jobs, priorities]);
@@ -301,15 +284,13 @@ const EditNoteModal = ({
 
   const handleJournalChange = (e) => {
     if (!isEditable || !canEditNote) return;
-
     const { name, value } = e.target;
     setJournalData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleAddDocument = () => {
     if (!isEditable || !canEditNote) return;
-
-    setNewDocument({ name: "", file: null, siteNoteId: "", userId: "" });
+    setNewDocument({ name: "", file: null });
     setShowDocumentModal(true);
     setError(null);
   };
@@ -319,9 +300,9 @@ const EditNoteModal = ({
     
     const file = e.target.files[0];
     setError("");
+    if (!file) return;
     if (!isValidFileType(file)) {
       setError("Invalid file type! ");
-      setSelectedFile(null);
       return;
     }
 
@@ -334,42 +315,65 @@ const EditNoteModal = ({
       return;
     }
 
-    setError(null);
-
     if (!newDocument.name.trim()) {
       setError("Document name is required.");
       return;
     }
-
     if (!newDocument.file) {
       setError("Please select a file to upload.");
       return;
     }
 
+    setError("");
+    setIsUploading(true);
+    setUploadProgress(0);
+
     try {
-      setIsSubmitting(true);
+      const user = getCurrentUser();
+      const formData = new FormData();
+      formData.append("Name", newDocument.name.trim());
+      formData.append("File", newDocument.file);
+      formData.append("SiteNoteId", note.id);
+      formData.append("UserId", user?.id || 1);
 
-      const savedDoc = await uploadDocument(
-        newDocument.name,
-        newDocument.file,
-        note.id
-      );
+      const headers = {};
+      if (connectionRef.current?.connectionId) {
+        headers["X-Connection-Id"] = connectionRef.current.connectionId;
+      }
 
-      const newDocWithDownloadUrl = {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Documents/AddDocument`, {
+        method: "POST",
+        body: formData,
+        headers
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.errors?.Name?.[0] || "Upload failed");
+      }
+
+      const result = await response.json();
+      const savedDoc = result.document || result;
+
+      const newDocEntry = {
         ...savedDoc,
-        fileType: getMimeType(savedDoc.fileName).split("/")[1],
-        fileUrl: null,
-        downloadApiTriggerUrl: `${process.env.REACT_APP_API_BASE_URL}/api/Documents/DownloadDocument/${savedDoc.id}`,
+        name: newDocument.name.trim(),
+        fileName: newDocument.file.name,
+        downloadApiTriggerUrl: `${process.env.REACT_APP_API_BASE_URL}/api/Documents/DownloadDocument/${savedDoc.id}`
       };
-      setDocuments((docs) => [...docs, newDocWithDownloadUrl]);
 
-      setShowDocumentModal(false);
-      setNewDocument({ name: "", file: null });
+      setDocuments(prev => [...prev, newDocEntry]);
+
+      setTimeout(() => {
+        setShowDocumentModal(false);
+        setNewDocument({ name: "", file: null });
+        setIsUploading(false);
+        setUploadProgress(0);
+        toast.success("Document uploaded successfully!");
+      }, 600);
     } catch (err) {
-      console.error("Error saving document:", err);
-      setError(err.message || "Failed to save document");
-    } finally {
-      setIsSubmitting(false);
+      setError(err.message || "Upload failed");
+      setIsUploading(false);
     }
   };
 
@@ -381,9 +385,7 @@ const EditNoteModal = ({
       const response = await fetch(documentToDownload.downloadApiTriggerUrl);
 
       if (!response.ok) {
-        throw new Error(
-          `Failed to retrieve document: ${response.status} ${response.statusText}`
-        );
+        throw new Error(`Failed to retrieve document: ${response.status} ${response.statusText}`);
       }
 
       const blob = await response.blob();
@@ -457,16 +459,11 @@ const EditNoteModal = ({
         onClose();
         refreshNotes();
       } else {
-        throw new Error(
-          "Failed to save note: No success confirmation from server"
-        );
+        throw new Error("Failed to save note: No success confirmation from server");
       }
     } catch (err) {
       console.error("Error saving note:", err);
-      setError(
-        err.message ||
-          "Failed to save note. Please check your connection and try again."
-      );
+      setError(err.message || "Failed to save note. Please check your connection and try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -483,7 +480,6 @@ const EditNoteModal = ({
 
   useEffect(() => {
     document.addEventListener('keydown', handleSaveShortcut);
-
     return () => {
       document.removeEventListener('keydown', handleSaveShortcut);
     };
@@ -492,61 +488,32 @@ const EditNoteModal = ({
   const handleUpdatepriority = async () => {
     try {
       const user = JSON.parse(localStorage.getItem("user"));
-      console.log("=== UPDATE PRIORITY DEBUG ===");
-      console.log("priorityId:", priorityId);
-      console.log("selectedPriority:", selectedPriority);
-      console.log("note.id:", note.id);
-      console.log("user.id:", user.id);
-
       let response;
 
       if (priorityId) {
-        console.log("Updating existing priority");
-        const url = `${process.env.REACT_APP_API_BASE_URL}/api/Priority/UpdatePriority/${priorityId}`;
-        console.log("Update URL:", url);
-
-        response = await fetch(url, {
+        response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Priority/UpdatePriority/${priorityId}`, {
           method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            priorityValue: selectedPriority,
-          }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ priorityValue: selectedPriority }),
         });
       } else {
-        console.log("Creating new priority");
-        response = await fetch(
-          `${process.env.REACT_APP_API_BASE_URL}/api/Priority/AddPriority`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              noteID: note.id,
-              priorityValue: selectedPriority,
-              userId: user.id,
-            }),
-          }
-        );
+        response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Priority/AddPriority`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            noteID: note.id,
+            priorityValue: selectedPriority,
+            userId: user.id,
+          }),
+        });
       }
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(
-          errorData.message ||
-            `Failed to ${priorityId ? "update" : "create"} priority`
-        );
+        throw new Error(errorData.message || `Failed to ${priorityId ? "update" : "create"} priority`);
       }
 
-      console.log(
-        `Priority ${priorityId ? "updated" : "created"} successfully`
-      );
-
-      toast.success(
-        `Priority ${priorityId ? "updated" : "created"} successfully`
-      );
+      toast.success(`Priority ${priorityId ? "updated" : "created"} successfully`);
     } catch (error) {
       console.error("Error saving priority:", error);
       throw error;
@@ -569,12 +536,8 @@ const EditNoteModal = ({
             )}
           </h2>
 
-          <button
-            className="close-button"
-            onClick={onClose}
-            disabled={isSubmitting}
-          >
-            &times;
+          <button className="close-button" onClick={onClose} disabled={isSubmitting}>
+            ×
           </button>
         </div>
 
@@ -598,9 +561,7 @@ const EditNoteModal = ({
             Journal
           </button>
           <button
-            className={`tab-button ${
-              activeTab === "documents" ? "active" : ""
-            }`}
+            className={`tab-button ${activeTab === "documents" ? "active" : ""}`}
             onClick={() => setActiveTab("documents")}
           >
             Documents {documents.length > 0 && `(${documents.length})`}
@@ -640,7 +601,7 @@ const EditNoteModal = ({
                   <option value="">Select Project</option>
                   {projects.filter(project => 
                       !defaultWorkspaceId || project.workspaceId?.toString() === defaultWorkspaceId.toString()
-                      ).map((project) => (
+                  ).map((project) => (
                     <option key={project.id} value={project.id}>
                       {project.name}
                     </option>
@@ -661,10 +622,7 @@ const EditNoteModal = ({
                 >
                   <option value="">Select Job</option>
                   {jobs
-                    .filter(
-                      (job) =>
-                        job.projectId?.toString() === journalData.projectId
-                    )
+                    .filter((job) => job.projectId?.toString() === journalData.projectId)
                     .map((job) => (
                       <option key={job.id} value={job.id}>
                         {job.name}
@@ -696,11 +654,7 @@ const EditNoteModal = ({
                 <>
                   {canEditNote && isEditable && (
                     <div className="document-actions">
-                      <button
-                        onClick={handleAddDocument}
-                        className="add-button"
-                        disabled={isSubmitting}
-                      >
+                      <button onClick={handleAddDocument} className="add-button" disabled={isSubmitting}>
                         Add Document
                       </button>
                     </div>
@@ -747,26 +701,14 @@ const EditNoteModal = ({
                 <label>Priority</label>
                 <select
                   value={selectedPriority}
-                  onChange={(e) => {
-                    setSelectedPriority(e.target.value);
-                  }}
-                  disabled={isSubmitting || !canEditNote}
-                  className={`priority-select ${
-                    selectedPriority
-                      ? `priority-${selectedPriority}`
-                      : "priority-default"
-                  }`}
+                  onChange={(e) => setSelectedPriority(e.target.value)}
+                  disabled={isSubmitting }
+                  className={`priority-select ${selectedPriority ? `priority-${selectedPriority}` : "priority-default"}`}
                 >
                   <option value="">Select Priority</option>
-                  <option value="4" className="priority-option-4">
-                    High
-                  </option>
-                  <option value="3" className="priority-option-3">
-                    Medium
-                  </option>
-                  <option value="1" className="priority-option-1">
-                    No Priority
-                  </option>
+                  <option value="4" className="priority-option-4">High</option>
+                  <option value="3" className="priority-option-3">Medium</option>
+                  <option value="1" className="priority-option-1">No Priority</option>
                 </select>
               </div>
             </div>
@@ -779,14 +721,10 @@ const EditNoteModal = ({
             className="cancel-button"
             disabled={isSubmitting}
           >
-            {canEditNote ? "Cancel" : "Close"}
+            {"Close"}
           </button>
-          {canEditNote && (
-            <button
-              onClick={handleSaveNote}
-              className="save-button"
-              disabled={isSubmitting}
-            >
+          {(
+            <button onClick={handleSaveNote} className="save-button" disabled={isSubmitting}>
               {isSubmitting ? "Saving..." : "Save"}
             </button>
           )}
@@ -794,55 +732,92 @@ const EditNoteModal = ({
 
         {showDocumentModal && (
           <div className="document-modal-overlay">
-            <div className="document-modal">
-              <h3>Add Document</h3>
-              {error && <p className="error-message">{error}</p>}
-              <div className="form-group">
-                <label>Document Name:</label>
-                <input
-                  type="text"
-                  value={newDocument.name}
-                  onChange={(e) =>
-                    setNewDocument((prev) => ({
-                      ...prev,
-                      name: e.target.value,
-                    }))
-                  }
-                  required
-                  disabled={isSubmitting || !isEditable || !canEditNote}
-                />
+            <div className="document-modal" style={{ maxWidth: "560px" }}>
+              {isUploading && (
+                <div style={{ height: "6px", background: "#e0e0e0", borderRadius: "8px 8px 0 0", overflow: "hidden" , marginBottom: "10px" }}>
+                  <div style={{ height: "100%", width: `${uploadProgress}%`, background: "#4caf50", transition: "width 0.3s ease", marginBottom: "10px"  }} />
+                </div>
+              )}
+
+              <div className="modal-header">
+                <h3>Add Document</h3>
+                <button className="close-button" onClick={() => setShowDocumentModal(false)} disabled={isUploading}>
+                  ×
+                </button>
               </div>
 
-              <div className="form-group">
-                <label>File:</label>
-                <input
-                  type="file"
-                  onChange={handleDocumentFileChange}
-                  required
-                  disabled={isSubmitting || !isEditable || !canEditNote}
-                />
+              {error && (
+                <div className="error-message" style={{ background: "#ffebee", padding: "12px", borderRadius: "6px", margin: "10px 20px" }}>
+                  {error}
+                  <button onClick={() => setError("")} style={{ float: "right", background: "none", border: "none", fontWeight: "bold" }}>×</button>
+                </div>
+              )}
+
+              <div style={{ padding: "20px" }}>
+                <div style={{ marginBottom: "16px" }}>
+                  <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>Document Name:</label>
+                  <input
+                    type="text"
+                    value={newDocument.name}
+                    onChange={(e) => setNewDocument(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="e.g. Site Photos March 2025"
+                    style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid #ccc" }}
+                    disabled={isUploading}
+                  />
+                </div>
+
+                <div style={{ marginBottom: "16px" }}>
+                  <label style={{ display: "block", marginBottom: "8px", fontWeight: "600" }}>File:</label>
+                  <input type="file" onChange={handleDocumentFileChange} disabled={isUploading} style={{ width: "100%" }} />
+
+                  {newDocument.file && (
+                    <div style={{
+                      marginTop: "12px",
+                      padding: "14px 16px",
+                      background: "#e8f5e8",
+                      border: "1px solid #4caf50",
+                      borderRadius: "8px",
+                      color: "#2e7d32",
+                      fontWeight: "500"
+                    }}>
+                      Selected: <strong>{newDocument.file.name}</strong>
+                      <span style={{ marginLeft: "10px", opacity: 0.8 }}>
+                        ({(newDocument.file.size / 1024 / 1024).toFixed(1)} MB)
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {isUploading && (
+                  <div style={{
+                    textAlign: "center",
+                    margin: "20px 0",
+                    color: "#4caf50",
+                    fontWeight: "600",
+                    fontSize: "16px"
+                  }}>
+                    Uploading... {uploadProgress}%
+                  </div>
+                )}
               </div>
 
-              <div className="modal-actions">
-                <button
-                  onClick={() => setShowDocumentModal(false)}
-                  className="cancel-button"
-                  disabled={isSubmitting}
-                >
+              <div className="modal-actions" style={{ padding: "16px", borderTop: "1px solid #eee", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+                <button onClick={() => setShowDocumentModal(false)} disabled={isUploading} style={{ padding: "10px 16px", border: "1px solid #ccc", borderRadius: "6px" }}>
                   Cancel
                 </button>
                 <button
                   onClick={handleDocumentSubmit}
-                  className="submit-button"
-                  disabled={
-                    isSubmitting ||
-                    !newDocument.name.trim() ||
-                    !newDocument.file ||
-                    !isEditable ||
-                    !canEditNote
-                  }
+                  disabled={isUploading || !newDocument.name.trim() || !newDocument.file}
+                  style={{
+                    padding: "10px 20px",
+                    background: isUploading ? "#4caf50" : "#1976d2",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    fontWeight: "600"
+                  }}
                 >
-                  {isSubmitting ? "Saving..." : "Save Document"}
+                  {isUploading ? `Uploading ${uploadProgress}%` : "Save Document"}
                 </button>
               </div>
             </div>

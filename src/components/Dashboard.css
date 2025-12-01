@@ -120,7 +120,6 @@
   align-items: center;
 }
 
-
 .dropdown-container {
     color: gray;
     margin-top: -20px;
@@ -250,7 +249,6 @@ tr.selected-row.priority-4 {
   background-color: #e3f2fd !important;
 }
 
-
 .focused-row.selected-row {
   background-color: #e3f2fd !important;
   border-left: 3px solid #1976d2;
@@ -260,12 +258,10 @@ tr.selected-row.priority-4 {
   position: relative !important;
 }
 
-
 td {
   position: relative;
   vertical-align: top;
 }
-
 
 
 /* View Toggle Styles */
