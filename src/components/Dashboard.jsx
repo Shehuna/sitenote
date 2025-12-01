@@ -1309,7 +1309,7 @@ const formatRelativeTime = (dateString) => {
                   day: "numeric",
                 })}
               >
-                {formatRelativeTime(n.date)}
+                {formatRelativeTime(n.timeStamp)}
               </td>
                 <td>{n.workspace}</td>
                 <td>{n.project}</td>
@@ -1487,7 +1487,7 @@ const formatRelativeTime = (dateString) => {
                     day: "numeric",
                   })}
                 >
-                  {formatRelativeTime(note.date)}
+                  {formatRelativeTime(note.timeStamp)}
                 </div>
               </div>
               
