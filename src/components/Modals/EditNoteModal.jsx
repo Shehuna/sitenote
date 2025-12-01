@@ -13,7 +13,8 @@ const EditNoteModal = ({
   jobs = [],
   priorities = [],
   onPriorityUpdate,
-  defaultWorkspaceId
+  defaultWorkspaceId,
+  openToPriorityTab = false
 }) => {
   const [isEditable, setIsEditable] = useState(true);
   const [journalData, setJournalData] = useState({
@@ -118,6 +119,12 @@ const EditNoteModal = ({
       }
     };
   }, [showDocumentModal]);
+
+  useEffect(() => {
+    if (openToPriorityTab) {
+      setActiveTab('priority');
+    }
+  }, [openToPriorityTab]);
 
   useEffect(() => {
     if (note) {

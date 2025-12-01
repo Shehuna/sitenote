@@ -15,6 +15,7 @@ const JobManagment = ({defWorkId, updateProjectsAndJobs}) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [jobs, setJobs] = useState([]);
+    const [previousJobName, setPreviousJobName] = useState('');
 
    useEffect(() => {
             fetchInitialData();
@@ -38,11 +39,19 @@ const JobManagment = ({defWorkId, updateProjectsAndJobs}) => {
             setNewJobDescription('');
         }
     }, [isEditJobOpen, selectedJob, jobs]);
-    
-
+     
+    useEffect(() => {
+    if (newJobName && (!newJobDescription || newJobDescription === previousJobName)) {
+        setNewJobDescription(newJobName);
+    }
+    }, [newJobName]); 
+    useEffect(() => {
+    setPreviousJobName(newJobName);
+    }, [newJobName]);
 
   const handleAddJob = async () => {
         try {
+            const finalDescription = newJobDescription.trim() || newJobName;
             const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Job/AddJob`, {
                 method: 'POST',
                 headers: {
@@ -120,6 +129,7 @@ const JobManagment = ({defWorkId, updateProjectsAndJobs}) => {
 
   const handleEditJob = async () => {
         try {
+            const finalDescription = newJobDescription.trim() || newJobName;
             const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Job/UpdateJob/${selectedJob}`, {
                 method: 'PUT',
                 headers: {

@@ -77,10 +77,14 @@ const Dashboard = ({
   const [searchColumn, setSearchColumn] = useState('');
   const [prefilledData, setPrefilledData] = useState(null);
   const [showRequestWorkspaceModal, setShowRequestWorkspaceModal] = useState(false);
-  const [viewMode, setViewMode] = useState('table');
+  const [currentUser, setCurrentUser] = useState(null);
+  const [viewMode, setViewMode] = useState(() => {
+  const saved = localStorage.getItem('dashboardViewMode');
+  return saved || 'cards';
+});
   const [modalSource, setModalSource] = useState('dashboard');
 
-  // Add ref for NewNoteModal
+ 
   const newNoteModalRef = useRef();
 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
@@ -100,6 +104,10 @@ const Dashboard = ({
   useEffect(() => {
     localStorage.setItem('dashboardSelectedValues', JSON.stringify(selectedValues));
   }, [selectedValues]);
+  useEffect(() => {
+  localStorage.setItem('dashboardViewMode', viewMode);
+}, [viewMode]);
+
 
   const styles = {
     searchBox: {
@@ -240,6 +248,58 @@ const Dashboard = ({
       console.error(e);
     }
   };
+ const getHash = (str) => {
+  if (!str) return 0;
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return Math.abs(hash);
+};
+useEffect(() => {
+  const fetchCurrentUser = async () => {
+    try {
+      const response = await fetch(`${apiUrl}/api/UserManagement/GetUserById/${userid}`);
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentUser(data.user);
+      }
+    } catch (error) {
+      console.error('Error fetching user:', error);
+    }
+  };
+  
+  if (userid) {
+    fetchCurrentUser();
+  }
+}, [userid, apiUrl]);
+
+const formatRelativeTime = (dateString) => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInMs = now - date;
+  const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+  const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+  const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+
+  if (diffInMinutes < 1) {
+    return 'Just now';
+  } else if (diffInMinutes < 60) {
+    return `${diffInMinutes} min ago`;
+  } else if (diffInHours < 24) {
+    return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+  } else if (diffInDays === 1) {
+    return 'Yesterday';
+  } else if (diffInDays < 7) {
+    return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+  } else {
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  }
+};
 
   // Fetch notes for a specific column/value from server-side endpoints.
   const fetchNotesByColumnAndValue = async (column, value) => {
@@ -1135,305 +1195,332 @@ const Dashboard = ({
         </div>
 
         {viewMode === 'table' ? (
-          <div className="responsive-table-container">
-            <table>
-              <thead>
-                <tr>
-                  {[
-                    "date",
-                    "workspace",
-                    "project",
-                    "job",
-                    "note",
-                    "userName",
-                    "Attached File",
-                  ].map((c) => (
-                    <th
-                      key={c}
-                      draggable={["date","workspace","project","job","userName"].includes(c)}
-                      onDragStart={handleDragStart(c)}
-                      className={hierarchy.includes(c) ? "hierarchy-column" : ""}
-                    >
-                      {c === "date" && <i className="fas fa-calendar" />}
-                      {c === "workspace" && <i className="fas fa-building" />}
-                      {c === "project" && (
-                        <i className="fas fa-project-diagram" />
-                      )}
-                      {c === "job" && <i className="fas fa-tasks" />}
-                      {c === "note" && <i className="fas fa-sticky-note" />}
-                      {c === "userName" && <i className="fas fa-user" />}
-                      {c === "Attached File" && <i className="fas fa-paperclip" />}{" "}
-                      {c.charAt(0).toUpperCase() + c.slice(1)}
-                    </th>
-                  ))}
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {!isDataLoaded ||
-                initialLoading ||
-                searchLoading ||
-                loadingFiltered ||
-                loadingUniques ? (
-                  [...Array(5)].map((_, i) => (
-                    <tr key={i}>
-                      <td colSpan={8}>
-                        <div className="skeleton-row">
-                          <div className="skeleton-cell short" />
-                          <div className="skeleton-cell medium" />
-                          <div className="skeleton-cell medium" />
-                          <div className="skeleton-cell medium" />
-                          <div className="skeleton-cell long" />
-                          <div className="skeleton-cell short" />
-                          <div className="skeleton-cell short" />
-                          <div className="skeleton-cell short" />
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : displayNotes.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={8}
-                      style={{ textAlign: "center", padding: 40, color: "#999" }}
-                    >
-                      {isDataLoaded && !initialLoading && !loadingUniques ? (
-                        <>
-                          <i
-                            className="fas fa-search"
-                            style={{
-                              fontSize: 28,
-                              marginBottom: 12,
-                              display: "block",
-                              opacity: 0.5,
-                            }}
-                          />{" "}
-                          <div>
-                            {searchTerm.trim()
-                              ? "No notes match your search"
-                              : "No notes available"}
-                          </div>
-                        </>
-                      ) : null}
-                    </td>
-                  </tr>
-                ) : (
-                  displayNotes.map((n) => {
-                    const notePriority = priorities.find(
-                      (p) => Number(p.noteID) === Number(n.id)
-                    );
-                    return (
-                      <tr
-                        key={n.id}
-                        onClick={() => {
-                          handleRowClick(n);
-                        }}
-                        onDoubleClick={() => {
-                          handleRowDoubleClick(n);
-                          const job = jobs.find((j) => j.name === n.job);
-                          setViewNote({
-                            id: n.id,
-                            jobId: job?.id ?? null,
-                          });
-                          setShowViewModal(true);
-                        }}
-                        className={`${
-                          selectedRow === n.id ? "selected-row" : ""
-                        } ${focusedRow === n.id ? "focused-row" : ""}`}
-                        style={{ cursor: "pointer" }}
-                      >
-                        <td>
-                          {new Date(n.date).toLocaleDateString("en-US", {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          })}
-                        </td>
-                        <td>{n.workspace}</td>
-                        <td>{n.project}</td>
-                        <td>{n.job}</td>
-                        <td className="editable" style={{ position: "relative" }}>
-                          <div style={{ display: "flex", alignItems: "flex-start" }}>
-                            <span style={{ flex: 1 }}>
-                              {n.note.length > 69 ? n.note.substring(0, 69) + "..." : n.note}
-                            </span>
-                            {notePriority && notePriority.priorityValue > 1 && (
-                              <div
-                                className={`priority-dot ${
-                                  notePriority.priorityValue === 3
-                                    ? "priority-dot-medium"
-                                    : notePriority.priorityValue === 4
-                                      ? "priority-dot-high"
-                                      : ""
-                                }`}
-                                style={{
-                                  width: "10px",
-                                  height: "10px",
-                                  borderRadius: "50%",
-                                  position: "absolute",
-                                  top: "4px",
-                                  right: "4px",
-                                  background:
-                                    notePriority.priorityValue === 3
-                                      ? "#f1c40f"
-                                      : notePriority.priorityValue === 4
-                                        ? "#e74c3c"
-                                        : "#bdc3c7",
-                                }}
-                                title={
-                                  notePriority.priorityValue === 3
-                                    ? "Medium Priority"
-                                    : notePriority.priorityValue === 4
-                                      ? "High Priority"
-                                      : "Low Priority"
-                                }
-                              />
-                            )}
-                          </div>
-                        </td>
-                        <td>{n.userName}</td>
-                        <td
-                          className="file-cell"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleViewAttachments(n);
-                          }}
-                        >
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                            <i className="fas fa-paperclip" style={{ opacity: n.documentCount > 0 ? 1 : 0.3 }} />
-                            <span>({n.documentCount || 0})</span>
-                          </span>
-                        </td>
-                        <td className="table-actions">
-                          <a
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleAddFromRow(n);
-                            }}
-                            title="Add"
-                          >
-                            <i className="fas fa-plus" />
-                          </a>
-                          <a
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEdit(n);
-                            }}
-                            title="Edit"
-                          >
-                            <i className="fas fa-edit" />
-                          </a>
-                          <a
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDelete(n);
-                            }}
-                            title="Delete"
-                          >
-                            <i className="fas fa-trash" />
-                          </a>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="notes-grid">
-            {!isDataLoaded || initialLoading || searchLoading || loadingFiltered ? (
-              [...Array(8)].map((_, i) => (
-                <div key={i} className="note-card skeleton">
-                  <div className="skeleton-header">
-                    <div className="skeleton-avatar" />
-                    <div className="skeleton-text short" />
-                  </div>
-                  <div className="skeleton-content">
-                    <div className="skeleton-text long" />
-                  </div>
-                  <div className="skeleton-footer">
-                    <div className="skeleton-actions" />
-                  </div>
+  <div className="responsive-table-container">
+    <table>
+      <thead>
+        <tr>
+          {[
+            "date",
+            "workspace",
+            "project",
+            "job",
+            "note",
+            "userName",
+            "Attached File",
+          ].map((c) => (
+            <th
+              key={c}
+              draggable={["date","workspace","project","job","userName"].includes(c)}
+              onDragStart={handleDragStart(c)}
+              className={hierarchy.includes(c) ? "hierarchy-column" : ""}
+            >
+              {c === "date" && <i className="fas fa-calendar" />}
+              {c === "workspace" && <i className="fas fa-building" />}
+              {c === "project" && (
+                <i className="fas fa-project-diagram" />
+              )}
+              {c === "job" && <i className="fas fa-tasks" />}
+              {c === "note" && <i className="fas fa-sticky-note" />}
+              {c === "userName" && <i className="fas fa-user" />}
+              {c === "Attached File" && <i className="fas fa-paperclip" />}{" "}
+              {c.charAt(0).toUpperCase() + c.slice(1)}
+            </th>
+          ))}
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {!isDataLoaded ||
+        initialLoading ||
+        searchLoading ||
+        loadingFiltered ||
+        loadingUniques ? (
+          [...Array(5)].map((_, i) => (
+            <tr key={i}>
+              <td colSpan={8}>
+                <div className="skeleton-row">
+                  <div className="skeleton-cell short" />
+                  <div className="skeleton-cell medium" />
+                  <div className="skeleton-cell medium" />
+                  <div className="skeleton-cell medium" />
+                  <div className="skeleton-cell long" />
+                  <div className="skeleton-cell short" />
+                  <div className="skeleton-cell short" />
+                  <div className="skeleton-cell short" />
                 </div>
-              ))
-            ) : displayNotes.length === 0 ? (
-              <div className="empty-state">
-                <i className="fas fa-search" />
-                <h3>
-                  {searchTerm.trim() ? "No notes match your search" : "No notes available"}
-                </h3>
-                <p>
-                  {searchTerm.trim()
-                    ? "Try adjusting your search terms"
-                    : "Create your first note to get started"}
-                </p>
-              </div>
-            ) : (
-              displayNotes.map((note) => {
-                const notePriority = priorities.find(p => p.noteID === note.id);
-                
-                return (
-                  <div
-                    key={note.id}
-                    className={`note-card ${selectedRow === note.id ? 'selected' : ''}`}
-                    onClick={() => handleRowClick(note)}
-                    onDoubleClick={() => handleRowDoubleClick(note)}
+              </td>
+            </tr>
+          ))
+        ) : displayNotes.length === 0 ? (
+          <tr>
+            <td
+              colSpan={8}
+              style={{ textAlign: "center", padding: 40, color: "#999" }}
+            >
+              {isDataLoaded && !initialLoading && !loadingUniques ? (
+                <>
+                  <i
+                    className="fas fa-search"
+                    style={{
+                      fontSize: 28,
+                      marginBottom: 12,
+                      display: "block",
+                      opacity: 0.5,
+                    }}
+                  />{" "}
+                  <div>
+                    {searchTerm.trim()
+                      ? "No notes match your search"
+                      : "No notes available"}
+                  </div>
+                </>
+              ) : null}
+            </td>
+          </tr>
+        ) : (
+          displayNotes.map((n) => {
+            const notePriority = priorities.find(
+              (p) => Number(p.noteID) === Number(n.id)
+            );
+            return (
+              <tr
+                key={n.id}
+                onClick={() => {
+                  handleRowClick(n);
+                }}
+                onDoubleClick={() => {
+                  handleRowDoubleClick(n);
+                  const job = jobs.find((j) => j.name === n.job);
+                  setViewNote({
+                    id: n.id,
+                    jobId: job?.id ?? null,
+                  });
+                  setShowViewModal(true);
+                }}
+                className={`${
+                  selectedRow === n.id ? "selected-row" : ""
+                } ${focusedRow === n.id ? "focused-row" : ""}`}
+                style={{ cursor: "pointer" }}
+              >
+                <td
+                title={new Date(n.date).toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                })}
+              >
+                {formatRelativeTime(n.date)}
+              </td>
+                <td>{n.workspace}</td>
+                <td>{n.project}</td>
+                <td>{n.job}</td>
+                <td className="editable" style={{ position: "relative" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start" }}>
+                    <span style={{ flex: 1 }}>
+                      {n.note.length > 69 ? n.note.substring(0, 69) + "..." : n.note}
+                    </span>
+                    {notePriority && notePriority.priorityValue > 1 && (
+                      <div
+                        className={`priority-dot ${
+                          notePriority.priorityValue === 3
+                            ? "priority-dot-medium"
+                            : notePriority.priorityValue === 4
+                              ? "priority-dot-high"
+                              : ""
+                        }`}
+                        style={{
+                          width: "10px",
+                          height: "10px",
+                          borderRadius: "50%",
+                          position: "absolute",
+                          top: "4px",
+                          right: "4px",
+                          background:
+                            notePriority.priorityValue === 3
+                              ? "#f1c40f"
+                              : notePriority.priorityValue === 4
+                                ? "#e74c3c"
+                                : "#bdc3c7",
+                                cursor: "pointer", 
+                                zIndex: 1 
+                        }}
+                        title={
+                          notePriority.priorityValue === 3
+                            ? "Medium Priority"
+                            : notePriority.priorityValue === 4
+                              ? "High Priority"
+                              : "Low Priority"
+                        }
+                        onClick={(e) => {
+                        e.stopPropagation(); 
+                        handleEdit(n); 
+                        setTimeout(() => {
+                        }, 100);
+                      }}
+                      />
+                    )}
+                  </div>
+                </td>
+                <td>{n.userName}</td>
+                <td
+                  className="file-cell"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleViewAttachments(n);
+                  }}
+                >
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <i className="fas fa-paperclip" style={{ opacity: n.documentCount > 0 ? 1 : 0.3 }} />
+                    <span>({n.documentCount || 0})</span>
+                  </span>
+                </td>
+                <td className="table-actions">
+                  <a
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAddFromRow(n);
+                    }}
+                    title="Add"
                   >
-                    <div className="note-header">
-                      <div className="user-avatar">
-                        <i className="fas fa-user" />
-                      </div>
-                      <div className="note-meta">
-                        <div 
-                          className="note-author draggable-value"
-                          draggable
-                          onDragStart={(e) => handleDragStartValue('userName', note.userName)(e)}
-                          title="Drag to filter by user"
-                        >
-                          {note.userName}
-                        </div>
-                        <div 
-                          className="note-date draggable-value"
-                          draggable
-                          onDragStart={(e) => handleDragStartValue('date', note.date)(e)}
-                          title="Drag to filter by date"
-                        >
-                          {new Date(note.date).toLocaleDateString("en-US", {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          })}
-                        </div>
-                      </div>
-                      
-                      <div className="note-context">
-                        <div 
-                          className="context-item workspace draggable-value"
-                          draggable
-                          onDragStart={(e) => handleDragStartValue('workspace', note.workspace)(e)}
-                          title="Drag to filter by workspace"
-                        >
-                          {note.workspace}
-                        </div>
-                        <div 
-                          className="context-item project draggable-value"
-                          draggable
-                          onDragStart={(e) => handleDragStartValue('project', note.project)(e)}
-                          title="Drag to filter by project"
-                        >
-                          {note.project}
-                        </div>
-                        <div 
-                          className="context-item job draggable-value"
-                          draggable
-                          onDragStart={(e) => handleDragStartValue('job', note.job)(e)}
-                          title="Drag to filter by job"
-                        >
-                          {note.job}
-                        </div>
-                      </div>
-                    </div>
+                    <i className="fas fa-plus" />
+                  </a>
+                  <a
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEdit(n);
+                    }}
+                    title="Edit"
+                  >
+                    <i className="fas fa-edit" />
+                  </a>
+                  <a
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(n);
+                    }}
+                    title="Delete"
+                  >
+                    <i className="fas fa-trash" />
+                  </a>
+                </td>
+              </tr>
+            );
+          })
+        )}
+      </tbody>
+    </table>
+  </div>
+) : (
+  <div className="notes-grid">
+    {!isDataLoaded || initialLoading || searchLoading || loadingFiltered ? (
+      [...Array(8)].map((_, i) => (
+        <div key={i} className="note-card skeleton">
+          <div className="skeleton-header">
+            <div className="skeleton-avatar" />
+            <div className="skeleton-text short" />
+          </div>
+          <div className="skeleton-content">
+            <div className="skeleton-text long" />
+          </div>
+          <div className="skeleton-footer">
+            <div className="skeleton-actions" />
+          </div>
+        </div>
+      ))
+    ) : displayNotes.length === 0 ? (
+      <div className="empty-state">
+        <i className="fas fa-search" />
+        <h3>
+          {searchTerm.trim() ? "No notes match your search" : "No notes available"}
+        </h3>
+        <p>
+          {searchTerm.trim()
+            ? "Try adjusting your search terms"
+            : "Create your first note to get started"}
+        </p>
+      </div>
+    ) : (
+      displayNotes.map((note) => {
+        const notePriority = priorities.find(p => p.noteID === note.id);
+        
+        return (
+          <div
+            key={note.id}
+            className={`note-card ${selectedRow === note.id ? 'selected' : ''}`}
+            onClick={() => handleRowClick(note)}
+            onDoubleClick={() => handleRowDoubleClick(note)}
+          >
+            <div className="note-header">
+            <div className="user-avatar-wrapper">
+            <div className="user-avatar">
+              {note.userName ? (
+                (() => {
+                  const names = note.userName.trim().split(/\s+/);
+                  const firstInitial = names[0] ? names[0].charAt(0).toUpperCase() : '';
+                  const lastInitial = names.length > 1 ? names[names.length - 1].charAt(0).toUpperCase() : '';
+                  return firstInitial + lastInitial;
+                })()
+              ) : (
+                <i className="fas fa-user" />
+              )}
+            </div>
+            <div className="user-tooltip">
+              {note.userName || "Unknown User"}
+            </div>
+          </div>
+              <div className="note-meta">
+                <div 
+                  className="note-author draggable-value"
+                  draggable
+                  onDragStart={(e) => handleDragStartValue('userName', note.userName)(e)}
+                  title="Drag to filter by user"
+                >
+                  
+                </div>
+                <div 
+                  className="note-date draggable-value"
+                  draggable
+                  onDragStart={(e) => handleDragStartValue('date', note.date)(e)}
+                  title={new Date(note.date).toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })}
+                >
+                  {formatRelativeTime(note.date)}
+                </div>
+              </div>
+              
+              <div className="note-context">
+                <div 
+                  className="context-item job draggable-value"
+                  draggable
+                  onDragStart={(e) => handleDragStartValue('job', note.job)(e)}
+                  title="Drag to filter by job"
+                >
+                  {note.job}
+                </div>
+                <div className="context-item workspace-project">
+                  <span 
+                    className="draggable-value"
+                    draggable
+                    onDragStart={(e) => handleDragStartValue('workspace', note.workspace)(e)}
+                    title="Drag to filter by workspace"
+                  >
+                    {note.workspace}
+                  </span>
+                  /
+                  <span 
+                    className="draggable-value"
+                    draggable
+                    onDragStart={(e) => handleDragStartValue('project', note.project)(e)}
+                    title="Drag to filter by project"
+                  >
+                    {note.project}
+                  </span>
+                </div>                
+              </div>
+            </div>
 
                     <div className="note-content">
                       <div className="note-text">
@@ -1441,73 +1528,80 @@ const Dashboard = ({
                       </div>
                     </div>
 
-                    <div className="note-footer">
-                      <div className="note-attachments">
-                        <button
-                          className="attachment-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleViewAttachments(note);
-                          }}
-                        >
-                          <i 
-                            className="fas fa-paperclip" 
-                            style={{ opacity: note.documentCount > 0 ? 1 : 0.3 }}
-                          />
-                          <span>({note.documentCount || 0})</span>
-                        </button>
-                      </div>
-                      <div className="footer-priority">
-                      </div>
-                      <div className="note-actions">
-                        {notePriority && notePriority.priorityValue > 1 && (
-                        <div 
-                          className={`priority-indicator priority-${notePriority.priorityValue}`}
-                          title={
-                            notePriority.priorityValue === 2 ? 'Low Priority' :
-                            notePriority.priorityValue === 3 ? 'Medium Priority' :
-                            notePriority.priorityValue === 4 ? 'High Priority' : 'No Priority'
-                          }
-                        />
-                      )}
-                        <button
-                          className="action-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleAddFromRow(note);
-                          }}
-                          title="Add New Note"
-                        >
-                          <i className="fas fa-plus" />
-                        </button>
-                        <button
-                          className="action-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleEdit(note);
-                          }}
-                          title="Edit Note"
-                        >
-                          <i className="fas fa-edit" />
-                        </button>
-                        <button
-                          className="action-btn delete"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete(note);
-                          }}
-                          title="Delete Note"
-                        >
-                          <i className="fas fa-trash" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+            <div className="note-footer">
+              <div className="note-attachments">
+                <button
+                  className="attachment-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleViewAttachments(note);
+                  }}
+                >
+                  <i 
+                    className="fas fa-paperclip" 
+                    style={{ opacity: note.documentCount > 0 ? 1 : 0.3 }}
+                  />
+                  <span>({note.documentCount || 0})</span>
+                </button>
+              </div>
+              <div className="footer-priority">
+              </div>
+              <div className="note-actions">
+                {notePriority && notePriority.priorityValue > 1 && (
+                <div 
+                  className={`priority-indicator priority-${notePriority.priorityValue}`}
+                  style={{
+                    cursor: "pointer"
+                  }}
+                  title={
+                    notePriority.priorityValue === 2 ? 'Low Priority' :
+                    notePriority.priorityValue === 3 ? 'Medium Priority' :
+                    notePriority.priorityValue === 4 ? 'High Priority' : 'No Priority'
+                  }
+                  onClick={(e) => {
+                  e.stopPropagation();
+                  handleEdit(note); 
+                }}
+                />
+              )}
+                <button
+                  className="action-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleAddFromRow(note);
+                  }}
+                  title="Add New Note"
+                >
+                  <i className="fas fa-plus" />
+                </button>
+                <button
+                  className="action-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEdit(note);
+                  }}
+                  title="Edit Note"
+                >
+                  <i className="fas fa-edit" />
+                </button>
+                <button
+                  className="action-btn delete"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(note);
+                  }}
+                  title="Delete Note"
+                >
+                  <i className="fas fa-trash" />
+                </button>
+              </div>
+            </div>
           </div>
-        )}
+        );
+      })
+    )}
+  </div>
+)}
       </div>
 
       {showFilterDialog && (
@@ -1706,6 +1800,7 @@ const Dashboard = ({
           priorities={priorities}
           defaultUserWorkspaceID={defaultUserWorkspaceID}
           onPriorityUpdate={handlePriorityUpdate}
+          openToPriorityTab={true}
         />
       )}
       {showAttachedFileModal && selectedFileNote && (
@@ -1737,9 +1832,10 @@ Dashboard.propTypes = {
   onUploadDocument: PropTypes.func.isRequired,
   onDeleteDocument: PropTypes.func.isRequired,
   onLogout: PropTypes.func.isRequired,
+  userData: PropTypes.object,
 };
 
-Dashboard.defaultProps = { projects: [], jobs: [] };
+Dashboard.defaultProps = { projects: [], jobs: [],userData: null };
 
 export default Dashboard;
 

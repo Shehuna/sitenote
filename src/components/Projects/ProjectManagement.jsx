@@ -15,6 +15,7 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
      const [workspaceName, setWorkspaceName] = useState('');
      const [loading, setLoading] = useState(true);
      const [error, setError] = useState(null);
+     const [previousProjectName, setPreviousProjectName] = useState('');
 
      const API_URL = process.env.REACT_APP_API_BASE_URL
 
@@ -100,9 +101,19 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
         setLoading(false);
         }
     };
+    useEffect(() => {
+    if (newProjectName && (!newProjectDescription || newProjectDescription === previousProjectName)) {
+        setNewProjectDescription(newProjectName);
+    }
+    }, [newProjectName]);
+
+    useEffect(() => {
+    setPreviousProjectName(newProjectName);
+    }, [newProjectName]);
 
      const handleAddProject = async () => {
         try {
+            const finalDescription = newProjectDescription.trim() || newProjectName;
             const response = await fetch(`${API_URL}/api/Project/AddProject`, {
                 method: 'POST',
                 headers: {
@@ -110,7 +121,8 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
                 },
                 body: JSON.stringify({ 
                     name: newProjectName, 
-                    description: newProjectDescription, 
+                    //description: newProjectDescription,
+                    description:finalDescription, 
                     workspaceId: workspaceId,
                     userId: user
                 })
@@ -132,6 +144,7 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
 
     const handleEditProject = async () => {
     try {
+        const finalDescription = newProjectDescription.trim() || newProjectName;
         const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Project/UpdateProject/${selectedProject}`, {
             method: 'PUT',
             headers: {
@@ -140,7 +153,8 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
             body: JSON.stringify({
                 id: selectedProject,
                 name: newProjectName,
-                description: newProjectDescription,
+                //description: newProjectDescription,
+                description:finalDescription,
                 status: newProjectStatus
             })
         });
