@@ -932,3 +932,131 @@ td {
 .priority-indicator {
   flex-shrink: 0;
 }
+
+.note-cell-container {
+  position: relative;
+  width: 100%;
+}
+
+.note-hover-popup {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 12px;
+  max-width: 400px;
+  max-height: 300px;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 10000;
+  display: none;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: normal;
+}
+
+.note-cell-container:hover .note-hover-popup {
+  display: block;
+  animation: fadeInUp 0.2s ease;
+}
+
+/* Card View Hover Popup */
+.note-card-content-container {
+  position: relative;
+  width: 100%;
+}
+
+.note-card-popup {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 12px;
+  max-width: 350px;
+  max-height: 300px;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 10001; /* Higher than table popup */
+  display: none;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: normal;
+}
+
+.note-card-content-container:hover .note-card-popup {
+  display: block;
+  animation: fadeInUp 0.2s ease;
+}
+
+/* Animation for popups */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Ensure proper stacking context */
+.editable {
+  overflow: visible !important;
+}
+
+.note-card {
+  overflow: visible !important;
+}
+
+.notes-grid {
+  position: relative;
+  z-index: 1;
+}
+
+/* Scrollbar for popups */
+.note-hover-popup::-webkit-scrollbar,
+.note-card-popup::-webkit-scrollbar {
+  width: 6px;
+}
+
+.note-hover-popup::-webkit-scrollbar-track,
+.note-card-popup::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.note-hover-popup::-webkit-scrollbar-thumb,
+.note-card-popup::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+/* Add this to ensure table cells don't expand */
+.responsive-table-container td:nth-child(5) { /* 5th column is the note column */
+  max-width: 300px;
+  overflow: hidden;
+}
+
+/* Force ellipsis for long text in table cells */
+.responsive-table-container td:nth-child(5) span {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ensure the table layout stays fixed */
+.responsive-table-container table {
+  table-layout: fixed;
+  width: 100%;
+}

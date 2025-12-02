@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
-import './ViewNoteModal.css';
-import toast from 'react-hot-toast';
+import React, { useState, useEffect, useRef } from "react";
+import "./ViewNoteModal.css";
+import toast from "react-hot-toast";
 
 const ViewNoteModal = ({
   noteId,
-  jobId,         
+  jobId,
   onClose,
   currentTheme,
   onViewAttachments,
@@ -20,24 +20,24 @@ const ViewNoteModal = ({
   const noteRefs = useRef({});
   const chatContainerRef = useRef(null);
 
-
-
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
 
   const fetchNoteAndRelated = async () => {
     if (!noteId) return;
     setLoading(true);
     try {
-      const noteRes = await fetch(`${apiUrl}/SiteNote/GetSiteNoteById/${noteId}`);
-      if (!noteRes.ok) throw new Error('Failed to fetch note');
+      const noteRes = await fetch(
+        `${apiUrl}/SiteNote/GetSiteNoteById/${noteId}`
+      );
+      if (!noteRes.ok) throw new Error("Failed to fetch note");
       const noteData = await noteRes.json();
 
       const note = {
         ...noteData,
         userName: noteData.UserName || noteData.userName,
         documentCount: noteData.DocumentCount || noteData.documentCount || 0,
-        date: noteData.date || '',
-        timeStamp: noteData.timeStamp || '',
+        date: noteData.date || "",
+        timeStamp: noteData.timeStamp || "",
       };
       setCurrentNote(note);
 
@@ -48,22 +48,26 @@ const ViewNoteModal = ({
       }
 
       const url = `${apiUrl}/SiteNote/GetSiteNotesByJobId?pageNumber=1&pageSize=100&jobId=${jobId}&userId=${userid}`;
-      console.log('Fetching all notes for job ->', url);
+      console.log("Fetching all notes for job ->", url);
       const relRes = await fetch(url);
-      if (!relRes.ok) throw new Error('Failed to fetch related notes');
+      if (!relRes.ok) throw new Error("Failed to fetch related notes");
       const relData = await relRes.json();
 
       const related = (relData.siteNotes || [])
-        .map(n => ({
+        .map((n) => ({
           ...n,
           userName: n.UserName || n.userName,
           documentCount: n.DocumentCount || n.documentCount || 0,
-          date: n.date || '',
-          timeStamp: n.timeStamp || '',
+          date: n.date || "",
+          timeStamp: n.timeStamp || "",
         }))
         .sort((a, b) => {
           const now = new Date();
-          const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const today = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate()
+          );
           const da = new Date(a.date);
           const db = new Date(b.date);
           const aF = da > today;
@@ -76,129 +80,186 @@ const ViewNoteModal = ({
 
       setRelatedNotes(related);
     } catch (err) {
-      console.error('ViewNoteModal error:', err);
-      toast.error('Failed to load note');
+      console.error("ViewNoteModal error:", err);
+      toast.error("Failed to load note");
       onClose();
     } finally {
       setLoading(false);
     }
   };
 
-
   const scrollToCurrentNote = () => {
     const target = scrollToNoteId || noteId;
     const el = noteRefs.current[target];
     if (el && chatContainerRef.current) {
       requestAnimationFrame(() => {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.style.transition = 'background .4s ease';
-        el.style.background = '#e3f2fd';
-        setTimeout(() => { el.style.background = ''; el.style.borderLeft = ''; }, 2000);
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.style.transition = "background .4s ease";
+        el.style.background = "#e3f2fd";
+        setTimeout(() => {
+          el.style.background = "";
+          el.style.borderLeft = "";
+        }, 2000);
       });
     }
   };
 
-  useEffect(() => { fetchNoteAndRelated(); }, [noteId, jobId, userid]);
+  useEffect(() => {
+    fetchNoteAndRelated();
+  }, [noteId, jobId, userid]);
 
-  useEffect(() => { if (!loading && relatedNotes.length) scrollToCurrentNote(); }, [loading, relatedNotes, scrollToNoteId, noteId]);
+  useEffect(() => {
+    if (!loading && relatedNotes.length) scrollToCurrentNote();
+  }, [loading, relatedNotes, scrollToNoteId, noteId]);
 
-  const formatDate = iso => {
-    if (!iso) return 'Invalid Date';
+  const formatDate = (iso) => {
+    if (!iso) return "Invalid Date";
     const d = new Date(iso);
-    return isNaN(d) ? 'Invalid Date' : d.toLocaleDateString('en-US', { weekday:'short', year:'numeric', month:'short', day:'numeric' });
+    return isNaN(d)
+      ? "Invalid Date"
+      : d.toLocaleDateString("en-US", {
+          weekday: "short",
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        });
   };
-  const formatTime = iso => {
-    if (!iso) return '';
+  const formatTime = (iso) => {
+    if (!iso) return "";
     const d = new Date(iso);
-    return isNaN(d) ? '' : d.toLocaleTimeString('en-US', { hour:'2-digit', minute:'2-digit' });
+    return isNaN(d)
+      ? ""
+      : d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
   };
   const formatRelativeTime = (timestamp) => {
-  const now = new Date();
-  const messageTime = new Date(timestamp);
-  const diffInSeconds = Math.floor((now - messageTime) / 1000);
-  
-  if (diffInSeconds < 60) {
-    return 'just now';
-  }
-  
-  const diffInMinutes = Math.floor(diffInSeconds / 60);
-  if (diffInMinutes < 60) {
-    return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
-  }
-  
-  const diffInHours = Math.floor(diffInMinutes / 60);
-  if (diffInHours < 24) {
-    return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
-  }
-  
-  const diffInDays = Math.floor(diffInHours / 24);
-  if (diffInDays < 7) {
-    return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
-  }
-  
-  const diffInWeeks = Math.floor(diffInDays / 7);
-  if (diffInWeeks < 4) {
-    return `${diffInWeeks} week${diffInWeeks > 1 ? 's' : ''} ago`;
-  }
-  
-  return messageTime.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  });
-};
+    const now = new Date();
+    const messageTime = new Date(timestamp);
+    const diffInSeconds = Math.floor((now - messageTime) / 1000);
 
+    if (diffInSeconds < 60) {
+      return "just now";
+    }
+
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) {
+      return `${diffInMinutes} minute${diffInMinutes > 1 ? "s" : ""} ago`;
+    }
+
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) {
+      return `${diffInHours} hour${diffInHours > 1 ? "s" : ""} ago`;
+    }
+
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 7) {
+      return `${diffInDays} day${diffInDays > 1 ? "s" : ""} ago`;
+    }
+
+    const diffInWeeks = Math.floor(diffInDays / 7);
+    if (diffInWeeks < 4) {
+      return `${diffInWeeks} week${diffInWeeks > 1 ? "s" : ""} ago`;
+    }
+
+    return messageTime.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
 
   if (loading) {
     return (
       <div className={`view-note-modal-overlay theme-${currentTheme}`}>
         <div className="view-note-modal loading">
-          <div className="loading-spinner"><i className="fas fa-spinner fa-spin"/> <p>Loading note...</p></div>
+          <div className="loading-spinner">
+            <i className="fas fa-spinner fa-spin" /> <p>Loading note...</p>
+          </div>
         </div>
       </div>
     );
   }
   if (!currentNote) return null;
 
-
-
   return (
-    <div className={`view-note-modal-overlay theme-${currentTheme}`} onClick={onClose}>
-      <div className="view-note-modal" onClick={e=>e.stopPropagation()}>
+    <div
+      className={`view-note-modal-overlay theme-${currentTheme}`}
+      onClick={onClose}
+    >
+      <div className="view-note-modal" onClick={(e) => e.stopPropagation()}>
         <div className="whatsapp-header">
           <div className="header-left">
-            <button className="back-button" onClick={onClose}><i className="fas fa-arrow-left"/></button>
+            <button className="back-button" onClick={onClose}>
+              <i className="fas fa-arrow-left" />
+            </button>
             <div className="contact-info">
-              <div className="contact-name">Workspace: {currentNote.siteNote.workspace}</div>
-              <div className="contact-project">Project: {currentNote.siteNote.project}</div>
-              <div className="contact-status">Job: {currentNote.siteNote.job}</div>
+              <div className="contact-name">
+                Workspace: {currentNote.siteNote.workspace}
+              </div>
+              <div className="contact-project">
+                Project: {currentNote.siteNote.project}
+              </div>
+              <div className="contact-status">
+                Job: {currentNote.siteNote.job}
+              </div>
             </div>
           </div>
-          <div className="header-right"><button className="header-button"><i className="fas fa-ellipsis-v"/></button></div>
+          <div className="header-right">
+            <button className="header-button">
+              <i className="fas fa-ellipsis-v" />
+            </button>
+          </div>
         </div>
 
         <div className="whatsapp-chat" ref={chatContainerRef}>
-          {relatedNotes.map(doc => (
-            <div key={doc.id} ref={el=> (noteRefs.current[doc.id]=el)} className="message-row" id={`related-note-${doc.id}`}>
+          {relatedNotes.map((doc) => (
+            <div
+              key={doc.id}
+              ref={(el) => (noteRefs.current[doc.id] = el)}
+              className="message-row"
+              id={`related-note-${doc.id}`}
+            >
               <div
-                className={`message received ${doc.id===noteId?'selected':''}`}
-                style={{borderLeft:doc.id===noteId?'4px solid #3498db':'none',border :'solid 1px #555', background:doc.id===noteId?'#f0f8ff':'white'}}
+                className={`message received ${
+                  doc.id === noteId ? "selected" : ""
+                }`}
+                style={{
+                  borderLeft: doc.id === noteId ? "4px solid #3498db" : "none",
+                  border: "solid 1px #555",
+                  background: doc.id === noteId ? "#f0f8ff" : "white",
+                }}
               >
                 <div className="message-content">
                   <div className="message-header">
                     <span className="sender-name">{doc.userName}</span>
-                    <span className="message-time" title={new Date(doc.timeStamp).toLocaleString()}> {formatRelativeTime(doc.timeStamp)} </span>
+                    <span
+                      className="message-time"
+                      title={new Date(doc.timeStamp).toLocaleString()}
+                    >
+                      {" "}
+                      {formatRelativeTime(doc.timeStamp)}{" "}
+                    </span>
                   </div>
-                  <div className="message-date-below">{formatDate(doc.date)}</div>
+                  <div className="message-date-below">
+                    {formatDate(doc.date)}
+                  </div>
                   <div className="message-text">{doc.note}</div>
                 </div>
               </div>
 
-              {doc.documentCount>0 && (
+              {doc.documentCount > 0 && (
                 <div className="paperclip-container">
-                  <button className="paperclip-button" onClick={e=>{e.stopPropagation();onViewAttachments(doc);}} title={`View ${doc.documentCount} attached file(s)`}>
-                    <span className="document-count-badge">({doc.documentCount}) </span>
-                    <i className="fas fa-paperclip"/>
+                  <button
+                    className="paperclip-button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onViewAttachments(doc);
+                    }}
+                    title={`View ${doc.documentCount} attached file(s)`}
+                  >
+                    <span className="document-count-badge">
+                      ({doc.documentCount}){" "}
+                    </span>
+                    <i className="fas fa-paperclip" />
                   </button>
                 </div>
               )}
@@ -207,7 +268,9 @@ const ViewNoteModal = ({
         </div>
 
         <div className="whatsapp-footer">
-          <button className="close-chat-button" onClick={onClose}><i className="fas fa-times"/> Close</button>
+          <button className="close-chat-button" onClick={onClose}>
+            <i className="fas fa-times" /> Close
+          </button>
         </div>
       </div>
     </div>

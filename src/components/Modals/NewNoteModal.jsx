@@ -874,7 +874,7 @@ const NewNoteModal = forwardRef(({
                             setSelectedDate(e.target.value);
                             setErrors(prev => ({ ...prev, date: undefined }));
                         }}
-                        disabled={areDropdownsDisabled}
+                        //disabled={areDropdownsDisabled}
                     />
                 </div>
 
