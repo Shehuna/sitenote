@@ -141,8 +141,9 @@ const AttachedFileModal = ({
       setError('Invalid file type.');
       return;
     }
+    const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
 
-    setNewDocument(prev => ({ ...prev, file }));
+    setNewDocument(prev => ({ ...prev, file, name: !prev.name.trim() ? fileNameWithoutExt : prev.name }));
   };
 
   // FULLY UPGRADED UPLOAD WITH PROGRESS
