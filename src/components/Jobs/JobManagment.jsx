@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import Modal from '../Modals/Modal';
 import toast from 'react-hot-toast';
 
@@ -16,6 +16,13 @@ const JobManagment = ({defWorkId, updateProjectsAndJobs}) => {
     const [error, setError] = useState(null);
     const [jobs, setJobs] = useState([]);
     const [previousJobName, setPreviousJobName] = useState('');
+    const [isBulkMode, setIsBulkMode] = useState(false);
+    const [pasteContent, setPasteContent] = useState('');
+    const [parsedJobs, setParsedJobs] = useState([]);
+    const [isReviewMode, setIsReviewMode] = useState(false);
+    const [errorMessages, setErrorMessages] = useState([]);
+    const [isAdding, setIsAdding] = useState(false);
+    const errorRef = useRef(null);
 
    useEffect(() => {
             fetchInitialData();
@@ -49,7 +56,16 @@ const JobManagment = ({defWorkId, updateProjectsAndJobs}) => {
     setPreviousJobName(newJobName);
     }, [newJobName]);
 
+    useEffect(() => {
+        if ((errorMessages.length > 0 || error) && errorRef.current) {
+            errorRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [errorMessages, error]);
+
   const handleAddJob = async () => {
+        setIsAdding(true);
+        setError(null);
+        setErrorMessages([]);
         try {
             const finalDescription = newJobDescription.trim() || newJobName;
             const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Job/AddJob`, {
@@ -71,12 +87,15 @@ const JobManagment = ({defWorkId, updateProjectsAndJobs}) => {
             console.log(data)
             const jobId = data.job.id
             await grantJobPermission(jobId)
+            toast.success("Job saved Successfully");
 
             fetchInitialData();
             setIsAddJobOpen(false);
         } catch (err) {
             setError(err.message);
             console.error('Error adding job:', err);
+        } finally {
+            setIsAdding(false);
         }
     }
 
@@ -185,7 +204,6 @@ const JobManagment = ({defWorkId, updateProjectsAndJobs}) => {
                 })
             })
             if (!response.ok) throw new Error('Failed to update workspace');
-            toast.success("Job saved Successfully")
             setLoading(false)
         } catch (error) {
              setError(error.message);
@@ -195,6 +213,95 @@ const JobManagment = ({defWorkId, updateProjectsAndJobs}) => {
         }
         
   }
+
+  const handleAddBulkJobs = async () => {
+    setIsAdding(true);
+    setError(null);
+    setErrorMessages([]);
+    if (!selectedProject || parsedJobs.length === 0) {
+      setError('Project and jobs are required');
+      setIsAdding(false);
+      return;
+    }
+
+    const dtos = parsedJobs.map(job => ({
+      name: job.name,
+      description: job.description,
+      projectId: parseInt(selectedProject),
+                    userId: user
+    }));
+
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Job/AddJobsBulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dtos)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        setErrorMessages(errorData.errors || [errorData.message]);
+        setIsAdding(false);
+        return;
+      }
+
+      const data = await response.json();
+      for (const job of data.jobs) {
+        await grantJobPermission(job.id);
+      }
+      toast.success(`${data.jobs.length} jobs saved successfully`);
+
+      await updateProjectsAndJobs();
+      fetchInitialData();
+      setIsAddJobOpen(false);
+      setIsBulkMode(false);
+      setPasteContent('');
+      setParsedJobs([]);
+      setIsReviewMode(false);
+      setError(null);
+      setErrorMessages([]);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handlePasteChange = (e) => {
+    setPasteContent(e.target.value);
+  };
+
+  const handleReview = () => {
+    const lines = pasteContent.trim().split('\n');
+    const newParsed = lines
+      .map(line => {
+        const [name, description] = line.split('\t').map(str => str.trim());
+        if (name) {
+          return { name, description: description || '' };
+        }
+        return null;
+      })
+      .filter(Boolean);
+
+    setParsedJobs(newParsed);
+    setIsReviewMode(true);
+  };
+
+  const handleEditParsedJob = (index, field, value) => {
+    const updated = [...parsedJobs];
+    updated[index][field] = value;
+    setParsedJobs(updated);
+  };
+
+  const handleDeleteRow = (index) => {
+    const updated = parsedJobs.filter((_, i) => i !== index);
+    setParsedJobs(updated);
+  };
+
+  const handleAddNewRow = () => {
+    setParsedJobs([...parsedJobs, { name: '', description: '' }]);
+  };
+
   return (
         <div className="settings-content">
             <div className="settings-action-buttons">
@@ -250,11 +357,29 @@ const JobManagment = ({defWorkId, updateProjectsAndJobs}) => {
                     setNewJobDescription('');
                     setSelectedProject('');
                     setIsAddJobOpen(false);
+                    setIsBulkMode(false);
+                    setPasteContent('');
+                    setParsedJobs([]);
+                    setIsReviewMode(false);
+                    setError(null);
+                    setErrorMessages([]);
                 }}
                 title="Add Job"
                 customClass="modal-sm"
             >
                 <div className="settings-form">
+                    <div ref={errorRef}>
+                        {errorMessages.length > 0 && (
+                          <div className="error-message">
+                            <ul>
+                              {errorMessages.map((msg, idx) => (
+                                <li key={idx}>{msg}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {error && <div className="error-message">{error}</div>}
+                    </div>
                     <div className="form-group">
                         <label>Project:</label>
                         <select
@@ -270,34 +395,114 @@ const JobManagment = ({defWorkId, updateProjectsAndJobs}) => {
                         </select>
                     </div>
 
-                    <div className="form-group">
-                        <label>Job Name:</label>
-                        <input
-                            type="text"
-                            value={newJobName}
-                            onChange={(e) => setNewJobName(e.target.value)}
-                            placeholder="Enter job name"
-                        />
-                    </div>
+                    <button 
+                      onClick={() => setIsBulkMode(!isBulkMode)} 
+                      className="btn-secondary"
+                    >
+                      {isBulkMode ? 'Switch to Single Add' : 'Switch to Bulk Add'}
+                    </button>
 
-                    <div className="form-group">
-                        <label>Job Description:</label>
-                        <textarea
-                            value={newJobDescription}
-                            onChange={(e) => setNewJobDescription(e.target.value)}
-                            placeholder="Enter job description"
-                        />
-                    </div>
+                    {!isBulkMode ? (
+                      <>
+                        <div className="form-group">
+                            <label>Job Name:</label>
+                            <input
+                                type="text"
+                                value={newJobName}
+                                onChange={(e) => setNewJobName(e.target.value)}
+                                placeholder="Enter job name"
+                            />
+                        </div>
+
+                        <div className="form-group">
+                            <label>Job Description:</label>
+                            <textarea
+                                value={newJobDescription}
+                                onChange={(e) => setNewJobDescription(e.target.value)}
+                                placeholder="Enter job description"
+                            />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {!isReviewMode ? (
+                          <>
+                            <div className="form-group">
+                                <label>Paste from Excel (Name and Description per line):</label>
+                                <textarea
+                                  value={pasteContent}
+                                  onChange={handlePasteChange}
+                                  placeholder="Paste from Excel (Name and Description per line)"
+                                />
+                            </div>
+                            <button onClick={handleReview} className="btn-primary">Review</button>
+                          </>
+                        ) : (
+                          <>
+                            <h4>Review Jobs</h4>
+                            <table className="modern-table">
+                              <thead>
+                                <tr>
+                                  <th>Name</th>
+                                  <th>Description</th>
+                                  <th>Action</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {parsedJobs.map((job, index) => (
+                                  <tr key={index}>
+                                    <td>
+                                      <input
+                                        value={job.name}
+                                        onChange={(e) => handleEditParsedJob(index, 'name', e.target.value)}
+                                        className="modern-input"
+                                      />
+                                    </td>
+                                    <td>
+                                      <input
+                                        value={job.description}
+                                        onChange={(e) => handleEditParsedJob(index, 'description', e.target.value)}
+                                        className="modern-input"
+                                      />
+                                    </td>
+                                    <td>
+                                      <button onClick={() => handleDeleteRow(index)} className="icon-button danger">
+                                        <i className="fas fa-trash"></i>
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                            <button onClick={handleAddNewRow} className="icon-button secondary">
+                              <i className="fas fa-plus"></i>
+                            </button>
+                            <button onClick={handleAddBulkJobs} className="btn-primary" disabled={isAdding}>
+                              {isAdding ? 'Adding...' : 'Add All'}
+                            </button>
+                            <button onClick={() => setIsReviewMode(false)} className="btn-secondary">Back to Paste</button>
+                          </>
+                        )}
+                      </>
+                    )}
 
                     <div className="modal-footer">
-                        <button className="btn-primary" onClick={handleAddJob} disabled={!selectedProject || !newJobName}>
-                            OK
-                        </button>
+                        {!isBulkMode && (
+                          <button className="btn-primary" onClick={handleAddJob} disabled={!selectedProject || !newJobName || isAdding}>
+                              {isAdding ? 'Adding...' : 'OK'}
+                          </button>
+                        )}
                         <button className="btn-close" onClick={() => {
                             setNewJobName('');
                             setNewJobDescription('');
                             setSelectedProject('');
                             setIsAddJobOpen(false);
+                            setIsBulkMode(false);
+                            setPasteContent('');
+                            setParsedJobs([]);
+                            setIsReviewMode(false);
+                            setError(null);
+                            setErrorMessages([]);
                         }}>
                             Cancel
                         </button>
