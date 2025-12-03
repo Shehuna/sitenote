@@ -120,11 +120,11 @@ const EditNoteModal = ({
     };
   }, [showDocumentModal]);
 
-  useEffect(() => {
-    if (openToPriorityTab) {
-      setActiveTab('priority');
-    }
-  }, [openToPriorityTab]);
+  //useEffect(() => {
+    //if (openToPriorityTab) {
+   //   setActiveTab('priority');
+   // }
+ // }, [openToPriorityTab]);
 
   useEffect(() => {
     if (note) {
@@ -305,8 +305,9 @@ const EditNoteModal = ({
       setError("Invalid file type! ");
       return;
     }
+    const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
 
-    setNewDocument((prev) => ({ ...prev, file: e.target.files[0] }));
+    setNewDocument(prev => ({ ...prev, file, name: !prev.name.trim() ? fileNameWithoutExt : prev.name }));
   };
 
   const handleDocumentSubmit = async () => {

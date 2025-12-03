@@ -38,7 +38,7 @@ const NewNoteModal = forwardRef(({
     const [isSaving, setIsSaving] = useState(false);
     const [apiError, setApiError] = useState(null);
     const [fetchedProjects, setFetchedProjects] = useState([]);
-    const [areDropdownsDisabled, setAreDropdownsDisabled] = useState(false);
+    //const [areDropdownsDisabled, setAreDropdownsDisabled] = useState(false);
     const [isLoadingProjects, setIsLoadingProjects] = useState(false);
     const [isLoadingJobs, setIsLoadingJobs] = useState(false);
     
@@ -277,14 +277,14 @@ const NewNoteModal = forwardRef(({
                 setSelectedWorkspace('');
                 setSelectedProject('');
                 setSelectedJob('');
-                setAreDropdownsDisabled(false);
+                //setAreDropdownsDisabled(false);
                 setNoteContent('');
                 setFilteredProjects([]);
                 setFilteredJobs([]);
                 setSelectedProjectData(null);
                 setSelectedJobData(null);
             } else {
-                setAreDropdownsDisabled(true);
+                //setAreDropdownsDisabled(true);
             }
 
             setDocuments([]);
@@ -300,7 +300,7 @@ const NewNoteModal = forwardRef(({
     // Handle prefilled data for workspace, project, and job
     useEffect(() => {
         if (isOpen && prefilledData) {
-            setAreDropdownsDisabled(true);
+            //setAreDropdownsDisabled(true);
             
             if (prefilledData.date) {
                 setSelectedDate(prefilledData.date);
@@ -729,7 +729,7 @@ const NewNoteModal = forwardRef(({
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="Type to search for workspace, project, or job..."
                         className="search-input"
-                        disabled={areDropdownsDisabled}
+                        //disabled={areDropdownsDisabled}
                     />
                     {isSearching && <div className="search-spinner">🔍 Searching...</div>}
                 </div>
@@ -786,7 +786,7 @@ const NewNoteModal = forwardRef(({
                     <select
                         value={selectedWorkspace}
                         onChange={(e) => setSelectedWorkspace(e.target.value)}
-                        disabled={areDropdownsDisabled}
+                        //disabled={areDropdownsDisabled}
                     >
                         <option value="">Select Workspace</option>
                         {userworksaces.map(workspace => (
@@ -812,7 +812,7 @@ const NewNoteModal = forwardRef(({
                             setSelectedProjectData(selectedProjectObj || null);
                             setErrors(prev => ({ ...prev, project: undefined, job: undefined }));
                         }}
-                        disabled={areDropdownsDisabled || !selectedWorkspace || isLoadingProjects}
+                        disabled={!selectedWorkspace || isLoadingProjects}
                     >
                         <option value="">Select Project</option>
                         {isLoadingProjects ? (
@@ -845,7 +845,7 @@ const NewNoteModal = forwardRef(({
                             setSelectedJobData(selectedJobObj || null);
                             setErrors(prev => ({ ...prev, job: undefined }));
                         }}
-                        disabled={areDropdownsDisabled || !selectedProject || isLoadingJobs}
+                        disabled={!selectedProject || isLoadingJobs}
                     >
                         <option value="">Select Job</option>
                         {isLoadingJobs ? (
