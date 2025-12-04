@@ -40,13 +40,15 @@ const Dashboard = ({
     const saved = localStorage.getItem("dashboardSearchResults");
     return saved ? JSON.parse(saved) : [];
   });
-  const [hierarchy, setHierarchy] = useState(() => {
-    const saved = localStorage.getItem("dashboardHierarchy");
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [selectedValues, setSelectedValues] = useState(() => {
-    const saved = localStorage.getItem("dashboardSelectedValues");
-    return saved ? JSON.parse(saved) : {};
+  const [selectedFilters, setSelectedFilters] = useState(() => {
+    const saved = localStorage.getItem("dashboardSelectedFilters");
+    return saved ? JSON.parse(saved) : {
+      date: [],
+      workspace: [],
+      project: [],
+      job: [],
+      userName: []
+    };
   });
   const [showEditModal, setShowEditModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -60,14 +62,13 @@ const Dashboard = ({
   const [noteToDelete, setNoteToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [showFilterDialog, setShowFilterDialog] = useState(false);
-  const [currentFilterColumn, setCurrentFilterColumn] = useState(null);
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(null);
+  const [filterSearchTerm, setFilterSearchTerm] = useState("");
   const [uniqueProjects, setUniqueProjects] = useState([]);
   const [uniqueJobs, setUniqueJobs] = useState([]);
   const [uniqueWorkspaces, setUniqueWorkspaces] = useState([]);
   const [uniqueDates, setUniqueDates] = useState([]);
   const [uniqueUsernames, setUniqueUsernames] = useState([]);
-  const [filteredNotes, setFilteredNotes] = useState([]);
   const [loadingFiltered, setLoadingFiltered] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
@@ -97,6 +98,7 @@ const Dashboard = ({
   const [modalSource, setModalSource] = useState("dashboard");
 
   const newNoteModalRef = useRef();
+  const filterRef = useRef();
 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
 
@@ -112,18 +114,27 @@ const Dashboard = ({
   }, [searchResults]);
 
   useEffect(() => {
-    localStorage.setItem("dashboardHierarchy", JSON.stringify(hierarchy));
-  }, [hierarchy]);
-
-  useEffect(() => {
     localStorage.setItem(
-      "dashboardSelectedValues",
-      JSON.stringify(selectedValues)
+      "dashboardSelectedFilters",
+      JSON.stringify(selectedFilters)
     );
-  }, [selectedValues]);
+  }, [selectedFilters]);
+
   useEffect(() => {
     localStorage.setItem("dashboardViewMode", viewMode);
   }, [viewMode]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (filterRef.current && !filterRef.current.contains(event.target)) {
+        setFilterDropdownOpen(null);
+        setFilterSearchTerm("");
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const styles = {
     searchBox: {
@@ -183,17 +194,194 @@ const Dashboard = ({
       minWidth: "0px",
       justifyContent: "center",
     },
-  };
-
-  // Debug effect for prefilledData
-  useEffect(() => {
-    console.log("prefilledData changed:", prefilledData);
-  }, [prefilledData]);
-
-  const handleDragStartValue = (column, value) => (e) => {
-    e.dataTransfer.setData("column", column);
-    e.dataTransfer.setData("value", value);
-    e.stopPropagation();
+    filterContainer: {
+      display: "flex",
+      flexWrap: "wrap",
+      gap: "12px",
+      marginBottom: "20px",
+      padding: "16px",
+      backgroundColor: "#f8f9fa",
+      borderRadius: "10px",
+      border: "1px solid #e9ecef",
+      boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+      alignItems: "center",
+    },
+    filterDropdown: {
+      position: "relative",
+      flex: "1 1 200px",
+      minWidth: "200px",
+    },
+    filterButton: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      padding: "10px 14px",
+      backgroundColor: "white",
+      border: "1px solid #ddd",
+      borderRadius: "6px",
+      cursor: "pointer",
+      width: "100%",
+      textAlign: "left",
+      transition: "all 0.2s ease",
+      fontSize: "14px",
+      fontWeight: "500",
+      color: "#333",
+    },
+    filterButtonHover: {
+      borderColor: "#3498db",
+      boxShadow: "0 0 0 2px rgba(52, 152, 219, 0.2)",
+    },
+    filterButtonInfo: {
+      borderColor: "#17a2b8",
+      backgroundColor: "#e3f2fd",
+    },
+    dropdownContent: {
+      position: "absolute",
+      top: "100%",
+      left: 0,
+      right: 0,
+      backgroundColor: "white",
+      border: "1px solid #ddd",
+      borderRadius: "6px",
+      boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
+      zIndex: 1000,
+      maxHeight: "320px",
+      overflow: "hidden",
+      marginTop: "4px",
+    },
+    dropdownSearch: {
+      padding: "10px 14px",
+      borderBottom: "1px solid #eee",
+      backgroundColor: "#f8f9fa",
+      position: "sticky",
+      top: 0,
+      zIndex: 1,
+    },
+    dropdownSearchInput: {
+      width: '100%',
+      padding: '8px 12px',
+      border: '1px solid #ddd',
+      borderRadius: '4px',
+      fontSize: '14px',
+      boxSizing: 'border-box',
+    },
+    dropdownList: {
+      maxHeight: "280px",
+      overflowY: "auto",
+      padding: "4px 0",
+    },
+    checkboxItem: {
+      padding: "10px 14px",
+      borderBottom: "1px solid #f5f5f5",
+      display: "flex",
+      alignItems: "center",
+      gap: "10px",
+      cursor: "pointer",
+      transition: "background-color 0.2s ease",
+    },
+    checkboxItemHover: {
+      backgroundColor: "#f8f9fa",
+    },
+    checkbox: {
+      width: "16px",
+      height: "16px",
+      cursor: "pointer",
+      accentColor: "#3498db",
+    },
+    filterTag: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "6px",
+      backgroundColor: "#e3f2fd",
+      padding: "6px 10px",
+      borderRadius: "6px",
+      fontSize: "0.85em",
+      marginRight: "6px",
+      marginBottom: "6px",
+      border: "1px solid #bbdefb",
+      fontWeight: "500",
+    },
+    filterTagRemove: {
+      background: "none",
+      border: "none",
+      cursor: "pointer",
+      fontSize: "1.1em",
+      lineHeight: 1,
+      color: "#666",
+      padding: "0 2px",
+      transition: "color 0.2s ease",
+    },
+    filterTagRemoveHover: {
+      color: "#e74c3c",
+    },
+    clearAllButton: {
+      padding: "8px 16px",
+      backgroundColor: "#6c757d",
+      color: "#fff",
+      border: "1px solid #6c757d",
+      borderRadius: "6px",
+      cursor: "pointer",
+      fontSize: "14px",
+      fontWeight: "500",
+      transition: "all 0.2s ease",
+      display: "flex",
+      alignItems: "center",
+      gap: "6px",
+      whiteSpace: 'nowrap',
+      height: '36px',
+    },
+    clearAllButtonHover: {
+      backgroundColor: "#5a6268",
+      borderColor: "#545b62",
+    },
+    activeFiltersContainer: {
+      marginBottom: '15px',
+      padding: '12px 16px',
+      backgroundColor: '#f8f9fa',
+      borderRadius: '8px',
+      border: '1px solid #e9ecef',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      flexWrap: 'wrap',
+      gap: '10px',
+    },
+    activeFiltersTitle: {
+      fontSize: '14px',
+      fontWeight: '600',
+      color: '#495057',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      flex: 1,
+      minWidth: '200px',
+    },
+    activeFiltersContent: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: '5px',
+      alignItems: 'center',
+      flex: 2,
+    },
+    emptyFilterMessage: {
+      padding: "16px",
+      textAlign: "center",
+      color: "#999",
+      fontSize: "14px",
+    },
+    filterInfoBadge: {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      width: "18px",
+      height: "18px",
+      borderRadius: "50%",
+      backgroundColor: "#17a2b8",
+      color: "white",
+      fontSize: "10px",
+      marginLeft: "6px",
+      cursor: "help",
+    }
   };
 
   const handleRequestWorkspace = () => {
@@ -267,6 +455,7 @@ const Dashboard = ({
       console.error(e);
     }
   };
+
   const getHash = (str) => {
     if (!str) return 0;
     let hash = 0;
@@ -275,6 +464,7 @@ const Dashboard = ({
     }
     return Math.abs(hash);
   };
+
   useEffect(() => {
     const fetchCurrentUser = async () => {
       try {
@@ -322,117 +512,96 @@ const Dashboard = ({
     }
   };
 
-  // Fetch notes for a specific column/value from server-side endpoints.
-  const fetchNotesByColumnAndValue = async (column, value) => {
-    if (!value || !userid) return [];
-    let url = "";
-    try {
-      if (column === "userName") {
-        url = `${apiUrl}/SiteNote/GetSiteNotesByUsername?pageNumber=1&pageSize=200&username=${encodeURIComponent(
-          value
-        )}&userId=${userid}`;
-      } else if (column === "date") {
-        url = `${apiUrl}/SiteNote/GetSiteNotesByDate?pageNumber=1&pageSize=200&date=${encodeURIComponent(
-          value
-        )}&userId=${userid}`;
-      } else if (column === "workspace") {
-        url = `${apiUrl}/SiteNote/GetSiteNotesByWorkspaceId?pageNumber=1&pageSize=200&workspaceId=${encodeURIComponent(
-          value
-        )}&userId=${userid}`;
-      } else if (column === "project") {
-        url = `${apiUrl}/SiteNote/GetSiteNotesByProjectId?pageNumber=1&pageSize=200&projectId=${encodeURIComponent(
-          value
-        )}&userId=${userid}`;
-      } else if (column === "job") {
-        url = `${apiUrl}/SiteNote/GetSiteNotesByJobId?pageNumber=1&pageSize=200&jobId=${encodeURIComponent(
-          value
-        )}&userId=${userid}`;
-      }
-
-      if (!url) return [];
-      const r = await fetch(url);
-      if (!r.ok) throw new Error("fetch error");
-      const d = await r.json();
-      const arr = d.siteNotes || [];
-      return arr.map((n) => ({
-        ...n,
-        userName: n.UserName || n.userName,
-        documentCount: n.DocumentCount || n.documentCount || 0,
-      }));
-    } catch (e) {
-      console.error(e);
-      return [];
+  // Simple client-side filtering function
+  const applyFilters = useCallback((notesToFilter, filters) => {
+    if (!notesToFilter || !Array.isArray(notesToFilter) || notesToFilter.length === 0) {
+      return notesToFilter;
     }
-  };
 
-  const fetchSiteNotesWithFilters = async (filters) => {
-    if (!userid) return [];
-    try {
-      const url = new URL(`${apiUrl}/SiteNote/GetSiteNotesWithFilters`);
-      url.searchParams.append("pageNumber", "1");
-      url.searchParams.append("pageSize", "200");
-      url.searchParams.append("userId", userid);
-
-      if (filters) {
-        if (filters.userName)
-          url.searchParams.append("username", filters.userName);
-        if (filters.project)
-          url.searchParams.append("projectId", filters.project);
-        if (filters.job) url.searchParams.append("jobId", filters.job);
-        if (filters.workspace)
-          url.searchParams.append("workspaceId", filters.workspace);
-        if (filters.date) {
-          const d = new Date(filters.date);
-          if (!isNaN(d)) {
-            const iso = d.toISOString().split("T")[0];
-            url.searchParams.append("date", iso);
-          } else {
-            url.searchParams.append("date", filters.date);
-          }
-        }
-      }
-
-      const r = await fetch(url.toString());
-      if (!r.ok) throw new Error("Fetch failed");
-      const d = await r.json();
-      const arr = d.siteNotes || [];
-      return arr.map((n) => ({
-        ...n,
-        userName: n.UserName || n.userName,
-        documentCount: n.DocumentCount || n.documentCount || 0,
-      }));
-    } catch (e) {
-      console.error("fetchSiteNotesWithFilters error", e);
-      return [];
-    }
-  };
-
-  // Call server for each selected filter and merge (OR) the results.
-  const fetchCombinedServerFilters = async (selectedObj) => {
-    const sv = selectedObj || selectedValues || {};
-    const hasAny = Object.keys(sv).some(
-      (k) => sv[k] !== undefined && sv[k] !== null && sv[k] !== ""
+    // Check if any filters are active
+    const hasActiveFilters = Object.keys(filters).some(
+      key => filters[key] && Array.isArray(filters[key]) && filters[key].length > 0
     );
-    if (!hasAny) {
-      setFilteredNotes(notes);
-      return;
+
+    if (!hasActiveFilters) {
+      return notesToFilter;
     }
 
-    setLoadingFiltered(true);
-    try {
-      const data = await fetchSiteNotesWithFilters(sv);
-      setFilteredNotes(data);
-    } catch (e) {
-      console.error("fetchCombinedServerFilters error", e);
-      setFilteredNotes(notes);
-    } finally {
+    return notesToFilter.filter(note => {
+      // Check each filter type
+      let passesAllFilters = true;
+
+      // Date filter
+      if (filters.date && filters.date.length > 0) {
+        const noteDate = note.date ? note.date.toString() : '';
+        passesAllFilters = passesAllFilters && filters.date.some(date => 
+          noteDate.includes(date.toString())
+        );
+      }
+
+      // Workspace filter
+      if (filters.workspace && filters.workspace.length > 0) {
+        const noteWorkspace = note.workspace ? note.workspace.toString() : '';
+        passesAllFilters = passesAllFilters && filters.workspace.some(workspace => 
+          noteWorkspace === workspace.toString()
+        );
+      }
+
+      // Project filter
+      if (filters.project && filters.project.length > 0) {
+        const noteProject = note.project ? note.project.toString() : '';
+        passesAllFilters = passesAllFilters && filters.project.some(project => 
+          noteProject === project.toString()
+        );
+      }
+
+      // Job filter
+      if (filters.job && filters.job.length > 0) {
+        const noteJob = note.job ? note.job.toString() : '';
+        passesAllFilters = passesAllFilters && filters.job.some(job => 
+          noteJob === job.toString()
+        );
+      }
+
+      // User filter
+      if (filters.userName && filters.userName.length > 0) {
+        const noteUser = note.userName ? note.userName.toString() : '';
+        passesAllFilters = passesAllFilters && filters.userName.some(user => 
+          noteUser === user.toString()
+        );
+      }
+
+      return passesAllFilters;
+    });
+  }, []);
+
+  // Get filtered notes based on selected filters
+  const filteredNotes = useMemo(() => {
+    if (!notes || !Array.isArray(notes)) {
+      return [];
+    }
+    
+    return applyFilters(notes, selectedFilters);
+  }, [notes, selectedFilters, applyFilters]);
+
+  // Get display notes (search results OR filtered notes)
+  const displayNotes = useMemo(() => {
+    if (searchTerm.trim()) {
+      return searchResults;
+    }
+    
+    return filteredNotes;
+  }, [searchTerm, searchResults, filteredNotes]);
+
+  // Apply filters when selectedFilters changes
+  useEffect(() => {
+    if (isDataLoaded && notes && notes.length > 0) {
       setLoadingFiltered(false);
     }
-  };
+  }, [selectedFilters, notes, isDataLoaded]);
 
   useEffect(() => {
     if (userid && defaultUserWorkspaceID) {
-      console.log("Fetching role with workspace ID:", defaultUserWorkspaceID);
       fetchUserWorkspaceRole();
       fetchWorkspacesByUserId();
       fetchPriorities();
@@ -456,96 +625,30 @@ const Dashboard = ({
   }, [userid]);
 
   useEffect(() => {
-    if (notes !== undefined) setIsDataLoaded(true);
-  }, [notes]);
-
-  const fetchFilteredSiteNotes = async () => {
-    const p = selectedValues["project"];
-    const j = selectedValues["job"];
-    const w = selectedValues["workspace"];
-    const d = selectedValues["date"];
-    const u = selectedValues["userName"];
-
-    if (!p && !j && !w && !d && !u) {
-      setFilteredNotes(notes);
-      return;
-    }
-
-    setLoadingFiltered(true);
-    try {
-      const filters = {
-        project: p,
-        job: j,
-        workspace: w,
-        date: d,
-        userName: u,
-      };
-      const data = await fetchSiteNotesWithFilters(filters);
-      setFilteredNotes(data.length ? data : notes);
-    } catch (e) {
-      console.error("fetchFilteredSiteNotes error", e);
-      toast.error("Failed to load filtered notes");
-      setFilteredNotes(notes);
-    } finally {
-      setLoadingFiltered(false);
-    }
-  };
-
-  useEffect(() => {
-    if (notes !== undefined && isDataLoaded) {
+    if (notes !== undefined) {
+      setIsDataLoaded(true);
       setInitialLoading(false);
-      fetchCombinedServerFilters();
     }
-  }, [notes, isDataLoaded]);
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    const c = e.dataTransfer.getData("column");
-    const v = e.dataTransfer.getData("value");
-    if (["date", "workspace", "project", "job", "userName"].includes(c)) {
-      if (!hierarchy.includes(c)) {
-        setHierarchy((prev) => [...prev, c]);
-      }
-
-      if (v) {
-        const newSelected = { ...selectedValues, [c]: v };
-        setSelectedValues(newSelected);
-        fetchCombinedServerFilters(newSelected);
-      } else {
-        const newSelected = { ...selectedValues, [c]: selectedValues[c] || "" };
-        setSelectedValues(newSelected);
-      }
-
-      setCurrentFilterColumn(c);
-    }
-  };
+  }, [notes]);
 
   const handlePriorityUpdate = () => {
     fetchPriorities();
   };
+
   const handlePriorityChange = async (priorityValue) => {
     if (!selectedNoteForPriority) return;
 
     try {
       const user = JSON.parse(localStorage.getItem("user"));
 
-      console.log("=== DOT DROPDOWN DEBUG ===");
-      console.log("Selected note:", selectedNoteForPriority);
-      console.log("Existing priorities:", priorities);
-
       const existingPriority = priorities.find(
         (p) => p.noteID == selectedNoteForPriority.id
       );
-      console.log("Existing priority for this note:", existingPriority);
-      console.log("Priority value to set:", priorityValue);
 
       let response;
 
       if (existingPriority && existingPriority.id) {
-        console.log("Updating existing priority ID:", existingPriority.id);
         const updateUrl = `${process.env.REACT_APP_API_BASE_URL}/api/Priority/UpdatePriority/${existingPriority.id}`;
-        console.log("Update URL:", updateUrl);
-
         response = await fetch(updateUrl, {
           method: "PUT",
           headers: {
@@ -556,10 +659,7 @@ const Dashboard = ({
           }),
         });
       } else {
-        console.log("Creating new priority");
         const createUrl = `${process.env.REACT_APP_API_BASE_URL}/api/Priority/AddPriority`;
-        console.log("Create URL:", createUrl);
-
         response = await fetch(createUrl, {
           method: "POST",
           headers: {
@@ -572,8 +672,6 @@ const Dashboard = ({
           }),
         });
       }
-
-      console.log("Response status:", response.status, response.statusText);
 
       if (response.ok) {
         toast.success("Priority updated successfully");
@@ -595,43 +693,137 @@ const Dashboard = ({
     }
   };
 
-  const handleDragOver = (e) => e.preventDefault();
-  const handleDragStart = (c) => (e) => e.dataTransfer.setData("column", c);
-  const openFilterDialog = (c) => {
-    setCurrentFilterColumn(c);
-    setShowFilterDialog(true);
-  };
-  const handleFilterSelect = (val) => {
-    const newSelected = { ...selectedValues };
-    if (val === "" || val === null) delete newSelected[currentFilterColumn];
-    else newSelected[currentFilterColumn] = val;
-    setSelectedValues(newSelected);
-    setShowFilterDialog(false);
-    fetchCombinedServerFilters(newSelected);
-  };
-  const removeHierarchyLevel = (c) => {
-    setHierarchy(hierarchy.filter((x) => x !== c));
-    const v = { ...selectedValues };
-    delete v[c];
-    setSelectedValues(v);
-    fetchCombinedServerFilters(v);
-  };
-  const clearAllFilters = () => {
-    setHierarchy([]);
-    setSelectedValues({});
-    setFilteredNotes(notes);
+  const handleRowClick = useCallback((note, event) => {
+    setFocusedRow(note.id);
+    setSelectedRow(note.id);
+  }, []);
+
+  const handleKeyDown = useCallback(
+    (event) => {
+      if (!focusedRow) return;
+
+      const currentIndex = displayNotes.findIndex(
+        (note) => note.id === focusedRow
+      );
+
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        const nextIndex = Math.min(currentIndex + 1, displayNotes.length - 1);
+        if (nextIndex !== currentIndex) {
+          setFocusedRow(displayNotes[nextIndex].id);
+          setSelectedRow(displayNotes[nextIndex].id);
+        }
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        const prevIndex = Math.max(currentIndex - 1, 0);
+        if (prevIndex !== currentIndex) {
+          setFocusedRow(displayNotes[prevIndex].id);
+          setSelectedRow(displayNotes[prevIndex].id);
+        }
+      } else if (event.ctrlKey && event.key === "a" && focusedRow) {
+        event.preventDefault();
+        const selectedNote = displayNotes.find(
+          (note) => note.id === focusedRow
+        );
+        if (selectedNote) {
+          const today = new Date();
+          const year = today.getFullYear();
+          const month = String(today.getMonth() + 1).padStart(2, "0");
+          const day = String(today.getDate()).padStart(2, "0");
+          const currentDateFormatted = `${year}-${month}-${day}`;
+
+          setPrefilledData({
+            date: currentDateFormatted,
+            project: selectedNote.project,
+            job: selectedNote.job,
+            workspace: selectedNote.workspace,
+          });
+          setModalSource("grid");
+          setShowNewModal(true);
+        }
+      }
+    },
+    [focusedRow, displayNotes]
+  );
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [handleKeyDown]);
+
+  const handleRefresh = async () => {
+    setInitialLoading(true);
+    try {
+      await refreshNotes();
+      await Promise.all([
+        fetchUniqueProjects(),
+        fetchUniqueJobs(),
+        fetchUniqueWorkspaces(),
+        fetchUniqueDates(),
+        fetchUniqueUsernames(),
+      ]);
+      if (defaultUserWorkspaceID) {
+        await fetchUserWorkspaceRole();
+      }
+    } catch {
+      toast.error("Refresh error");
+    } finally {
+      setInitialLoading(false);
+    }
   };
 
-  const displayNotes = useMemo(() => {
-    let list = searchTerm.trim() ? searchResults : filteredNotes;
-    list = list.filter((n) => {
-      const job = jobs.find(
-        (j) => j.id.toString() === n.jobId?.toString() || j.name === n.job
-      );
-      return job && job.status !== 3;
+  const handleAddFromRow = (note) => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    const currentDateFormatted = `${year}-${month}-${day}`;
+
+    setPrefilledData({
+      date: currentDateFormatted,
+      project: note.project,
+      job: note.job,
+      workspace: note.workspace,
+      userId: note.userId,
     });
-    return list.sort((a, b) => b.id - a.id);
-  }, [searchResults, filteredNotes, jobs, searchTerm]);
+
+    setModalSource("grid");
+    setShowNewModal(true);
+  };
+
+  const handleNewNoteClick = () => {
+    setPrefilledData(null);
+    setModalSource("dashboard");
+    setShowNewModal(true);
+  };
+
+  useEffect(() => {
+    if (showNewModal && modalSource === "grid" && newNoteModalRef.current) {
+      const timer = setTimeout(() => {
+        if (newNoteModalRef.current) {
+          newNoteModalRef.current.focusTextarea();
+        }
+      }, 500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [showNewModal, modalSource]);
+
+  const handleEdit = (note) => {
+    setSelectedNote(note);
+    setShowEditModal(true);
+  };
+
+  const handleDelete = (note) => {
+    const hrs = (Date.now() - new Date(note.timeStamp)) / 36e5;
+    if (hrs > 24) toast.error("Cannot delete notes older than 24h");
+    else {
+      setNoteToDelete(note);
+      setShowDeleteConfirm(true);
+    }
+  };
 
   useEffect(() => {
     const run = async () => {
@@ -667,218 +859,6 @@ const Dashboard = ({
     run();
   }, [searchTerm, userid, apiUrl]);
 
-  const handleRowClick = useCallback((note, event) => {
-    setFocusedRow(note.id);
-    setSelectedRow(note.id);
-  }, []);
-
-  // Fixed keyboard shortcut handler
-  const handleKeyDown = useCallback(
-    (event) => {
-      if (!focusedRow) return;
-
-      const currentIndex = filteredNotes.findIndex(
-        (note) => note.id === focusedRow
-      );
-
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        const nextIndex = Math.min(currentIndex + 1, filteredNotes.length - 1);
-        if (nextIndex !== currentIndex) {
-          setFocusedRow(filteredNotes[nextIndex].id);
-          setSelectedRow(filteredNotes[nextIndex].id);
-        }
-      } else if (event.key === "ArrowUp") {
-        event.preventDefault();
-        const prevIndex = Math.max(currentIndex - 1, 0);
-        if (prevIndex !== currentIndex) {
-          setFocusedRow(filteredNotes[prevIndex].id);
-          setSelectedRow(filteredNotes[prevIndex].id);
-        }
-      } else if (event.ctrlKey && event.key === "a" && focusedRow) {
-        event.preventDefault();
-        const selectedNote = filteredNotes.find(
-          (note) => note.id === focusedRow
-        );
-        if (selectedNote) {
-          const today = new Date();
-          const year = today.getFullYear();
-          const month = String(today.getMonth() + 1).padStart(2, "0");
-          const day = String(today.getDate()).padStart(2, "0");
-          const currentDateFormatted = `${year}-${month}-${day}`;
-
-          setPrefilledData({
-            date: currentDateFormatted,
-            project: selectedNote.project,
-            job: selectedNote.job,
-            workspace: selectedNote.workspace,
-          });
-          setModalSource("grid"); // Set source to grid for keyboard shortcut
-          setShowNewModal(true);
-        }
-      }
-    },
-    [focusedRow, filteredNotes]
-  );
-
-  useEffect(() => {
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [handleKeyDown]);
-
-  const handleRefresh = async () => {
-    setInitialLoading(true);
-    try {
-      await refreshNotes();
-      await Promise.all([
-        fetchUniqueProjects(),
-        fetchUniqueJobs(),
-        fetchUniqueWorkspaces(),
-        fetchUniqueDates(),
-        fetchUniqueUsernames(),
-      ]);
-      if (defaultUserWorkspaceID) {
-        await fetchUserWorkspaceRole();
-      }
-    } catch {
-      toast.error("Refresh error");
-    } finally {
-      setInitialLoading(false);
-    }
-  };
-
-  // Fixed handleAddFromRow function - for grid plus button
-  const handleAddFromRow = (note) => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, "0");
-    const day = String(today.getDate()).padStart(2, "0");
-    const currentDateFormatted = `${year}-${month}-${day}`;
-
-    console.log("=== DASHBOARD DEBUG ===");
-    console.log("Note data:", note);
-    console.log("Note ID:", note.id);
-    console.log("Note UserId:", note.userId);
-    console.log(
-      "Current User ID:",
-      JSON.parse(localStorage.getItem("user"))?.id
-    );
-
-    // Pass the exact values from the note
-    setPrefilledData({
-      date: currentDateFormatted,
-      project: note.project, // Use the project name from the note
-      job: note.job, // Use the job name from the note
-      workspace: note.workspace, // Use the workspace name from the note
-      userId: note.userId,
-    });
-
-    setModalSource("grid"); // Set source to grid for plus button
-    setShowNewModal(true);
-  };
-
-  // New function for New Note button - from dashboard
-  const handleNewNoteClick = () => {
-    console.log("Opening from New Note button - clearing prefilled data");
-    setPrefilledData(null);
-    setModalSource("dashboard"); // Set source to dashboard for new note button
-    setShowNewModal(true);
-  };
-
-  // Focus the textarea when modal opens from grid source
-  useEffect(() => {
-    if (showNewModal && modalSource === "grid" && newNoteModalRef.current) {
-      const timer = setTimeout(() => {
-        if (newNoteModalRef.current) {
-          newNoteModalRef.current.focusTextarea();
-          console.log("Focusing textarea from grid source");
-        }
-      }, 500);
-
-      return () => clearTimeout(timer);
-    }
-  }, [showNewModal, modalSource]);
-
-  const handleEdit = (note) => {
-    setSelectedNote(note);
-    setShowEditModal(true);
-  };
-
-  const handleDelete = (note) => {
-    const hrs = (Date.now() - new Date(note.timeStamp)) / 36e5;
-    if (hrs > 24) toast.error("Cannot delete notes older than 24h");
-    else {
-      setNoteToDelete(note);
-      setShowDeleteConfirm(true);
-    }
-  };
-
-  const getCurrentNotesForLevel = (level) => {
-    if (level === 0) {
-      return searchTerm.trim() ? searchResults : filteredNotes;
-    }
-
-    let filtered = searchTerm.trim() ? searchResults : filteredNotes;
-
-    for (let i = 0; i < level; i++) {
-      const column = hierarchy[i];
-      const selectedValue = selectedValues[column];
-
-      if (selectedValue) {
-        filtered = filtered.filter((note) => {
-          if (column === "date" || column === "userName") {
-            return note[column] === selectedValue;
-          } else {
-            return (
-              note[`${column}Id`] === selectedValue ||
-              note[column] === selectedValue
-            );
-          }
-        });
-      }
-    }
-
-    return filtered;
-  };
-
-  const getUniqueValues = (column, currentNotes) => {
-    const values = new Set();
-
-    currentNotes.forEach((note) => {
-      let value;
-
-      if (column === "date" || column === "userName") {
-        value = note[column];
-      } else {
-        value = note[column];
-      }
-
-      if (value) {
-        values.add(value);
-      }
-    });
-
-    return Array.from(values).sort();
-  };
-
-  const handleHierarchyChange = (column, value) => {
-    // Update only this column's selected value. Preserve downstream filters.
-    const newSelected = { ...selectedValues };
-    if (value === "" || value === null) delete newSelected[column];
-    else newSelected[column] = value;
-
-    // If column not already part of hierarchy, add it
-    if (!hierarchy.includes(column)) {
-      setHierarchy((prev) => [...prev, column]);
-    }
-
-    setSelectedValues(newSelected);
-    // Re-run combined server filters with the updated selection
-    fetchCombinedServerFilters(newSelected);
-  };
-
   const handleConfirmDelete = async () => {
     if (!noteToDelete) return;
 
@@ -902,7 +882,6 @@ const Dashboard = ({
 
       toast.success("Note deleted successfully");
       await refreshNotes();
-      await fetchFilteredSiteNotes();
     } catch (e) {
       console.error("Delete error:", e);
       toast.error(e.message || "Failed to delete note");
@@ -920,9 +899,6 @@ const Dashboard = ({
 
   const fetchUserWorkspaceRole = async () => {
     setIsRoleLoading(true);
-    console.log("fetching workspace Id", defaultUserWorkspaceID);
-    console.log("userid", userid);
-
     try {
       const response = await fetch(
         `${apiUrl}/UserWorkspace/GetWorkspacesByUserId/${userid}`,
@@ -936,17 +912,8 @@ const Dashboard = ({
 
       if (response.ok) {
         const data = await response.json();
-
         const userWorkspaces = data.userWorkspaces || data || [];
         setUserWorkspaces(userWorkspaces);
-        userWorkspaces.forEach((ws, index) => {
-          console.log(`Workspace ${index}:`, {
-            id: ws.id,
-            workspaceID: ws.workspaceID,
-            workspaceId: ws.workspaceId,
-            role: ws.role,
-          });
-        });
 
         const workspace = userWorkspaces.find(
           (ws) =>
@@ -986,7 +953,6 @@ const Dashboard = ({
 
       if (response.ok) {
         const data = await response.json();
-
         const userWorkspaces = data.workspaces || data || [];
         setUserWorkspace(userWorkspaces);
       } else {
@@ -1011,13 +977,424 @@ const Dashboard = ({
 
       if (response.ok) {
         const result = await response.json();
-        console.log(result);
         setPriorities(result.priorities || []);
       }
     } catch (error) {
       console.error(error);
     }
   };
+
+  // Helper function to get filter options with cascading logic
+  const getFilterOptions = (filterType) => {
+    let options = [];
+    
+    if (!notes || !Array.isArray(notes) || notes.length === 0) {
+      return options;
+    }
+
+    const uniqueValues = new Set();
+    
+    notes.forEach(note => {
+      let value;
+      let include = true;
+      
+      switch(filterType) {
+        case 'date':
+          if (note.date) {
+            const dateObj = new Date(note.date);
+            if (!isNaN(dateObj.getTime())) {
+              const year = dateObj.getFullYear();
+              const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+              const day = String(dateObj.getDate()).padStart(2, '0');
+              value = `${year}-${month}-${day}`;
+            } else {
+              value = note.date.toString().split('T')[0];
+            }
+          }
+          break;
+        case 'workspace':
+          value = note.workspace;
+          break;
+        case 'project':
+          // Only filter by workspace if workspace filter is active
+          if (selectedFilters.workspace && selectedFilters.workspace.length > 0) {
+            const noteWorkspace = note.workspace ? note.workspace.toString() : '';
+            if (selectedFilters.workspace.includes(noteWorkspace)) {
+              value = note.project;
+            } else {
+              include = false;
+            }
+          } else {
+            value = note.project;
+          }
+          break;
+        case 'job':
+          // Filter by project if project filter is active
+          if (selectedFilters.project && selectedFilters.project.length > 0) {
+            const noteProject = note.project ? note.project.toString() : '';
+            if (selectedFilters.project.includes(noteProject)) {
+              value = note.job;
+            } else {
+              include = false;
+            }
+          } 
+          // If no project filter but workspace filter is active, filter by workspace
+          else if (selectedFilters.workspace && selectedFilters.workspace.length > 0) {
+            const noteWorkspace = note.workspace ? note.workspace.toString() : '';
+            if (selectedFilters.workspace.includes(noteWorkspace)) {
+              value = note.job;
+            } else {
+              include = false;
+            }
+          } else {
+            value = note.job;
+          }
+          break;
+        case 'userName':
+          value = note.userName;
+          break;
+        default:
+          value = null;
+      }
+      
+      if (value && include) {
+        uniqueValues.add(value.toString());
+      }
+    });
+
+    options = Array.from(uniqueValues)
+      .sort()
+      .map(value => ({ 
+        id: value, 
+        text: value,
+        displayText: filterType === 'date' ? 
+          (() => {
+            try {
+              const date = new Date(value);
+              if (!isNaN(date.getTime())) {
+                return date.toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric'
+                });
+              }
+            } catch (e) {}
+            return value;
+          })() 
+          : value 
+      }));
+
+    // Filter by search term
+    if (filterSearchTerm) {
+      options = options.filter(option => 
+        option.displayText && option.displayText.toLowerCase().includes(filterSearchTerm.toLowerCase())
+      );
+    }
+    
+    return options;
+  };
+
+  const getFilterDisplayValue = (filterType, value) => {
+    if (filterType === 'date') {
+      try {
+        const date = new Date(value);
+        if (!isNaN(date.getTime())) {
+          return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+          });
+        }
+      } catch (e) {}
+    }
+    return value;
+  };
+
+  const getActiveFilterCount = () => {
+    return Object.values(selectedFilters).reduce((total, arr) => total + arr.length, 0);
+  };
+
+  // Cascading filter logic - automatically clears child filters when parent changes
+  const handleFilterCheckboxChange = useCallback((filterType, value) => {
+    const currentValues = selectedFilters[filterType] || [];
+    let newValues;
+    
+    if (currentValues.includes(value)) {
+      // Remove the value if it already exists
+      newValues = currentValues.filter(v => v !== value);
+    } else {
+      // Add the value
+      newValues = [...currentValues, value];
+    }
+    
+    const newFilters = {
+      ...selectedFilters,
+      [filterType]: newValues
+    };
+    
+    // Handle cascading filter clearing
+    if (filterType === 'workspace') {
+      // When workspace changes, clear project and job filters if they're no longer valid
+      if (newValues.length === 0) {
+        // If all workspaces are cleared, keep other filters
+      } else {
+        // Check which projects are still valid for selected workspaces
+        const validProjects = new Set();
+        notes.forEach(note => {
+          const noteWorkspace = note.workspace ? note.workspace.toString() : '';
+          const noteProject = note.project ? note.project.toString() : '';
+          if (newValues.includes(noteWorkspace) && noteProject) {
+            validProjects.add(noteProject);
+          }
+        });
+        
+        // Remove project filters that are no longer valid
+        const currentProjectFilters = newFilters.project || [];
+        const filteredProjectFilters = currentProjectFilters.filter(project => 
+          validProjects.has(project)
+        );
+        newFilters.project = filteredProjectFilters;
+        
+        // Also update job filters based on remaining projects
+        if (filteredProjectFilters.length > 0) {
+          const validJobs = new Set();
+          notes.forEach(note => {
+            const noteProject = note.project ? note.project.toString() : '';
+            const noteJob = note.job ? note.job.toString() : '';
+            if (filteredProjectFilters.includes(noteProject) && noteJob) {
+              validJobs.add(noteJob);
+            }
+          });
+          
+          const currentJobFilters = newFilters.job || [];
+          const filteredJobFilters = currentJobFilters.filter(job => 
+            validJobs.has(job)
+          );
+          newFilters.job = filteredJobFilters;
+        } else {
+          // If no projects selected, filter jobs by selected workspaces
+          const validJobs = new Set();
+          notes.forEach(note => {
+            const noteWorkspace = note.workspace ? note.workspace.toString() : '';
+            const noteJob = note.job ? note.job.toString() : '';
+            if (newValues.includes(noteWorkspace) && noteJob) {
+              validJobs.add(noteJob);
+            }
+          });
+          
+          const currentJobFilters = newFilters.job || [];
+          const filteredJobFilters = currentJobFilters.filter(job => 
+            validJobs.has(job)
+          );
+          newFilters.job = filteredJobFilters;
+        }
+      }
+    } else if (filterType === 'project') {
+      // When project changes, clear job filters if they're no longer valid
+      if (newValues.length === 0) {
+        // If all projects are cleared, keep job filters only if workspace is selected
+        if (newFilters.workspace && newFilters.workspace.length > 0) {
+          const validJobs = new Set();
+          notes.forEach(note => {
+            const noteWorkspace = note.workspace ? note.workspace.toString() : '';
+            const noteJob = note.job ? note.job.toString() : '';
+            if (newFilters.workspace.includes(noteWorkspace) && noteJob) {
+              validJobs.add(noteJob);
+            }
+          });
+          
+          const currentJobFilters = newFilters.job || [];
+          const filteredJobFilters = currentJobFilters.filter(job => 
+            validJobs.has(job)
+          );
+          newFilters.job = filteredJobFilters;
+        }
+      } else {
+        const validJobs = new Set();
+        notes.forEach(note => {
+          const noteProject = note.project ? note.project.toString() : '';
+          const noteJob = note.job ? note.job.toString() : '';
+          if (newValues.includes(noteProject) && noteJob) {
+            validJobs.add(noteJob);
+          }
+        });
+        
+        const currentJobFilters = newFilters.job || [];
+        const filteredJobFilters = currentJobFilters.filter(job => 
+          validJobs.has(job)
+        );
+        newFilters.job = filteredJobFilters;
+      }
+    }
+    
+    setSelectedFilters(newFilters);
+  }, [selectedFilters, notes]);
+
+  const removeFilter = useCallback((filterType, value) => {
+    const currentValues = selectedFilters[filterType] || [];
+    const newValues = currentValues.filter(v => v !== value);
+    
+    const newFilters = {
+      ...selectedFilters,
+      [filterType]: newValues
+    };
+    
+    // Also handle cascading clearing when removing filters
+    if (filterType === 'workspace') {
+      // Check which projects are still valid
+      const validProjects = new Set();
+      if (newValues.length > 0) {
+        notes.forEach(note => {
+          const noteWorkspace = note.workspace ? note.workspace.toString() : '';
+          const noteProject = note.project ? note.project.toString() : '';
+          if (newValues.includes(noteWorkspace) && noteProject) {
+            validProjects.add(noteProject);
+          }
+        });
+        
+        // Remove invalid project filters
+        const currentProjectFilters = newFilters.project || [];
+        const filteredProjectFilters = currentProjectFilters.filter(project => 
+          validProjects.has(project)
+        );
+        newFilters.project = filteredProjectFilters;
+        
+        // Update job filters
+        if (filteredProjectFilters.length > 0) {
+          const validJobs = new Set();
+          notes.forEach(note => {
+            const noteProject = note.project ? note.project.toString() : '';
+            const noteJob = note.job ? note.job.toString() : '';
+            if (filteredProjectFilters.includes(noteProject) && noteJob) {
+              validJobs.add(noteJob);
+            }
+          });
+          
+          const currentJobFilters = newFilters.job || [];
+          const filteredJobFilters = currentJobFilters.filter(job => 
+            validJobs.has(job)
+          );
+          newFilters.job = filteredJobFilters;
+        }
+      }
+    } else if (filterType === 'project') {
+      // Update job filters
+      const validJobs = new Set();
+      if (newValues.length > 0) {
+        notes.forEach(note => {
+          const noteProject = note.project ? note.project.toString() : '';
+          const noteJob = note.job ? note.job.toString() : '';
+          if (newValues.includes(noteProject) && noteJob) {
+            validJobs.add(noteJob);
+          }
+        });
+        
+        const currentJobFilters = newFilters.job || [];
+        const filteredJobFilters = currentJobFilters.filter(job => 
+          validJobs.has(job)
+        );
+        newFilters.job = filteredJobFilters;
+      }
+    }
+    
+    setSelectedFilters(newFilters);
+  }, [selectedFilters, notes]);
+
+  const clearAllFilters = useCallback(() => {
+    const emptyFilters = {
+      date: [],
+      workspace: [],
+      project: [],
+      job: [],
+      userName: []
+    };
+    setSelectedFilters(emptyFilters);
+  }, []);
+
+  const toggleFilterDropdown = (filterType) => {
+    if (filterDropdownOpen === filterType) {
+      setFilterDropdownOpen(null);
+      setFilterSearchTerm("");
+    } else {
+      setFilterDropdownOpen(filterType);
+      setFilterSearchTerm("");
+    }
+  };
+
+  // Check if filter has restricted options due to parent selection
+  const getFilterInfoMessage = (filterType) => {
+    if (filterType === 'project' && selectedFilters.workspace && selectedFilters.workspace.length > 0) {
+      return `Showing projects from ${selectedFilters.workspace.length} selected workspace(s)`;
+    }
+    if (filterType === 'job') {
+      if (selectedFilters.project && selectedFilters.project.length > 0) {
+        return `Showing jobs from ${selectedFilters.project.length} selected project(s)`;
+      }
+      if (selectedFilters.workspace && selectedFilters.workspace.length > 0) {
+        return `Showing jobs from ${selectedFilters.workspace.length} selected workspace(s)`;
+      }
+    }
+    return null;
+  };
+
+  // Check if filter button should show info style
+  const hasFilterInfo = (filterType) => {
+    if (filterType === 'project' && selectedFilters.workspace && selectedFilters.workspace.length > 0) {
+      return true;
+    }
+    if (filterType === 'job' && (selectedFilters.project && selectedFilters.project.length > 0) || 
+        (selectedFilters.workspace && selectedFilters.workspace.length > 0)) {
+      return true;
+    }
+    return false;
+  };
+
+  const getFilterButtonLabel = (filterType) => {
+    const count = selectedFilters[filterType]?.length || 0;
+    const baseLabels = {
+      date: 'Date',
+      workspace: 'Workspace',
+      project: 'Project',
+      job: 'Job',
+      userName: 'User'
+    };
+    
+    const iconMap = {
+      date: 'calendar',
+      workspace: 'building',
+      project: 'project-diagram',
+      job: 'tasks',
+      userName: 'user'
+    };
+    
+    return (
+      <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <i className={`fas fa-${iconMap[filterType]}`} style={{ fontSize: "14px", color: "#3498db" }} />
+        {baseLabels[filterType]} {count > 0 && `(${count})`}
+        {hasFilterInfo(filterType) && (
+          <span style={styles.filterInfoBadge} title={getFilterInfoMessage(filterType)}>
+            i
+          </span>
+        )}
+      </span>
+    );
+  };
+
+  // Filter out archived jobs from display notes
+  const finalDisplayNotes = useMemo(() => {
+    if (!displayNotes || !Array.isArray(displayNotes)) {
+      return [];
+    }
+    
+    return displayNotes
+      .filter((n) => {
+        const job = jobs?.find(
+          (j) => j.id.toString() === n.jobId?.toString() || j.name === n.job
+        );
+        return job && job.status !== 3;
+      })
+      .sort((a, b) => b.id - a.id);
+  }, [displayNotes, jobs]);
 
   return (
     <div className="main-content">
@@ -1091,11 +1468,7 @@ const Dashboard = ({
           </div>
         </div>
 
-        <div
-          style={styles.searchBox}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-        >
+        <div style={styles.searchBox}>
           <div
             style={{
               position: "relative",
@@ -1256,116 +1629,353 @@ const Dashboard = ({
           </button>
         </div>
 
-        <div
-          className="hierarchy-filters"
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-        >
-          <div className="filter-instructions"></div>
-
-          {hierarchy.map((column, level) => {
-            const currentNotes = getCurrentNotesForLevel(level);
-            const derived = getUniqueValues(column, currentNotes);
-
-            let serverOptions = [];
-            if (
-              column === "project" &&
-              uniqueProjects &&
-              uniqueProjects.length > 0
-            ) {
-              serverOptions = uniqueProjects.map((o) => ({
-                id: o.id,
-                text: o.text || o,
-              }));
-            } else if (
-              column === "job" &&
-              uniqueJobs &&
-              uniqueJobs.length > 0
-            ) {
-              serverOptions = uniqueJobs.map((o) => ({
-                id: o.id,
-                text: o.text || o,
-              }));
-            } else if (
-              column === "workspace" &&
-              uniqueWorkspaces &&
-              uniqueWorkspaces.length > 0
-            ) {
-              serverOptions = uniqueWorkspaces.map((o) => ({
-                id: o.id,
-                text: o.text || o,
-              }));
-            } else if (
-              column === "date" &&
-              uniqueDates &&
-              uniqueDates.length > 0
-            ) {
-              serverOptions = uniqueDates.map((o) => ({
-                id: o.id || o,
-                text: o.text || o,
-              }));
-            } else if (
-              column === "userName" &&
-              uniqueUsernames &&
-              uniqueUsernames.length > 0
-            ) {
-              serverOptions = uniqueUsernames.map((o) => ({
-                id: o.id || o,
-                text: o.text || o,
-              }));
-            }
-
-            const finalOptions =
-              serverOptions.length > 0
-                ? serverOptions
-                : derived.map((v) => ({ id: v, text: v }));
-
-            return (
-              <div key={column} className="hierarchy-level">
-                <label>
-                  {column.charAt(0).toUpperCase() + column.slice(1)}:
-                  <select
-                    value={selectedValues[column] || ""}
-                    onChange={(e) =>
-                      handleHierarchyChange(column, e.target.value)
-                    }
-                  >
-                    <option value="">All {column}s</option>
-                    {finalOptions.map((opt) => (
-                      <option
-                        key={opt.id}
-                        value={
-                          column === "date" || column === "userName"
-                            ? opt.text
-                            : opt.id
-                        }
-                      >
-                        {opt.text}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <button
-                  onClick={() => removeHierarchyLevel(column)}
-                  className="clear-hierarchy-btn"
-                >
-                  ×
-                </button>
-              </div>
-            );
-          })}
-          {hierarchy.length > 0 && (
+        {/* New Filter Section */}
+        <div ref={filterRef} style={styles.filterContainer}>
+          {/* Date Filter */}
+          <div style={styles.filterDropdown}>
             <button
-              onClick={() => {
-                setHierarchy([]);
-                setSelectedValues({});
+              style={styles.filterButton}
+              onClick={() => toggleFilterDropdown('date')}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "#3498db";
+                e.currentTarget.style.boxShadow = "0 0 0 2px rgba(52, 152, 219, 0.2)";
               }}
-              className="clear-all-hierarchy-btn"
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "#ddd";
+                e.currentTarget.style.boxShadow = "none";
+              }}
             >
-              Clear all filters
+              {getFilterButtonLabel('date')}
+              <i className={`fas fa-chevron-${filterDropdownOpen === 'date' ? 'up' : 'down'}`} style={{ fontSize: "12px" }} />
             </button>
-          )}
+            {filterDropdownOpen === 'date' && (
+              <div style={styles.dropdownContent}>
+                <div style={styles.dropdownSearch}>
+                  <input
+                    type="text"
+                    placeholder="Search dates..."
+                    value={filterSearchTerm}
+                    onChange={(e) => setFilterSearchTerm(e.target.value)}
+                    style={styles.dropdownSearchInput}
+                  />
+                </div>
+                <div style={styles.dropdownList}>
+                  {getFilterOptions('date').map((option) => (
+                    <div
+                      key={option.id || option.text}
+                      style={styles.checkboxItem}
+                      onClick={() => handleFilterCheckboxChange('date', option.id || option.text)}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = "#f8f9fa";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = "transparent";
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedFilters.date.includes(option.id || option.text)}
+                        onChange={() => {}}
+                        style={styles.checkbox}
+                      />
+                      <span style={{ fontSize: "14px" }}>{option.displayText}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Workspace Filter */}
+          <div style={styles.filterDropdown}>
+            <button
+              style={styles.filterButton}
+              onClick={() => toggleFilterDropdown('workspace')}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "#3498db";
+                e.currentTarget.style.boxShadow = "0 0 0 2px rgba(52, 152, 219, 0.2)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "#ddd";
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            >
+              {getFilterButtonLabel('workspace')}
+              <i className={`fas fa-chevron-${filterDropdownOpen === 'workspace' ? 'up' : 'down'}`} style={{ fontSize: "12px" }} />
+            </button>
+            {filterDropdownOpen === 'workspace' && (
+              <div style={styles.dropdownContent}>
+                <div style={styles.dropdownSearch}>
+                  <input
+                    type="text"
+                    placeholder="Search workspaces..."
+                    value={filterSearchTerm}
+                    onChange={(e) => setFilterSearchTerm(e.target.value)}
+                    style={styles.dropdownSearchInput}
+                  />
+                </div>
+                <div style={styles.dropdownList}>
+                  {getFilterOptions('workspace').map((option) => (
+                    <div
+                      key={option.id}
+                      style={styles.checkboxItem}
+                      onClick={() => handleFilterCheckboxChange('workspace', option.id)}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = "#f8f9fa";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = "transparent";
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedFilters.workspace.includes(option.id)}
+                        onChange={() => {}}
+                        style={styles.checkbox}
+                      />
+                      <span style={{ fontSize: "14px" }}>{option.text}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Project Filter */}
+          <div style={styles.filterDropdown}>
+            <button
+              style={{
+                ...styles.filterButton,
+                ...(hasFilterInfo('project') ? styles.filterButtonInfo : {})
+              }}
+              onClick={() => toggleFilterDropdown('project')}
+              title={hasFilterInfo('project') ? getFilterInfoMessage('project') : "Filter by project"}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "#3498db";
+                e.currentTarget.style.boxShadow = "0 0 0 2px rgba(52, 152, 219, 0.2)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = hasFilterInfo('project') ? "#17a2b8" : "#ddd";
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            >
+              {getFilterButtonLabel('project')}
+              <i className={`fas fa-chevron-${filterDropdownOpen === 'project' ? 'up' : 'down'}`} style={{ fontSize: "12px" }} />
+            </button>
+            {filterDropdownOpen === 'project' && (
+              <div style={styles.dropdownContent}>
+                <div style={styles.dropdownSearch}>
+                  <input
+                    type="text"
+                    placeholder="Search projects..."
+                    value={filterSearchTerm}
+                    onChange={(e) => setFilterSearchTerm(e.target.value)}
+                    style={styles.dropdownSearchInput}
+                  />
+                </div>
+                <div style={styles.dropdownList}>
+                  {getFilterOptions('project').length > 0 ? (
+                    getFilterOptions('project').map((option) => (
+                      <div
+                        key={option.id}
+                        style={styles.checkboxItem}
+                        onClick={() => handleFilterCheckboxChange('project', option.id)}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = "#f8f9fa";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "transparent";
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedFilters.project.includes(option.id)}
+                          onChange={() => {}}
+                          style={styles.checkbox}
+                        />
+                        <span style={{ fontSize: "14px" }}>{option.text}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={styles.emptyFilterMessage}>
+                      {selectedFilters.workspace && selectedFilters.workspace.length > 0 
+                        ? "No projects found for the selected workspace(s)"
+                        : "No projects available"}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Job Filter */}
+          <div style={styles.filterDropdown}>
+            <button
+              style={{
+                ...styles.filterButton,
+                ...(hasFilterInfo('job') ? styles.filterButtonInfo : {})
+              }}
+              onClick={() => toggleFilterDropdown('job')}
+              title={hasFilterInfo('job') ? getFilterInfoMessage('job') : "Filter by job"}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "#3498db";
+                e.currentTarget.style.boxShadow = "0 0 0 2px rgba(52, 152, 219, 0.2)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = hasFilterInfo('job') ? "#17a2b8" : "#ddd";
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            >
+              {getFilterButtonLabel('job')}
+              <i className={`fas fa-chevron-${filterDropdownOpen === 'job' ? 'up' : 'down'}`} style={{ fontSize: "12px" }} />
+            </button>
+            {filterDropdownOpen === 'job' && (
+              <div style={styles.dropdownContent}>
+                <div style={styles.dropdownSearch}>
+                  <input
+                    type="text"
+                    placeholder="Search jobs..."
+                    value={filterSearchTerm}
+                    onChange={(e) => setFilterSearchTerm(e.target.value)}
+                    style={styles.dropdownSearchInput}
+                  />
+                </div>
+                <div style={styles.dropdownList}>
+                  {getFilterOptions('job').length > 0 ? (
+                    getFilterOptions('job').map((option) => (
+                      <div
+                        key={option.id}
+                        style={styles.checkboxItem}
+                        onClick={() => handleFilterCheckboxChange('job', option.id)}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = "#f8f9fa";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "transparent";
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedFilters.job.includes(option.id)}
+                          onChange={() => {}}
+                          style={styles.checkbox}
+                        />
+                        <span style={{ fontSize: "14px" }}>{option.text}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={styles.emptyFilterMessage}>
+                      {selectedFilters.project && selectedFilters.project.length > 0 
+                        ? "No jobs found for the selected project(s)"
+                        : selectedFilters.workspace && selectedFilters.workspace.length > 0
+                        ? "No jobs found for the selected workspace(s)"
+                        : "No jobs available"}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* User Filter */}
+          <div style={styles.filterDropdown}>
+            <button
+              style={styles.filterButton}
+              onClick={() => toggleFilterDropdown('userName')}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "#3498db";
+                e.currentTarget.style.boxShadow = "0 0 0 2px rgba(52, 152, 219, 0.2)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "#ddd";
+                e.currentTarget.style.boxShadow = "none";
+              }}
+            >
+              {getFilterButtonLabel('userName')}
+              <i className={`fas fa-chevron-${filterDropdownOpen === 'userName' ? 'up' : 'down'}`} style={{ fontSize: "12px" }} />
+            </button>
+            {filterDropdownOpen === 'userName' && (
+              <div style={styles.dropdownContent}>
+                <div style={styles.dropdownSearch}>
+                  <input
+                    type="text"
+                    placeholder="Search users..."
+                    value={filterSearchTerm}
+                    onChange={(e) => setFilterSearchTerm(e.target.value)}
+                    style={styles.dropdownSearchInput}
+                  />
+                </div>
+                <div style={styles.dropdownList}>
+                  {getFilterOptions('userName').map((option) => (
+                    <div
+                      key={option.id || option.text}
+                      style={styles.checkboxItem}
+                      onClick={() => handleFilterCheckboxChange('userName', option.id || option.text)}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = "#f8f9fa";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = "transparent";
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedFilters.userName.includes(option.id || option.text)}
+                        onChange={() => {}}
+                        style={styles.checkbox}
+                      />
+                      <span style={{ fontSize: "14px" }}>{option.text}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Active Filters Display with Clear All Button */}
+        {getActiveFilterCount() > 0 && (
+          <div style={styles.activeFiltersContainer}>
+            
+            <div style={styles.activeFiltersContent}>
+              {Object.entries(selectedFilters).map(([filterType, values]) =>
+                values.map(value => (
+                  <span key={`${filterType}-${value}`} style={styles.filterTag}>
+                    <span style={{ textTransform: 'capitalize' }}>{filterType}</span>: {getFilterDisplayValue(filterType, value)}
+                    <button
+                      onClick={() => removeFilter(filterType, value)}
+                      style={styles.filterTagRemove}
+                      title="Remove filter"
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.color = "#e74c3c";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.color = "#666";
+                      }}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))
+              )}
+            </div>
+            <button
+              onClick={clearAllFilters}
+              style={styles.clearAllButton}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "#5a6268";
+                e.currentTarget.style.borderColor = "#545b62";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "#6c757d";
+                e.currentTarget.style.borderColor = "#6c757d";
+              }}
+            >
+              <i className="fas fa-times-circle" />
+              Clear All Filters
+            </button>
+          </div>
+        )}
 
         {viewMode === "table" ? (
           <div className="responsive-table-container">
@@ -1383,17 +1993,7 @@ const Dashboard = ({
                   ].map((c) => (
                     <th
                       key={c}
-                      draggable={[
-                        "date",
-                        "workspace",
-                        "project",
-                        "job",
-                        "userName",
-                      ].includes(c)}
-                      onDragStart={handleDragStart(c)}
-                      className={
-                        hierarchy.includes(c) ? "hierarchy-column" : ""
-                      }
+                      className="filterable-column"
                     >
                       {c === "date" && <i className="fas fa-calendar" />}
                       {c === "workspace" && <i className="fas fa-building" />}
@@ -1434,7 +2034,7 @@ const Dashboard = ({
                       </td>
                     </tr>
                   ))
-                ) : displayNotes.length === 0 ? (
+                ) : finalDisplayNotes.length === 0 ? (
                   <tr>
                     <td
                       colSpan={8}
@@ -1458,6 +2058,8 @@ const Dashboard = ({
                           <div>
                             {searchTerm.trim()
                               ? "No notes match your search"
+                              : getActiveFilterCount() > 0
+                              ? "No notes match your filters"
                               : "No notes available"}
                           </div>
                         </>
@@ -1465,7 +2067,7 @@ const Dashboard = ({
                     </td>
                   </tr>
                 ) : (
-                  displayNotes.map((n) => {
+                  finalDisplayNotes.map((n) => {
                     const notePriority = priorities.find(
                       (p) => Number(p.noteID) === Number(n.id)
                     );
@@ -1545,7 +2147,7 @@ const Dashboard = ({
                                   top: "4px",
                                   right: "4px",
                                   cursor: "pointer",
-                                  zIndex: 10 /* Above popup */,
+                                  zIndex: 10,
                                 }}
                                 title={
                                   notePriority.priorityValue === 3
@@ -1645,22 +2247,26 @@ const Dashboard = ({
                   </div>
                 </div>
               ))
-            ) : displayNotes.length === 0 ? (
+            ) : finalDisplayNotes.length === 0 ? (
               <div className="empty-state">
                 <i className="fas fa-search" />
                 <h3>
                   {searchTerm.trim()
                     ? "No notes match your search"
+                    : getActiveFilterCount() > 0
+                    ? "No notes match your filters"
                     : "No notes available"}
                 </h3>
                 <p>
                   {searchTerm.trim()
                     ? "Try adjusting your search terms"
+                    : getActiveFilterCount() > 0
+                    ? "Try clearing some filters"
                     : "Create your first note to get started"}
                 </p>
               </div>
             ) : (
-              displayNotes.map((note) => {
+              finalDisplayNotes.map((note) => {
                 const notePriority = priorities.find(
                   (p) => p.noteID === note.id
                 );
@@ -1701,19 +2307,13 @@ const Dashboard = ({
                       </div>
                       <div className="note-meta">
                         <div
-                          className="note-author draggable-value"
-                          draggable
-                          onDragStart={(e) =>
-                            handleDragStartValue("userName", note.userName)(e)
-                          }
-                          title="Drag to filter by user"
-                        ></div>
+                          className="note-author"
+                          title={note.userName || "Unknown User"}
+                        >
+                          {note.userName}
+                        </div>
                         <div
-                          className="note-date draggable-value"
-                          draggable
-                          onDragStart={(e) =>
-                            handleDragStartValue("date", note.date)(e)
-                          }
+                          className="note-date"
                           title={new Date(note.date).toLocaleDateString(
                             "en-US",
                             {
@@ -1729,38 +2329,17 @@ const Dashboard = ({
 
                       <div className="note-context">
                         <div
-                          className="context-item job draggable-value"
-                          draggable
-                          onDragStart={(e) =>
-                            handleDragStartValue("job", note.job)(e)
-                          }
-                          title="Drag to filter by job"
+                          className="context-item job"
+                          title={note.job}
                         >
                           {note.job}
                         </div>
                         <div className="context-item workspace-project">
-                          <span
-                            className="draggable-value"
-                            draggable
-                            onDragStart={(e) =>
-                              handleDragStartValue(
-                                "workspace",
-                                note.workspace
-                              )(e)
-                            }
-                            title="Drag to filter by workspace"
-                          >
+                          <span title={note.workspace}>
                             {note.workspace}
                           </span>
                           /
-                          <span
-                            className="draggable-value"
-                            draggable
-                            onDragStart={(e) =>
-                              handleDragStartValue("project", note.project)(e)
-                            }
-                            title="Drag to filter by project"
-                          >
+                          <span title={note.project}>
                             {note.project}
                           </span>
                         </div>
@@ -1774,7 +2353,7 @@ const Dashboard = ({
                         <div className="note-text">{note.note}</div>
 
                         {/* Hover Popup for Card View - only show if note is long */}
-                        {note.note.length > 150 && ( // Adjust 150 based on your card size
+                        {note.note.length > 69 && (
                           <div className="note-card-popup">{note.note}</div>
                         )}
                       </div>
@@ -1861,100 +2440,6 @@ const Dashboard = ({
           </div>
         )}
       </div>
-
-      {showFilterDialog && (
-        <div
-          className="modal-overlay"
-          onClick={() => setShowFilterDialog(false)}
-        >
-          <div
-            className="modal-content"
-            style={{ maxWidth: 400, padding: 20 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ marginTop: 0 }}>
-              Select{" "}
-              {currentFilterColumn.charAt(0).toUpperCase() +
-                currentFilterColumn.slice(1)}
-            </h3>
-            <div
-              style={{
-                maxHeight: 300,
-                overflowY: "auto",
-                margin: "10px 0",
-                border: "1px solid #eee",
-                borderRadius: 4,
-              }}
-            >
-              <div
-                onClick={() => handleFilterSelect("")}
-                style={{
-                  padding: 10,
-                  cursor: "pointer",
-                  background: selectedValues[currentFilterColumn]
-                    ? "#f5f5f5"
-                    : "#e3f2fd",
-                  fontWeight: "bold",
-                }}
-              >
-                All {currentFilterColumn}s
-              </div>
-              {(() => {
-                let opts;
-                if (currentFilterColumn === "project") opts = uniqueProjects;
-                else if (currentFilterColumn === "job") opts = uniqueJobs;
-                else if (currentFilterColumn === "workspace")
-                  opts = uniqueWorkspaces;
-                else if (currentFilterColumn === "date") opts = uniqueDates;
-                else if (currentFilterColumn === "userName")
-                  opts = uniqueUsernames;
-                return opts.map((it) => (
-                  <div
-                    key={it.id}
-                    onClick={() =>
-                      handleFilterSelect(
-                        currentFilterColumn === "date" ||
-                          currentFilterColumn === "userName"
-                          ? it.text
-                          : it.id
-                      )
-                    }
-                    style={{
-                      padding: 10,
-                      cursor: "pointer",
-                      background: (
-                        currentFilterColumn === "date" ||
-                        currentFilterColumn === "userName"
-                          ? selectedValues[currentFilterColumn] === it.text
-                          : selectedValues[currentFilterColumn] === it.id
-                      )
-                        ? "#e3f2fd"
-                        : "transparent",
-                      borderBottom: "1px solid #eee",
-                    }}
-                  >
-                    {it.text}
-                  </div>
-                ));
-              })()}
-            </div>
-            <button
-              onClick={() => setShowFilterDialog(false)}
-              style={{
-                width: "100%",
-                padding: 10,
-                background: "#1976d2",
-                color: "#fff",
-                border: "none",
-                borderRadius: 4,
-                cursor: "pointer",
-              }}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
 
       {showDeleteConfirm && (
         <div
@@ -2084,12 +2569,11 @@ const Dashboard = ({
           ref={newNoteModalRef}
           isOpen={showNewModal}
           onClose={() => {
-            console.log("Closing modal, resetting prefilledData");
             setPrefilledData(null);
             setShowNewModal(false);
           }}
           refreshNotes={refreshNotes}
-          refreshFilteredNotes={fetchFilteredSiteNotes}
+          refreshFilteredNotes={() => {}}
           addSiteNote={addSiteNote}
           projects={projects}
           jobs={jobs}
