@@ -1467,8 +1467,10 @@ const Dashboard = ({
             </button>
           </div>
         </div>
-
-        <div style={styles.searchBox}>
+        <div className="top-fixed-section">
+        <div
+          style={styles.searchBox}
+        >
           <div
             style={{
               position: "relative",
@@ -1975,8 +1977,10 @@ const Dashboard = ({
               Clear All Filters
             </button>
           </div>
-        )}
-
+          )}
+        
+      </div>
+      <div className="grid-scroll-container">
         {viewMode === "table" ? (
           <div className="responsive-table-container">
             <table>
@@ -2131,7 +2135,6 @@ const Dashboard = ({
                                 : n.note}
                             </span>
 
-                            {/* Hover Popup for Table View */}
                             {n.note.length > 69 && (
                               <div className="note-hover-popup">{n.note}</div>
                             )}
@@ -2440,6 +2443,8 @@ const Dashboard = ({
           </div>
         )}
       </div>
+</div>
+      
 
       {showDeleteConfirm && (
         <div

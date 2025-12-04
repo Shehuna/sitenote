@@ -1,5 +1,6 @@
 .dashboard {
-  max-width: 1200px;
+  width: 100%;
+  max-width: 100%;
   margin: 0 auto;
   padding: 20px;
 }
@@ -225,10 +226,6 @@ tr.selected-row.priority-4 {
   display: inline-block;
 }
 
-.priority-dot-low {
-  background-color: #5987ec;
-}
-
 .priority-dot-medium {
   background-color: #e8f628;
 }
@@ -257,12 +254,6 @@ tr.selected-row.priority-4 {
 .editable {
   position: relative !important;
 }
-
-td {
-  position: relative;
-  vertical-align: top;
-}
-
 
 /* View Toggle Styles */
 .view-toggle-container {
@@ -838,8 +829,9 @@ td {
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 999;
+  z-index: 10001;
   background: rgba(0, 0, 0, 0.1);
+  pointer-events: auto;
 }
 
 .priority-dropdown {
@@ -897,8 +889,8 @@ td {
   color: #2c3e50;
 }
 
-.priority-3 { background: #f39c12; } 
-.priority-4 { background: #e74c3c; } 
+.priority-3 { background: #e8f628; } 
+.priority-4 { background: #f83330; } 
 .priority-dot, .priority-indicator {
   width: 10px;
   height: 10px;
@@ -914,7 +906,7 @@ td {
 }
 
 .priority-dot-3, .priority-indicator.priority-3 { 
-  background: #f39c12; 
+  background: #e8f628; 
 }
 
 .priority-dot-4, .priority-indicator.priority-4 { 
@@ -922,11 +914,10 @@ td {
 }
 
 .priority-dot {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  cursor: pointer;
-  z-index: 1;
+  position: absolute !important;
+  top: 4px !important;
+  right: 4px !important;
+  z-index: 5 !important; 
 }
 
 .priority-indicator {
@@ -934,7 +925,7 @@ td {
 }
 
 .note-cell-container {
-  position: relative;
+  position: relative !important;
   width: 100%;
 }
 
@@ -964,7 +955,6 @@ td {
   animation: fadeInUp 0.2s ease;
 }
 
-/* Card View Hover Popup */
 .note-card-content-container {
   position: relative;
   width: 100%;
@@ -982,7 +972,7 @@ td {
   max-height: 300px;
   overflow-y: auto;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  z-index: 10001; /* Higher than table popup */
+  z-index: 10001; 
   display: none;
   white-space: pre-wrap;
   word-wrap: break-word;
@@ -996,7 +986,6 @@ td {
   animation: fadeInUp 0.2s ease;
 }
 
-/* Animation for popups */
 @keyframes fadeInUp {
   from {
     opacity: 0;
@@ -1008,7 +997,6 @@ td {
   }
 }
 
-/* Ensure proper stacking context */
 .editable {
   overflow: visible !important;
 }
@@ -1022,7 +1010,6 @@ td {
   z-index: 1;
 }
 
-/* Scrollbar for popups */
 .note-hover-popup::-webkit-scrollbar,
 .note-card-popup::-webkit-scrollbar {
   width: 6px;
@@ -1039,14 +1026,21 @@ td {
   background: #c1c1c1;
   border-radius: 3px;
 }
+.responsive-table-container td {
+  position: relative; 
+  vertical-align: top;
+}
 
-/* Add this to ensure table cells don't expand */
-.responsive-table-container td:nth-child(5) { /* 5th column is the note column */
+
+.responsive-table-container td.editable {
+  position: relative; 
+}
+
+.responsive-table-container td:nth-child(5) { 
   max-width: 300px;
   overflow: hidden;
 }
 
-/* Force ellipsis for long text in table cells */
 .responsive-table-container td:nth-child(5) span {
   display: inline-block;
   max-width: 100%;
@@ -1055,11 +1049,66 @@ td {
   white-space: nowrap;
 }
 
-/* Ensure the table layout stays fixed */
 .responsive-table-container table {
   table-layout: fixed;
   width: 100%;
 }
+
+
+.top-fixed-section {
+  flex-shrink: 0; 
+  position: sticky;
+  top: 0;
+  z-index: 1000 !important;
+  background: white;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #eee;
+}
+
+.grid-scroll-container {
+  flex: 1; 
+  min-height: 0; 
+  overflow-y: auto;
+  position: relative;
+}
+
+.responsive-table-container {
+  position: relative;
+  max-height: 100%;
+  overflow-y: auto;
+}
+
+.responsive-table-container table thead {
+  position: sticky;
+  top:-1px;
+  z-index: 100 !important;
+  background-color: white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.notes-grid-scroll {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+  padding: 20px;
+  height: 100%; 
+  min-height: 500px; 
+  overflow-y: auto;
+}
+
+.main-content {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; 
+}
+
 /* Responsive filter styles */
 @media (max-width: 768px) {
   .dashboard .filter-container {
@@ -1168,3 +1217,4 @@ td {
 .checkbox-item:hover {
   background-color: #f8f9fa;
 }
+
