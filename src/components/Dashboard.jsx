@@ -2139,37 +2139,73 @@ const Dashboard = ({
                               <div className="note-hover-popup">{n.note}</div>
                             )}
 
-                            {notePriority && notePriority.priorityValue > 1 && (
-                              <div
-                                className={`priority-dot priority-dot-${notePriority.priorityValue}`}
-                                style={{
-                                  width: "10px",
-                                  height: "10px",
-                                  borderRadius: "50%",
-                                  position: "absolute",
-                                  top: "4px",
-                                  right: "4px",
-                                  cursor: "pointer",
-                                  zIndex: 10,
-                                }}
-                                title={
-                                  notePriority.priorityValue === 3
-                                    ? "Medium Priority"
-                                    : notePriority.priorityValue === 4
-                                    ? "High Priority"
-                                    : "Low Priority"
-                                }
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedNoteForPriority(n);
-                                  setPriorityDropdownPosition({
-                                    x: e.clientX,
-                                    y: e.clientY,
-                                  });
-                                  setShowPriorityDropdown(true);
-                                }}
-                              />
-                            )}
+                            {notePriority && notePriority.priorityValue > 1 ? (
+                            <div
+                              className={`priority-dot priority-dot-${notePriority.priorityValue}`}
+                              style={{
+                                width: "10px",
+                                height: "10px",
+                                borderRadius: "50%",
+                                position: "absolute",
+                                top: "4px",
+                                right: "4px",
+                                cursor: "pointer",
+                                zIndex: 10,
+                              }}
+                              title={
+                                notePriority.priorityValue === 3
+                                  ? "Medium Priority - Click to change"
+                                  : notePriority.priorityValue === 4
+                                  ? "High Priority - Click to change"
+                                  : "Low Priority"
+                              }
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedNoteForPriority(n);
+                                setPriorityDropdownPosition({
+                                  x: e.clientX,
+                                  y: e.clientY,
+                                });
+                                setShowPriorityDropdown(true);
+                              }}
+                            />
+                          ) : (
+                            <div
+                              className="priority-dot priority-dot-placeholder"
+                              style={{
+                                width: "10px",
+                                height: "10px",
+                                borderRadius: "50%",
+                                position: "absolute",
+                                top: "4px",
+                                right: "4px",
+                                cursor: "pointer",
+                                zIndex: 10,
+                                opacity: 0.2,
+                                border: "1px dashed #bdc3c7",
+                                backgroundColor: "transparent",
+                                transition: "all 0.2s ease"
+                              }}
+                              title="Click to set priority"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedNoteForPriority(n);
+                                setPriorityDropdownPosition({
+                                  x: e.clientX,
+                                  y: e.clientY,
+                                });
+                                setShowPriorityDropdown(true);
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.opacity = "0.5";
+                                e.currentTarget.style.borderColor = "#3498db";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.opacity = "0.2";
+                                e.currentTarget.style.borderColor = "#bdc3c7";
+                              }}
+                            />
+                          )}
                           </div>
                         </td>
                         <td>{n.userName}</td>
@@ -2382,28 +2418,60 @@ const Dashboard = ({
                       </div>
                       <div className="footer-priority"></div>
                       <div className="note-actions">
-                        {notePriority && notePriority.priorityValue > 1 && (
-                          <div
-                            className={`priority-indicator priority-${notePriority.priorityValue}`}
-                            style={{ cursor: "pointer" }}
-                            title={
-                              notePriority.priorityValue === 3
-                                ? "Medium Priority"
-                                : notePriority.priorityValue === 4
-                                ? "High Priority"
-                                : "No Priority"
-                            }
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedNoteForPriority(note);
-                              setPriorityDropdownPosition({
-                                x: e.clientX,
-                                y: e.clientY,
-                              });
-                              setShowPriorityDropdown(true);
-                            }}
-                          />
-                        )}
+                       {notePriority && notePriority.priorityValue > 1 ? (
+                      <div
+                        className={`priority-indicator priority-${notePriority.priorityValue}`}
+                        style={{ cursor: "pointer" }}
+                        title={
+                          notePriority.priorityValue === 3
+                            ? "Medium Priority - Click to change"
+                            : notePriority.priorityValue === 4
+                            ? "High Priority - Click to change"
+                            : "No Priority"
+                        }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedNoteForPriority(note);
+                          setPriorityDropdownPosition({
+                            x: e.clientX,
+                            y: e.clientY,
+                          });
+                          setShowPriorityDropdown(true);
+                        }}
+                      />
+                    ) : (
+                      <div
+                        className="priority-placeholder"
+                        style={{ 
+                          cursor: "pointer",
+                          opacity: 0.2,
+                          transition: "all 0.2s ease",
+                          width: "16px",
+                          height: "16px",
+                          borderRadius: "50%",
+                          border: "1px dashed #ddd",
+                          backgroundColor: "transparent"
+                        }}
+                        title="Click to set priority"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedNoteForPriority(note);
+                          setPriorityDropdownPosition({
+                            x: e.clientX,
+                            y: e.clientY,
+                          });
+                          setShowPriorityDropdown(true);
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.opacity = "0.5";
+                          e.currentTarget.style.borderColor = "#3498db";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.opacity = "0.2";
+                          e.currentTarget.style.borderColor = "#ddd";
+                        }}
+                      />
+                    )}
                         <button
                           className="action-btn"
                           onClick={(e) => {

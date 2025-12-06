@@ -1,6 +1,8 @@
 .dashboard {
   width: 100%;
   max-width: 100%;
+  width: 100%;
+  max-width: 100%;
   margin: 0 auto;
   padding: 20px;
 }
@@ -923,6 +925,23 @@ tr.selected-row.priority-4 {
 .priority-indicator {
   flex-shrink: 0;
 }
+.priority-placeholder {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 1px dashed #bdc3c7;
+  background-color: transparent;
+  opacity: 0.3;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.priority-placeholder:hover {
+  opacity: 0.7;
+  border-color: #3498db;
+  background-color: rgba(52, 152, 219, 0.1);
+}
 
 .note-cell-container {
   position: relative !important;
@@ -1107,6 +1126,7 @@ tr.selected-row.priority-4 {
   display: flex;
   flex-direction: column;
   min-height: 0; 
+  box-sizing: border-box;
 }
 
 /* Responsive filter styles */
