@@ -225,8 +225,16 @@ const EditNoteModal = ({
         fetchInlineImages(note.id).then(images => {
           setExistingImages(images);
           
-          // Build initial HTML content
+          // Start with the note's existing HTML content
           let content = note.note || '';
+          
+          // If note content doesn't have HTML formatting, check if it's plain text
+          if (content && !content.includes('<') && !content.includes('>')) {
+            // It's plain text, wrap it in a div to preserve formatting
+            content = `<div>${content}</div>`;
+          }
+          
+          // Append images as separate wrappers
           if (images.length > 0) {
             const imageHtml = images.map(img => {
               const imageUrl = img.url.startsWith('http') ? img.url : 
@@ -395,12 +403,26 @@ const EditNoteModal = ({
           const selection = window.getSelection();
           if (selection.rangeCount > 0) {
             const range = selection.getRangeAt(0);
+            
+            // Insert a line break before the image if needed
+            const previousNode = range.startContainer;
+            if (previousNode.nodeType === Node.TEXT_NODE && 
+                previousNode.textContent && 
+                !previousNode.textContent.endsWith('\n')) {
+              const br = document.createElement('br');
+              range.insertNode(br);
+            }
+            
             const fragment = range.createContextualFragment(imageHtml);
             range.deleteContents();
             range.insertNode(fragment);
             
-            range.setStartAfter(fragment.lastChild);
-            range.setEndAfter(fragment.lastChild);
+            // Add a line break after the image
+            const br = document.createElement('br');
+            range.insertNode(br);
+            
+            range.setStartAfter(br);
+            range.setEndAfter(br);
             selection.removeAllRanges();
             selection.addRange(range);
           }
@@ -409,9 +431,11 @@ const EditNoteModal = ({
           setRichTextContent(newContent);
           lastRichTextContent.current = newContent;
           setTimeout(() => addImageClickHandlers(), 100);
+          
+          toast.success('Image added - will be saved separately');
         }).catch(error => {
           console.error('Error processing pasted image:', error);
-          document.execCommand('insertText', false, '[Image paste failed]');
+          document.execCommand('insertText', false, '');
           const newContent = editorRef.current.innerHTML;
           setRichTextContent(newContent);
           lastRichTextContent.current = newContent;
@@ -430,13 +454,19 @@ const EditNoteModal = ({
   }, [canEditNote, isEditable, addImageClickHandlers]);
 
   // Handle editor input
-  const handleEditorInput = useCallback(() => {
+  const handleEditorInput = useCallback((e) => {
     if (editorRef.current) {
+      // Only update if content actually changed
       const newContent = editorRef.current.innerHTML;
-      setRichTextContent(newContent);
-      lastRichTextContent.current = newContent;
+      const currentContent = richTextContent || lastRichTextContent.current;
+      
+      // Simple comparison to avoid unnecessary updates
+      if (newContent !== currentContent) {
+        setRichTextContent(newContent);
+        lastRichTextContent.current = newContent;
+      }
     }
-  }, []);
+  }, [richTextContent]);
 
   // Handle image upload
   const handleImageUpload = useCallback((e) => {
@@ -452,7 +482,14 @@ const EditNoteModal = ({
     
     processPastedImage(file).then((imageHtml) => {
       if (editorRef.current) {
-        editorRef.current.insertAdjacentHTML('beforeend', imageHtml);
+        // Insert at the end with proper spacing
+        const br = document.createElement('br');
+        editorRef.current.appendChild(br);
+        
+        const fragment = document.createRange().createContextualFragment(imageHtml);
+        editorRef.current.appendChild(fragment);
+        
+        editorRef.current.appendChild(br.cloneNode());
         
         const newContent = editorRef.current.innerHTML;
         setRichTextContent(newContent);
@@ -462,11 +499,11 @@ const EditNoteModal = ({
         
         editorRef.current.scrollTop = editorRef.current.scrollHeight;
         
-        toast.success('Image uploaded successfully');
+        toast.success('Image added - will be saved separately');
       }
     }).catch(error => {
       console.error('Error uploading image:', error);
-      toast.error('Failed to upload image');
+      toast.error('Failed to add image');
     });
     
     e.target.value = '';
@@ -540,7 +577,7 @@ const EditNoteModal = ({
     setShowDeleteConfirm(false);
     setImageToDelete(null);
     
-    toast.success('Image deleted successfully');
+    toast.success('Image marked for deletion');
   };
 
   // Handle remove button clicks inside editor
@@ -609,30 +646,49 @@ const EditNoteModal = ({
 
     const formData = new FormData();
     
-    formData.append('File', doc.file);      
+    // Append the file with correct field name
+    formData.append('File', doc.file);
+    
+    // Append other required fields
     formData.append('SiteNoteId', siteNoteId);
     formData.append('UserId', userId);
+    
+    // Optional: add description or name if API supports it
+    if (doc.name) {
+      formData.append('Description', doc.name);
+    }
    
+    console.log('Uploading inline image:', {
+      fileName: doc.file.name,
+      fileSize: doc.file.size,
+      siteNoteId,
+      userId
+    });
+
     const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/InlineImages/UploadInlineImage`, {
       method: "POST",
       body: formData,
+      // Don't set Content-Type header - browser will set it with boundary for FormData
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      let errorMessage = 'Upload failed';
+      let errorMessage = 'Image upload failed';
       
       try {
         const errorData = JSON.parse(errorText);
-        errorMessage = errorData.message || errorData.errors?.Name?.[0] || errorMessage;
+        errorMessage = errorData.message || errorData.errors?.File?.[0] || errorMessage;
       } catch (e) {
         errorMessage = `Server error: ${response.status} ${response.statusText}`;
       }
       
+      console.error('Inline image upload failed:', errorMessage);
       throw new Error(errorMessage);
     }
 
-    return await response.json();
+    const result = await response.json();
+    console.log('Inline image upload success:', result);
+    return result;
   };
 
   // Delete inline image
@@ -691,6 +747,328 @@ const EditNoteModal = ({
       setIsLoadingDocuments(false);
     }
   }, []);
+
+  // Helper function to clean note content
+  const cleanNoteContent = (content) => {
+    if (!content || content.trim() === '') return '';
+    
+    // Remove trailing <br> tags
+    content = content.replace(/<br\s*\/?>$/gi, '');
+    
+    // Remove empty paragraphs and divs at the end
+    content = content.replace(/<(p|div)>\s*<\/\1>$/gi, '');
+    
+    // Trim whitespace
+    content = content.trim();
+    
+    return content;
+  };
+
+  // FIXED: Prepare note content for saving - remove images completely
+  const prepareNoteContent = () => {
+    if (editorRef.current) {
+      // Get the HTML content
+      let htmlContent = editorRef.current.innerHTML;
+      
+      // If content is empty, return empty string
+      if (!htmlContent || htmlContent.trim() === '') {
+        return '';
+      }
+      
+      // Create a temporary div to clean the HTML
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = htmlContent;
+      
+      // Remove image elements completely (not replacing with placeholders)
+      const imageWrappers = tempDiv.querySelectorAll('.image-wrapper');
+      imageWrappers.forEach(wrapper => {
+        wrapper.remove();
+      });
+      
+      // Clean up empty elements
+      const cleanupEmptyElements = (element) => {
+        // Remove empty text nodes
+        Array.from(element.childNodes).forEach(child => {
+          if (child.nodeType === Node.TEXT_NODE && child.textContent.trim() === '') {
+            child.remove();
+          }
+        });
+        
+        // Remove empty elements
+        const emptyElements = element.querySelectorAll('div, p, span, br');
+        emptyElements.forEach(el => {
+          // Check if element is empty or only contains whitespace
+          const hasContent = el.textContent && el.textContent.trim() !== '';
+          const hasChildren = el.children && el.children.length > 0;
+          
+          if (!hasContent && !hasChildren) {
+            el.remove();
+          } else if (el.tagName === 'BR' && !el.nextSibling && !el.previousSibling) {
+            // Remove lone <br> tags
+            el.remove();
+          }
+        });
+      };
+      
+      cleanupEmptyElements(tempDiv);
+      
+      // Get clean HTML content without images
+      htmlContent = tempDiv.innerHTML.trim();
+      
+      // If content is just empty tags, return empty string
+      if (!htmlContent || htmlContent === '<br>' || htmlContent === '<div></div>' || 
+          htmlContent === '<p></p>' || htmlContent === '<span></span>') {
+        return '';
+      }
+      
+      return htmlContent;
+    }
+    
+    // Fallback: use stored content and remove any image references
+    let content = richTextContent || lastRichTextContent.current || originalNoteContent || '';
+    
+    if (!content || content.trim() === '') {
+      return '';
+    }
+    
+    // Create a temporary div
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = content;
+    
+    // Remove image wrappers
+    const imageWrappers = tempDiv.querySelectorAll('.image-wrapper');
+    imageWrappers.forEach(wrapper => wrapper.remove());
+    
+    // Clean up empty elements
+    const cleanupEmptyElements = (element) => {
+      Array.from(element.childNodes).forEach(child => {
+        if (child.nodeType === Node.TEXT_NODE && child.textContent.trim() === '') {
+          child.remove();
+        }
+      });
+      
+      const emptyElements = element.querySelectorAll('div, p, span, br');
+      emptyElements.forEach(el => {
+        const hasContent = el.textContent && el.textContent.trim() !== '';
+        const hasChildren = el.children && el.children.length > 0;
+        
+        if (!hasContent && !hasChildren) {
+          el.remove();
+        } else if (el.tagName === 'BR' && !el.nextSibling && !el.previousSibling) {
+          el.remove();
+        }
+      });
+    };
+    
+    cleanupEmptyElements(tempDiv);
+    
+    // Get cleaned content
+    let htmlContent = tempDiv.innerHTML.trim();
+    
+    // Check for empty content
+    if (!htmlContent || htmlContent === '<br>' || htmlContent === '<div></div>' || 
+        htmlContent === '<p></p>' || htmlContent === '<span></span>') {
+      return '';
+    }
+    
+    return htmlContent;
+  };
+
+  // Handle save note
+  const handleSaveNote = async () => {
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      let noteIdToReturn = note.id;
+      
+      // If user is not creator, only allow priority update
+      if (!canEditNote) {
+        await handleUpdatepriority();
+        onClose(noteIdToReturn);
+        refreshNotes();
+        return;
+      }
+
+      // If note is older than 24 hours, only allow priority update
+      if (!isEditable) {
+        await handleUpdatepriority();
+        onClose(noteIdToReturn);
+        refreshNotes();
+        return;
+      }
+
+      const originalProjectId = note.projectId
+        ? note.projectId.toString()
+        : findProjectIdByName(note.project || "");
+      const originalJobId = note.jobId
+        ? note.jobId.toString()
+        : findJobIdByName(note.job || "", originalProjectId);
+
+      if (
+        journalData.projectId !== originalProjectId ||
+        journalData.jobId !== originalJobId
+      ) {
+        setError(
+          "Cannot update this record. You can only update the notes you created."
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Extract clean text content WITHOUT images
+      let noteText = prepareNoteContent();
+      
+      // Clean the content further
+      noteText = cleanNoteContent(noteText);
+
+      // Check if there's any content (text OR images)
+      const hasTextContent = noteText.replace(/<[^>]*>/g, '').trim().length > 0;
+      const hasImages = pastedImages.length > 0;
+      
+      if (!hasTextContent && !hasImages) {
+        setError("Note content is required");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Save the note without any image references
+      const result = await updateNote(note.id, {
+        Date: new Date(journalData.date).toISOString(),
+        Note: noteText,
+        JobId: journalData.jobId,
+        UserId: journalData.userId,
+      });
+
+      if (result && (result.success || result.id || result.message)) {
+        const user = getCurrentUser();
+        
+        // Delete images marked for deletion
+        for (const imageId of imagesToDelete) {
+          try {
+            await deleteInlineImage(imageId);
+            console.log(`Deleted image ${imageId}`);
+          } catch (err) {
+            console.error(`Error deleting image ${imageId}:`, err);
+            toast.error(`Failed to delete image: ${err.message}`);
+          }
+        }
+        
+        // Upload new pasted images separately
+        if (pastedImages.length > 0) {
+          const imageUploadPromises = pastedImages.map(async (image, index) => {
+            try {
+              // Convert base64 to blob
+              const base64Response = await fetch(image.base64);
+              const blob = await base64Response.blob();
+              
+              // Create a file from blob
+              const file = new File([blob], image.name, { type: image.type });
+              
+              // Upload as inline image
+              const imageDoc = {
+                name: image.name,
+                file: file,
+                fileName: image.name
+              };
+              
+              console.log(`Uploading new image "${image.name}" to inline images endpoint...`);
+              const result = await uploadInlineImage(imageDoc, note.id, user.id);
+              console.log(`Image "${image.name}" uploaded successfully with ID:`, result.id);
+              
+              return { success: true, name: image.name };
+            } catch (imageError) {
+              console.error('Error uploading pasted image:', imageError);
+              return { 
+                success: false, 
+                name: image.name, 
+                error: imageError.message 
+              };
+            }
+          });
+          
+          // Wait for all image uploads to complete
+          const results = await Promise.all(imageUploadPromises);
+          
+          // Check for failures
+          const failedUploads = results.filter(r => !r.success);
+          if (failedUploads.length > 0) {
+            console.warn(`${failedUploads.length} image(s) failed to upload:`, failedUploads);
+            toast.error(`${failedUploads.length} image(s) failed to upload`);
+          }
+          
+          const successfulUploads = results.filter(r => r.success);
+          if (successfulUploads.length > 0) {
+            toast.success(`${successfulUploads.length} image(s) uploaded successfully`);
+          }
+        }
+        
+        await handleUpdatepriority();
+        onClose();
+        refreshNotes();
+        toast.success('Note updated successfully!');
+      } else {
+        throw new Error("Failed to save note: No success confirmation from server");
+      }
+    } catch (err) {
+      console.error("Error saving note:", err);
+      setError(err.message || "Failed to save note. Please check your connection and try again.");
+      toast.error('Failed to save note');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSaveShortcut = useCallback((event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+      event.preventDefault();
+      if (!isSubmitting && canEditNote && isEditable) {
+        handleSaveNote();
+      }
+    }
+  }, [isSubmitting, handleSaveNote, canEditNote, isEditable]);
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleSaveShortcut);
+    return () => {
+      document.removeEventListener('keydown', handleSaveShortcut);
+    };
+  }, [handleSaveShortcut]);
+
+  const handleUpdatepriority = async () => {
+    try {
+      const user = JSON.parse(localStorage.getItem("user"));
+      let response;
+
+      if (priorityId) {
+        response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Priority/UpdatePriority/${priorityId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ priorityValue: selectedPriority }),
+        });
+      } else {
+        response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Priority/AddPriority`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            noteID: note.id,
+            priorityValue: selectedPriority,
+            userId: user.id,
+          }),
+        });
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `Failed to ${priorityId ? "update" : "create"} priority`);
+      }
+
+      toast.success(`Priority ${priorityId ? "updated" : "created"} successfully`);
+    } catch (error) {
+      console.error("Error saving priority:", error);
+      throw error;
+    }
+  };
 
   const handleAddDocument = () => {
     if (!isEditable || !canEditNote) return;
@@ -811,208 +1189,6 @@ const EditNoteModal = ({
     }
   };
 
-  // FIXED: Prepare note content for saving - clean text extraction
-  const prepareNoteContent = () => {
-    // First try to get content from the editor directly
-    if (editorRef.current) {
-      // Clone the editor to avoid modifying the original
-      const editorClone = editorRef.current.cloneNode(true);
-      
-      // Remove all image wrappers
-      const imageWrappers = editorClone.querySelectorAll('.image-wrapper');
-      imageWrappers.forEach(wrapper => wrapper.remove());
-      
-      // Get text content
-      let textContent = editorClone.textContent || editorClone.innerText || '';
-      
-      // Clean up the text - remove extra whitespace
-      textContent = textContent
-        .split('\n') // Split by line breaks
-        .map(line => line.trim()) // Trim each line
-        .filter(line => line.length > 0) // Remove empty lines
-        .join('\n') // Join with single line breaks
-        .trim(); // Final trim
-      
-      return textContent;
-    }
-    
-    // Fallback: use stored content
-    let content = richTextContent || lastRichTextContent.current || originalNoteContent || '';
-    
-    if (!content) return '';
-    
-    // Create a temporary div
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = content;
-    
-    // Remove image wrappers
-    const imageWrappers = tempDiv.querySelectorAll('.image-wrapper');
-    imageWrappers.forEach(wrapper => wrapper.remove());
-    
-    // Get and clean text content
-    let textContent = tempDiv.textContent || tempDiv.innerText || '';
-    
-    // Clean up the text
-    textContent = textContent
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0)
-      .join('\n')
-      .trim();
-    
-    return textContent;
-  };
-
-  // Handle save note
-  const handleSaveNote = async () => {
-    setIsSubmitting(true);
-    setError(null);
-
-    try {
-      let noteIdToReturn = note.id;
-      
-      // If user is not creator, only allow priority update
-      if (!canEditNote) {
-        await handleUpdatepriority();
-        onClose(noteIdToReturn);
-        refreshNotes();
-        return;
-      }
-
-      // If note is older than 24 hours, only allow priority update
-      if (!isEditable) {
-        await handleUpdatepriority();
-        onClose(noteIdToReturn);
-        refreshNotes();
-        return;
-      }
-
-      const originalProjectId = note.projectId
-        ? note.projectId.toString()
-        : findProjectIdByName(note.project || "");
-      const originalJobId = note.jobId
-        ? note.jobId.toString()
-        : findJobIdByName(note.job || "", originalProjectId);
-
-      if (
-        journalData.projectId !== originalProjectId ||
-        journalData.jobId !== originalJobId
-      ) {
-        setError(
-          "Cannot update this record. You can only update the notes you created."
-        );
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Extract clean text content
-      const noteText = prepareNoteContent();
-
-      const result = await updateNote(note.id, {
-        Date: new Date(journalData.date).toISOString(),
-        Note: noteText,
-        JobId: journalData.jobId,
-        UserId: journalData.userId,
-      });
-
-      if (result && (result.success || result.id || result.message)) {
-        const user = getCurrentUser();
-        
-        // Delete images marked for deletion
-        for (const imageId of imagesToDelete) {
-          try {
-            await deleteInlineImage(imageId);
-          } catch (err) {
-            console.error(`Error deleting image ${imageId}:`, err);
-          }
-        }
-        
-        // Upload new pasted images
-        for (const image of pastedImages) {
-          try {
-            const base64Response = await fetch(image.base64);
-            const blob = await base64Response.blob();
-            
-            const file = new File([blob], image.name, { type: image.type });
-            
-            const imageDoc = {
-              name: image.name,
-              file: file,
-              fileName: image.name
-            };
-            
-            await uploadInlineImage(imageDoc, note.id, user.id);
-          } catch (imageError) {
-            console.error('Error uploading pasted image:', imageError);
-            toast.error(`Failed to upload image "${image.name}": ${imageError.message}`);
-          }
-        }
-        
-        await handleUpdatepriority();
-        onClose();
-        refreshNotes();
-      } else {
-        throw new Error("Failed to save note: No success confirmation from server");
-      }
-    } catch (err) {
-      console.error("Error saving note:", err);
-      setError(err.message || "Failed to save note. Please check your connection and try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleSaveShortcut = useCallback((event) => {
-    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
-      event.preventDefault();
-      if (!isSubmitting && canEditNote && isEditable) {
-        handleSaveNote();
-      }
-    }
-  }, [isSubmitting, handleSaveNote, canEditNote, isEditable]);
-
-  useEffect(() => {
-    document.addEventListener('keydown', handleSaveShortcut);
-    return () => {
-      document.removeEventListener('keydown', handleSaveShortcut);
-    };
-  }, [handleSaveShortcut]);
-
-  const handleUpdatepriority = async () => {
-    try {
-      const user = JSON.parse(localStorage.getItem("user"));
-      let response;
-
-      if (priorityId) {
-        response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Priority/UpdatePriority/${priorityId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ priorityValue: selectedPriority }),
-        });
-      } else {
-        response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Priority/AddPriority`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            noteID: note.id,
-            priorityValue: selectedPriority,
-            userId: user.id,
-          }),
-        });
-      }
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to ${priorityId ? "update" : "create"} priority`);
-      }
-
-      toast.success(`Priority ${priorityId ? "updated" : "created"} successfully`);
-    } catch (error) {
-      console.error("Error saving priority:", error);
-      throw error;
-    }
-  };
-
   // Editor toolbar component with disabled clear button
   const renderEditorToolbar = () => (
     <div className="editor-toolbar">
@@ -1087,7 +1263,7 @@ const EditNoteModal = ({
         <div className="image-counter">
           <i className="fas fa-images"></i> 
           {existingImages.length} existing image{existingImages.length !== 1 ? 's' : ''}
-          {pastedImages.length > 0 && `, ${pastedImages.length} new image${pastedImages.length !== 1 ? 's' : ''}`}
+          {pastedImages.length > 0 && `, ${pastedImages.length} new image${pastedImages.length !== 1 ? 's' : ''} (will be saved separately)`}
         </div>
       )}
     </div>
@@ -1339,7 +1515,8 @@ const EditNoteModal = ({
                   className="rich-text-editor"
                   onPaste={handlePaste}
                   onInput={handleEditorInput}
-                  placeholder="Write your note here... You can paste images directly!"
+                  onBlur={handleEditorInput}
+                  placeholder="Edit your note here... You can add new images and they will be saved separately."
                   suppressContentEditableWarning={true}
                   style={{
                     pointerEvents: isEditable && canEditNote ? 'auto' : 'none',

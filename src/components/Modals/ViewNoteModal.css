@@ -42,7 +42,6 @@
   --button-hover-color: #333;
 }
 
-
 .view-note-modal-overlay.theme-white {
   background-color: #ffffff; /* Use a solid hex color */
   opacity: 1; /* Explicitly set opacity to 1 to remove any inherited transparency */
@@ -184,7 +183,6 @@
     border: 2px solid #a7a8ab !important;
 }
 
-
 .message.received.selected.priority-4 {
     box-shadow: 0 0 10px rgba(211, 43, 21, 0.3);
 }
@@ -200,7 +198,6 @@
 .message.received.selected.priority-1 {
     box-shadow: 0 0 10px rgba(167, 168, 171, 0.3);
 }
-
 
 
 .message-header {
@@ -356,7 +353,6 @@
   font-size: 14px;
   font-weight: 600;
 }
-
 
 /* new css */
 .view-note-modal-overlay {
@@ -1197,4 +1193,66 @@
 /* Make images look more clickable */
 .image-item:hover .inline-image {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+/* Style for HTML content in message text */
+.message-text {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #333;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Formatting for HTML tags */
+.message-text strong,
+.message-text b {
+  font-weight: bold;
+}
+
+.message-text em,
+.message-text i {
+  font-style: italic;
+}
+
+.message-text u,
+.message-text ins {
+  text-decoration: underline;
+}
+
+.message-text ul,
+.message-text ol {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.message-text li {
+  margin: 4px 0;
+}
+
+.message-text p {
+  margin: 8px 0;
+}
+
+.message-text div {
+  margin: 8px 0;
+}
+
+/* Ensure images in notes are displayed properly */
+.message-text img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 8px 0;
+  display: block;
+}
+
+/* Style for links */
+.message-text a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+.message-text a:hover {
+  text-decoration: underline;
 }

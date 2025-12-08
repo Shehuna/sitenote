@@ -405,7 +405,10 @@ const ViewNoteModal = ({
                     <div className="message-date-below">
                       {formatDate(doc.date)}
                     </div>
-                    <div className="message-text">{doc.note}</div>
+                    <div 
+  className="message-text" 
+  dangerouslySetInnerHTML={{ __html: doc.note }} 
+/>
                     
                     {/* Render images below the note text */}
                     {renderNoteImages(doc.id)}

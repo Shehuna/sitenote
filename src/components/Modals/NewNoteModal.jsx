@@ -186,55 +186,94 @@ const NewNoteModal = forwardRef(({
     });
 };
 
-    const handlePaste = useCallback((e) => {
-        if (!editorRef.current) return;
+   const handlePaste = useCallback((e) => {
+    if (!editorRef.current) return;
+    
+    e.preventDefault();
+    const clipboardData = e.clipboardData || window.Clipboard;
+    
+    // Check for pasted images
+    if (clipboardData.files && clipboardData.files.length > 0) {
+        const file = clipboardData.files[0];
         
-        e.preventDefault();
-        const clipboardData = e.clipboardData || window.Clipboard;
-        
-        // Check for pasted images
-        if (clipboardData.files && clipboardData.files.length > 0) {
-            const file = clipboardData.files[0];
-            
-            // Check if it's an image
-            if (file.type.startsWith('image/')) {
-                processPastedImage(file).then((imgElement) => {
-                    // Insert image at cursor position
-                    const selection = window.getSelection();
-                    if (selection.rangeCount > 0) {
-                        const range = selection.getRangeAt(0);
-                        range.deleteContents();
-                        range.insertNode(imgElement);
-                        
-                        // Add a space after the image for better editing
-                        const textNode = document.createTextNode(' ');
-                        range.insertNode(textNode);
-                        
-                        // Move cursor after the image
-                        range.setStartAfter(textNode);
-                        range.setEndAfter(textNode);
-                        selection.removeAllRanges();
-                        selection.addRange(range);
-                    }
+        // Check if it's an image
+        if (file.type.startsWith('image/')) {
+            processPastedImage(file).then((imgElement) => {
+                // Insert image at cursor position
+                const selection = window.getSelection();
+                if (selection.rangeCount > 0) {
+                    const range = selection.getRangeAt(0);
                     
-                    // Update content
-                    setRichTextContent(editorRef.current.innerHTML);
-                }).catch(error => {
-                    console.error('Error processing pasted image:', error);
-                    // Fallback: insert plain text
-                    document.execCommand('insertText', false, '[Image paste failed]');
-                });
-                return;
-            }
+                    // Check if we're at the end of a block element
+                    const container = range.commonAncestorContainer;
+                    
+                    // Insert the image
+                    range.deleteContents();
+                    range.insertNode(imgElement);
+                    
+                    // Add a single space after the image for better editing
+                    const space = document.createTextNode(' ');
+                    range.insertNode(space);
+                    
+                    // Move cursor after the space
+                    range.setStartAfter(space);
+                    range.setEndAfter(space);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                }
+                
+                // Update content
+                setRichTextContent(editorRef.current.innerHTML);
+            }).catch(error => {
+                console.error('Error processing pasted image:', error);
+                // Fallback: insert plain text
+                document.execCommand('insertText', false, '');
+            });
+            return;
         }
-        
-        // Handle plain text paste
-        const pastedText = clipboardData.getData('text');
-        if (pastedText) {
-            document.execCommand('insertText', false, pastedText);
+    }
+    
+    // Handle plain text paste
+    const pastedText = clipboardData.getData('text');
+    if (pastedText) {
+        document.execCommand('insertText', false, pastedText);
+        setRichTextContent(editorRef.current.innerHTML);
+    }
+}, []);
+
+const handleImageUpload = useCallback((e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    if (!file.type.startsWith('image/')) {
+        toast.error('Please select an image file');
+        return;
+    }
+    
+    processPastedImage(file).then((imgElement) => {
+        if (editorRef.current) {
+            // Insert at the end with minimal spacing
+            editorRef.current.appendChild(imgElement);
+            
+            // Add a single space for editing
+            editorRef.current.appendChild(document.createTextNode(' '));
+            
+            // Update content
             setRichTextContent(editorRef.current.innerHTML);
+            
+            // Scroll to the bottom
+            editorRef.current.scrollTop = editorRef.current.scrollHeight;
+            
+            toast.success('Image uploaded successfully - will be saved separately');
         }
-    }, []);
+    }).catch(error => {
+        console.error('Error uploading image:', error);
+        toast.error('Failed to upload image');
+    });
+    
+    // Reset file input
+    e.target.value = '';
+}, []);
 
     const handleEditorInput = useCallback(() => {
         if (editorRef.current) {
@@ -242,38 +281,39 @@ const NewNoteModal = forwardRef(({
         }
     }, []);
 
-    const handleImageUpload = useCallback((e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        
-        if (!file.type.startsWith('image/')) {
-            toast.error('Please select an image file');
-            return;
+    /* const handleImageUpload = useCallback((e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    if (!file.type.startsWith('image/')) {
+        toast.error('Please select an image file');
+        return;
+    }
+    
+    processPastedImage(file).then((imgElement) => {
+        if (editorRef.current) {
+            // Insert at the end with proper spacing
+            const br = document.createElement('br');
+            editorRef.current.appendChild(br);
+            editorRef.current.appendChild(imgElement);
+            editorRef.current.appendChild(br.cloneNode());
+            
+            // Update content
+            setRichTextContent(editorRef.current.innerHTML);
+            
+            // Scroll to the bottom
+            editorRef.current.scrollTop = editorRef.current.scrollHeight;
+            
+            toast.success('Image uploaded successfully - will be saved separately');
         }
-        
-        processPastedImage(file).then((imgElement) => {
-            if (editorRef.current) {
-                // Insert at the end
-                editorRef.current.appendChild(imgElement);
-                // Add a line break
-                editorRef.current.appendChild(document.createElement('br'));
-                
-                // Update content
-                setRichTextContent(editorRef.current.innerHTML);
-                
-                // Scroll to the bottom
-                editorRef.current.scrollTop = editorRef.current.scrollHeight;
-                
-                toast.success('Image uploaded successfully');
-            }
-        }).catch(error => {
-            console.error('Error uploading image:', error);
-            toast.error('Failed to upload image');
-        });
-        
-        // Reset file input
-        e.target.value = '';
-    }, []);
+    }).catch(error => {
+        console.error('Error uploading image:', error);
+        toast.error('Failed to upload image');
+    });
+    
+    // Reset file input
+    e.target.value = '';
+}, []); */
 
     const clearEditor = () => {
         if (editorRef.current) {
@@ -746,26 +786,141 @@ const NewNoteModal = forwardRef(({
     }, [showSearchResults]);
 
     // Prepare note content with images
-    const prepareNoteContent = () => {
-        // For rich text mode, we need to extract images and prepare content
-        if (pastedImages.length === 0) {
-            return richTextContent;
+    // Prepare note content with images
+const prepareNoteContent = () => {
+    // If there are no pasted images, return the content as-is
+    if (pastedImages.length === 0) {
+        // Still clean up any potential empty elements
+        let cleanContent = richTextContent;
+        if (cleanContent) {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = cleanContent;
+            
+            // Remove any image elements
+            const images = tempDiv.querySelectorAll('img');
+            images.forEach(img => img.remove());
+            
+            // Clean up empty elements
+            cleanContent = cleanHtml(tempDiv.innerHTML);
+        }
+        return cleanContent || '';
+    }
+    
+    // Create a temporary div to work with the content
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = richTextContent;
+    
+    // Remove image elements completely
+    const images = tempDiv.querySelectorAll('img[data-image-id]');
+    images.forEach(img => {
+        img.remove();
+    });
+    
+    // Get the cleaned HTML
+    let cleanContent = tempDiv.innerHTML;
+    
+    // Clean up the HTML to remove empty elements and excessive whitespace
+    cleanContent = cleanHtml(cleanContent);
+    
+    return cleanContent;
+};
+
+// Helper function to clean HTML and remove empty elements/whitespace
+const cleanHtml = (htmlContent) => {
+    if (!htmlContent || htmlContent.trim() === '') {
+        return '';
+    }
+    
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = htmlContent;
+    
+    // Remove empty elements
+    const emptyElements = tempDiv.querySelectorAll('div:empty, p:empty, span:empty, br:only-child');
+    emptyElements.forEach(el => {
+        // Check if element is truly empty or just has whitespace
+        if (!el.textContent.trim() && !el.querySelector('*')) {
+            el.remove();
+        }
+    });
+    
+    // Remove <br> tags that are at the beginning or end of block elements
+    const blockElements = tempDiv.querySelectorAll('div, p');
+    blockElements.forEach(block => {
+        // Remove leading <br> tags
+        let firstChild = block.firstChild;
+        while (firstChild && 
+               ((firstChild.nodeType === Node.ELEMENT_NODE && firstChild.tagName === 'BR') ||
+                (firstChild.nodeType === Node.TEXT_NODE && !firstChild.textContent.trim()))) {
+            const nextSibling = firstChild.nextSibling;
+            firstChild.remove();
+            firstChild = nextSibling;
         }
         
-        // Create a temporary div to work with the content
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = richTextContent;
+        // Remove trailing <br> tags
+        let lastChild = block.lastChild;
+        while (lastChild && 
+               ((lastChild.nodeType === Node.ELEMENT_NODE && lastChild.tagName === 'BR') ||
+                (lastChild.nodeType === Node.TEXT_NODE && !lastChild.textContent.trim()))) {
+            const previousSibling = lastChild.previousSibling;
+            lastChild.remove();
+            lastChild = previousSibling;
+        }
         
-        // Replace image elements with placeholders for storage
-        const images = tempDiv.querySelectorAll('img[data-image-id]');
-        images.forEach((img, index) => {
-            const imageId = img.getAttribute('data-image-id');
-            const placeholder = document.createTextNode(`[IMAGE:${imageId}]`);
-            img.parentNode.replaceChild(placeholder, img);
+        // Remove consecutive <br> tags
+        const brElements = block.querySelectorAll('br');
+        brElements.forEach((br, index) => {
+            if (br.nextSibling && br.nextSibling.nodeType === Node.ELEMENT_NODE && 
+                br.nextSibling.tagName === 'BR') {
+                br.remove();
+            }
         });
-        
-        return tempDiv.innerHTML;
-    };
+    });
+    
+    // Remove empty text nodes
+    const walker = document.createTreeWalker(
+        tempDiv,
+        NodeFilter.SHOW_TEXT,
+        {
+            acceptNode: function(node) {
+                if (!node.textContent.trim()) {
+                    return NodeFilter.FILTER_ACCEPT;
+                }
+                return NodeFilter.FILTER_SKIP;
+            }
+        }
+    );
+    
+    const emptyTextNodes = [];
+    let node = walker.nextNode();
+    while (node) {
+        emptyTextNodes.push(node);
+        node = walker.nextNode();
+    }
+    
+    emptyTextNodes.forEach(node => node.remove());
+    
+    // Get the cleaned HTML
+    let cleanedHtml = tempDiv.innerHTML;
+    
+    // Remove excessive whitespace in text
+    cleanedHtml = cleanedHtml
+        .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+        .replace(/>\s+</g, '><') // Remove whitespace between tags
+        .replace(/\s+$/g, '') // Remove trailing whitespace
+        .replace(/^\s+/g, '') // Remove leading whitespace
+        .trim();
+    
+    // Remove empty tags that might have been created
+    cleanedHtml = cleanedHtml
+        .replace(/<div><\/div>/g, '')
+        .replace(/<p><\/p>/g, '')
+        .replace(/<span><\/span>/g, '')
+        .replace(/<div>\s*<\/div>/g, '')
+        .replace(/<p>\s*<\/p>/g, '')
+        .replace(/<span>\s*<\/span>/g, '');
+    
+    return cleanedHtml;
+};
 
     // Document upload function with SignalR support
     const uploadDocumentWithSignalR = async (doc, siteNoteId, userId) => {
@@ -813,48 +968,75 @@ const NewNoteModal = forwardRef(({
     };
 
     const uploadInlineImage = async (doc, siteNoteId, userId) => {
-        if (!doc.file) {
-            throw new Error('No file selected for upload');
-        }
+    if (!doc.file) {
+        throw new Error('No file selected for upload');
+    }
 
-        const formData = new FormData();
+    const formData = new FormData();
+    
+    // Append the file with correct field name
+    formData.append('File', doc.file);
+    
+    // Append other required fields
+    formData.append('SiteNoteId', siteNoteId);
+    formData.append('UserId', userId);
+    
+    // Optional: add description or name if API supports it
+    if (doc.name) {
+        formData.append('Description', doc.name);
+    }
+   
+    console.log('Uploading inline image:', {
+        fileName: doc.file.name,
+        fileSize: doc.file.size,
+        siteNoteId,
+        userId
+    });
+
+    const response = await fetch(`${apiUrl}/InlineImages/UploadInlineImage`, {
+        method: "POST",
+        body: formData,
+        // Don't set Content-Type header - browser will set it with boundary for FormData
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        let errorMessage = 'Image upload failed';
         
-        formData.append('File', doc.file);      
-        formData.append('SiteNoteId', siteNoteId);
-        formData.append('UserId', userId);
-       
-        const response = await fetch(`${apiUrl}/InlineImages/UploadInlineImage`, {
-            method: "POST",
-            body: formData,
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            let errorMessage = 'Upload failed';
-            
-            try {
-                const errorData = JSON.parse(errorText);
-                errorMessage = errorData.message || errorData.errors?.Name?.[0] || errorMessage;
-            } catch (e) {
-                errorMessage = `Server error: ${response.status} ${response.statusText}`;
-            }
-            
-            throw new Error(errorMessage);
+        try {
+            const errorData = JSON.parse(errorText);
+            errorMessage = errorData.message || errorData.errors?.File?.[0] || errorMessage;
+        } catch (e) {
+            errorMessage = `Server error: ${response.status} ${response.statusText}`;
         }
+        
+        console.error('Inline image upload failed:', errorMessage);
+        throw new Error(errorMessage);
+    }
 
-        return await response.json();
-    };
+    const result = await response.json();
+    console.log('Inline image upload success:', result);
+    return result;
+};
 
     // Save journal note with image handling - UPDATED
+// Save journal note with image handling - UPDATED
+// Save journal note with image handling - UPDATED
+// Save journal note with image handling - UPDATED
 const handleSaveJournal = async () => {
     const newErrors = {};
     if (!selectedProject) newErrors.project = "Please select a project";
     if (!selectedJob) newErrors.job = "Please select a job";
     if (!selectedDate) newErrors.date = "Please select a date";
     
+    // Get cleaned note content
+    const noteHtmlContent = prepareNoteContent();
+    
     // Check if there's any content (text OR images)
-    const hasTextContent = richTextContent.replace(/<[^>]*>/g, '').trim();
-    if (!hasTextContent && pastedImages.length === 0) {
+    const hasTextContent = noteHtmlContent.replace(/<[^>]*>/g, '').trim();
+    const hasImages = pastedImages.length > 0;
+    
+    if (!hasTextContent && !hasImages) {
         newErrors.note = "Note content is required";
     }
 
@@ -869,21 +1051,9 @@ const handleSaveJournal = async () => {
     try {
         const user = getCurrentUser();
         
-        // Extract only text content (without images)
-        let noteTextContent = '';
-        // Remove all HTML tags including images
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = richTextContent;
-        
-        // Remove all image elements
-        const images = tempDiv.querySelectorAll('img');
-        images.forEach(img => img.remove());
-        
-        // Get only the text content
-        noteTextContent = tempDiv.textContent || tempDiv.innerText || '';
-        
+        // Save the cleaned note content
         const noteData = {
-            note: noteTextContent, // Save only text content
+            note: noteHtmlContent, // Save the cleaned HTML content
             date: new Date(selectedDate).toISOString(),
             jobId: selectedJob,
             userId: user.id,
@@ -910,9 +1080,9 @@ const handleSaveJournal = async () => {
             }
         }
         
-        // Upload pasted images as separate documents
+        // Upload pasted images separately to the inline images endpoint
         if (pastedImages.length > 0) {
-            for (const image of pastedImages) {
+            const imageUploadPromises = pastedImages.map(async (image, index) => {
                 try {
                     // Convert base64 to blob
                     const base64Response = await fetch(image.base64);
@@ -921,20 +1091,41 @@ const handleSaveJournal = async () => {
                     // Create a file from blob
                     const file = new File([blob], image.name, { type: image.type });
                     
-                    // Upload as document using the same SignalR-enabled function
+                    // Upload as inline image
                     const imageDoc = {
                         name: image.name,
                         file: file,
                         fileName: image.name
                     };
                     
-                    await uploadInlineImage(imageDoc, siteNoteId, user.id);
-                    console.log(`Image "${image.name}" uploaded successfully`);
+                    console.log(`Uploading image "${image.name}" to inline images endpoint...`);
+                    const result = await uploadInlineImage(imageDoc, siteNoteId, user.id);
+                    console.log(`Image "${image.name}" uploaded successfully with ID:`, result.id);
+                    
+                    return { success: true, name: image.name };
                 } catch (imageError) {
                     console.error('Error uploading pasted image:', imageError);
-                    // Continue with other images
-                    toast.error(`Failed to upload image "${image.name}": ${imageError.message}`);
+                    return { 
+                        success: false, 
+                        name: image.name, 
+                        error: imageError.message 
+                    };
                 }
+            });
+            
+            // Wait for all image uploads to complete
+            const results = await Promise.all(imageUploadPromises);
+            
+            // Check for failures
+            const failedUploads = results.filter(r => !r.success);
+            if (failedUploads.length > 0) {
+                console.warn(`${failedUploads.length} image(s) failed to upload:`, failedUploads);
+                toast.error(`${failedUploads.length} image(s) failed to upload`);
+            }
+            
+            const successfulUploads = results.filter(r => r.success);
+            if (successfulUploads.length > 0) {
+                toast.success(`${successfulUploads.length} image(s) uploaded successfully`);
             }
         }
 
@@ -951,7 +1142,6 @@ const handleSaveJournal = async () => {
         setIsSaving(false);
     }
 };
-    
 
     // Keyboard shortcut for save
     const handleSaveShortcut = useCallback((event) => {
@@ -1171,7 +1361,7 @@ const handleSaveJournal = async () => {
                 <label>
                     Note {errors.note && <span className="error-message-inline">{errors.note}</span>}
                     <span className="editor-hint">
-                        <i className="fas fa-info-circle"></i> You can paste images directly (Ctrl+V) or use formatting tools
+                        <i className="fas fa-info-circle"></i> Format text with tools below. Images will be saved separately.
                     </span>
                 </label>
                 
@@ -1183,9 +1373,16 @@ const handleSaveJournal = async () => {
                     className="rich-text-editor"
                     onPaste={handlePaste}
                     onInput={handleEditorInput}
-                    placeholder="Write your note here... You can paste images directly!"
+                    placeholder="Type your note here and paste images."
                     suppressContentEditableWarning={true}
                 />
+                
+                {pastedImages.length > 0 && (
+                    <div className="image-upload-status">
+                        <i className="fas fa-images"></i>
+                        {pastedImages.length} image{pastedImages.length !== 1 ? 's' : ''} attached (will be saved separately)
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -1548,3 +1745,4 @@ NewNoteModal.defaultProps = {
 };
 
 export default NewNoteModal;
+

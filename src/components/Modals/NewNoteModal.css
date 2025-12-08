@@ -710,7 +710,6 @@
     pointer-events: none;
 }
 
-
 /* Rich text editor images */
 .rich-text-editor img,
 .rich-text-editor img.editor-image {
@@ -793,4 +792,78 @@
         width: 100%;
         justify-content: center;
     }
+}
+.image-upload-status {
+    margin-top: 8px;
+    padding: 8px 12px;
+    background-color: #e3f2fd;
+    border: 1px solid #bbdefb;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #1976d2;
+}
+
+.image-upload-status i {
+    margin-right: 6px;
+}
+
+.editor-image {
+    max-width: 300px;
+    max-height: 200px;
+    border: 2px solid #ddd;
+    border-radius: 4px;
+    margin: 4px;
+    padding: 2px;
+    background-color: #f9f9f9;
+}
+
+.rich-text-editor img {
+    cursor: pointer;
+}
+
+.rich-text-editor img:hover {
+    opacity: 0.9;
+    border-color: #1976d2;
+}
+/* In your NewNoteModal.css */
+.rich-text-editor {
+    min-height: 200px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    line-height: 1.5;
+    outline: none;
+}
+
+.rich-text-editor:empty:before {
+    content: attr(placeholder);
+    color: #999;
+    pointer-events: none;
+}
+
+.rich-text-editor br {
+    margin-bottom: 4px;
+}
+
+.editor-image {
+    max-width: 300px;
+    max-height: 200px;
+    margin: 4px 0;
+    vertical-align: middle;
+}
+
+.image-upload-status {
+    margin-top: 8px;
+    padding: 6px 10px;
+    background-color: #e8f5e9;
+    border: 1px solid #c8e6c9;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #2e7d32;
+}
+
+.image-upload-status i {
+    margin-right: 6px;
 }

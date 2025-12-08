@@ -644,7 +644,6 @@ tr.selected-row.priority-4 {
   }
 }
 
-
 @media (max-width: 767px) {
   .notes-grid {
     grid-template-columns: 1fr;
@@ -1050,7 +1049,6 @@ tr.selected-row.priority-4 {
   vertical-align: top;
 }
 
-
 .responsive-table-container td.editable {
   position: relative; 
 }
@@ -1072,7 +1070,6 @@ tr.selected-row.priority-4 {
   table-layout: fixed;
   width: 100%;
 }
-
 
 .top-fixed-section {
   flex-shrink: 0; 

@@ -385,6 +385,12 @@ const Dashboard = ({
     }
   };
 
+  // Define handleViewAttachments function
+  const handleViewAttachments = useCallback((note) => {
+    setSelectedFileNote(note);
+    setShowAttachedFileModal(true);
+  }, []);
+
   const handleRequestWorkspace = () => {
     setShowRequestWorkspaceModal(true);
     toast.success("Workspace request feature coming soon!");
@@ -470,7 +476,7 @@ const Dashboard = ({
     const fetchCurrentUser = async () => {
       try {
         const response = await fetch(
-          `${apiUrl}/api/UserManagement/GetUserById/${userid}`
+          `${apiUrl}/UserManagement/GetUserById/${userid}`
         );
         if (response.ok) {
           const data = await response.json();
@@ -818,11 +824,148 @@ const Dashboard = ({
   };
 
   const handleDelete = (note) => {
+    // Check if current user is the note creator
+    const currentUser = JSON.parse(localStorage.getItem("user"));
+    if (note.userId && Number(note.userId) !== Number(currentUser.id)) {
+      toast.error("You can only delete notes that you created.");
+      return;
+    }
+
     const hrs = (Date.now() - new Date(note.timeStamp)) / 36e5;
-    if (hrs > 24) toast.error("Cannot delete notes older than 24h");
-    else {
+    if (hrs > 24) {
+      toast.error("Cannot delete notes older than 24 hours");
+    } else {
       setNoteToDelete(note);
       setShowDeleteConfirm(true);
+    }
+  };
+
+  // Function to delete inline images associated with a note
+  const deleteInlineImages = async (noteId) => {
+    try {
+      // Get inline images for the note
+      const imagesResponse = await fetch(
+        `${apiUrl}/InlineImages/GetInlineImagesBySiteNote?siteNoteId=${noteId}`
+      );
+
+      if (imagesResponse.ok) {
+        const imagesData = await imagesResponse.json();
+        const images = imagesData.images || [];
+
+        // Delete each image
+        for (const image of images) {
+          const deleteImageResponse = await fetch(
+            `${apiUrl}/InlineImages/DeleteInlineImage/${image.id}`,
+            {
+              method: "DELETE",
+            }
+          );
+
+          if (!deleteImageResponse.ok) {
+            console.error(`Failed to delete image ${image.id}`);
+            // Continue with other deletions even if one fails
+          }
+        }
+
+        console.log(`Deleted ${images.length} inline images for note ${noteId}`);
+        return true;
+      } else {
+        console.error(`Failed to fetch images for note ${noteId}`);
+        return false;
+      }
+    } catch (error) {
+      console.error("Error deleting inline images:", error);
+      return false;
+    }
+  };
+
+  // Function to delete attached documents associated with a note
+  const deleteAttachedDocuments = async (noteId) => {
+    try {
+      // Get documents for the note
+      const docsResponse = await fetch(
+        `${apiUrl}/Documents/GetDocumentMetadataByReference?siteNoteId=${noteId}`
+      );
+
+      if (docsResponse.ok) {
+        const docsData = await docsResponse.json();
+        const documents = docsData.documents || [];
+
+        // Delete each document
+        for (const document of documents) {
+          const deleteDocResponse = await fetch(
+            `${apiUrl}/Documents/DeleteDocument/${document.id}`,
+            {
+              method: "DELETE",
+            }
+          );
+
+          if (!deleteDocResponse.ok) {
+            console.error(`Failed to delete document ${document.id}`);
+            // Continue with other deletions even if one fails
+          }
+        }
+
+        console.log(`Deleted ${documents.length} documents for note ${noteId}`);
+        return true;
+      } else {
+        console.error(`Failed to fetch documents for note ${noteId}`);
+        return false;
+      }
+    } catch (error) {
+      console.error("Error deleting documents:", error);
+      return false;
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!noteToDelete) return;
+
+    setIsDeleting(true);
+
+    try {
+      // 1. First delete inline images
+      const imagesDeleted = await deleteInlineImages(noteToDelete.id);
+      if (!imagesDeleted) {
+        toast.error("Failed to delete inline images. Please try again.");
+        setIsDeleting(false);
+        return;
+      }
+
+      // 2. Then delete attached documents
+      const documentsDeleted = await deleteAttachedDocuments(noteToDelete.id);
+      if (!documentsDeleted) {
+        toast.error("Failed to delete attached documents. Please try again.");
+        setIsDeleting(false);
+        return;
+      }
+
+      // 3. Finally delete the note itself
+      const url = new URL(`${apiUrl}/SiteNote/DeleteSiteNote/${noteToDelete.id}`);
+      url.searchParams.append("userId", userid);
+
+      const response = await fetch(url.toString(), {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Delete failed");
+      }
+
+      toast.success("Note and associated files deleted successfully");
+      await refreshNotes();
+      
+    } catch (error) {
+      console.error("Delete error:", error);
+      toast.error(error.message || "Failed to delete note and associated files");
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+      setNoteToDelete(null);
     }
   };
 
@@ -859,44 +1002,6 @@ const Dashboard = ({
     };
     run();
   }, [searchTerm, userid, apiUrl]);
-
-  const handleConfirmDelete = async () => {
-    if (!noteToDelete) return;
-
-    setIsDeleting(true);
-
-    const url = new URL(`${apiUrl}/SiteNote/DeleteSiteNote/${noteToDelete.id}`);
-    url.searchParams.append("userId", userid);
-
-    try {
-      const response = await fetch(url.toString(), {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || "Delete failed");
-      }
-
-      toast.success("Note deleted successfully");
-      await refreshNotes();
-    } catch (e) {
-      console.error("Delete error:", e);
-      toast.error(e.message || "Failed to delete note");
-    } finally {
-      setIsDeleting(false);
-      setShowDeleteConfirm(false);
-      setNoteToDelete(null);
-    }
-  };
-
-  const handleViewAttachments = (note) => {
-    setSelectedFileNote(note);
-    setShowAttachedFileModal(true);
-  };
 
   const fetchUserWorkspaceRole = async () => {
     setIsRoleLoading(true);
@@ -2122,23 +2227,27 @@ const Dashboard = ({
                             }}
                           >
                             <span
-                              style={{
-                                flex: 1,
-                                overflow: "hidden",
-                                whiteSpace: "nowrap",
-                                textOverflow: "ellipsis",
-                                display: "block",
-                                maxWidth: "100%",
-                              }}
-                            >
-                              {n.note.length > 69
-                                ? n.note.substring(0, 69) + "..."
-                                : n.note}
-                            </span>
+  style={{
+    flex: 1,
+    overflow: "hidden",
+    whiteSpace: "nowrap",
+    textOverflow: "ellipsis",
+    display: "block",
+    maxWidth: "100%",
+  }}
+  dangerouslySetInnerHTML={{ 
+    __html: n.note.length > 69 
+      ? n.note.substring(0, 69) + "..." 
+      : n.note 
+  }}
+/>
 
                             {n.note.length > 69 && (
-                              <div className="note-hover-popup">{n.note}</div>
-                            )}
+  <div 
+    className="note-hover-popup" 
+    dangerouslySetInnerHTML={{ __html: n.note }} 
+  />
+)}
 
                             {notePriority && notePriority.priorityValue > 1 ? (
                             <div
@@ -2390,12 +2499,18 @@ const Dashboard = ({
                         className="note-card-content-container"
                         style={{ position: "relative" }}
                       >
-                        <div className="note-text">{note.note}</div>
+                        <div 
+  className="note-text" 
+  dangerouslySetInnerHTML={{ __html: note.note }} 
+/>
 
                         {/* Hover Popup for Card View - only show if note is long */}
                         {note.note.length > 150 && (
-                          <div className="note-card-popup">{note.note}</div>
-                        )}
+  <div 
+    className="note-card-popup" 
+    dangerouslySetInnerHTML={{ __html: note.note }} 
+  />
+)}
                       </div>
                     </div>
 
@@ -2531,8 +2646,8 @@ const Dashboard = ({
             />
             <h3>Confirm Delete</h3>
             <p>
-              Are you sure you want to delete this note? This action cannot be
-              undone.
+              Are you sure you want to delete this note and all associated files?
+              This action cannot be undone.
             </p>
             <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
               <button
@@ -2555,7 +2670,7 @@ const Dashboard = ({
                   padding: "10px 20px",
                 }}
               >
-                {isDeleting ? "Deleting..." : "Delete"}
+                {isDeleting ? "Deleting..." : "Delete Note & Files"}
               </button>
             </div>
           </div>
