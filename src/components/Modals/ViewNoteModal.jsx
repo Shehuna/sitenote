@@ -13,14 +13,61 @@ const ViewNoteModal = ({
 }) => {
   const [currentNote, setCurrentNote] = useState(null);
   const [relatedNotes, setRelatedNotes] = useState([]);
+  const [noteImages, setNoteImages] = useState({}); // Store images by noteId
+  const [loadingImages, setLoadingImages] = useState({}); // Track image loading state per note
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [currentLightboxImage, setCurrentLightboxImage] = useState(null);
+  const [currentLightboxImages, setCurrentLightboxImages] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [priority, setPriority] = useState(0);
 
   const noteRefs = useRef({});
   const chatContainerRef = useRef(null);
+  const lightboxRef = useRef(null);
 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
+
+  // Fetch inline images for a specific note
+  const fetchInlineImages = async (siteNoteId) => {
+    if (!siteNoteId) return [];
+    
+    setLoadingImages(prev => ({ ...prev, [siteNoteId]: true }));
+    
+    try {
+      const response = await fetch(
+        `${apiUrl}/InlineImages/GetInlineImagesBySiteNote?siteNoteId=${siteNoteId}`
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch images for note ${siteNoteId}`);
+      }
+      
+      const data = await response.json();
+      return data.images || [];
+    } catch (error) {
+      console.error(`Error fetching images for note ${siteNoteId}:`, error);
+      return [];
+    } finally {
+      setLoadingImages(prev => ({ ...prev, [siteNoteId]: false }));
+    }
+  };
+
+  // Fetch images for all related notes
+  const fetchImagesForAllNotes = async (notes) => {
+    const imagesMap = {};
+    
+    // Fetch images for each note in parallel
+    const promises = notes.map(async (note) => {
+      if (note.id) {
+        const images = await fetchInlineImages(note.id);
+        imagesMap[note.id] = images;
+      }
+    });
+    
+    await Promise.all(promises);
+    setNoteImages(imagesMap);
+  };
 
   const fetchNoteAndRelated = async () => {
     if (!noteId) return;
@@ -42,7 +89,10 @@ const ViewNoteModal = ({
       setCurrentNote(note);
 
       if (!jobId) {
-        setRelatedNotes([note]);
+        const notes = [note];
+        setRelatedNotes(notes);
+        // Fetch images for the single note
+        await fetchImagesForAllNotes(notes);
         setLoading(false);
         return;
       }
@@ -79,6 +129,8 @@ const ViewNoteModal = ({
         });
 
       setRelatedNotes(related);
+      // Fetch images for all related notes
+      await fetchImagesForAllNotes(related);
     } catch (err) {
       console.error("ViewNoteModal error:", err);
       toast.error("Failed to load note");
@@ -104,6 +156,81 @@ const ViewNoteModal = ({
     }
   };
 
+  // Open lightbox with specific image
+  const openLightbox = (image, noteId) => {
+    // Get all images from the current note
+    const images = noteImages[noteId] || [];
+    const imageIndex = images.findIndex(img => img.id === image.id);
+    
+    setCurrentLightboxImage({
+      ...image,
+      noteId,
+      index: imageIndex,
+      total: images.length
+    });
+    setCurrentLightboxImages(images);
+    setLightboxOpen(true);
+    
+    // Prevent body scroll when lightbox is open
+    document.body.style.overflow = 'hidden';
+  };
+
+  // Close lightbox
+  const closeLightbox = () => {
+    setLightboxOpen(false);
+    setCurrentLightboxImage(null);
+    setCurrentLightboxImages([]);
+    
+    // Restore body scroll
+    document.body.style.overflow = 'auto';
+  };
+
+  // Navigate to next/previous image
+  const navigateLightbox = (direction) => {
+    if (!currentLightboxImage || currentLightboxImages.length === 0) return;
+    
+    const currentIndex = currentLightboxImage.index;
+    let newIndex;
+    
+    if (direction === 'next') {
+      newIndex = (currentIndex + 1) % currentLightboxImages.length;
+    } else {
+      newIndex = (currentIndex - 1 + currentLightboxImages.length) % currentLightboxImages.length;
+    }
+    
+    const newImage = currentLightboxImages[newIndex];
+    setCurrentLightboxImage({
+      ...newImage,
+      noteId: currentLightboxImage.noteId,
+      index: newIndex,
+      total: currentLightboxImages.length
+    });
+  };
+
+  // Handle keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!lightboxOpen) return;
+      
+      switch (e.key) {
+        case 'Escape':
+          closeLightbox();
+          break;
+        case 'ArrowLeft':
+          navigateLightbox('prev');
+          break;
+        case 'ArrowRight':
+          navigateLightbox('next');
+          break;
+        default:
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxOpen, currentLightboxImage]);
+
   useEffect(() => {
     fetchNoteAndRelated();
   }, [noteId, jobId, userid]);
@@ -124,13 +251,7 @@ const ViewNoteModal = ({
           day: "numeric",
         });
   };
-  const formatTime = (iso) => {
-    if (!iso) return "";
-    const d = new Date(iso);
-    return isNaN(d)
-      ? ""
-      : d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-  };
+
   const formatRelativeTime = (timestamp) => {
     const now = new Date();
     const messageTime = new Date(timestamp);
@@ -167,6 +288,47 @@ const ViewNoteModal = ({
     });
   };
 
+  // Function to render images for a note
+  const renderNoteImages = (noteId) => {
+    const images = noteImages[noteId] || [];
+    
+    if (loadingImages[noteId]) {
+      return (
+        <div className="images-loading">
+          <i className="fas fa-spinner fa-spin" /> Loading images...
+        </div>
+      );
+    }
+
+    if (images.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="note-images-container">
+        <div className="images-grid">
+          {images.map((image) => (
+            <div key={image.id} className="image-item">
+              <img
+                src={`${apiUrl}/InlineImages/GetInlineImage/${image.id}`}
+                alt={image.fileName}
+                className="inline-image"
+                loading="lazy"
+                decoding="async"
+                fetchpriority="low"
+                onClick={() => openLightbox(image, noteId)}
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = "https://via.placeholder.com/150x100?text=Image+Not+Found";
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className={`view-note-modal-overlay theme-${currentTheme}`}>
@@ -181,99 +343,159 @@ const ViewNoteModal = ({
   if (!currentNote) return null;
 
   return (
-    <div
-      className={`view-note-modal-overlay theme-${currentTheme}`}
-      onClick={onClose}
-    >
-      <div className="view-note-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="whatsapp-header">
-          <div className="header-left">
-            <button className="back-button" onClick={onClose}>
-              <i className="fas fa-arrow-left" />
-            </button>
-            <div className="contact-info">
-              <div className="contact-name">
-                Workspace: {currentNote.siteNote.workspace}
-              </div>
-              <div className="contact-project">
-                Project: {currentNote.siteNote.project}
-              </div>
-              <div className="contact-status">
-                Job: {currentNote.siteNote.job}
+    <>
+      <div
+        className={`view-note-modal-overlay theme-${currentTheme}`}
+        onClick={onClose}
+      >
+        <div className="view-note-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="whatsapp-header">
+            <div className="header-left">
+              <button className="back-button" onClick={onClose}>
+                <i className="fas fa-arrow-left" />
+              </button>
+              <div className="contact-info">
+                <div className="contact-name">
+                  Workspace: {currentNote.siteNote.workspace}
+                </div>
+                <div className="contact-project">
+                  Project: {currentNote.siteNote.project}
+                </div>
+                <div className="contact-status">
+                  Job: {currentNote.siteNote.job}
+                </div>
               </div>
             </div>
+            <div className="header-right">
+              <button className="header-button">
+                <i className="fas fa-ellipsis-v" />
+              </button>
+            </div>
           </div>
-          <div className="header-right">
-            <button className="header-button">
-              <i className="fas fa-ellipsis-v" />
-            </button>
-          </div>
-        </div>
 
-        <div className="whatsapp-chat" ref={chatContainerRef}>
-          {relatedNotes.map((doc) => (
-            <div
-              key={doc.id}
-              ref={(el) => (noteRefs.current[doc.id] = el)}
-              className="message-row"
-              id={`related-note-${doc.id}`}
-            >
+          <div className="whatsapp-chat" ref={chatContainerRef}>
+            {relatedNotes.map((doc) => (
               <div
-                className={`message received ${
-                  doc.id === noteId ? "selected" : ""
-                }`}
-                style={{
-                  borderLeft: doc.id === noteId ? "4px solid #3498db" : "none",
-                  border: "solid 1px #555",
-                  background: doc.id === noteId ? "#f0f8ff" : "white",
-                }}
+                key={doc.id}
+                ref={(el) => (noteRefs.current[doc.id] = el)}
+                className="message-row"
+                id={`related-note-${doc.id}`}
               >
-                <div className="message-content">
-                  <div className="message-header">
-                    <span className="sender-name">{doc.userName}</span>
-                    <span
-                      className="message-time"
-                      title={new Date(doc.timeStamp).toLocaleString()}
+                <div
+                  className={`message received ${
+                    doc.id === noteId ? "selected" : ""
+                  }`}
+                  style={{
+                    borderLeft: doc.id === noteId ? "4px solid #3498db" : "none",
+                    border: "solid 1px #555",
+                    background: doc.id === noteId ? "#f0f8ff" : "white",
+                  }}
+                >
+                  <div className="message-content">
+                    <div className="message-header">
+                      <span className="sender-name">{doc.userName}</span>
+                      <span
+                        className="message-time"
+                        title={new Date(doc.timeStamp).toLocaleString()}
+                      >
+                        {" "}
+                        {formatRelativeTime(doc.timeStamp)}{" "}
+                      </span>
+                    </div>
+                    <div className="message-date-below">
+                      {formatDate(doc.date)}
+                    </div>
+                    <div className="message-text">{doc.note}</div>
+                    
+                    {/* Render images below the note text */}
+                    {renderNoteImages(doc.id)}
+                  </div>
+                </div>
+
+                {doc.documentCount > 0 && (
+                  <div className="paperclip-container">
+                    <button
+                      className="paperclip-button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onViewAttachments(doc);
+                      }}
+                      title={`View ${doc.documentCount} attached file(s)`}
                     >
-                      {" "}
-                      {formatRelativeTime(doc.timeStamp)}{" "}
-                    </span>
+                      <span className="document-count-badge">
+                        ({doc.documentCount}){" "}
+                      </span>
+                      <i className="fas fa-paperclip" />
+                    </button>
                   </div>
-                  <div className="message-date-below">
-                    {formatDate(doc.date)}
-                  </div>
-                  <div className="message-text">{doc.note}</div>
-                </div>
+                )}
               </div>
+            ))}
+          </div>
 
-              {doc.documentCount > 0 && (
-                <div className="paperclip-container">
-                  <button
-                    className="paperclip-button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onViewAttachments(doc);
-                    }}
-                    title={`View ${doc.documentCount} attached file(s)`}
-                  >
-                    <span className="document-count-badge">
-                      ({doc.documentCount}){" "}
-                    </span>
-                    <i className="fas fa-paperclip" />
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <div className="whatsapp-footer">
-          <button className="close-chat-button" onClick={onClose}>
-            <i className="fas fa-times" /> Close
-          </button>
+          <div className="whatsapp-footer">
+            <button className="close-chat-button" onClick={onClose}>
+              <i className="fas fa-times" /> Close
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+
+      {/* Full Screen Lightbox */}
+      {lightboxOpen && currentLightboxImage && (
+        <div className="fullscreen-lightbox">
+          <div className="lightbox-background" onClick={closeLightbox}></div>
+          
+          <div className="lightbox-image-wrapper" ref={lightboxRef}>
+            {/* Close button */}
+            <button className="lightbox-close" onClick={closeLightbox}>
+              <i className="fas fa-times" />
+            </button>
+            
+            {/* Image counter */}
+            <div className="lightbox-counter">
+              {currentLightboxImage.index + 1} / {currentLightboxImage.total}
+            </div>
+            
+            {/* Main image */}
+            <img
+              src={`${apiUrl}/InlineImages/GetInlineImage/${currentLightboxImage.id}`}
+              alt={currentLightboxImage.fileName}
+              className="lightbox-full-image"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = "https://via.placeholder.com/800x600?text=Image+Not+Found";
+              }}
+            />
+            
+            {/* Navigation buttons */}
+            {currentLightboxImages.length > 1 && (
+              <>
+                <button 
+                  className="lightbox-nav lightbox-prev" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigateLightbox('prev');
+                  }}
+                >
+                  <i className="fas fa-chevron-left" />
+                </button>
+                
+                <button 
+                  className="lightbox-nav lightbox-next" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigateLightbox('next');
+                  }}
+                >
+                  <i className="fas fa-chevron-right" />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 

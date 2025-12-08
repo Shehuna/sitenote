@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import Modal from './Modal';
 import './NewNoteModal.css';
 import toast from 'react-hot-toast';
+import * as signalR from "@microsoft/signalr";
 
 const NewNoteModal = forwardRef(({
     isOpen,
@@ -19,7 +20,7 @@ const NewNoteModal = forwardRef(({
     userworksaces = [],
     source = 'dashboard'
 }, ref) => {
-    // State declarations
+    // State declarations - REMOVE text mode states
     const [activeTab, setActiveTab] = useState('journal');
     const [selectedProject, setSelectedProject] = useState('');
     const [selectedPriority, setSelectedPriority] = useState('1');
@@ -38,9 +39,10 @@ const NewNoteModal = forwardRef(({
     const [isSaving, setIsSaving] = useState(false);
     const [apiError, setApiError] = useState(null);
     const [fetchedProjects, setFetchedProjects] = useState([]);
-    //const [areDropdownsDisabled, setAreDropdownsDisabled] = useState(false);
     const [isLoadingProjects, setIsLoadingProjects] = useState(false);
     const [isLoadingJobs, setIsLoadingJobs] = useState(false);
+    const connectionRef = useRef(null);
+    const [isSignalRConnected, setIsSignalRConnected] = useState(false);
     
     // New search states
     const [searchQuery, setSearchQuery] = useState('');
@@ -53,7 +55,11 @@ const NewNoteModal = forwardRef(({
     const [selectedProjectData, setSelectedProjectData] = useState(null);
     const [selectedJobData, setSelectedJobData] = useState(null);
 
-    const textareaRef = useRef(null);
+    // Rich text editor states - KEEP ONLY rich text
+    const [richTextContent, setRichTextContent] = useState('');
+    const [pastedImages, setPastedImages] = useState([]); // Store pasted images as Base64
+
+    const editorRef = useRef(null);
     const hasFocusedRef = useRef(false);
     const searchInputRef = useRef(null);
     const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
@@ -70,6 +76,45 @@ const NewNoteModal = forwardRef(({
         'video/mpeg': ['.mpeg'], 'video/ogg': ['.ogv'], 'video/webm': ['.webm'],
         'video/quicktime': ['.mov'], 'video/x-msvideo': ['.avi']
     };
+    
+    // Initialize SignalR connection when modal opens
+    useEffect(() => {
+        if (isOpen) {
+            const connectSignalR = async () => {
+                try {
+                    const connection = new signalR.HubConnectionBuilder()
+                        .withUrl(`${process.env.REACT_APP_API_BASE_URL}/hubs/uploadprogress`)
+                        .withAutomaticReconnect()
+                        .build();
+
+                    await connection.start();
+                    connectionRef.current = connection;
+                    setIsSignalRConnected(true);
+                    
+                    console.log("SignalR Connected - Connection ID:", connection.connectionId);
+                    
+                    // Listen for progress updates
+                    connection.on("ReceiveProgress", (progress) => {
+                        console.log("Upload progress:", progress);
+                    });
+                    
+                } catch (err) {
+                    console.warn("SignalR connection failed, continuing without upload progress", err);
+                    setIsSignalRConnected(false);
+                }
+            };
+
+            connectSignalR();
+
+            return () => {
+                if (connectionRef.current) {
+                    connectionRef.current.stop();
+                    connectionRef.current = null;
+                    setIsSignalRConnected(false);
+                }
+            };
+        }
+    }, [isOpen]);
 
     // Utility functions
     const getCurrentUser = () => {
@@ -103,12 +148,159 @@ const NewNoteModal = forwardRef(({
         };
     };
 
-    // Expose focus method to parent component
+    // Rich text editor utilities
+    const processPastedImage = (file) => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const base64Image = e.target.result;
+            const imageId = `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            const imageName = file.name || `image-${Date.now()}.png`;
+            
+            // Create image element with proper styling
+            const img = document.createElement('img');
+            img.src = base64Image;
+            img.alt = 'Pasted image';
+            
+            // Set class instead of inline styles
+            img.className = 'editor-image';
+            
+            // Set attributes
+            img.dataset.imageId = imageId;
+            img.dataset.imageName = imageName;
+            img.dataset.imageBase64 = base64Image;
+            
+            // Store image data
+            setPastedImages(prev => [...prev, {
+                id: imageId,
+                name: imageName,
+                base64: base64Image,
+                type: file.type,
+                size: file.size
+            }]);
+            
+            resolve(img);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+};
+
+    const handlePaste = useCallback((e) => {
+        if (!editorRef.current) return;
+        
+        e.preventDefault();
+        const clipboardData = e.clipboardData || window.Clipboard;
+        
+        // Check for pasted images
+        if (clipboardData.files && clipboardData.files.length > 0) {
+            const file = clipboardData.files[0];
+            
+            // Check if it's an image
+            if (file.type.startsWith('image/')) {
+                processPastedImage(file).then((imgElement) => {
+                    // Insert image at cursor position
+                    const selection = window.getSelection();
+                    if (selection.rangeCount > 0) {
+                        const range = selection.getRangeAt(0);
+                        range.deleteContents();
+                        range.insertNode(imgElement);
+                        
+                        // Add a space after the image for better editing
+                        const textNode = document.createTextNode(' ');
+                        range.insertNode(textNode);
+                        
+                        // Move cursor after the image
+                        range.setStartAfter(textNode);
+                        range.setEndAfter(textNode);
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                    }
+                    
+                    // Update content
+                    setRichTextContent(editorRef.current.innerHTML);
+                }).catch(error => {
+                    console.error('Error processing pasted image:', error);
+                    // Fallback: insert plain text
+                    document.execCommand('insertText', false, '[Image paste failed]');
+                });
+                return;
+            }
+        }
+        
+        // Handle plain text paste
+        const pastedText = clipboardData.getData('text');
+        if (pastedText) {
+            document.execCommand('insertText', false, pastedText);
+            setRichTextContent(editorRef.current.innerHTML);
+        }
+    }, []);
+
+    const handleEditorInput = useCallback(() => {
+        if (editorRef.current) {
+            setRichTextContent(editorRef.current.innerHTML);
+        }
+    }, []);
+
+    const handleImageUpload = useCallback((e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        if (!file.type.startsWith('image/')) {
+            toast.error('Please select an image file');
+            return;
+        }
+        
+        processPastedImage(file).then((imgElement) => {
+            if (editorRef.current) {
+                // Insert at the end
+                editorRef.current.appendChild(imgElement);
+                // Add a line break
+                editorRef.current.appendChild(document.createElement('br'));
+                
+                // Update content
+                setRichTextContent(editorRef.current.innerHTML);
+                
+                // Scroll to the bottom
+                editorRef.current.scrollTop = editorRef.current.scrollHeight;
+                
+                toast.success('Image uploaded successfully');
+            }
+        }).catch(error => {
+            console.error('Error uploading image:', error);
+            toast.error('Failed to upload image');
+        });
+        
+        // Reset file input
+        e.target.value = '';
+    }, []);
+
+    const clearEditor = () => {
+        if (editorRef.current) {
+            editorRef.current.innerHTML = '';
+            setRichTextContent('');
+        }
+        setPastedImages([]);
+    };
+
+    const formatText = (command, value = null) => {
+        document.execCommand(command, false, value);
+        if (editorRef.current) {
+            setRichTextContent(editorRef.current.innerHTML);
+        }
+        
+        // Focus back on editor
+        if (editorRef.current) {
+            editorRef.current.focus();
+        }
+    };
+
+    // Expose focus method to parent component - KEEP SAME NAME
     useImperativeHandle(ref, () => ({
         focusTextarea: () => {
-            if (textareaRef.current) {
+            if (editorRef.current) {
                 const focus = () => {
-                    textareaRef.current.focus();
+                    editorRef.current.focus();
                 };
                 
                 setTimeout(focus, 100);
@@ -118,21 +310,21 @@ const NewNoteModal = forwardRef(({
         }
     }));
 
-    // Internal focus logic for grid source
+    // Internal focus logic for grid source - SIMPLIFIED
     useEffect(() => {
         if (isOpen && source === 'grid' && !hasFocusedRef.current) {
-            const focusTextarea = () => {
-                if (textareaRef.current && document.contains(textareaRef.current)) {
-                    textareaRef.current.focus();
+            const focusEditor = () => {
+                if (editorRef.current && document.contains(editorRef.current)) {
+                    editorRef.current.focus();
                     hasFocusedRef.current = true;
                     return true;
                 }
                 return false;
             };
 
-            const timeout1 = setTimeout(() => focusTextarea(), 200);
-            const timeout2 = setTimeout(() => focusTextarea(), 400);
-            const timeout3 = setTimeout(() => focusTextarea(), 600);
+            const timeout1 = setTimeout(() => focusEditor(), 200);
+            const timeout2 = setTimeout(() => focusEditor(), 400);
+            const timeout3 = setTimeout(() => focusEditor(), 600);
             
             return () => {
                 clearTimeout(timeout1);
@@ -152,6 +344,8 @@ const NewNoteModal = forwardRef(({
             setSelectedProjectData(null);
             setSelectedJobData(null);
             setApiError(null);
+            setPastedImages([]);
+            setRichTextContent('');
         }
     }, [isOpen]);
 
@@ -277,14 +471,11 @@ const NewNoteModal = forwardRef(({
                 setSelectedWorkspace('');
                 setSelectedProject('');
                 setSelectedJob('');
-                //setAreDropdownsDisabled(false);
-                setNoteContent('');
+                setRichTextContent('');
                 setFilteredProjects([]);
                 setFilteredJobs([]);
                 setSelectedProjectData(null);
                 setSelectedJobData(null);
-            } else {
-                //setAreDropdownsDisabled(true);
             }
 
             setDocuments([]);
@@ -294,14 +485,13 @@ const NewNoteModal = forwardRef(({
             setErrors({});
             setIsSaving(false);
             setApiError(null);
+            setPastedImages([]);
         }
     }, [isOpen, prefilledData]);
 
     // Handle prefilled data for workspace, project, and job
     useEffect(() => {
         if (isOpen && prefilledData) {
-            //setAreDropdownsDisabled(true);
-            
             if (prefilledData.date) {
                 setSelectedDate(prefilledData.date);
             }
@@ -449,7 +639,7 @@ const NewNoteModal = forwardRef(({
         return options.filter(job => job && (job.id || job.jobId));
     };
 
-    // Handle search result selection
+    // Handle search result selection - UPDATED
     const handleSearchResultSelect = useCallback(async (result) => {
         if (!result) return;
 
@@ -535,8 +725,8 @@ const NewNoteModal = forwardRef(({
         setSearchResults([]);
         
         setTimeout(() => {
-            if (textareaRef.current) {
-                textareaRef.current.focus();
+            if (editorRef.current) {
+                editorRef.current.focus();
             }
         }, 500);
     }, [userworksaces, apiUrl]);
@@ -555,56 +745,213 @@ const NewNoteModal = forwardRef(({
         }
     }, [showSearchResults]);
 
-    // Save journal note
-    const handleSaveJournal = async () => {
-        const newErrors = {};
-        if (!selectedProject) newErrors.project = "Please select a project";
-        if (!selectedJob) newErrors.job = "Please select a job";
-        if (!selectedDate) newErrors.date = "Please select a date";
-        if (!noteContent.trim()) newErrors.note = "Note content is required";
+    // Prepare note content with images
+    const prepareNoteContent = () => {
+        // For rich text mode, we need to extract images and prepare content
+        if (pastedImages.length === 0) {
+            return richTextContent;
+        }
+        
+        // Create a temporary div to work with the content
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = richTextContent;
+        
+        // Replace image elements with placeholders for storage
+        const images = tempDiv.querySelectorAll('img[data-image-id]');
+        images.forEach((img, index) => {
+            const imageId = img.getAttribute('data-image-id');
+            const placeholder = document.createTextNode(`[IMAGE:${imageId}]`);
+            img.parentNode.replaceChild(placeholder, img);
+        });
+        
+        return tempDiv.innerHTML;
+    };
 
-        if (Object.keys(newErrors).length > 0) {
-            setErrors(newErrors);
-            return;
+    // Document upload function with SignalR support
+    const uploadDocumentWithSignalR = async (doc, siteNoteId, userId) => {
+        if (!doc.file) {
+            throw new Error('No file selected for upload');
         }
 
-        setIsSaving(true);
-        setApiError(null);
+        const formData = new FormData();
+        formData.append('Name', doc.name); 
+        formData.append('File', doc.file);      
+        formData.append('SiteNoteId', siteNoteId);
+        formData.append('UserId', userId);
 
-        try {
-            const user = getCurrentUser();
-            const noteData = {
-                note: noteContent,
-                date: new Date(selectedDate).toISOString(),
-                jobId: selectedJob,
-                userId: user.id,
-            }; 
+        const headers = {};
+        
+        // Only add SignalR header if connected
+        if (isSignalRConnected && connectionRef.current?.connectionId) {
+            headers["X-Connection-Id"] = connectionRef.current.connectionId;
+            console.log("Using SignalR connection ID:", connectionRef.current.connectionId);
+        } else {
+            console.warn("SignalR not connected, uploading without progress tracking");
+        }
+
+        const response = await fetch(`${apiUrl}/Documents/AddDocument`, {
+            method: "POST",
+            body: formData,
+            headers
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            let errorMessage = 'Upload failed';
             
-            const savedNote = await addSiteNote(noteData);
-            const siteNoteId = savedNote.siteNoteId; 
-
-            if (!siteNoteId) {
-                throw new Error("Failed to retrieve SiteNoteId from the saved note.");
+            try {
+                const errorData = JSON.parse(errorText);
+                errorMessage = errorData.message || errorData.errors?.Name?.[0] || errorMessage;
+            } catch (e) {
+                errorMessage = `Server error: ${response.status} ${response.statusText}`;
             }
+            
+            throw new Error(errorMessage);
+        }
 
-            // Upload documents
-            for (const doc of documents) {
-                if (doc.file) {
-                    await onUploadDocument(doc.name, doc.file, siteNoteId);
+        return await response.json();
+    };
+
+    const uploadInlineImage = async (doc, siteNoteId, userId) => {
+        if (!doc.file) {
+            throw new Error('No file selected for upload');
+        }
+
+        const formData = new FormData();
+        
+        formData.append('File', doc.file);      
+        formData.append('SiteNoteId', siteNoteId);
+        formData.append('UserId', userId);
+       
+        const response = await fetch(`${apiUrl}/InlineImages/UploadInlineImage`, {
+            method: "POST",
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            let errorMessage = 'Upload failed';
+            
+            try {
+                const errorData = JSON.parse(errorText);
+                errorMessage = errorData.message || errorData.errors?.Name?.[0] || errorMessage;
+            } catch (e) {
+                errorMessage = `Server error: ${response.status} ${response.statusText}`;
+            }
+            
+            throw new Error(errorMessage);
+        }
+
+        return await response.json();
+    };
+
+    // Save journal note with image handling - UPDATED
+const handleSaveJournal = async () => {
+    const newErrors = {};
+    if (!selectedProject) newErrors.project = "Please select a project";
+    if (!selectedJob) newErrors.job = "Please select a job";
+    if (!selectedDate) newErrors.date = "Please select a date";
+    
+    // Check if there's any content (text OR images)
+    const hasTextContent = richTextContent.replace(/<[^>]*>/g, '').trim();
+    if (!hasTextContent && pastedImages.length === 0) {
+        newErrors.note = "Note content is required";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+        setErrors(newErrors);
+        return;
+    }
+
+    setIsSaving(true);
+    setApiError(null);
+
+    try {
+        const user = getCurrentUser();
+        
+        // Extract only text content (without images)
+        let noteTextContent = '';
+        // Remove all HTML tags including images
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = richTextContent;
+        
+        // Remove all image elements
+        const images = tempDiv.querySelectorAll('img');
+        images.forEach(img => img.remove());
+        
+        // Get only the text content
+        noteTextContent = tempDiv.textContent || tempDiv.innerText || '';
+        
+        const noteData = {
+            note: noteTextContent, // Save only text content
+            date: new Date(selectedDate).toISOString(),
+            jobId: selectedJob,
+            userId: user.id,
+        }; 
+        
+        const savedNote = await addSiteNote(noteData);
+        const siteNoteId = savedNote.siteNoteId; 
+
+        if (!siteNoteId) {
+            throw new Error("Failed to retrieve SiteNoteId from the saved note.");
+        }
+
+        // Upload documents with SignalR support
+        for (const doc of documents) {
+            if (doc.file) {
+                try {
+                    await uploadDocumentWithSignalR(doc, siteNoteId, user.id);
+                    console.log(`Document "${doc.name}" uploaded successfully`);
+                } catch (err) {
+                    console.error(`Error uploading document "${doc.name}":`, err);
+                    // Continue with other documents even if one fails
+                    toast.error(`Failed to upload document "${doc.name}": ${err.message}`);
                 }
             }
-
-            await handleAddPriority(siteNoteId, user.id);
-            refreshNotes();
-            refreshFilteredNotes()
-            onClose();
-        } catch (error) {
-            console.error("Save error:", error);
-            setApiError(error.message || "Failed to save note or upload documents");
-        } finally {
-            setIsSaving(false);
         }
-    };
+        
+        // Upload pasted images as separate documents
+        if (pastedImages.length > 0) {
+            for (const image of pastedImages) {
+                try {
+                    // Convert base64 to blob
+                    const base64Response = await fetch(image.base64);
+                    const blob = await base64Response.blob();
+                    
+                    // Create a file from blob
+                    const file = new File([blob], image.name, { type: image.type });
+                    
+                    // Upload as document using the same SignalR-enabled function
+                    const imageDoc = {
+                        name: image.name,
+                        file: file,
+                        fileName: image.name
+                    };
+                    
+                    await uploadInlineImage(imageDoc, siteNoteId, user.id);
+                    console.log(`Image "${image.name}" uploaded successfully`);
+                } catch (imageError) {
+                    console.error('Error uploading pasted image:', imageError);
+                    // Continue with other images
+                    toast.error(`Failed to upload image "${image.name}": ${imageError.message}`);
+                }
+            }
+        }
+
+        await handleAddPriority(siteNoteId, user.id);
+        refreshNotes();
+        if (refreshFilteredNotes) refreshFilteredNotes();
+        onClose();
+        toast.success('Note saved successfully!');
+    } catch (error) {
+        console.error("Save error:", error);
+        setApiError(error.message || "Failed to save note");
+        toast.error('Failed to save note');
+    } finally {
+        setIsSaving(false);
+    }
+};
+    
 
     // Keyboard shortcut for save
     const handleSaveShortcut = useCallback((event) => {
@@ -708,9 +1055,8 @@ const NewNoteModal = forwardRef(({
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.message || "Failed to save note");
+                throw new Error(errorData.message || "Failed to save priority");
             }
-            toast.success('Note Successfully Saved');
         } catch (error) {
             console.error("API Error:", error);
             throw error;
@@ -719,58 +1065,131 @@ const NewNoteModal = forwardRef(({
 
     // Search component
     const renderSearchSection = () => (
-        <div className="search-section">
-            <div className="form-group full-width search-container" ref={searchInputRef}>
-                <label>🔍 Quick Search</label>
-                <div className="search-input-wrapper">
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Type to search for workspace, project, or job..."
-                        className="search-input"
-                        //disabled={areDropdownsDisabled}
-                    />
-                    {isSearching && <div className="search-spinner">🔍 Searching...</div>}
+    <div className="search-section">
+        <div className="form-group full-width search-container" ref={searchInputRef}>
+            <label>🔍 Quick Search</label>
+            <div className="search-input-wrapper">
+                <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Type to search for workspace, project, or job..."
+                    className="search-input"
+                />
+                {isSearching && <div className="search-spinner">🔍 Searching...</div>}
+            </div>
+            
+            {showSearchResults && searchResults.length > 0 && (
+                <div className="search-results-dropdown">
+                    <div className="search-results-header">
+                        Found {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for "{searchQuery}"
+                    </div>
+                    {searchResults.map((result, index) => (
+                        <div
+                            key={`${result.workspaceId}-${result.projectId}-${result.jobId}-${index}`}
+                            className="search-result-item"
+                            onClick={() => handleSearchResultSelect(result)}
+                        >
+                            <div className="search-result-fullpath">
+                                {result.fullPath || `${result.workspaceName} → ${result.projectName} → ${result.jobName}`}
+                            </div>
+                            <div className="search-result-details">
+                                <span>Workspace: {result.workspaceName}</span>
+                                <span>Project: {result.projectName}</span>
+                                <span>Job: {result.jobName}</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+            
+            {showSearchResults && searchQuery && searchResults.length === 0 && !isSearching && (
+                <div className="search-results-dropdown">
+                    <div className="search-no-results">
+                        No results found for "<strong>{searchQuery}</strong>"
+                        <div style={{ fontSize: '11px', marginTop: '4px' }}>
+                            Try searching with different keywords
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    </div>
+);
+
+    // Editor toolbar component - SIMPLIFIED (no mode toggle)
+    const renderEditorToolbar = () => (
+        <div className="editor-toolbar">
+            <div className="editor-formatting-tools">
+                <button onClick={() => formatText('bold')} title="Bold">
+                    <i className="fas fa-bold"></i>
+                </button>
+                <button onClick={() => formatText('italic')} title="Italic">
+                    <i className="fas fa-italic"></i>
+                </button>
+                <button onClick={() => formatText('underline')} title="Underline">
+                    <i className="fas fa-underline"></i>
+                </button>
+                <button onClick={() => formatText('insertUnorderedList')} title="Bullet List">
+                    <i className="fas fa-list-ul"></i>
+                </button>
+                <button onClick={() => formatText('insertOrderedList')} title="Numbered List">
+                    <i className="fas fa-list-ol"></i>
+                </button>
+                
+                <div className="image-upload-wrapper">
+                    <label htmlFor="image-upload" className="image-upload-button" title="Upload Image">
+                        <i className="fas fa-image"></i>
+                        <input
+                            id="image-upload"
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                            style={{ display: 'none' }}
+                        />
+                    </label>
                 </div>
                 
-                {showSearchResults && searchResults.length > 0 && (
-                    <div className="search-results-dropdown">
-                        <div className="search-results-header">
-                            Found {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for "{searchQuery}"
-                        </div>
-                        {searchResults.map((result, index) => (
-                            <div
-                                key={`${result.workspaceId}-${result.projectId}-${result.jobId}-${index}`}
-                                className="search-result-item"
-                                onClick={() => handleSearchResultSelect(result)}
-                            >
-                                <div className="search-result-fullpath">
-                                    {result.fullPath || `${result.workspaceName} → ${result.projectName} → ${result.jobName}`}
-                                </div>
-                                <div className="search-result-details">
-                                    <span>Workspace: {result.workspaceName}</span>
-                                    <span>Project: {result.projectName}</span>
-                                    <span>Job: {result.jobName}</span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
+                <button onClick={clearEditor} title="Clear All" className="clear-button">
+                    <i className="fas fa-trash"></i>
+                </button>
+            </div>
+            
+            {pastedImages.length > 0 && (
+                <div className="image-counter">
+                    <i className="fas fa-images"></i> {pastedImages.length} image{pastedImages.length !== 1 ? 's' : ''} attached
+                </div>
+            )}
+        </div>
+    );
+
+    // Editor content component - ONLY RICH TEXT EDITOR
+    const renderEditorContent = () => {
+    return (
+        <div className="editor-content-container">
+            <div className="form-group">
+                <label>
+                    Note {errors.note && <span className="error-message-inline">{errors.note}</span>}
+                    <span className="editor-hint">
+                        <i className="fas fa-info-circle"></i> You can paste images directly (Ctrl+V) or use formatting tools
+                    </span>
+                </label>
                 
-                {showSearchResults && searchQuery && searchResults.length === 0 && !isSearching && (
-                    <div className="search-results-dropdown">
-                        <div className="search-no-results">
-                            No results found for "<strong>{searchQuery}</strong>"
-                            <div style={{ fontSize: '11px', marginTop: '4px' }}>
-                                Try searching with different keywords
-                            </div>
-                        </div>
-                    </div>
-                )}
+                {renderEditorToolbar()}
+                
+                <div 
+                    ref={editorRef}
+                    contentEditable
+                    className="rich-text-editor"
+                    onPaste={handlePaste}
+                    onInput={handleEditorInput}
+                    placeholder="Write your note here... You can paste images directly!"
+                    suppressContentEditableWarning={true}
+                />
             </div>
         </div>
     );
+};
 
     // Tab content components
     const renderJournalTab = () => {
@@ -786,7 +1205,6 @@ const NewNoteModal = forwardRef(({
                     <select
                         value={selectedWorkspace}
                         onChange={(e) => setSelectedWorkspace(e.target.value)}
-                        //disabled={areDropdownsDisabled}
                     >
                         <option value="">Select Workspace</option>
                         {userworksaces.map(workspace => (
@@ -874,23 +1292,10 @@ const NewNoteModal = forwardRef(({
                             setSelectedDate(e.target.value);
                             setErrors(prev => ({ ...prev, date: undefined }));
                         }}
-                        //disabled={areDropdownsDisabled}
                     />
                 </div>
 
-                <div className="form-group">
-                    <label>Note {errors.note && <span className="error-message-inline">{errors.note}</span>}</label>
-                    <textarea
-                        ref={textareaRef}
-                        value={noteContent}
-                        onChange={(e) => {
-                            setNoteContent(e.target.value);
-                            setErrors(prev => ({ ...prev, note: undefined }));
-                        }}
-                        placeholder="Write your note here..."
-                        rows="6"
-                    />
-                </div>
+                {renderEditorContent()}
             </div>
         );
     };

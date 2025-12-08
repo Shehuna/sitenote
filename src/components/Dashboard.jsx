@@ -245,9 +245,10 @@ const Dashboard = ({
       borderRadius: "6px",
       boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
       zIndex: 1000,
-      maxHeight: "320px",
+      maxHeight: "360px",
       overflow: "hidden",
       marginTop: "4px",
+      
     },
     dropdownSearch: {
       padding: "10px 14px",
@@ -2392,7 +2393,7 @@ const Dashboard = ({
                         <div className="note-text">{note.note}</div>
 
                         {/* Hover Popup for Card View - only show if note is long */}
-                        {note.note.length > 69 && (
+                        {note.note.length > 150 && (
                           <div className="note-card-popup">{note.note}</div>
                         )}
                       </div>

@@ -42,7 +42,20 @@ const EditNoteModal = ({
   const [isUploading, setIsUploading] = useState(false);
   const connectionRef = useRef(null);
 
-  const noteTextareaRef = useRef(null);
+  // Rich text editor states
+  const [richTextContent, setRichTextContent] = useState('');
+  const [originalNoteContent, setOriginalNoteContent] = useState('');
+  const [pastedImages, setPastedImages] = useState([]);
+  const [existingImages, setExistingImages] = useState([]);
+  const [imagesToDelete, setImagesToDelete] = useState([]);
+  const [showFullscreenImage, setShowFullscreenImage] = useState(false);
+  const [fullscreenImageIndex, setFullscreenImageIndex] = useState(0);
+  const [fullscreenImages, setFullscreenImages] = useState([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [imageToDelete, setImageToDelete] = useState(null);
+  const editorRef = useRef(null);
+  const isInitialLoad = useRef(true);
+  const lastRichTextContent = useRef('');
 
   // Get current user
   const getCurrentUser = () => {
@@ -90,6 +103,15 @@ const EditNoteModal = ({
 
   const isValidFileType = (file) => Object.keys(allowedFileTypes).includes(file.type);
 
+  // Initialize editor content
+  useEffect(() => {
+    if (editorRef.current && note?.value && isInitialLoad.current) {
+      editorRef.current.innerHTML = note.value;
+      isInitialLoad.current = false;
+    }
+  }, [note?.value]);
+
+  // SignalR connection for upload progress
   useEffect(() => {
     if (showDocumentModal && !connectionRef.current) {
       const connect = async () => {
@@ -120,12 +142,7 @@ const EditNoteModal = ({
     };
   }, [showDocumentModal]);
 
-  //useEffect(() => {
-    //if (openToPriorityTab) {
-   //   setActiveTab('priority');
-   // }
- // }, [openToPriorityTab]);
-
+  // Check if note is editable based on creation time
   useEffect(() => {
     if (note) {
       const creationDate = note.timeStamp;
@@ -144,40 +161,498 @@ const EditNoteModal = ({
     }
   }, [note]);
 
+  // Fetch inline images for the note
+  const fetchInlineImages = useCallback(async (siteNoteId) => {
+    try {
+      const response = await fetch(
+        `${process.env.REACT_APP_API_BASE_URL}/api/InlineImages/GetInlineImagesBySiteNote?siteNoteId=${siteNoteId}`
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch images: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      if (data.images && Array.isArray(data.images)) {
+        setExistingImages(data.images);
+        return data.images;
+      }
+      return [];
+    } catch (error) {
+      console.error("Error fetching inline images:", error);
+      return [];
+    }
+  }, []);
+
+  // Load note data including inline images
   useEffect(() => {
-    if (activeTab === 'journal' && noteTextareaRef.current) {
-      const timer = setTimeout(() => {
-        noteTextareaRef.current.focus();
-      }, 100);
-      return () => clearTimeout(timer);
+    if (note) {
+      const projectId = note.projectId
+        ? note.projectId.toString()
+        : findProjectIdByName(note.project || "");
+
+      const jobId = note.jobId
+        ? note.jobId.toString()
+        : findJobIdByName(note.job || "", projectId);
+
+      let correctedDate = "";
+      if (note.date) {
+        const dateObj = new Date(note.date);
+        const year = dateObj.getFullYear();
+        const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+        const day = String(dateObj.getDate()).padStart(2, "0");
+        correctedDate = `${year}-${month}-${day}`;
+      }
+      
+      const user = JSON.parse(localStorage.getItem("user"));
+
+      setJournalData({
+        date: correctedDate,
+        projectId: projectId || "",
+        jobId: jobId || "",
+        note: note.note || "",
+        userId: user.id
+      });
+
+      // Store original note content
+      setOriginalNoteContent(note.note || '');
+
+      // Fetch documents and images
+      if (note.id) {
+        fetchDocumentsByReference(note.id);
+        
+        // Load images properly
+        fetchInlineImages(note.id).then(images => {
+          setExistingImages(images);
+          
+          // Build initial HTML content
+          let content = note.note || '';
+          if (images.length > 0) {
+            const imageHtml = images.map(img => {
+              const imageUrl = img.url.startsWith('http') ? img.url : 
+                `${process.env.REACT_APP_API_BASE_URL}${img.url}`;
+              return `
+                <div class="image-wrapper" data-image-id="${img.id}" data-image-url="${imageUrl}" data-image-name="${img.fileName}">
+                  <img src="${imageUrl}" 
+                       alt="${img.fileName}" 
+                       class="inline-image" />
+                  <button type="button" class="remove-image-btn" title="Remove image">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+              `;
+            }).join('');
+            
+            // Append images directly after text content
+            content += imageHtml;
+          }
+          
+          setRichTextContent(content);
+          lastRichTextContent.current = content;
+          
+          // Set editor content
+          setTimeout(() => {
+            if (editorRef.current) {
+              editorRef.current.innerHTML = content;
+              // Add click handlers to images
+              addImageClickHandlers();
+            }
+          }, 100);
+        });
+      }
+
+      if (note.id) {
+        const user = JSON.parse(localStorage.getItem("user"));
+        let result = priorities.find((p) => p.noteID == note.id);
+        if (!result) {
+          result = priorities.find(
+            (p) => p.noteID === note.id && p.userId === user.id
+          );
+        }
+        if (result) {
+          setSelectedPriority(result.priorityValue.toString());
+          setPriorityId(result.id.toString());
+        } else {
+          setSelectedPriority("1");
+          setPriorityId("");
+        }
+      }
+    }
+  }, [note, fetchInlineImages, projects, jobs, priorities]);
+
+  // Restore editor content when switching back to journal tab
+  useEffect(() => {
+    if (activeTab === "journal" && editorRef.current) {
+      setTimeout(() => {
+        if (editorRef.current) {
+          const contentToRestore = richTextContent || lastRichTextContent.current;
+          editorRef.current.innerHTML = contentToRestore;
+          addImageClickHandlers();
+        }
+      }, 10);
     }
   }, [activeTab]);
-  
-  useEffect(() => {
-    if (note && activeTab === 'journal') {
-      const timer = setTimeout(() => {
-        if (noteTextareaRef.current) {
-          noteTextareaRef.current.focus();
-        }
-      }, 200);
-      return () => clearTimeout(timer);
-    }
-  }, [note, activeTab]);
 
-  const getMimeType = (fileName) => {
-    const ext = fileName?.split(".").pop()?.toLowerCase();
-    switch (ext) {
-      case "pdf": return "application/pdf";
-      case "jpg": case "jpeg": return "image/jpeg";
-      case "png": return "image/png";
-      case "gif": return "image/gif";
-      case "doc": return "application/msword";
-      case "docx": return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-      case "xls": return "application/vnd.ms-excel";
-      case "xlsx": return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-      case "txt": return "text/plain";
-      case "html": return "text/html";
-      default: return "application/octet-stream";
+  // Add click handlers to images for fullscreen view
+  const addImageClickHandlers = useCallback(() => {
+    if (!editorRef.current) return;
+    
+    const images = editorRef.current.querySelectorAll('.image-wrapper img');
+    images.forEach((img, index) => {
+      img.style.cursor = 'zoom-in';
+      img.onclick = (e) => {
+        e.stopPropagation();
+        const wrapper = img.closest('.image-wrapper');
+        const imageUrl = wrapper?.dataset.imageUrl;
+        const imageName = wrapper?.dataset.imageName || 'Image';
+        
+        if (imageUrl) {
+          const allImageWrappers = editorRef.current.querySelectorAll('.image-wrapper');
+          const imagesArray = Array.from(allImageWrappers).map(wrapper => ({
+            url: wrapper.dataset.imageUrl,
+            name: wrapper.dataset.imageName || 'Image'
+          }));
+          
+          const currentIndex = Array.from(allImageWrappers).findIndex(wrapper => 
+            wrapper.dataset.imageUrl === imageUrl
+          );
+          
+          setFullscreenImages(imagesArray);
+          setFullscreenImageIndex(currentIndex >= 0 ? currentIndex : 0);
+          setShowFullscreenImage(true);
+        }
+      };
+    });
+  }, []);
+
+  const findProjectIdByName = (projectName) => {
+    const project = projects.find((p) => p.name === projectName);
+    return project ? project.id.toString() : "";
+  };
+
+  const findJobIdByName = (jobName, projectId) => {
+    const job = jobs.find(
+      (j) =>
+        j.name === jobName && j.projectId?.toString() === projectId.toString()
+    );
+    return job ? job.id.toString() : "";
+  };
+
+  const handleJournalChange = (e) => {
+    if (!isEditable || !canEditNote) return;
+    const { name, value } = e.target;
+    setJournalData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // Process pasted image
+  const processPastedImage = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64Image = e.target.result;
+        const imageId = `new-img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const imageName = file.name || `image-${Date.now()}.png`;
+        
+        const imageHtml = `
+          <div class="image-wrapper" data-image-id="${imageId}" data-image-url="${base64Image}" data-image-name="${imageName}">
+            <img src="${base64Image}" 
+                 alt="${imageName}" 
+                 class="inline-image enhanced-image" />
+            <button type="button" class="remove-image-btn" title="Remove image">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        `;
+        
+        setPastedImages(prev => [...prev, {
+          id: imageId,
+          name: imageName,
+          base64: base64Image,
+          type: file.type,
+          size: file.size,
+          isNew: true
+        }]);
+        
+        resolve(imageHtml);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Handle paste
+  const handlePaste = useCallback((e) => {
+    if (!editorRef.current || !canEditNote || !isEditable) return;
+    
+    e.preventDefault();
+    const clipboardData = e.clipboardData || window.clipboardData;
+    
+    if (clipboardData.files && clipboardData.files.length > 0) {
+      const file = clipboardData.files[0];
+      
+      if (file.type.startsWith('image/')) {
+        processPastedImage(file).then((imageHtml) => {
+          const selection = window.getSelection();
+          if (selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            const fragment = range.createContextualFragment(imageHtml);
+            range.deleteContents();
+            range.insertNode(fragment);
+            
+            range.setStartAfter(fragment.lastChild);
+            range.setEndAfter(fragment.lastChild);
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+          
+          const newContent = editorRef.current.innerHTML;
+          setRichTextContent(newContent);
+          lastRichTextContent.current = newContent;
+          setTimeout(() => addImageClickHandlers(), 100);
+        }).catch(error => {
+          console.error('Error processing pasted image:', error);
+          document.execCommand('insertText', false, '[Image paste failed]');
+          const newContent = editorRef.current.innerHTML;
+          setRichTextContent(newContent);
+          lastRichTextContent.current = newContent;
+        });
+        return;
+      }
+    }
+    
+    const pastedText = clipboardData.getData('text');
+    if (pastedText) {
+      document.execCommand('insertText', false, pastedText);
+      const newContent = editorRef.current.innerHTML;
+      setRichTextContent(newContent);
+      lastRichTextContent.current = newContent;
+    }
+  }, [canEditNote, isEditable, addImageClickHandlers]);
+
+  // Handle editor input
+  const handleEditorInput = useCallback(() => {
+    if (editorRef.current) {
+      const newContent = editorRef.current.innerHTML;
+      setRichTextContent(newContent);
+      lastRichTextContent.current = newContent;
+    }
+  }, []);
+
+  // Handle image upload
+  const handleImageUpload = useCallback((e) => {
+    if (!canEditNote || !isEditable) return;
+    
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+    
+    processPastedImage(file).then((imageHtml) => {
+      if (editorRef.current) {
+        editorRef.current.insertAdjacentHTML('beforeend', imageHtml);
+        
+        const newContent = editorRef.current.innerHTML;
+        setRichTextContent(newContent);
+        lastRichTextContent.current = newContent;
+        
+        setTimeout(() => addImageClickHandlers(), 100);
+        
+        editorRef.current.scrollTop = editorRef.current.scrollHeight;
+        
+        toast.success('Image uploaded successfully');
+      }
+    }).catch(error => {
+      console.error('Error uploading image:', error);
+      toast.error('Failed to upload image');
+    });
+    
+    e.target.value = '';
+  }, [canEditNote, isEditable, addImageClickHandlers]);
+
+  const formatText = (command, value = null) => {
+    if (!canEditNote || !isEditable) return;
+    
+    document.execCommand(command, false, value);
+    if (editorRef.current) {
+      const newContent = editorRef.current.innerHTML;
+      setRichTextContent(newContent);
+      lastRichTextContent.current = newContent;
+    }
+    
+    if (editorRef.current) {
+      editorRef.current.focus();
+    }
+  };
+
+  // Clear editor
+  const clearEditor = () => {
+    if (!canEditNote || !isEditable) return;
+    
+    if (editorRef.current) {
+      editorRef.current.innerHTML = '';
+      setRichTextContent('');
+      lastRichTextContent.current = '';
+    }
+    setPastedImages([]);
+  };
+
+  // Handle image deletion confirmation
+  const handleDeleteImageClick = useCallback((imageId) => {
+    if (!canEditNote || !isEditable) return;
+    
+    const image = existingImages.find(img => img.id.toString() === imageId.toString());
+    const newImage = pastedImages.find(img => img.id === imageId);
+    
+    setImageToDelete({
+      id: imageId,
+      name: image?.fileName || newImage?.name || 'Image'
+    });
+    setShowDeleteConfirm(true);
+  }, [canEditNote, isEditable, existingImages, pastedImages]);
+
+  // Handle actual image deletion after confirmation
+  const confirmDeleteImage = () => {
+    if (!imageToDelete) return;
+    
+    const imageId = imageToDelete.id;
+    
+    const image = existingImages.find(img => img.id.toString() === imageId.toString());
+    if (image && image.id) {
+      setImagesToDelete(prev => [...prev, image.id]);
+    }
+    
+    if (editorRef.current) {
+      const imgWrapper = editorRef.current.querySelector(`.image-wrapper[data-image-id="${imageId}"]`);
+      if (imgWrapper) {
+        imgWrapper.remove();
+        const newContent = editorRef.current.innerHTML;
+        setRichTextContent(newContent);
+        lastRichTextContent.current = newContent;
+      }
+    }
+    
+    setExistingImages(prev => prev.filter(img => img.id.toString() !== imageId.toString()));
+    setPastedImages(prev => prev.filter(img => img.id !== imageId));
+    
+    setShowDeleteConfirm(false);
+    setImageToDelete(null);
+    
+    toast.success('Image deleted successfully');
+  };
+
+  // Handle remove button clicks inside editor
+  useEffect(() => {
+    const handleRemoveClick = (e) => {
+      const removeBtn = e.target.closest('.remove-image-btn');
+      if (removeBtn) {
+        e.stopPropagation();
+        const wrapper = removeBtn.closest('.image-wrapper');
+        const imageId = wrapper?.dataset.imageId;
+        if (imageId) {
+          handleDeleteImageClick(imageId);
+        }
+      }
+    };
+
+    const editor = editorRef.current;
+    if (editor) {
+      editor.addEventListener('click', handleRemoveClick);
+      return () => editor.removeEventListener('click', handleRemoveClick);
+    }
+  }, [handleDeleteImageClick]);
+
+  // Fullscreen image navigation
+  const handlePrevImage = () => {
+    setFullscreenImageIndex(prev => 
+      prev > 0 ? prev - 1 : fullscreenImages.length - 1
+    );
+  };
+
+  const handleNextImage = () => {
+    setFullscreenImageIndex(prev => 
+      prev < fullscreenImages.length - 1 ? prev + 1 : 0
+    );
+  };
+
+  // Handle keyboard navigation in fullscreen
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (!showFullscreenImage) return;
+      
+      switch(e.key) {
+        case 'ArrowLeft':
+          handlePrevImage();
+          break;
+        case 'ArrowRight':
+          handleNextImage();
+          break;
+        case 'Escape':
+          setShowFullscreenImage(false);
+          break;
+        default:
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showFullscreenImage, fullscreenImages.length]);
+
+  // Upload inline image
+  const uploadInlineImage = async (doc, siteNoteId, userId) => {
+    if (!doc.file) {
+      throw new Error('No file selected for upload');
+    }
+
+    const formData = new FormData();
+    
+    formData.append('File', doc.file);      
+    formData.append('SiteNoteId', siteNoteId);
+    formData.append('UserId', userId);
+   
+    const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/InlineImages/UploadInlineImage`, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = 'Upload failed';
+      
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.message || errorData.errors?.Name?.[0] || errorMessage;
+      } catch (e) {
+        errorMessage = `Server error: ${response.status} ${response.statusText}`;
+      }
+      
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  };
+
+  // Delete inline image
+  const deleteInlineImage = async (imageId) => {
+    try {
+      const response = await fetch(
+        `${process.env.REACT_APP_API_BASE_URL}/api/InlineImages/DeleteInlineImage/${imageId}`,
+        {
+          method: "DELETE"
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete image: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("Error deleting inline image:", error);
+      throw error;
     }
   };
 
@@ -216,77 +691,6 @@ const EditNoteModal = ({
       setIsLoadingDocuments(false);
     }
   }, []);
-
-  useEffect(() => {
-    if (note) {
-      const projectId = note.projectId
-        ? note.projectId.toString()
-        : findProjectIdByName(note.project || "");
-
-      const jobId = note.jobId
-        ? note.jobId.toString()
-        : findJobIdByName(note.job || "", projectId);
-
-      let correctedDate = "";
-      if (note.date) {
-        const dateObj = new Date(note.date);
-        const year = dateObj.getFullYear();
-        const month = String(dateObj.getMonth() + 1).padStart(2, "0");
-        const day = String(dateObj.getDate()).padStart(2, "0");
-        correctedDate = `${year}-${month}-${day}`;
-      }
-      
-      const user = JSON.parse(localStorage.getItem("user"));
-
-      setJournalData({
-        date: correctedDate,
-        projectId: projectId || "",
-        jobId: jobId || "",
-        note: note.note || "",
-        userId: user.id
-      });
-
-      if (note.id) {
-        fetchDocumentsByReference(note.id);
-      }
-
-      if (note.id) {
-        const user = JSON.parse(localStorage.getItem("user"));
-        let result = priorities.find((p) => p.noteID == note.id);
-        if (!result) {
-          result = priorities.find(
-            (p) => p.noteID === note.id && p.userId === user.id
-          );
-        }
-        if (result) {
-          setSelectedPriority(result.priorityValue.toString());
-          setPriorityId(result.id.toString());
-        } else {
-          setSelectedPriority("1");
-          setPriorityId("");
-        }
-      }
-    }
-  }, [note, fetchDocumentsByReference, projects, jobs, priorities]);
-
-  const findProjectIdByName = (projectName) => {
-    const project = projects.find((p) => p.name === projectName);
-    return project ? project.id.toString() : "";
-  };
-
-  const findJobIdByName = (jobName, projectId) => {
-    const job = jobs.find(
-      (j) =>
-        j.name === jobName && j.projectId?.toString() === projectId.toString()
-    );
-    return job ? job.id.toString() : "";
-  };
-
-  const handleJournalChange = (e) => {
-    if (!isEditable || !canEditNote) return;
-    const { name, value } = e.target;
-    setJournalData((prev) => ({ ...prev, [name]: value }));
-  };
 
   const handleAddDocument = () => {
     if (!isEditable || !canEditNote) return;
@@ -407,6 +811,59 @@ const EditNoteModal = ({
     }
   };
 
+  // FIXED: Prepare note content for saving - clean text extraction
+  const prepareNoteContent = () => {
+    // First try to get content from the editor directly
+    if (editorRef.current) {
+      // Clone the editor to avoid modifying the original
+      const editorClone = editorRef.current.cloneNode(true);
+      
+      // Remove all image wrappers
+      const imageWrappers = editorClone.querySelectorAll('.image-wrapper');
+      imageWrappers.forEach(wrapper => wrapper.remove());
+      
+      // Get text content
+      let textContent = editorClone.textContent || editorClone.innerText || '';
+      
+      // Clean up the text - remove extra whitespace
+      textContent = textContent
+        .split('\n') // Split by line breaks
+        .map(line => line.trim()) // Trim each line
+        .filter(line => line.length > 0) // Remove empty lines
+        .join('\n') // Join with single line breaks
+        .trim(); // Final trim
+      
+      return textContent;
+    }
+    
+    // Fallback: use stored content
+    let content = richTextContent || lastRichTextContent.current || originalNoteContent || '';
+    
+    if (!content) return '';
+    
+    // Create a temporary div
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = content;
+    
+    // Remove image wrappers
+    const imageWrappers = tempDiv.querySelectorAll('.image-wrapper');
+    imageWrappers.forEach(wrapper => wrapper.remove());
+    
+    // Get and clean text content
+    let textContent = tempDiv.textContent || tempDiv.innerText || '';
+    
+    // Clean up the text
+    textContent = textContent
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .join('\n')
+      .trim();
+    
+    return textContent;
+  };
+
+  // Handle save note
   const handleSaveNote = async () => {
     setIsSubmitting(true);
     setError(null);
@@ -448,14 +905,49 @@ const EditNoteModal = ({
         return;
       }
 
+      // Extract clean text content
+      const noteText = prepareNoteContent();
+
       const result = await updateNote(note.id, {
         Date: new Date(journalData.date).toISOString(),
-        Note: journalData.note,
+        Note: noteText,
         JobId: journalData.jobId,
         UserId: journalData.userId,
       });
 
       if (result && (result.success || result.id || result.message)) {
+        const user = getCurrentUser();
+        
+        // Delete images marked for deletion
+        for (const imageId of imagesToDelete) {
+          try {
+            await deleteInlineImage(imageId);
+          } catch (err) {
+            console.error(`Error deleting image ${imageId}:`, err);
+          }
+        }
+        
+        // Upload new pasted images
+        for (const image of pastedImages) {
+          try {
+            const base64Response = await fetch(image.base64);
+            const blob = await base64Response.blob();
+            
+            const file = new File([blob], image.name, { type: image.type });
+            
+            const imageDoc = {
+              name: image.name,
+              file: file,
+              fileName: image.name
+            };
+            
+            await uploadInlineImage(imageDoc, note.id, user.id);
+          } catch (imageError) {
+            console.error('Error uploading pasted image:', imageError);
+            toast.error(`Failed to upload image "${image.name}": ${imageError.message}`);
+          }
+        }
+        
         await handleUpdatepriority();
         onClose();
         refreshNotes();
@@ -473,11 +965,11 @@ const EditNoteModal = ({
   const handleSaveShortcut = useCallback((event) => {
     if ((event.ctrlKey || event.metaKey) && event.key === 's') {
       event.preventDefault();
-      if (!isSubmitting && canEditNote) {
+      if (!isSubmitting && canEditNote && isEditable) {
         handleSaveNote();
       }
     }
-  }, [isSubmitting, handleSaveNote, canEditNote]);
+  }, [isSubmitting, handleSaveNote, canEditNote, isEditable]);
 
   useEffect(() => {
     document.addEventListener('keydown', handleSaveShortcut);
@@ -519,6 +1011,210 @@ const EditNoteModal = ({
       console.error("Error saving priority:", error);
       throw error;
     }
+  };
+
+  // Editor toolbar component with disabled clear button
+  const renderEditorToolbar = () => (
+    <div className="editor-toolbar">
+      <div className="editor-formatting-tools">
+        <button 
+          onClick={() => formatText('bold')} 
+          title="Bold"
+          disabled={!isEditable || !canEditNote}
+          className={!isEditable || !canEditNote ? 'disabled' : ''}
+        >
+          <i className="fas fa-bold"></i>
+        </button>
+        <button 
+          onClick={() => formatText('italic')} 
+          title="Italic"
+          disabled={!isEditable || !canEditNote}
+          className={!isEditable || !canEditNote ? 'disabled' : ''}
+        >
+          <i className="fas fa-italic"></i>
+        </button>
+        <button 
+          onClick={() => formatText('underline')} 
+          title="Underline"
+          disabled={!isEditable || !canEditNote}
+          className={!isEditable || !canEditNote ? 'disabled' : ''}
+        >
+          <i className="fas fa-underline"></i>
+        </button>
+        <button 
+          onClick={() => formatText('insertUnorderedList')} 
+          title="Bullet List"
+          disabled={!isEditable || !canEditNote}
+          className={!isEditable || !canEditNote ? 'disabled' : ''}
+        >
+          <i className="fas fa-list-ul"></i>
+        </button>
+        <button 
+          onClick={() => formatText('insertOrderedList')} 
+          title="Numbered List"
+          disabled={!isEditable || !canEditNote}
+          className={!isEditable || !canEditNote ? 'disabled' : ''}
+        >
+          <i className="fas fa-list-ol"></i>
+        </button>
+        
+        <div className="image-upload-wrapper">
+          <label htmlFor="image-upload" className="image-upload-button" title="Upload Image">
+            <i className="fas fa-image"></i>
+            <input
+              id="image-upload"
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              disabled={!isEditable || !canEditNote}
+              style={{ display: 'none' }}
+            />
+          </label>
+        </div>
+        
+        <button 
+          onClick={clearEditor} 
+          title="Clear All" 
+          className="clear-button disabled"
+          disabled={true}
+          style={{ opacity: 0.5, cursor: 'not-allowed' }}
+        >
+          <i className="fas fa-trash"></i>
+        </button>
+      </div>
+      
+      {(pastedImages.length > 0 || existingImages.length > 0) && (
+        <div className="image-counter">
+          <i className="fas fa-images"></i> 
+          {existingImages.length} existing image{existingImages.length !== 1 ? 's' : ''}
+          {pastedImages.length > 0 && `, ${pastedImages.length} new image${pastedImages.length !== 1 ? 's' : ''}`}
+        </div>
+      )}
+    </div>
+  );
+
+  // Fullscreen image viewer component
+  const renderFullscreenImage = () => {
+    if (!showFullscreenImage || fullscreenImages.length === 0) return null;
+
+    const currentImage = fullscreenImages[fullscreenImageIndex];
+
+    return (
+      <div className="fullscreen-overlay" onClick={() => setShowFullscreenImage(false)}>
+        <div className="fullscreen-container" onClick={(e) => e.stopPropagation()}>
+          <div className="fullscreen-header">
+            <h3>
+              {currentImage.name} ({fullscreenImageIndex + 1} of {fullscreenImages.length})
+            </h3>
+            <button 
+              className="close-fullscreen-btn" 
+              onClick={() => setShowFullscreenImage(false)}
+              title="Close"
+            >
+              <i className="fas fa-times"></i>
+            </button>
+          </div>
+
+          <div className="fullscreen-image-container">
+            <button 
+              className="nav-btn prev-btn" 
+              onClick={handlePrevImage}
+              title="Previous image"
+            >
+              <i className="fas fa-chevron-left"></i>
+            </button>
+
+            <div className="image-wrapper-fullscreen">
+              <img 
+                src={currentImage.url} 
+                alt={currentImage.name}
+                className="fullscreen-image"
+              />
+            </div>
+
+            <button 
+              className="nav-btn next-btn" 
+              onClick={handleNextImage}
+              title="Next image"
+            >
+              <i className="fas fa-chevron-right"></i>
+            </button>
+          </div>
+
+          <div className="fullscreen-footer">
+            <div className="image-details">
+              <p>
+                <strong>Image:</strong> {currentImage.name}
+              </p>
+              <p>
+                <strong>Position:</strong> {fullscreenImageIndex + 1} of {fullscreenImages.length}
+              </p>
+            </div>
+            <div className="navigation-hint">
+              <span>
+                <i className="fas fa-arrow-left"></i> Previous image
+              </span>
+              <span>
+                <i className="fas fa-arrow-right"></i> Next image
+              </span>
+              <span>
+                <i className="fas fa-times"></i> Click outside or press ESC to close
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Delete confirmation modal
+  const renderDeleteConfirmation = () => {
+    if (!showDeleteConfirm) return null;
+
+    return (
+      <div className="delete-confirm-overlay" onClick={() => setShowDeleteConfirm(false)}>
+        <div className="delete-confirm-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="delete-confirm-header">
+            <h3>
+              <i className="fas fa-exclamation-triangle" style={{ color: '#f44336', marginRight: '10px' }}></i>
+              Delete Image
+            </h3>
+            <button 
+              className="close-button" 
+              onClick={() => setShowDeleteConfirm(false)}
+              disabled={isSubmitting}
+            >
+              ×
+            </button>
+          </div>
+
+          <div className="delete-confirm-content">
+            
+            <p className="delete-confirm-message">
+              Are you sure you want to delete the image <strong>"{imageToDelete?.name}"</strong>?
+            </p>
+            
+          </div>
+
+          <div className="delete-confirm-actions">
+            <button 
+              onClick={() => setShowDeleteConfirm(false)}
+              className="delete-cancel-button"
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={confirmDeleteImage}
+              className="delete-confirm-button"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Deleting..." : "Delete Image"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (!note) return null;
@@ -632,16 +1328,31 @@ const EditNoteModal = ({
                 </select>
               </div>
 
+              {/* Rich Text Editor Section */}
               <div className="form-group">
                 <label>Notes:</label>
-                <textarea
-                  ref={noteTextareaRef}
-                  name="note"
-                  value={journalData.note}
-                  onChange={handleJournalChange}
-                  rows={6}
-                  required
-                  disabled={!isEditable || !canEditNote || isSubmitting}
+                {renderEditorToolbar()}
+                
+                <div 
+                  ref={editorRef}
+                  contentEditable={isEditable && canEditNote}
+                  className="rich-text-editor"
+                  onPaste={handlePaste}
+                  onInput={handleEditorInput}
+                  placeholder="Write your note here... You can paste images directly!"
+                  suppressContentEditableWarning={true}
+                  style={{
+                    pointerEvents: isEditable && canEditNote ? 'auto' : 'none',
+                    opacity: isEditable && canEditNote ? 1 : 0.7,
+                    minHeight: '200px',
+                    maxHeight: '400px',
+                    overflowY: 'auto',
+                    border: '1px solid #ccc',
+                    borderRadius: '4px',
+                    padding: '10px',
+                    backgroundColor: isEditable && canEditNote ? '#fff' : '#f5f5f5',
+                    cursor: isEditable && canEditNote ? 'text' : 'default'
+                  }}
                 />
               </div>
             </div>
@@ -703,7 +1414,7 @@ const EditNoteModal = ({
                 <select
                   value={selectedPriority}
                   onChange={(e) => setSelectedPriority(e.target.value)}
-                  disabled={isSubmitting }
+                  disabled={isSubmitting}
                   className={`priority-select ${selectedPriority ? `priority-${selectedPriority}` : "priority-default"}`}
                 >
                   <option value="">Select Priority</option>
@@ -824,6 +1535,12 @@ const EditNoteModal = ({
             </div>
           </div>
         )}
+
+        {/* Fullscreen Image Viewer */}
+        {renderFullscreenImage()}
+
+        {/* Delete Confirmation Modal */}
+        {renderDeleteConfirmation()}
       </div>
     </div>
   );
