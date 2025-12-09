@@ -41,8 +41,9 @@ const EditNoteModal = ({
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const connectionRef = useRef(null);
+  const modalRef = useRef(null);
 
-  // Rich text editor states
+  // Rich text editor states 
   const [richTextContent, setRichTextContent] = useState('');
   const [originalNoteContent, setOriginalNoteContent] = useState('');
   const [pastedImages, setPastedImages] = useState([]);
@@ -1035,6 +1036,28 @@ const EditNoteModal = ({
     };
   }, [handleSaveShortcut]);
 
+  // When there's an error, ensure the modal scrolls to top so the error is visible
+  useEffect(() => {
+    if (!error) return;
+    try {
+      if (modalRef.current) {
+        if (typeof modalRef.current.scrollTo === 'function') {
+          modalRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+          modalRef.current.scrollTop = 0;
+        }
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    } catch (e) {
+      try {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch (_) {
+        // ignore
+      }
+    }
+  }, [error]);
+
   const handleUpdatepriority = async () => {
     try {
       const user = JSON.parse(localStorage.getItem("user"));
@@ -1397,7 +1420,7 @@ const EditNoteModal = ({
 
   return (
     <div className="edit-note-modal-overlay">
-      <div className="edit-note-modal">
+      <div className="edit-note-modal" ref={modalRef}>
         <div className="modal-header">
           <h2>
             Edit Note{" "}
@@ -1413,6 +1436,14 @@ const EditNoteModal = ({
             ×
           </button>
         </div>
+
+        {/* Top error banner: visible when `error` state is set */}
+        {error && (
+          <div className="error-message" style={{ margin: '10px 20px', padding: '12px', borderRadius: '6px', background: '#ffebee' }}>
+            {error}
+            <button onClick={() => setError(null)} style={{ float: 'right', background: 'none', border: 'none', fontWeight: 'bold' }}>×</button>
+          </div>
+        )}
 
         {!canEditNote && (
           <div className="edit-warning">

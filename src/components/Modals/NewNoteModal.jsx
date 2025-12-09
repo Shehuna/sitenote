@@ -43,6 +43,7 @@ const NewNoteModal = forwardRef(({
     const [isLoadingJobs, setIsLoadingJobs] = useState(false);
     const connectionRef = useRef(null);
     const [isSignalRConnected, setIsSignalRConnected] = useState(false);
+    const modalRef = useRef(null);
     
     // New search states
     const [searchQuery, setSearchQuery] = useState('');
@@ -1158,6 +1159,26 @@ const handleSaveJournal = async () => {
         }
     }, [isOpen, handleSaveShortcut]);
 
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const hasErrors = apiError || (errors && Object.keys(errors).length > 0);
+        if (hasErrors && modalRef.current) {
+            try {
+                if (typeof modalRef.current.scrollTo === 'function') {
+                    modalRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+                } else {
+                    modalRef.current.scrollTop = 0;
+                }
+            } catch (e) {
+                try {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } catch (_) {
+                }
+            }
+        }
+    }, [apiError, errors, isOpen]);
+
     // Document handling functions
     const handleAddDocument = () => {
         setCurrentDocumentBeingEdited(null);
@@ -1572,7 +1593,7 @@ const handleSaveJournal = async () => {
 
     return (
         <div className="edit-note-modal-overlay">
-            <div className="edit-note-modal">
+            <div className="edit-note-modal" ref={modalRef}>
                 <div className="modal-header">
                     <h2>New Note</h2>
                     <button className="close-button" onClick={onClose} disabled={isSaving}>
