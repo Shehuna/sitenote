@@ -1,786 +1,434 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import Modal from '../Modals/Modal';
 import { useNavigate } from 'react-router-dom';
 import logo from '../../assets/images/avatar.png';
-const useQuery = () => {
-    return new URLSearchParams(window.location.search);
-};
 
-const UserManagement = () => {
+const useQuery = () => new URLSearchParams(window.location.search);
+
+const UserManagement = ({ workspaceId }) => {
     const navigate = useNavigate();
-    const query = useQuery(); 
+    const query = useQuery();
     const initialAddUserState = query.get('action') === 'create';
-     const [isAddUserOpen, setIsAddUserOpen] = useState(false);
-     const [isEditUserOpen, setIsEditUserOpen] = useState(false);
-     const [isChangeUserPassOpen, setIsChangeUserPassOpen] = useState(false);
-     const [isChangeUserStatusOpen, setIsChangeUserStatusOpen] = useState(false);
-     const [isDeleteUserConfirmOpen, setIsDeleteUserConfirmOpen] = useState(false);
-     const [selectedUser, setSelectedUser] = useState('');
-     const [users, setUsers] = useState([]);
-     const [userId, setUserId] = useState('')
 
-     const [formData, setFormData] =useState({
+    const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+    const [isEditUserOpen, setIsEditUserOpen] = useState(false);
+    const [isChangeUserPassOpen, setIsChangeUserPassOpen] = useState(false);
+    const [isChangeUserStatusOpen, setIsChangeUserStatusOpen] = useState(false);
+    const [isDeleteUserConfirmOpen, setIsDeleteUserConfirmOpen] = useState(false);
+    const [selectedUser, setSelectedUser] = useState('');
+    const [users, setUsers] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    const [formData, setFormData] = useState({
         Fname: '',
         Lname: '',
         UserName: '',
         Email: '',
         Password: '',
+        Status: 'Active',
         profilePictureBase64: null
-     })
-     const [errors, setErrors] = useState({});
-     const [loading, setLoading] = useState(true);
-     const [error, setError] = useState(null);
-     const [newPass, setNewPass] = useState('')
-     const [confirmNewPass, setConfirmNewPass] = useState('')
-
-     const API_URL = process.env.REACT_APP_API_BASE_URL
-     const isSignUpFlow = initialAddUserState;
-     useEffect(() => {
-        if (!isSignUpFlow) {
-            fetchUsers();
-        }
-    }, [isSignUpFlow]);
- 
-     useEffect(() => {
-         fetchUsers();
-    }, []);
-    useEffect(() => {
-    if (initialAddUserState) {
-        setIsAddUserOpen(true);
-    }
-}, [initialAddUserState]);
-
-    useEffect(() => {
-            if ((isEditUserOpen || isChangeUserStatusOpen) && selectedUser) {
-                const user = users.find(u => u.id === parseInt(selectedUser));
-                if (user) {
-                    setFormData({
-                        Fname: user.fname,
-                        Lname: user.lname,
-                        UserName: user.userName,
-                        Email: user.email,
-                        Status: user.status,
-                        profilePictureBase64: user.profilePictureBase64
-                    })
-                }
-            } else {
-                setFormData({
-                    Fname: '',
-                    Lname: '',
-                    UserName: '',
-                    Email: '',
-                    Password: '',
-                    profilePictureBase64: null
-                })
-                setErrors({}); 
-            }
-        }, [isEditUserOpen, isChangeUserStatusOpen, selectedUser, users]);
-
-
-    const validateField = (name, value) => {
-    let error = '';
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (name !== 'profilePictureBase64' && !value && isAddUserOpen) {
-        error = 'This field is mandatory.';
-    } else if (name === 'Fname' || name === 'Lname') {
-        if (value.length < 2) error = 'Must be at least 2 characters long.';
-        else if (value.length > 50) error = 'Cannot exceed 50 characters.';
-    } else if (name === 'UserName') {
-        if (value.length < 3) error = 'Must be at least 3 characters long.';
-        else if (value.length > 30) error = 'Cannot exceed 30 characters.';
-        else if (isAddUserOpen) {
-            const isDuplicateUsername = users.some(user => 
-                user.userName.toLowerCase() === value.toLowerCase().trim()
-            );
-            if (isDuplicateUsername) {
-                error = 'Username already exists. Please choose a different one.';
-            }
-        }
-    } else if (name === 'Email') {
-        if (!emailRegex.test(value)) {
-            error = 'Invalid email format.';
-        } else if (isAddUserOpen) {
-            const isDuplicateEmail = users.some(user => 
-                user.email.toLowerCase() === value.toLowerCase().trim()
-            );
-            if (isDuplicateEmail) {
-                error = 'Email address is already registered.';
-            }
-        }
-    } else if (name === 'Password' && isAddUserOpen) {
-        if (value.length < 6) error = 'Password must be at least 6 characters long.';
-    }
-
-    setErrors(prevErrors => ({ ...prevErrors, [name]: error }));
-    return error;
-};
-
-    const validateForm = () => {
-    let formErrors = {};
-    let isValid = true;
-
-    const mandatoryFields = ['Fname', 'Lname', 'UserName', 'Email', 'Password'];
-
-    mandatoryFields.forEach(field => {
-        const value = formData[field];
-        const error = validateField(field, value);
-        if (error) {
-            formErrors[field] = error;
-            isValid = false;
-        }
     });
 
-    if (isAddUserOpen) {
-        const isDuplicateUsername = users.some(user => 
-            user.userName.toLowerCase() === formData.UserName.toLowerCase().trim()
-        );
-        const isDuplicateEmail = users.some(user => 
-            user.email.toLowerCase() === formData.Email.toLowerCase().trim()
-        );
+    const [errors, setErrors] = useState({});
+    const [newPass, setNewPass] = useState('');
+    const [confirmNewPass, setConfirmNewPass] = useState('');
 
-        if (isDuplicateUsername) {
-            formErrors.UserName = 'Username already exists. Please choose a different one.';
-            isValid = false;
-        }
-
-        if (isDuplicateEmail) {
-            formErrors.Email = 'Email address is already registered.';
-            isValid = false;
-        }
-    }
-
-    setErrors(formErrors);
-    return isValid;
-};
-
-
-    const handleInputChange = (e) => {
-    const {name, value, files} = e.target;
-
-    let newValue = value;
-    if(name === 'profilePictureBase64'){
-        newValue = files[0];
-        setFormData((prevData) => ({...prevData, [name]: files[0]}))
-    } else {
-        setFormData((prevData) => ({...prevData, [name]: value}))
-    }
-    
-    validateField(name, newValue);
-    
-    if ((name === 'UserName' || name === 'Email') && value.trim() && isAddUserOpen) {
-        const trimmedValue = value.trim().toLowerCase();
-        const existingUser = users.find(user => 
-            user[name === 'UserName' ? 'userName' : 'email'].toLowerCase() === trimmedValue
-        );
-        
-        if (existingUser) {
-            const fieldName = name === 'UserName' ? 'UserName' : 'Email';
-            const errorMessage = name === 'UserName' 
-                ? 'Username already exists. Please choose a different one.'
-                : 'Email address is already registered.';
-            
-            setErrors(prevErrors => ({ ...prevErrors, [fieldName]: errorMessage }));
-        }
-    }
-}
-
-    const handleCreateUser = async () => {
-      if (isAddUserOpen) {
-        const isDuplicateUsername = users.some(user => 
-            user.userName.toLowerCase() === formData.UserName.toLowerCase().trim()
-        );
-        const isDuplicateEmail = users.some(user => 
-            user.email.toLowerCase() === formData.Email.toLowerCase().trim()
-        );
-
-        if (isDuplicateUsername) {
-            setErrors(prev => ({ ...prev, UserName: 'Username already exists. Please choose a different one.' }));
-            toast.error('Username already exists.');
-            return;
-        }
-
-        if (isDuplicateEmail) {
-            setErrors(prev => ({ ...prev, Email: 'Email address is already registered.' }));
-            toast.error('Email address is already registered.');
-            return;
-        }
-    }
-
-
-    const formDataObj = new FormData()
-    Object.keys(formData).forEach((key)=>{
-        formDataObj.append(key, formData[key])
-    })
-    
-    try {
-        console.log('Creating user...', formData.UserName);
-        const response = await fetch(`${API_URL}/api/UserManagement/CreateUser`, {
-            method: 'POST',
-            body: formDataObj
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to create user');
-        }
-
-        const result = await response.json();
-        console.log('User created successfully:', result);
-        toast.success('User created successfully! 🎉');
-        setIsAddUserOpen(false);
-        setFormData({
-            Fname: '',
-            Lname: '',
-            UserName: '',
-            Email: '',
-            Password: '',
-            profilePictureBase64: null,
-        })
-        setErrors({}); 
-
-        if (isSignUpFlow) {
-            try {
-                console.log('Attempting auto-login...', formData.UserName);
-                const loginResponse = await fetch(`${API_URL}/api/UserManagement/Login`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ 
-                        username: formData.UserName, 
-                        password: formData.Password 
-                    }),
-                });
-
-                const loginData = await loginResponse.json();
-                console.log('Login response:', loginResponse.status, loginData);
-
-                if (loginResponse.ok && loginData.user) {
-                    localStorage.setItem('user', JSON.stringify(loginData.user));
-                    console.log('User stored in localStorage:', loginData.user);                    
-                    toast.success(`Welcome to SiteNotes, ${formData.Fname}! 🎉`);
-                    
-                    setTimeout(() => {
-                        console.log('Redirecting to dashboard...');
-                        window.location.href = '/dashboard'; 
-                    }, 1000);
-                    
-                } else {
-                    console.error('Auto-login failed:', loginData);
-                    throw new Error('Auto-login failed');
-                }
-            } catch (loginError) {
-                console.error('Auto-login error:', loginError);
-                toast.success('Account created! Please log in.');
-                setTimeout(() => {
-                    navigate('/login');
-                }, 1500);
-            }
-        } else {
-            fetchUsers();
-        }
-
-    } catch (error) {
-        console.error('Error creating user:', error);
-        toast.error('Failed to create user. Please try again.');
-    }
-};
+    const API_URL = process.env.REACT_APP_API_BASE_URL;
+    const isSignUpFlow = initialAddUserState;
 
     const fetchUsers = async () => {
+        if (!workspaceId) {
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         try {
-          const response = await fetch(`${API_URL}/api/UserManagement/GetUsers`);
-          
-          if (!response.ok) {
-            throw new Error('Error fetching users data!');
-          }
-          
-          const data = await response.json();
-          setUsers(data.users || []);
+            const response = await fetch(`${API_URL}/api/UserWorkspace/GetUsersByWorkspaceId/${workspaceId}`);
+            if (!response.ok) throw new Error('Failed to fetch users');
+            const data = await response.json();
+            setUsers(data.users || []);
         } catch (err) {
-          setError(err.message);
-          console.error('Error fetching users:', err);
+            setError(err.message);
         } finally {
-          setLoading(false);
+            setLoading(false);
         }
     };
 
-    const handleEditeUser = async () => {
-        const fieldsToValidate = ['Fname', 'Lname', 'UserName', 'Email'];
-        let editErrors = {};
-        let isValid = true;
-        fieldsToValidate.forEach(field => {
-             const error = validateField(field, formData[field]);
-             if (error) {
-                editErrors[field] = error;
-                isValid = false;
-             }
-        });
+    useEffect(() => {
+        if (!isSignUpFlow && workspaceId) fetchUsers();
+    }, [isSignUpFlow, workspaceId]);
 
-        setErrors(editErrors);
-        if (!isValid) {
-            toast.error('Please correct the validation errors before updating.');
+    useEffect(() => {
+        if (initialAddUserState) setIsAddUserOpen(true);
+    }, [initialAddUserState]);
+
+    useEffect(() => {
+        if ((isEditUserOpen || isChangeUserStatusOpen) && selectedUser && users.length > 0) {
+            const user = users.find(u => u.userId === parseInt(selectedUser));
+            if (user) {
+                setFormData({
+                    Fname: user.fname || '',
+                    Lname: user.lname || '',
+                    UserName: user.userName || '',
+                    Email: user.email || '',
+                    Password: '',
+                    Status: user.status === 1 ? 'Active' : 'Inactive',
+                    profilePictureBase64: user.profilePicturePath || null
+                });
+            }
+        } else if (!isEditUserOpen && !isChangeUserStatusOpen) {
+            setFormData({
+                Fname: '', Lname: '', UserName: '', Email: '', Password: '',
+                Status: 'Active', profilePictureBase64: null
+            });
+            setErrors({});
+        }
+    }, [isEditUserOpen, isChangeUserStatusOpen, selectedUser, users]);
+
+    const validateField = (name, value) => {
+        let error = '';
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (name !== 'profilePictureBase64' && !value && isAddUserOpen) {
+            error = 'This field is mandatory.';
+        } else if (name === 'Fname' || name === 'Lname') {
+            if (value.length < 2) error = 'Must be at least 2 characters long.';
+            else if (value.length > 50) error = 'Cannot exceed 50 characters.';
+        } else if (name === 'UserName') {
+            if (value.length < 3) error = 'Must be at least 3 characters long.';
+            else if (value.length > 30) error = 'Cannot exceed 30 characters.';
+        } else if (name === 'Email') {
+            if (!emailRegex.test(value)) error = 'Invalid email format.';
+        } else if (name === 'Password' && isAddUserOpen) {
+            if (value.length < 6) error = 'Password must be at least 6 characters long.';
+        }
+
+        setErrors(prev => ({ ...prev, [name]: error }));
+        return error;
+    };
+
+    const validateForm = () => {
+        let valid = true;
+        const fields = ['Fname', 'Lname', 'UserName', 'Email'];
+        if (isAddUserOpen) fields.push('Password');
+        fields.forEach(field => {
+            if (validateField(field, formData[field])) valid = false;
+        });
+        return valid;
+    };
+
+    const handleInputChange = (e) => {
+        const { name, value, files } = e.target;
+        const newValue = files ? files[0] : value;
+        setFormData(prev => ({ ...prev, [name]: newValue }));
+        if (!isChangeUserStatusOpen) validateField(name, newValue);
+    };
+
+    const handleCreateUser = async () => {
+        if (!validateForm()) {
+            toast.error('Please fix the errors');
             return;
         }
 
-
-        const formDataObj = new FormData()
-        Object.keys(formData).forEach((key)=>{
-          formDataObj.append(key, formData[key])
-        })
-    try {
-        const response = await fetch(`${API_URL}/api/UserManagement/UpdateUser/${selectedUser}`, {
-          method: 'PUT',
-          body: formDataObj
+        const formDataObj = new FormData();
+        Object.keys(formData).forEach(key => {
+            if (formData[key] !== null && formData[key] !== undefined) {
+                formDataObj.append(key, formData[key]);
+            }
         });
 
-        if (!response.ok) {
-          throw new Error('Failed to create user');
+        try {
+            const response = await fetch(`${API_URL}/api/UserManagement/CreateUser`, {
+                method: 'POST',
+                body: formDataObj
+            });
+
+            if (!response.ok) throw new Error('Failed to create user');
+
+            toast.success('User created successfully!');
+            setIsAddUserOpen(false);
+
+            if (isSignUpFlow) {
+                const loginRes = await fetch(`${API_URL}/api/UserManagement/Login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: formData.UserName, password: formData.Password })
+                });
+                if (loginRes.ok) {
+                    const data = await loginRes.json();
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    toast.success(`Welcome, ${formData.Fname}!`);
+                    setTimeout(() => window.location.href = '/dashboard', 1000);
+                } else {
+                    toast.success('Account created! Please log in.');
+                    setTimeout(() => navigate('/login'), 1500);
+                }
+            } else {
+                fetchUsers();
+            }
+        } catch (err) {
+            toast.error('Failed to create user');
         }
-        toast.success('User Updated successfully! 👍');
-        setIsEditUserOpen(false);
-        fetchUsers()
-    } catch (error) {
-        toast.error('Failed to update user. Please try again.');
-    }
+    };
+
+    const handleEditUser = async () => {
+        if (!validateForm()) {
+            toast.error('Please fix the errors');
+            return;
+        }
+
+        const formDataObj = new FormData();
+        Object.keys(formData).forEach(key => {
+            if (formData[key] !== null && formData[key] !== undefined) {
+                formDataObj.append(key, formData[key]);
+            }
+        });
+
+        try {
+            const response = await fetch(`${API_URL}/api/UserManagement/UpdateUser/${selectedUser}`, {
+                method: 'PUT',
+                body: formDataObj
+            });
+            if (!response.ok) throw new Error('Failed to update user');
+            toast.success('User updated successfully!');
+            setIsEditUserOpen(false);
+            fetchUsers();
+        } catch (err) {
+            toast.error('Failed to update user');
+        }
+    };
+
+    const handleChangeStatus = async () => {
+        if (!selectedUser) {
+            toast.error("No user selected");
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_URL}/api/UserManagement/ChangeStatus/${selectedUser}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    newStatus: formData.Status === "Active" ? 1 : 0
+                })
+            });
+
+            if (!response.ok) {
+                const err = await response.text();
+                throw new Error(err || 'Failed to change status');
+            }
+
+            toast.success("Status updated successfully!");
+            setIsChangeUserStatusOpen(false);
+            fetchUsers();
+        } catch (err) {
+            toast.error(err.message || "Failed to update status");
+        }
     };
 
     const handleDelete = async () => {
-        
         try {
-             const response = await fetch(`${API_URL}/api/UserManagement/DeleteUser/${selectedUser}`, 
-                 {
-                 method: 'DELETE',
-                 headers: {
-                     'Content-Type': 'application/json',
-                 },
-               }
-             );
-
-             if (!response.ok) {
-                 throw new Error('Error Deleting User');
-                 }
-             setIsDeleteUserConfirmOpen(false)
-             toast.success("User deleted Permanently")
-             fetchUsers()
-        } catch (error) {
-             setError(error.message);
-             toast.error(error)
-        } 
-    }
-
-    const handlePasswordChange = async (e) =>{
-             e.preventDefault()
-             const passwordError = validateField('Password', newPass); 
-
-             if(passwordError){
-                toast.error(passwordError);
-                return;
-             }
-             if(newPass === confirmNewPass){
-                 try {
-                const response = await fetch(`${API_URL}/api/UserManagement/ChangePassword/${selectedUser}`, 
-                     {
-                     method: 'PUT',
-                     headers: {
-                         'Content-Type': 'application/json',
-                     },
-                     body: JSON.stringify({
-                         id: selectedUser,
-                         newPassword: newPass,
-                     })
-                   }
-                );
-
-                if (!response.ok) {
-                     throw new Error('Error updating password');
-                     }
-                setIsChangeUserPassOpen(false)
-                toast.success("Password changed successfully 🔑")
-                setIsChangeUserPassOpen(false)
-                setNewPass('')
-                setConfirmNewPass('')
-                fetchUsers()
-                 } catch (error) {
-                     setError(error.message);
-                     toast.error(error)
-                 }  
-             }else{
-                 toast.error('Passwords do not match');
-             }
-    }
-    
-    const isAddFormValid = () => {
-        const hasErrors = Object.values(errors).some(error => error !== '');
-        const mandatoryFieldsFilled = formData.Fname && formData.Lname && formData.UserName && formData.Email && formData.Password;
-        return !hasErrors && mandatoryFieldsFilled;
-    }
-
-   const closeAddUserModal = () => {
-    setIsAddUserOpen(false);
-    setErrors({});
-
-    if (query.get('action') === 'create') {
-        window.history.replaceState(null, '', window.location.pathname);
-        if (isSignUpFlow) {
-            navigate('/login');
+            const response = await fetch(`${API_URL}/api/UserManagement/DeleteUser/${selectedUser}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            if (!response.ok) throw new Error('Failed to delete user');
+            toast.success("User deleted permanently");
+            setIsDeleteUserConfirmOpen(false);
+            setSelectedUser('');
+            fetchUsers();
+        } catch (err) {
+            toast.error("Failed to delete user");
         }
-    }
-};
+    };
 
-    const handleSignUpRedirect = () => {
-  navigate('/users/user-management?action=create');
-};
+    const handlePasswordChange = async (e) => {
+        e.preventDefault();
+        if (newPass.length < 6) return toast.error("Password must be at least 6 characters");
+        if (newPass !== confirmNewPass) return toast.error("Passwords do not match");
+
+        try {
+            const response = await fetch(`${API_URL}/api/UserManagement/ChangePassword/${selectedUser}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ newPassword: newPass })
+            });
+            if (!response.ok) throw new Error('Failed to change password');
+            toast.success("Password changed successfully");
+            setIsChangeUserPassOpen(false);
+            setNewPass('');
+            setConfirmNewPass('');
+        } catch (err) {
+            toast.error("Failed to change password");
+        }
+    };
+
+    const closeAddUserModal = () => {
+        setIsAddUserOpen(false);
+        setErrors({});
+        if (query.get('action') === 'create') {
+            window.history.replaceState(null, '', window.location.pathname);
+            if (isSignUpFlow) navigate('/login');
+        }
+    };
+
+    if (loading) return <div>Loading...</div>;
+    if (error) return <div>Error: {error}</div>;
 
     return (
         <div className="settings-content">
+
             {!isSignUpFlow && (
                 <>
-                 <div className="settings-action-buttons">
-                     
-                    
-                     {/* <button className="btn-secondary" onClick={() => setIsChangeUserPassOpen(true)} disabled={!selectedUser}>
-                                 Change Password
-                     </button> */}
-                     <button className="btn-secondary" onClick={() => setIsChangeUserStatusOpen(true)} disabled={!selectedUser}>
-                                 Change Status
-                     </button>
-                     <button className="btn-danger" onClick={()=>setIsDeleteUserConfirmOpen(true)} disabled={!selectedUser}>
-                                 Delete
-                     </button>
-                 </div>
-    
-                 <div className="settings-lookup-list">
-                     <h4>User Lookups</h4>
-                     <select
-                         size="5"
-                         className="lookup-select"
-                         value={selectedUser}
-                         onChange={(e) => setSelectedUser(e.target.value)}
-                     >
-                         <option value="">Select a User</option>
-                             {users.map(user => (
-                                 <option key={user.id} value={user.id}>
-                                     {user.userName}
-                                 </option>
-                             ))}
-                     </select>
-                 </div>
+                    <div className="settings-action-buttons">
+                        <button className="btn-secondary" onClick={() => setIsChangeUserStatusOpen(true)} disabled={!selectedUser}>
+                            Change Status
+                        </button>
+                        {/* <button className="btn-danger" onClick={() => setIsDeleteUserConfirmOpen(true)} disabled={!selectedUser}>
+                            Delete
+                        </button> */}
+                    </div>
+
+                    <div className="settings-lookup-list">
+                        <h4>Workspace User Lookups</h4>
+                        <select size="5" className="lookup-select" value={selectedUser} onChange={(e) => setSelectedUser(e.target.value)}>
+                            <option value="">Select a User</option>
+                            {users.map(user => (
+                                <option key={user.userId} value={user.userId}>
+                                    {user.userName} ({user.status === 1 ? 'Active' : 'Inactive'})
+                                </option>
+                            ))}
+                        </select>
+                    </div>
                 </>
             )}
-                <Modal
-                    isOpen={isAddUserOpen}
-                    onClose={closeAddUserModal} 
-                    title="Add User"
-                >
-                    <div className="settings-content">
-                    <div className="settings-form user-form-grid">
-                        <div className="form-group">
+
+            <Modal isOpen={isAddUserOpen} onClose={closeAddUserModal} title="Add User">
+                <div className="settings-form user-form-grid">
+                    <div className="form-group">
                         <label>First Name: *</label>
-                        <input
-                            type="text"
-                            name="Fname"
-                            value={formData.Fname}
-                            onChange={handleInputChange}
-                            placeholder=""
-                            required
-                        />
-                        {errors.Fname && <p style={{color: 'red', fontSize: '12px'}}>{errors.Fname}</p>}
-                        </div>
-
-                        <div className="form-group">
+                        <input type="text" name="Fname" value={formData.Fname} onChange={handleInputChange} />
+                        {errors.Fname && <p style={{ color: 'red', fontSize: '12px' }}>{errors.Fname}</p>}
+                    </div>
+                    <div className="form-group">
                         <label>Last Name: *</label>
-                        <input
-                            type="text"
-                            name="Lname"
-                            value={formData.Lname}
-                            onChange={handleInputChange}
-                            placeholder=""
-                            required
-                        />
-                        {errors.Lname && <p style={{color: 'red', fontSize: '12px'}}>{errors.Lname}</p>}
-                        </div>
-
-                        <div className="form-group">
+                        <input type="text" name="Lname" value={formData.Lname} onChange={handleInputChange} />
+                        {errors.Lname && <p style={{ color: 'red', fontSize: '12px' }}>{errors.Lname}</p>}
+                    </div>
+                    <div className="form-group">
                         <label>Username: *</label>
-                        <input
-                            type="text"
-                            name="UserName"
-                            value={formData.UserName}
-                            onChange={handleInputChange}
-                            placeholder=""
-                            required
-                        />
-                        {errors.UserName && <p style={{color: 'red', fontSize: '12px'}}>{errors.UserName}</p>}
-                        </div>
-
-                        <div className="form-group">
+                        <input type="text" name="UserName" value={formData.UserName} onChange={handleInputChange} />
+                        {errors.UserName && <p style={{ color: 'red', fontSize: '12px' }}>{errors.UserName}</p>}
+                    </div>
+                    <div className="form-group">
                         <label>Email: *</label>
-                        <input
-                            type="email"
-                            name="Email"
-                            value={formData.Email}
-                            onChange={handleInputChange}
-                            placeholder=""
-                            required
-                        />
-                        {errors.Email && <p style={{color: 'red', fontSize: '12px'}}>{errors.Email}</p>}
-                        </div>
-
-                        <div className="form-group">
+                        <input type="email" name="Email" value={formData.Email} onChange={handleInputChange} />
+                        {errors.Email && <p style={{ color: 'red', fontSize: '12px' }}>{errors.Email}</p>}
+                    </div>
+                    <div className="form-group">
                         <label>Password: *</label>
-                        <input
-                            type="password"
-                            name="Password"
-                            value={formData.Password}
-                            onChange={handleInputChange}
-                            placeholder=""
-                            required
-                        />
-                        {errors.Password && <p style={{color: 'red', fontSize: '12px'}}>{errors.Password}</p>}
-                        </div>
-
-                        <div className="form-group">
+                        <input type="password" name="Password" value={formData.Password} onChange={handleInputChange} />
+                        {errors.Password && <p style={{ color: 'red', fontSize: '12px' }}>{errors.Password}</p>}
+                    </div>
+                    <div className="form-group">
                         <label>Profile Picture:</label>
-                        <input
-                            type="file"
-                            name="profilePictureBase64"
-                            onChange={handleInputChange}
-                        />
-                        </div>
+                        <input type="file" name="profilePictureBase64" onChange={handleInputChange} />
                     </div>
-                
-                 </div>
-
-                    <div className="settings-action-buttons">
-                        <button 
-                        className="btn-primary" 
-                        onClick={handleCreateUser}
-                        disabled={!isAddFormValid()}>
+                </div>
+                <div className="settings-action-buttons">
+                    <button className="btn-primary" onClick={handleCreateUser}>
                         {isSignUpFlow ? "Create Account" : "Create User"}
-                        </button>
-                    </div>
-                    
-                </Modal>
-                
-                {!isSignUpFlow && (
-                <>
-                <Modal
-                    isOpen={isEditUserOpen}
-                    onClose={() => {
-                        setIsEditUserOpen(false);
-                        setErrors({});
-                    }}
-                    title="Edit User"
-                    >
-                    <div className="settings-content">
-            
-                        <div className="settings-form user-form-grid">
-                        
-                        <div className="form-group" >
-                            <div style={{display: 'flex', justifyContent: 'center', alignItems:'center'}}>
-                            <img style={{width: '70px', height: '70px', borderRadius: '50%'
-                            }} src={formData.profilePictureBase64 !== null ? `data:image/png;base64,${formData.profilePictureBase64}` : logo} alt="" />
-                            </div>
-                            
-                            <label>Profile Picture:</label>
-                            <input
-                            type="file"
-                            name="profilePictureBase64"
-                            onChange={handleInputChange}
+                    </button>
+                </div>
+            </Modal>
+
+            <Modal isOpen={isEditUserOpen} onClose={() => { setIsEditUserOpen(false); setErrors({}); }} title="Edit User">
+                <div className="settings-content">
+                    <div className="settings-form user-form-grid">
+                        <div className="form-group" style={{ textAlign: 'center' }}>
+                            <img
+                                style={{ width: '70px', height: '70px', borderRadius: '50%', objectFit: 'cover' }}
+                                src={formData.profilePictureBase64 ? `data:image/png;base64,${formData.profilePictureBase64}` : logo}
+                                alt="Profile"
                             />
-                        </div>
-                        <div className="form-group">
+                            <label>Profile Picture:</label>
+                            <input type="file" name="profilePictureBase64" onChange={handleInputChange} />
                         </div>
                         <div className="form-group">
                             <label>First Name: *</label>
-                            <input
-                            type="text"
-                            name="Fname"
-                            value={formData.Fname}
-                            onChange={handleInputChange}
-                            placeholder="First Name"
-                            required
-                            />
-                            {errors.Fname && <p style={{color: 'red', fontSize: '12px'}}>{errors.Fname}</p>}
+                            <input type="text" name="Fname" value={formData.Fname} onChange={handleInputChange} />
+                            {errors.Fname && <p style={{ color: 'red', fontSize: '12px' }}>{errors.Fname}</p>}
                         </div>
-
                         <div className="form-group">
                             <label>Last Name: *</label>
-                            <input
-                            type="text"
-                            name="Lname"
-                            value={formData.Lname}
-                            onChange={handleInputChange}
-                            placeholder="Last Name"
-                            required
-                            />
-                            {errors.Lname && <p style={{color: 'red', fontSize: '12px'}}>{errors.Lname}</p>}
+                            <input type="text" name="Lname" value={formData.Lname} onChange={handleInputChange} />
+                            {errors.Lname && <p style={{ color: 'red', fontSize: '12px' }}>{errors.Lname}</p>}
                         </div>
-
                         <div className="form-group">
                             <label>Username: *</label>
-                            <input
-                            type="text"
-                            name="UserName"
-                            value={formData.UserName}
-                            onChange={handleInputChange}
-                            placeholder="Username"
-                            required
-                            />
-                            {errors.UserName && <p style={{color: 'red', fontSize: '12px'}}>{errors.UserName}</p>}
+                            <input type="text" name="UserName" value={formData.UserName} onChange={handleInputChange} />
+                            {errors.UserName && <p style={{ color: 'red', fontSize: '12px' }}>{errors.UserName}</p>}
                         </div>
-
                         <div className="form-group">
                             <label>Email: *</label>
-                            <input
-                            type="email"
-                            name="Email"
-                            value={formData.Email}
-                            onChange={handleInputChange}
-                            placeholder="Email"
-                            required
-                            />
-                            {errors.Email && <p style={{color: 'red', fontSize: '12px'}}>{errors.Email}</p>}
-                        </div>
-                        
-                        </div>
-                        
-                        <div className="settings-action-buttons">
-                        <button 
-                            className="btn-primary" 
-                            onClick={handleEditeUser}
-                            disabled={Object.values(errors).some(error => error !== '')}>
-                            Update User
-                        </button>
+                            <input type="email" name="Email" value={formData.Email} onChange={handleInputChange} />
+                            {errors.Email && <p style={{ color: 'red', fontSize: '12px' }}>{errors.Email}</p>}
                         </div>
                     </div>
-                </Modal>
-                <Modal
-                    isOpen={isChangeUserPassOpen}
-                    onClose={() => {
-                        setIsChangeUserPassOpen(false);
-                    }}
-                    title="Change Password"
-                    >
-                    <div className="settings-form">
-                        <div className="form-group">
-                            <label>New Password: *</label>
-                            <input
-                                type="password"
-                                value={newPass}
-                                onChange={(e) => {
-                                    setNewPass(e.target.value);
-                                    validateField('Password', e.target.value); 
-                                }}
-                                placeholder="Enter New Password (Min 6)"
-                            />
-                            {errors.Password && <p style={{color: 'red', fontSize: '12px'}}>{errors.Password}</p>}
-                        </div>
-                        <div className="form-group">
-                            <label>Confirm Password: *</label>
-                            <input
-                                type="password"
-                                value={confirmNewPass}
-                                onChange={(e) => setConfirmNewPass(e.target.value)} 
-                                placeholder="Confirm Password"
-                            />
-                        </div>
-                        
-                        <div className="modal-footer">
-                            <button
-                                className="btn-primary"
-                                onClick={handlePasswordChange}
-                                disabled={!newPass || !confirmNewPass || errors.Password}
-                            >
-                                OK
-                            </button>
-                            <button
-                                className="btn-close" 
-                                onClick={()=>setIsChangeUserPassOpen(false)}
-                            >
-                                Cancel
-                            </button>
-                        </div>
+                    <div className="settings-action-buttons">
+                        <button className="btn-primary" onClick={handleEditUser}>Update User</button>
                     </div>
-                </Modal>
-                <Modal
-                    isOpen={isChangeUserStatusOpen}
-                    onClose={() => {
-                        setIsChangeUserStatusOpen(false);
-                    }}
-                    title="Change Status"
-                    >
-                    <div className="settings-form">
-                        <div className="form-group">
-                            <label>User Name:</label>
-                            <input
-                                type="text"
-                                name="UserName"
-                                value={formData.UserName}
-                                onChange={handleInputChange}
-                                placeholder="Username"
-                                disabled
-                            />
-                        </div>
-                        <div className="form-group">
-                            <label>Status:</label>
-                            <select
-                                name="Status"
-                                value={formData.Status}
-                                onChange={handleInputChange}
-                            >
-                                <option value="Active">Active</option>
-                                <option value="Inactive">Inactive</option>
-                            </select>
-                        </div>
-                        
-                        <div className="modal-footer">
-                            <button
-                                className="btn-primary"
-                                onClick={handleEditeUser}
-                            >
-                                OK
-                            </button>
-                            <button
-                                className="btn-close" 
-                                onClick={()=>setIsChangeUserStatusOpen(false)}
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
-                </Modal>
+                </div>
+            </Modal>
 
-                <Modal
-                    isOpen={isDeleteUserConfirmOpen}
-                    onClose={() => {
-                        setIsDeleteUserConfirmOpen(false);
-                    }}
-                    title="Confirm Delete"
-                    >
-                    <div><p style={{fontSize: '14', textAlign: 'center'}}>Are You sure you want to delete the selected user?</p></div>
+            <Modal isOpen={isChangeUserStatusOpen} onClose={() => setIsChangeUserStatusOpen(false)} title="Change User Status">
+                <div className="settings-form">
+                    <div className="form-group">
+                        <label>User Name:</label>
+                        <input type="text" value={formData.UserName || ''} disabled style={{ backgroundColor: '#f9f9f9' }} />
+                    </div>
+                    <div className="form-group">
+                        <label>Status:</label>
+                        <select name="Status" value={formData.Status} onChange={handleInputChange}>
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                        </select>
+                    </div>
                     <div className="modal-footer">
-                            <button
-                                className="btn-danger"
-                                onClick={handleDelete}
-                            >
-                                OK
-                            </button>
-                            <button
-                                className="btn-secondary" 
-                                onClick={()=>setIsDeleteUserConfirmOpen(false)}
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                </Modal>
-              </>
-            )}   
-        </div>
-        
-    )
-}
+                        <button className="btn-primary" onClick={handleChangeStatus}>Save Status</button>
+                        <button className="btn-close" onClick={() => setIsChangeUserStatusOpen(false)}>Cancel</button>
+                    </div>
+                </div>
+            </Modal>
 
-export default UserManagement
+            <Modal isOpen={isChangeUserPassOpen} onClose={() => setIsChangeUserPassOpen(false)} title="Change Password">
+                <form onSubmit={handlePasswordChange}>
+                    <div className="form-group">
+                        <label>New Password: *</label>
+                        <input type="password" value={newPass} onChange={(e) => setNewPass(e.target.value)} required />
+                    </div>
+                    <div className="form-group">
+                        <label>Confirm Password: *</label>
+                        <input type="password" value={confirmNewPass} onChange={(e) => setConfirmNewPass(e.target.value)} required />
+                    </div>
+                    <div className="modal-footer">
+                        <button type="submit" className="btn-primary">OK</button>
+                        <button type="button" className="btn-close" onClick={() => setIsChangeUserPassOpen(false)}>Cancel</button>
+                    </div>
+                </form>
+            </Modal>
+
+            <Modal isOpen={isDeleteUserConfirmOpen} onClose={() => setIsDeleteUserConfirmOpen(false)} title="Confirm Delete">
+                <p style={{ textAlign: 'center', fontSize: '14px' }}>Are you sure you want to delete this user?</p>
+                <div className="modal-footer">
+                    <button className="btn-danger" onClick={handleDelete}>Delete</button>
+                    <button className="btn-secondary" onClick={() => setIsDeleteUserConfirmOpen(false)}>Cancel</button>
+                </div>
+            </Modal>
+        </div>
+    );
+};
+
+export default UserManagement;
