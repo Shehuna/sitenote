@@ -1,0 +1,313 @@
+.inline-image-viewer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.9);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.inline-image-viewer-container {
+  width: 90vw;
+  height: 90vh;
+  background-color: #1a1a1a;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5);
+}
+
+.viewer-header {
+  padding: 20px;
+  background-color: #2a2a2a;
+  border-bottom: 1px solid #444;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.viewer-title h3 {
+  margin: 0 0 10px 0;
+  color: white;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.note-info {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.workspace-badge,
+.project-badge,
+.job-badge,
+.date-badge {
+  background-color: #3498db;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.project-badge { background-color: #2ecc71; }
+.job-badge { background-color: #9b59b6; }
+.date-badge { background-color: #f39c12; }
+
+.close-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.close-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.viewer-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.loading-container,
+.error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  gap: 15px;
+}
+
+.loading-container i {
+  font-size: 48px;
+  color: #3498db;
+}
+
+.error-container i {
+  font-size: 48px;
+  color: #e74c3c;
+}
+
+.retry-btn {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.retry-btn:hover {
+  background-color: #2980b9;
+}
+
+.image-container {
+  max-width: 100%;
+  max-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.full-size-image {
+  max-width: 100%;
+  max-height: calc(90vh - 200px);
+  object-fit: contain;
+  border-radius: 4px;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+}
+
+.navigation-controls {
+  position: absolute;
+  bottom: 20px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px;
+  z-index: 10;
+}
+
+.nav-btn {
+  background-color: rgba(52, 152, 219, 0.8);
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+  backdrop-filter: blur(10px);
+}
+
+.nav-btn:hover {
+  background-color: rgba(52, 152, 219, 1);
+}
+
+.image-counter {
+  color: white;
+  font-size: 16px;
+  font-weight: 500;
+  background-color: rgba(0, 0, 0, 0.5);
+  padding: 8px 16px;
+  border-radius: 20px;
+}
+
+.viewer-footer {
+  padding: 15px 20px;
+  background-color: #2a2a2a;
+  border-top: 1px solid #444;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.image-details {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #ddd;
+  font-size: 13px;
+}
+
+.detail-item i {
+  color: #3498db;
+  width: 16px;
+  text-align: center;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.action-btn {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.action-btn:hover {
+  background-color: #2980b9;
+}
+
+.download-btn {
+  background-color: #2ecc71;
+}
+
+.download-btn:hover {
+  background-color: #27ae60;
+}
+
+.close-footer-btn {
+  background-color: #e74c3c;
+}
+
+.close-footer-btn:hover {
+  background-color: #c0392b;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .inline-image-viewer-container {
+    width: 95vw;
+    height: 95vh;
+  }
+  
+  .viewer-header {
+    padding: 15px;
+  }
+  
+  .viewer-title h3 {
+    font-size: 16px;
+  }
+  
+  .note-info {
+    gap: 5px;
+  }
+  
+  .workspace-badge,
+  .project-badge,
+  .job-badge,
+  .date-badge {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+  
+  .navigation-controls {
+    padding: 0 10px;
+  }
+  
+  .nav-btn {
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+  
+  .viewer-footer {
+    padding: 10px 15px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .image-details {
+    justify-content: center;
+  }
+  
+  .action-buttons {
+    justify-content: center;
+  }
+}
