@@ -29,9 +29,13 @@ const AttachedFileModal = ({
   const [error, setError] = useState(null);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
 
-  // NEW: Upload progress
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [currentDownloadingFileName, setCurrentDownloadingFileName] = useState('');
+
   const connectionRef = useRef(null);
 
   const allowedFileTypes = {
@@ -62,36 +66,50 @@ const AttachedFileModal = ({
 
   const isValidFileType = (file) => Object.keys(allowedFileTypes).includes(file.type);
 
-  // SignalR for live progress
   useEffect(() => {
-    if (showDocumentModal && !connectionRef.current) {
-      const connect = async () => {
-        try {
-          const connection = new signalR.HubConnectionBuilder()
-            .withUrl(`${process.env.REACT_APP_API_BASE_URL}/hubs/uploadprogress`)
-            .withAutomaticReconnect()
-            .build();
+    const connect = async () => {
+      try {
+        const connection = new signalR.HubConnectionBuilder()
+          .withUrl(`${process.env.REACT_APP_API_BASE_URL}/hubs/transferprogress`)
+          .withAutomaticReconnect()
+          .build();
 
-          connection.on("ReceiveProgress", (percent) => {
-            setUploadProgress(Math.round(percent));
-          });
+        connection.on("ReceiveProgress", (percent) => {
+          setUploadProgress(Math.round(percent));
+        });
 
-          await connection.start();
-          connectionRef.current = connection;
-        } catch (err) {
-          console.warn("SignalR not available", err);
-        }
-      };
-      connect();
-    }
+        connection.on("DownloadStarted", (data) => {
+          setCurrentDownloadingFileName(data.fileName);
+          setDownloadProgress(0);
+          setIsDownloading(true);
+        });
 
-    return () => {
-      if (connectionRef.current) {
-        connectionRef.current.stop();
-        connectionRef.current = null;
+        connection.on("DownloadProgress", (data) => {
+          setDownloadProgress(data.percent);
+          if (data.percent === 100) {
+            setTimeout(() => setIsDownloading(false), 1000);
+          }
+        });
+
+        connection.on("DownloadError", (msg) => {
+          setError(msg);
+          setIsDownloading(false);
+        });
+
+        await connection.start();
+        connectionRef.current = connection;
+      } catch (err) {
+        console.warn("SignalR connection failed", err);
       }
     };
-  }, [showDocumentModal]);
+
+    connect();
+
+    return () => {
+      connectionRef.current?.stop();
+      connectionRef.current = null;
+    };
+  }, []);
 
   const fetchDocumentsByReference = useCallback(async (referenceId) => {
     try {
@@ -146,7 +164,6 @@ const AttachedFileModal = ({
     setNewDocument(prev => ({ ...prev, file, name: !prev.name.trim() ? fileNameWithoutExt : prev.name }));
   };
 
-  // FULLY UPGRADED UPLOAD WITH PROGRESS
   const handleDocumentSubmit = async () => {
     if (!newDocument.name.trim()) {
       setError('Document name is required.');
@@ -166,8 +183,8 @@ const AttachedFileModal = ({
       const formData = new FormData();
       formData.append("Name", newDocument.name.trim());
       formData.append("File", newDocument.file);
-      formData.append("SiteNoteId", note.id);
-      formData.append("UserId", user?.id || 1);
+      formData.append("SiteNoteId", note.id.toString());
+      formData.append("UserId", user?.id?.toString() || "1");
 
       const headers = {};
       if (connectionRef.current?.connectionId) {
@@ -197,7 +214,6 @@ const AttachedFileModal = ({
 
       setDocuments(prev => [...prev, newDocEntry]);
 
-      // Auto-close with nice delay
       setTimeout(() => {
         setShowDocumentModal(false);
         setNewDocument({ name: '', file: null });
@@ -212,22 +228,63 @@ const AttachedFileModal = ({
   };
 
   const handleDownloadDocument = async (doc) => {
-    try {
-      setIsSubmitting(true);
-      const response = await fetch(doc.downloadApiTriggerUrl);
-      if (!response.ok) throw new Error("Download failed");
+    if (!connectionRef.current?.connectionId) {
+      setError('Progress tracking not available');
+      return;
+    }
 
-      const blob = await response.blob();
+    setError('');
+    setIsSubmitting(true);
+    setIsDownloading(true);
+    setDownloadProgress(0);
+    setCurrentDownloadingFileName(doc.fileName || 'file');
+
+    try {
+      const headers = {
+        "X-Connection-Id": connectionRef.current.connectionId
+      };
+
+      const response = await fetch(doc.downloadApiTriggerUrl, { headers });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(errText || "Download failed");
+      }
+
+      const contentLength = +response.headers.get("Content-Length") || 0;
+      const reader = response.body.getReader();
+      const chunks = [];
+      let received = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.length;
+
+        if (contentLength > 0) {
+          const percent = Math.round((received / contentLength) * 100);
+          setDownloadProgress(percent);
+        }
+      }
+
+      const blob = new Blob(chunks);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
+      a.style.display = 'none';
       a.href = url;
       a.download = doc.fileName || 'download';
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
+
     } catch (err) {
-      alert("Download failed: " + err.message);
+      setError(err.message);
+      setIsDownloading(false);
     } finally {
       setIsSubmitting(false);
+      setTimeout(() => setIsDownloading(false), 1000);
     }
   };
 
@@ -238,7 +295,7 @@ const AttachedFileModal = ({
       <div className="afm-container">
         <div className="afm-header">
           <h2>Attachments ({documents.length})</h2>
-          <button className="afm-close" onClick={onClose} disabled={isSubmitting}>
+          <button className="afm-close" onClick={onClose} disabled={isSubmitting || isDownloading || isUploading}>
             &times;
           </button>
         </div>
@@ -256,10 +313,38 @@ const AttachedFileModal = ({
           ) : (
             <>
               <div className="document-actions">
-                <button onClick={() => setShowDocumentModal(true)} className="afm-add-doc" disabled={isSubmitting}>
+                <button onClick={() => setShowDocumentModal(true)} className="afm-add-doc" disabled={isSubmitting || isDownloading}>
                   Add Document
                 </button>
               </div>
+
+              {isDownloading && (
+                <div style={{
+                  margin: '16px 0',
+                  padding: '16px',
+                  background: '#e8f5e8',
+                  border: '1px solid #4caf50',
+                  borderRadius: '8px',
+                  color: '#2e7d32'
+                }}>
+                  <p style={{ fontWeight: '600', marginBottom: '8px' }}>
+                    Downloading {currentDownloadingFileName}... {downloadProgress}%
+                  </p>
+                  <div style={{
+                    height: '8px',
+                    background: '#e0e0e0',
+                    borderRadius: '4px',
+                    overflow: 'hidden'
+                  }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${downloadProgress}%`,
+                      background: '#4caf50',
+                      transition: 'width 0.3s ease'
+                    }} />
+                  </div>
+                </div>
+              )}
 
               <div className="afm-doc-list">
                 {documents.length === 0 ? (
@@ -279,7 +364,11 @@ const AttachedFileModal = ({
                           <td>{doc.name}</td>
                           <td>{doc.fileName || 'N/A'}</td>
                           <td className="afm-doc-actions-cell">
-                            <button onClick={() => handleDownloadDocument(doc)} className="afm-download-btn" disabled={isSubmitting}>
+                            <button 
+                              onClick={() => handleDownloadDocument(doc)} 
+                              className="afm-download-btn" 
+                              disabled={isSubmitting || isDownloading}
+                            >
                               Download
                             </button>
                           </td>
@@ -294,17 +383,15 @@ const AttachedFileModal = ({
         </div>
 
         <div className="afm-footer">
-          <button onClick={onClose} className="afm-cancel-btn" disabled={isSubmitting}>
+          <button onClick={onClose} className="afm-cancel-btn" disabled={isSubmitting || isDownloading || isUploading}>
             Close
           </button>
         </div>
 
-        {/* FULLY UPGRADED ADD DOCUMENT MODAL */}
         {showDocumentModal && (
           <div className="afm-overlay">
             <div className="afm-container" style={{ maxWidth: '560px' }}>
 
-              {/* GREEN PROGRESS BAR */}
               {isUploading && (
                 <div style={{
                   height: '6px',
@@ -355,7 +442,6 @@ const AttachedFileModal = ({
                     disabled={isUploading}
                   />
 
-                  {/* GREEN SELECTED FILE DISPLAY */}
                   {newDocument.file && (
                     <div style={{
                       marginTop: '12px',
@@ -374,7 +460,6 @@ const AttachedFileModal = ({
                   )}
                 </div>
 
-                {/* UPLOADING STATUS */}
                 {isUploading && (
                   <div style={{
                     textAlign: 'center',

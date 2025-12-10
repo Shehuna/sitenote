@@ -40,6 +40,11 @@ const EditNoteModal = ({
 
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
+
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [currentDownloadingFileName, setCurrentDownloadingFileName] = useState('');
+
   const connectionRef = useRef(null);
   const modalRef = useRef(null);
 
@@ -114,34 +119,49 @@ const EditNoteModal = ({
 
   // SignalR connection for upload progress
   useEffect(() => {
-    if (showDocumentModal && !connectionRef.current) {
-      const connect = async () => {
-        try {
-          const connection = new signalR.HubConnectionBuilder()
-            .withUrl(`${process.env.REACT_APP_API_BASE_URL}/hubs/uploadprogress`)
-            .withAutomaticReconnect()
-            .build();
+    const connect = async () => {
+      try {
+        const connection = new signalR.HubConnectionBuilder()
+          .withUrl(`${process.env.REACT_APP_API_BASE_URL}/hubs/transferprogress`)
+          .withAutomaticReconnect()
+          .build();
 
-          connection.on("ReceiveProgress", (percent) => {
-            setUploadProgress(Math.round(percent));
-          });
+        connection.on("ReceiveProgress", (percent) => {
+          setUploadProgress(Math.round(percent));
+        });
 
-          await connection.start();
-          connectionRef.current = connection;
-        } catch (err) {
-          console.warn("SignalR not available", err);
-        }
-      };
-      connect();
-    }
+        connection.on("DownloadStarted", (data) => {
+          setCurrentDownloadingFileName(data.fileName);
+          setDownloadProgress(0);
+          setIsDownloading(true);
+        });
 
-    return () => {
-      if (connectionRef.current) {
-        connectionRef.current.stop();
-        connectionRef.current = null;
+        connection.on("DownloadProgress", (data) => {
+          setDownloadProgress(data.percent);
+          if (data.percent === 100) {
+            setTimeout(() => setIsDownloading(false), 1000);
+          }
+        });
+
+        connection.on("DownloadError", (msg) => {
+          setError(msg);
+          setIsDownloading(false);
+        });
+
+        await connection.start();
+        connectionRef.current = connection;
+      } catch (err) {
+        console.warn("SignalR connection failed", err);
       }
     };
-  }, [showDocumentModal]);
+
+    connect();
+
+    return () => {
+      connectionRef.current?.stop();
+      connectionRef.current = null;
+    };
+  }, []);
 
   // Check if note is editable based on creation time
   useEffect(() => {
@@ -1184,31 +1204,63 @@ const EditNoteModal = ({
   };
 
   const handleDownloadDocument = async (documentToDownload) => {
-    try {
-      setError(null);
-      setIsSubmitting(true);
+    if (!connectionRef.current?.connectionId) {
+      setError('Progress tracking not available');
+      return;
+    }
 
-      const response = await fetch(documentToDownload.downloadApiTriggerUrl);
+    setError('');
+    setIsSubmitting(true);
+    setIsDownloading(true);
+    setDownloadProgress(0);
+    setCurrentDownloadingFileName(documentToDownload.fileName || 'file');
+
+    try {
+      const headers = {
+        "X-Connection-Id": connectionRef.current.connectionId
+      };
+
+      const response = await fetch(documentToDownload.downloadApiTriggerUrl, { headers });
 
       if (!response.ok) {
-        throw new Error(`Failed to retrieve document: ${response.status} ${response.statusText}`);
+        const errText = await response.text();
+        throw new Error(errText || "Download failed");
       }
 
-      const blob = await response.blob();
+      const contentLength = +response.headers.get("Content-Length") || 0;
+      const reader = response.body.getReader();
+      const chunks = [];
+      let received = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        received += value.length;
+
+        if (contentLength > 0) {
+          const percent = Math.round((received / contentLength) * 100);
+          setDownloadProgress(percent);
+        }
+      }
+
+      const blob = new Blob(chunks);
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
+      const a = document.createElement('a');
+      a.style.display = 'none';
       a.href = url;
-      a.download = documentToDownload.fileName;
+      a.download = documentToDownload.fileName || 'download';
       document.body.appendChild(a);
       a.click();
-      a.remove();
+      document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Error downloading document:", error);
-      alert("Could not download document: " + error.message);
-      setError("Error downloading document: " + error.message);
+
+    } catch (err) {
+      setError(err.message);
+      setIsDownloading(false);
     } finally {
       setIsSubmitting(false);
+      setTimeout(() => setIsDownloading(false), 1000);
     }
   };
 
@@ -1432,7 +1484,7 @@ const EditNoteModal = ({
             )}
           </h2>
 
-          <button className="close-button" onClick={onClose} disabled={isSubmitting}>
+          <button className="close-button" onClick={onClose} disabled={isSubmitting || isDownloading || isUploading}>
             ×
           </button>
         </div>
@@ -1574,9 +1626,37 @@ const EditNoteModal = ({
                 <>
                   {canEditNote && isEditable && (
                     <div className="document-actions">
-                      <button onClick={handleAddDocument} className="add-button" disabled={isSubmitting}>
+                      <button onClick={handleAddDocument} className="add-button" disabled={isSubmitting || isDownloading}>
                         Add Document
                       </button>
+                    </div>
+                  )}
+
+                  {isDownloading && (
+                    <div style={{
+                      margin: '16px 0',
+                      padding: '16px',
+                      background: '#e8f5e8',
+                      border: '1px solid #4caf50',
+                      borderRadius: '8px',
+                      color: '#2e7d32'
+                    }}>
+                      <p style={{ fontWeight: '600', marginBottom: '8px' }}>
+                        Downloading {currentDownloadingFileName}... {downloadProgress}%
+                      </p>
+                      <div style={{
+                        height: '8px',
+                        background: '#e0e0e0',
+                        borderRadius: '4px',
+                        overflow: 'hidden'
+                      }}>
+                        <div style={{
+                          height: '100%',
+                          width: `${downloadProgress}%`,
+                          background: '#4caf50',
+                          transition: 'width 0.3s ease'
+                        }} />
+                      </div>
                     </div>
                   )}
 
@@ -1601,7 +1681,7 @@ const EditNoteModal = ({
                                 <button
                                   onClick={() => handleDownloadDocument(doc)}
                                   className="download-button"
-                                  disabled={isSubmitting}
+                                  disabled={isSubmitting || isDownloading}
                                 >
                                   Download
                                 </button>
@@ -1639,7 +1719,7 @@ const EditNoteModal = ({
           <button
             onClick={onClose}
             className="cancel-button"
-            disabled={isSubmitting}
+            disabled={isSubmitting || isDownloading || isUploading}
           >
             {"Close"}
           </button>
