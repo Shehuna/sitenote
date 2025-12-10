@@ -423,7 +423,8 @@ const loadMoreCards = (jobName) => {
 
   const handleRowDoubleClick = useCallback(
     (note) => {
-      const job = jobs.find((j) => j.name === note.job);
+      console.log("Double clicked note:", note,jobs);
+      const job = jobs.find((j) => j.id === note.id);
       setViewNote({
         id: note.id,
         jobId: job?.id ?? null,
