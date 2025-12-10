@@ -96,7 +96,8 @@ const Dashboard = ({
     return saved || "cards";
   });
   const [modalSource, setModalSource] = useState("dashboard");
-
+  const [expandedStacks, setExpandedStacks] = useState({});
+  const [expandedCardLimit, setExpandedCardLimit] = useState({});
   const newNoteModalRef = useRef();
   const filterRef = useRef();
 
@@ -384,6 +385,30 @@ const Dashboard = ({
       cursor: "help",
     }
   };
+  const toggleStackExpansion = (jobName) => {
+  setExpandedStacks(prev => ({ ...prev, [jobName]: !prev[jobName] }));
+  if (!expandedStacks[jobName]) {
+    setExpandedCardLimit(prev => ({ ...prev, [jobName]: 50 })); 
+  } else {
+    setExpandedCardLimit(prev => {
+        const newState = { ...prev };
+        delete newState[jobName];
+        return newState;
+    });
+  }
+};    
+
+const loadMoreCards = (jobName) => {
+    setExpandedCardLimit(prev => {
+        const currentLimit = prev[jobName] ?? 50; 
+
+        return {
+            ...prev,
+            [jobName]: currentLimit + 10 
+        };
+    });
+};
+
 
   // Define handleViewAttachments function
   const handleViewAttachments = useCallback((note) => {
@@ -1502,6 +1527,19 @@ const Dashboard = ({
       .sort((a, b) => b.id - a.id);
   }, [displayNotes, jobs]);
 
+  const notesByJob = {};
+  finalDisplayNotes.forEach(note => {
+        const jobName = note.job || "Unassigned"; 
+        if (!notesByJob[jobName]) {
+            notesByJob[jobName] = [];
+        }
+        notesByJob[jobName].push(note);
+    });
+    const isAnyStackExpanded = Object.values(expandedStacks).some(v => v);
+    const sortedJobs = Object.keys(notesByJob).sort((a, b) => 
+        notesByJob[b].length - notesByJob[a].length
+    );
+    
   return (
     <div className="main-content">
       <div className="dashboard">
@@ -1704,6 +1742,27 @@ const Dashboard = ({
               title="Card View"
             >
               <i className="fas fa-th" />
+            </button>
+            <button
+              onClick={() => setViewMode("stacked")}
+              className={`view-toggle-btn ${
+                viewMode === "stacked" ? "active" : ""
+              }`}
+              style={{
+                border: "1px solid #ddd",
+                background: viewMode === "stacked" ? "#1976d2" : "white",
+                color: viewMode === "stacked" ? "white" : "#333",
+                borderRadius: "4px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                height: "36px",
+                width: "36px",
+              }}
+              title="Stacked View"
+            >
+              <i className="fas fa-layer-group" />
             </button>
           </div>
           <button
@@ -2376,7 +2435,373 @@ const Dashboard = ({
               </tbody>
             </table>
           </div>
+        )
+        :viewMode === "stacked" ? (
+      <div className="stacked-notes-horizontal">
+        {!isDataLoaded || initialLoading || searchLoading || loadingFiltered ? (
+          [...Array(8)].map((_, i) => (
+            <div key={i} className="note-card skeleton">
+              <div className="skeleton-header">
+                <div className="skeleton-avatar" />
+                <div className="skeleton-text short" />
+              </div>
+              <div className="skeleton-content">
+                <div className="skeleton-text long" />
+              </div>
+              <div className="skeleton-footer">
+                <div className="skeleton-actions" />
+              </div>
+            </div>
+          ))
+        ) : finalDisplayNotes.length === 0 ? (
+          <div className="empty-state">
+            <i className="fas fa-search" />
+            <h3>
+              {searchTerm.trim()
+                ? "No notes match your search"
+                : getActiveFilterCount() > 0
+                ? "No notes match your filters"
+                : "No notes available"}
+            </h3>
+            <p>
+              {searchTerm.trim()
+                ? "Try adjusting your search terms"
+                : getActiveFilterCount() > 0
+                ? "Try clearing some filters"
+                : "Create your first note to get started"}
+            </p>
+          </div>
         ) : (
+          <div className="stacked-container">
+            {sortedJobs.map((jobName) => {
+              const jobNotes = notesByJob[jobName];
+              const isExpanded = expandedStacks[jobName];
+              const noteCount = jobNotes.length;
+              
+              const currentLimit = expandedCardLimit[jobName] ?? 50;
+              console.log(`Job: ${jobName}, Limit Used: ${currentLimit}`);
+              
+              const displayNotes = isExpanded 
+                ? jobNotes.slice(0, Math.min(currentLimit, noteCount))
+                : [];
+                  
+              const remainingNotes = noteCount - currentLimit;
+
+              if (!isExpanded && isAnyStackExpanded) {
+                  return null; 
+              }
+
+              return (
+                <div 
+                  key={`stack-${jobName}`} 
+                  className={`job-stack-container ${isExpanded ? 'expanded-full-width' : 'collapsed-vertical-stack'}`}
+                >
+                  {isExpanded ? (
+                    <div className="expanded-stack">
+                      <button
+                        className="collapse-stack-btn fixed-corner-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleStackExpansion(jobName);
+                        }}
+                        title="Collapse stack"
+                      >
+                        <i className="fas fa-compress" />
+                      </button>
+                      
+                      <div className="expanded-stack-header">
+                          <div className="expanded-stack-title">
+                              <i className="fas fa-briefcase" />
+                              {jobName}
+                          </div>
+                          <div className="expanded-stack-count">
+                              <i className="fas fa-layer-group" />
+                              {noteCount} notes
+                          </div>
+                      </div>
+                      
+                      <div className="expanded-notes-grid">
+                        {displayNotes.map((note) => {
+                          const notePriority = priorities.find(p => p.noteID === note.id);
+                          
+                          return (
+                            <div
+                              key={note.id}
+                              className={`note-card ${selectedRow === note.id ? "selected" : ""} stack-expanded-card`}
+                              onClick={() => handleRowClick(note)}
+                              onDoubleClick={() => handleRowDoubleClick(note)}
+                            >
+                              <div className="note-header">
+                                <div className="user-avatar-wrapper">
+                                  <div className="user-avatar">
+                                    {note.userName ? (
+                                      (() => {
+                                        const names = note.userName.trim().split(/\s+/);
+                                        const firstInitial = names[0] ? names[0].charAt(0).toUpperCase() : "";
+                                        const lastInitial = names.length > 1 ? names[names.length - 1].charAt(0).toUpperCase() : "";
+                                        return firstInitial + lastInitial;
+                                      })()
+                                    ) : (
+                                      <i className="fas fa-user" />
+                                    )}
+                                  </div>
+                                  <div className="user-tooltip">
+                                    {note.userName || "Unknown User"}
+                                  </div>
+                                </div>
+                                <div className="note-meta">
+                                  <div
+                                    className="note-author"
+                                    title={note.userName || "Unknown User"}
+                                  >
+                                    {note.userName}
+                                  </div>
+                                  <div
+                                    className="note-date"
+                                    title={new Date(note.date).toLocaleDateString(
+                                      "en-US",
+                                      { year: "numeric", month: "short", day: "numeric" }
+                                    )}
+                                  >
+                                    {formatRelativeTime(note.timeStamp)}
+                                  </div>
+                                </div>
+
+                                <div className="note-context">
+                                  <div
+                                    className="context-item job"
+                                    title={note.job}
+                                  >
+                                    {note.job}
+                                  </div>
+                                  <div className="context-item workspace-project">
+                                    <span title={note.workspace}>
+                                      {note.workspace}
+                                    </span>
+                                    /
+                                    <span title={note.project}>
+                                      {note.project}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="note-content">
+                                <div
+                                  className="note-card-content-container"
+                                  style={{ position: "relative" }}
+                                >
+                                  <div className="note-text">{note.note}</div>
+                                  {note.note.length > 69 && (
+                                    <div className="note-card-popup">{note.note}</div>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="note-footer">
+                                <div className="note-attachments">
+                                  <button
+                                    className="attachment-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleViewAttachments(note);
+                                    }}
+                                  >
+                                    <i
+                                      className="fas fa-paperclip"
+                                      style={{ opacity: note.documentCount > 0 ? 1 : 0.3 }}
+                                    />
+                                    <span>({note.documentCount || 0})</span>
+                                  </button>
+                                </div>
+                                <div className="note-actions">
+                                  {notePriority && notePriority.priorityValue > 1 ? (
+                                    <div
+                                      className={`priority-indicator priority-${notePriority.priorityValue}`}
+                                      style={{ cursor: "pointer" }}
+                                      title={
+                                        notePriority.priorityValue === 3
+                                          ? "Medium Priority - Click to change"
+                                          : notePriority.priorityValue === 4
+                                          ? "High Priority - Click to change"
+                                          : "No Priority"
+                                      }
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedNoteForPriority(note);
+                                        setPriorityDropdownPosition({
+                                          x: e.clientX,
+                                          y: e.clientY,
+                                        });
+                                        setShowPriorityDropdown(true);
+                                      }}
+                                    />
+                                  ) : (
+                                    <div
+                                      className="priority-placeholder"
+                                      style={{ 
+                                        cursor: "pointer",
+                                        opacity: 0.2,
+                                        transition: "all 0.2s ease",
+                                        width: "16px",
+                                        height: "16px",
+                                        borderRadius: "50%",
+                                        border: "1px dashed #ddd",
+                                        backgroundColor: "transparent"
+                                      }}
+                                      title="Click to set priority"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedNoteForPriority(note);
+                                        setPriorityDropdownPosition({ x: e.clientX, y: e.clientY });
+                                        setShowPriorityDropdown(true);
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        e.currentTarget.style.opacity = "0.5";
+                                        e.currentTarget.style.borderColor = "#3498db";
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        e.currentTarget.style.opacity = "0.2";
+                                        e.currentTarget.style.borderColor = "#ddd";
+                                      }}
+                                    />
+                                  )}
+                                  <button
+                                    className="action-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAddFromRow(note);
+                                    }}
+                                    title="Add New Note"
+                                  >
+                                    <i className="fas fa-plus" />
+                                  </button>
+                                  <button
+                                    className="action-btn"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEdit(note);
+                                    }}
+                                    title="Edit Note"
+                                  >
+                                    <i className="fas fa-edit" />
+                                  </button>
+                                  <button
+                                    className="action-btn delete"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDelete(note);
+                                    }}
+                                    title="Delete Note"
+                                  >
+                                    <i className="fas fa-trash" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      
+                      {remainingNotes > 0 && (
+                        <div className="load-more-container">
+                          <button 
+                              className="load-more-btn" 
+                              onClick={() => loadMoreCards(jobName)}
+                          >
+                            Load {Math.min(remainingNotes, 10)} more notes 
+                            <i className="fas fa-caret-down" style={{ marginLeft: '5px' }}/>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    
+                  ) : (
+                    <div 
+                      className="collapsed-stack"
+                      onClick={() => toggleStackExpansion(jobName)}
+                      style={{ 
+                        cursor: 'pointer',
+                        position: 'relative',
+                        height: '280px',
+                        width: '100%', 
+                      }}
+                    >
+                      {[...Array(Math.min(noteCount, 5))].map((_, index) => {
+                        const note = jobNotes[index];
+                        const isTopCard = index === 0;
+                        
+                        return (
+                          <div
+                            key={`layer-${index}`}
+                            className="stack-layer-card"
+                            style={{
+                              position: 'absolute',
+                              right: '0', 
+                              left: `${index * 15}px`, 
+                              transform: `rotate(${index * -2}deg)`, 
+                              zIndex: 5 - index,
+                              width: '300px', 
+                              height: '250px',
+                              opacity: 1 - (index * 0.2),
+                              transition: 'all 0.3s ease',
+                              overflow: 'hidden',
+                            }}
+                          >
+                            {isTopCard ? (
+                              <div style={{ padding: '15px', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                                
+                                <div style={{  display: 'flex',  justifyContent: 'space-between',  alignItems: 'center', marginBottom: '15px', paddingBottom: '10px', borderBottom: '1px solid #f0f0f0'}}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <i className="fas fa-briefcase" style={{ color: '#3498db' }} />
+                                    <span style={{ fontWeight: 600, color: '#2c3e50', fontSize: '16px' }}>{jobName}</span>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#3498db', color: 'white', padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 600 }}>
+                                    <i className="fas fa-layer-group" />
+                                    <span>{noteCount} notes</span>
+                                  </div>
+                                </div>
+                                
+                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#3498db', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}>
+                                      {note.userName ? note.userName.charAt(0).toUpperCase() : 'U'}
+                                    </div>
+                                    <span style={{ fontSize: '14px', color: '#555' }}>{note.userName || "Unknown User"}</span>
+                                  </div>
+                                  
+                                  <div style={{ fontSize: '13px', color: '#666', lineHeight: 1.4, flex: 1, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>
+                                    {note.note}
+                                  </div>
+                                  
+                                  <div style={{ fontSize: '11px', color: '#888', marginTop: 'auto' }}>
+                                    {formatRelativeTime(note.timeStamp)}
+                                  </div>
+                                </div>
+                                
+                                <div style={{ textAlign: 'center', paddingTop: '10px', borderTop: '1px dashed #e9ecef', marginTop: '10px' }}>
+                                  <div style={{ fontSize: '12px', color: '#7f8c8d', fontStyle: 'italic' }}>
+                                    Click to expand
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div style={{ height: '100%', background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bdc3c7' }}>
+                                <i className="fas fa-sticky-note" style={{ fontSize: '24px' }} />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+          ) : (
           <div className="notes-grid">
             {!isDataLoaded ||
             initialLoading ||
