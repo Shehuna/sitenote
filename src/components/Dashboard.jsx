@@ -421,10 +421,14 @@ const loadMoreCards = (jobName) => {
     toast.success("Workspace request feature coming soon!");
   };
 
-  const handleRowDoubleClick = useCallback(
+ const handleRowDoubleClick = useCallback(
     (note) => {
-      console.log("Double clicked note:", note,jobs);
-      const job = jobs.find((j) => j.id === note.id);
+      
+      let job = jobs.find((j) => j.name && note.job && j.name === note.job);
+      if (!job && note.jobId) {
+        job = jobs.find((j) => (j.id || j.jobId)?.toString() === note.jobId.toString());
+      }
+
       setViewNote({
         id: note.id,
         jobId: job?.id ?? null,
