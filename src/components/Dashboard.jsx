@@ -150,6 +150,7 @@ const Dashboard = ({
     [apiUrl, inlineImagesMap]
   );
 
+
   // Simple client-side filtering function
   const applyFilters = useCallback((notesToFilter, filters) => {
     if (
@@ -1258,6 +1259,37 @@ const Dashboard = ({
 
   // Helper function to get filter options with cascading logic
   const getFilterOptions = (filterType) => {
+    if (filterType === "project") {
+      let options = (uniqueProjects || []).map(p => ({
+        id: p.value ?? p.id ?? p.projectId ?? p.name ?? p.text,
+        text: p.text ?? p.name ?? String(p.value ?? p.id ?? p.projectId ?? p),
+        displayText: p.text ?? p.name ?? String(p.value ?? p.id ?? p.projectId ?? p)
+      }));
+
+      if (filterSearchTerm) {
+        options = options.filter(o =>
+            o.displayText && o.displayText.toLowerCase().includes(filterSearchTerm.toLowerCase())
+        );
+      }
+
+      return options;
+    }
+
+    if (filterType === "job") {
+      let options = (uniqueJobs || []).map(j => ({
+        id: j.value ?? j.id ?? j.jobId ?? j.valueId ?? j.text,
+        text: j.text ?? j.name ?? String(j.value ?? j.id ?? j.jobId ?? j),
+        displayText: j.text ?? j.name ?? String(j.value ?? j.id ?? j.jobId ?? j)
+      }));
+
+      if (filterSearchTerm) {
+        options = options.filter(o =>
+            o.displayText && o.displayText.toLowerCase().includes(filterSearchTerm.toLowerCase())
+        );
+      }
+
+      return options;
+    }
     let options = [];
 
     if (!notes || !Array.isArray(notes) || notes.length === 0) {
@@ -1654,13 +1686,11 @@ const Dashboard = ({
     ) {
       return true;
     }
-    if (
-      (filterType === "job" &&
-        selectedFilters.project &&
-        selectedFilters.project.length > 0) ||
-      (selectedFilters.workspace && selectedFilters.workspace.length > 0)
-    ) {
-      return true;
+    if (filterType === 'job' && (selectedFilters.project && selectedFilters.project.length > 0) || 
+        (selectedFilters.workspace && selectedFilters.workspace.length > 0)) {
+      fetchUniqueJobs();
+      //
+      // return true;
     }
     return false;
   };
@@ -1972,17 +2002,30 @@ const Dashboard = ({
   };
 
   const notesByJob = {};
-  finalDisplayNotes.forEach((note) => {
+  finalDisplayNotes.forEach(note => {
     const jobName = note.job || "Unassigned";
     if (!notesByJob[jobName]) {
       notesByJob[jobName] = [];
     }
     notesByJob[jobName].push(note);
   });
-  const isAnyStackExpanded = Object.values(expandedStacks).some((v) => v);
-  const sortedJobs = Object.keys(notesByJob).sort(
-    (a, b) => notesByJob[b].length - notesByJob[a].length
-  );
+  Object.keys(notesByJob).forEach(jobName => {
+    notesByJob[jobName].sort((a, b) => {
+      const timeA = new Date(a.timeStamp || a.date || 0).getTime();
+      const timeB = new Date(b.timeStamp || b.date || 0).getTime();
+      return timeB - timeA;
+    });
+  });
+  const isAnyStackExpanded = Object.values(expandedStacks).some(v => v);
+  const sortedJobs = Object.keys(notesByJob).sort((a, b) =>{
+    const mostRecentA = notesByJob[a][0] ?
+        new Date(notesByJob[a][0].timeStamp || notesByJob[a][0].date || 0).getTime() : 0;
+    const mostRecentB = notesByJob[b][0] ?
+        new Date(notesByJob[b][0].timeStamp || notesByJob[b][0].date || 0).getTime() : 0;
+
+    return mostRecentB - mostRecentA;
+  });
+
 
   return (
     <div className="main-content">
@@ -3008,6 +3051,24 @@ const Dashboard = ({
                   </p>
                 </div>
               ) : (
+
+                  <div className="stacked-notes-container">
+                    {isAnyStackExpanded && (
+                        <div className="fixed-collapse-btn-wrapper">
+                          <button
+                              className="collapse-all-stacks-btn"
+                              onClick={() => {
+                                Object.keys(expandedStacks).forEach(jobName => {
+                                  if (expandedStacks[jobName]) {
+                                    toggleStackExpansion(jobName);
+                                  }
+                                });
+                              }}
+                          >
+                            <i className="fas fa-compress" />
+                          </button>
+                        </div> )}
+
                 <div className="stacked-container">
                   {sortedJobs.map((jobName) => {
                     const jobNotes = notesByJob[jobName];
@@ -3038,18 +3099,7 @@ const Dashboard = ({
                       >
                         {isExpanded ? (
                           <div className="expanded-stack">
-                            <button
-                              className="collapse-stack-btn fixed-corner-btn"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleStackExpansion(jobName);
-                              }}
-                              title="Collapse stack"
-                            >
-                              <i className="fas fa-compress" />
-                            </button>
-
-                            <div className="expanded-stack-header">
+                           <div className="expanded-stack-header">
                               <div className="expanded-stack-title">
                                 <i className="fas fa-briefcase" />
                                 {jobName}
@@ -3524,6 +3574,8 @@ const Dashboard = ({
                     );
                   })}
                 </div>
+
+                  </div>
               )}
             </div>
           ) : (
