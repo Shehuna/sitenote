@@ -1075,7 +1075,7 @@ tr.selected-row.priority-4 {
   flex-shrink: 0; 
   position: sticky;
   top: 0;
-  z-index: 1000 !important;
+  z-index: 100 !important;
   background: white;
   padding-bottom: 10px;
   border-bottom: 1px solid #eee;

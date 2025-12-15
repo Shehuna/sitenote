@@ -9,12 +9,12 @@ import PropTypes from "prop-types";
 import "./Dashboard.css";
 import NewNoteModal from "./Modals/NewNoteModal";
 import EditNoteModal from "./Modals/EditNoteModal";
-import SettingsModal from "./Modals/SettingsModal";
 import AttachedFileModal from "./Modals/AttachedfileModal.jsx";
 import ViewNoteModal from "./Modals/ViewNoteModal";
 import toast from "react-hot-toast";
 import InlineImageViewer from "./Modals/InlineImageViewer";
 import NotesTab from "./Dashbord/NotesTab";
+import DashboardMenu from "./Dashbord/DashboardMenu.jsx";
 
 const Dashboard = ({
   notes,
@@ -351,28 +351,7 @@ const Dashboard = ({
     clearGroupBtnHover: {
       color: "#333",
     },
-    workspaceHeader: {
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "flex-end",
-      gap: "2px",
-    },
-    workspaceTopRow: {
-      display: "flex",
-      alignItems: "center",
-      gap: "2px",
-    },
-    workspaceName: {
-      fontSize: "16px",
-      fontWeight: "600",
-      color: "#2c3e50",
-      padding: "8px 2px",
-      display: "flex",
-      alignItems: "center",
-      gap: "4px",
-      minWidth: "0px",
-      justifyContent: "center",
-    },
+    
     filterContainer: {
       display: "flex",
       flexWrap: "wrap",
@@ -716,7 +695,7 @@ const Dashboard = ({
   }, [selectedFilters, notes, isDataLoaded]);
   useEffect(() => {
     if (userid && defaultUserWorkspaceID) {
-      fetchUserWorkspaceRole();
+      //fetchUserWorkspaceRole();
       fetchWorkspacesByUserId();
       fetchPriorities();
     }
@@ -865,9 +844,9 @@ const Dashboard = ({
         fetchUniqueDates(),
         fetchUniqueUsernames(),
       ]);
-      if (defaultUserWorkspaceID) {
+      /* if (defaultUserWorkspaceID) {
         await fetchUserWorkspaceRole();
-      }
+      } */
     } catch {
       toast.error("Refresh error");
     } finally {
@@ -1073,7 +1052,9 @@ const Dashboard = ({
     };
     run();
   }, [searchTerm, userid, apiUrl]);
-  const fetchUserWorkspaceRole = async () => {
+ 
+
+  /* const fetchUserWorkspaceRole = async () => {
     setIsRoleLoading(true);
     try {
       const response = await fetch(
@@ -1110,7 +1091,8 @@ const Dashboard = ({
     } finally {
       setIsRoleLoading(false);
     }
-  };
+  }; */
+
   const fetchWorkspacesByUserId = async () => {
     try {
       const response = await fetch(
@@ -1844,73 +1826,15 @@ const Dashboard = ({
   return (
     <div className="main-content">
       <div className="dashboard">
-        <div
-          style={{
-            backgroundImage:
-              "linear-gradient(rgba(255,255,255,.95),rgba(199,194,194,.95)),url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%239C92AC' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")",
-            padding: "20px 30px",
-            borderRadius: "8px",
-            marginBottom: "30px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            boxShadow: "0 3px 10px rgba(0,0,0,.08)",
-            border: "1px solid rgba(0,0,0,.05)",
-          }}
-        >
-          <h1
-            style={{
-              margin: 0,
-              fontSize: "28px",
-              fontWeight: 600,
-              color: "#2c3e50",
-              display: "flex",
-              alignItems: "center",
-              gap: "15px",
-            }}
-          >
-            <i
-              className="fas fa-clipboard-list"
-              style={{ color: "#3498db", fontSize: "32px" }}
-            />{" "}
-            Site Notes Dashboard:{" "}
-            {JSON.parse(localStorage.getItem("user"))?.userName}
-          </h1>
-          <div style={styles.workspaceHeader}>
-            <div style={styles.workspaceTopRow}>
-              <div style={styles.workspaceName}>
-                {defaultUserWorkspaceName || "No Workspace"}
-              </div>
-            </div>
-            <button
-              onClick={() => setShowSettingsModal(true)}
-              style={{
-                background: "rgba(52,152,219,.1)",
-                border: "1px solid rgba(52,152,219,.2)",
-                width: 42,
-                height: 42,
-                borderRadius: "50%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#3498db",
-                fontSize: 18,
-                cursor: "pointer",
-                transition: "all 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.background = "rgba(52,152,219,.2)";
-                e.target.style.transform = "scale(1.05)";
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.background = "rgba(52,152,219,.1)";
-                e.target.style.transform = "scale(1)";
-              }}
-            >
-              <i className="fas fa-sliders-h" />
-            </button>
-          </div>
-        </div>
+        <DashboardMenu 
+        defaultUserWorkspaceID={defaultUserWorkspaceID}
+        defaultUserWorkspaceName={defaultUserWorkspaceName}
+        fetchProjectAndJobs={fetchProjectAndJobs}
+        onUpdateDefaultWorkspace={onUpdateDefaultWorkspace}
+        workspaces={workspaces}
+        userid={userid}
+        onLogout={onLogout}/>
+
         <div className="top-fixed-section">
           <div style={styles.searchBox}>
             <div
@@ -2650,19 +2574,6 @@ const Dashboard = ({
           </div>
         </div>
       )}
-      {showSettingsModal && (
-        <SettingsModal
-          isOpen={showSettingsModal}
-          onClose={() => setShowSettingsModal(false)}
-          onLogout={onLogout}
-          defWorkID={defaultUserWorkspaceID}
-          defWorkName={defaultUserWorkspaceName}
-          onUpdateDefaultWorkspace={onUpdateDefaultWorkspace}
-          role={role}
-          userWorkspaces={workspaces}
-          updateProjectsAndJobs={fetchProjectAndJobs}
-        />
-      )}
       {showViewModal && viewNote && (
         <ViewNoteModal
           noteId={viewNote.id}
@@ -2773,4 +2684,4 @@ Dashboard.propTypes = {
   fetchProjectAndJobs: PropTypes.func.isRequired,
 };
 Dashboard.defaultProps = { projects: [], jobs: [] };
-export default Dashboard;
+export default Dashboard
