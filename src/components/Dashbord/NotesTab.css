@@ -286,8 +286,16 @@ tr.selected-row.priority-4 {
   display: grid !important;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
   gap: 16px !important;
-  padding: 20px 0 !important;
   width: 100% !important;
+  height: calc(100vh - 350px) !important;
+  max-height: calc(100vh - 350px) !important;
+  min-height: 300px !important;
+  overflow-y: scroll !important;
+  overflow-x: hidden !important;
+  padding: 20px !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  position: relative !important;
 }
 
 .note-card {
@@ -1063,31 +1071,34 @@ tr.selected-row.priority-4 {
 }
 
 .top-fixed-section {
-  flex-shrink: 0; 
-  position: sticky;
-  top: 0;
+  flex-shrink: 0 !important;
+  position: sticky !important;
+  top: 0 !important;
   z-index: 1000 !important;
-  background: white;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #eee;
+  background: white !important;
+  padding-bottom: 10px !important;
+  border-bottom: 1px solid #eee !important;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1) !important;
 }
 
 .grid-scroll-container {
-  flex: 1; 
-  min-height: 0; 
-  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden; /* Keep this as hidden */
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .responsive-table-container {
   position: relative;
-  max-height: 100%;
+  max-height: calc(100vh - 350px);
   overflow-y: auto;
 }
 
 .responsive-table-container table thead {
-  position: sticky;
-  top:-1px;
+   position: sticky;
+  top: 0;
   z-index: 100 !important;
   background-color: white;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
@@ -1101,6 +1112,7 @@ tr.selected-row.priority-4 {
   height: 100%; 
   min-height: 500px; 
   overflow-y: auto;
+  max-height: none;
 }
 
 /* Image thumbnail styles */
@@ -1257,10 +1269,11 @@ tr.selected-row.priority-4 {
 .expanded-stack-header {
     display: flex;
     justify-content: space-between; 
-    align-items: flex-start; 
-    margin-bottom: 20px;
-    padding-bottom: 10px;
-    border-bottom: 2px solid #ddd;
+    align-items: center; 
+    margin-bottom: 10px; 
+    padding-bottom: 5px; 
+    border-bottom: 1px solid #ddd; 
+    min-height: 40px; 
 }
 
 .header-controls {
@@ -1273,15 +1286,15 @@ tr.selected-row.priority-4 {
 .expanded-stack-title {
     display: flex;
     align-items: center;
-    font-size: 22px;
+    font-size: 18px; 
     font-weight: 700;
     color: #2c3e50;
-    gap: 10px;
+    gap: 8px;
 }
 
 .expanded-stack-title i {
     color: #3498db;
-    font-size: 1.1em;
+    font-size: 1em;
 }
 
 .collapsed-stack .stack-layer-card:nth-child(1) { 
@@ -1321,15 +1334,20 @@ tr.selected-row.priority-4 {
 }
 
 .stacked-notes-horizontal {
-  width: 100%;
+  width: 100% !important;
+  height: calc(100vh - 400px) !important;
+  max-height: calc(100vh - 400px) !important;
+  overflow-y: scroll !important;
+  overflow-x: hidden !important;
+  padding: 20px !important;
 }
-
 .stacked-container {
   display: grid; 
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
   gap: 20px; 
   padding: 20px;
   justify-items: flex-end; 
+  max-height: calc(100vh - 350px);
 }
 
 .job-stack-container {
@@ -1391,9 +1409,12 @@ tr.selected-row.priority-4 {
 }
 
 .expanded-notes-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 16px; 
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  max-height: calc(100vh - 450px) !important;
+  overflow-y: auto !important;
+  padding: 10px 0 !important;
 }
 
 .fixed-collapse-btn-wrapper {
@@ -1405,7 +1426,7 @@ tr.selected-row.priority-4 {
 }
 
 .collapse-all-stacks-btn {
-  background: #bdb8b7;
+  background: #b9bdb7;
   color: rgb(71, 70, 70);
   border: none;
   padding: 6px 12px;

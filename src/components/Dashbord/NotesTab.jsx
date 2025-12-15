@@ -477,16 +477,7 @@ const NotesTab = ({
                   >
                     {isExpanded ? (
                       <div className="expanded-stack">
-                        <button
-                          className="collapse-stack-btn fixed-corner-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleStackExpansion(jobName);
-                          }}
-                          title="Collapse stack"
-                        >
-                          <i className="fas fa-compress" />
-                        </button>
+                        
                         <div className="expanded-stack-header">
                           <div className="expanded-stack-title">
                             <i className="fas fa-briefcase" />

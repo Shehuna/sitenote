@@ -109,6 +109,8 @@ const Dashboard = ({
   const [selectedImageNote, setSelectedImageNote] = useState(null);
   const newNoteModalRef = useRef();
   const filterRef = useRef();
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
   // Fetch inline images for a note
   const fetchInlineImages = useCallback(
@@ -246,6 +248,7 @@ const Dashboard = ({
     loadingImages,
     fetchInlineImages,
   ]);
+  
   // Handle image thumbnail click
   const handleImageThumbnailClick = useCallback(
     (note, imageIndex = 0) => {
@@ -315,6 +318,15 @@ const Dashboard = ({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+  useEffect(() => {
+  const checkMobile = () => {
+    setIsMobile(window.innerWidth <= 768);
+  };
+  
+  checkMobile();
+  window.addEventListener('resize', checkMobile);
+  return () => window.removeEventListener('resize', checkMobile);
+}, []);
   const styles = {
     searchBox: {
       display: "flex",
@@ -540,6 +552,65 @@ const Dashboard = ({
       marginLeft: "6px",
       cursor: "help",
     },
+    
+  mobileFilterButton: {
+    display: 'none',
+    '@media (max-width: 768px)': {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '8px',
+      padding: '10px 16px',
+      backgroundColor: '#3498db',
+      color: 'white',
+      border: 'none',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      fontSize: '14px',
+      fontWeight: '500',
+      margin: '10px 0',
+      width: '100%',
+    }
+  },
+  
+  mobileFiltersContainer: {
+    position: 'fixed',
+    top: '0',
+    left: '0',
+    right: '0',
+    bottom: '0',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 1000,
+    display: 'flex',
+    justifyContent: 'flex-end',
+  },
+  
+  mobileFiltersPanel: {
+    width: '85%',
+    maxWidth: '400px',
+    height: '100%',
+    backgroundColor: 'white',
+    overflowY: 'auto',
+    padding: '20px',
+    boxShadow: '-2px 0 10px rgba(0, 0, 0, 0.1)',
+  },
+  
+  mobileFiltersHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '20px',
+    paddingBottom: '15px',
+    borderBottom: '1px solid #eee',
+  },
+  
+  closeButton: {
+    background: 'none',
+    border: 'none',
+    fontSize: '20px',
+    cursor: 'pointer',
+    color: '#666',
+  },
   };
   const toggleStackExpansion = (jobName) => {
     setExpandedStacks((prev) => ({ ...prev, [jobName]: !prev[jobName] }));
@@ -2016,8 +2087,424 @@ const Dashboard = ({
             >
               <i className="fas fa-plus-circle" /> New Note
             </button>
+          
+        {isMobile && (
+          <button
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '36px',
+              height: '36px',
+              backgroundColor: '#1976d2',
+              color: 'white',
+              border: 'none',
+              borderRadius: '50%',
+              cursor: 'pointer',
+              fontSize: '16px',
+              position: 'relative',
+            }}
+            onClick={() => setMobileFiltersOpen(true)}
+          >
+            <i className="fas fa-filter" />
+            
+            {(selectedFilters.date.length > 0 || 
+              selectedFilters.workspace.length > 0 || 
+              selectedFilters.project.length > 0 || 
+              selectedFilters.job.length > 0 || 
+              selectedFilters.userName.length > 0) && (
+              <span style={{
+                color: 'white',
+                borderRadius: '50%',
+                width: '20px',
+                height: '20px',
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginLeft: '5px'
+              }}>
+                {selectedFilters.date.length + 
+                 selectedFilters.workspace.length + 
+                 selectedFilters.project.length + 
+                 selectedFilters.job.length + 
+                 selectedFilters.userName.length}
+              </span>
+            )}
+          </button>
+        )}
+        </div>
+        {isMobile && mobileFiltersOpen && (
+          <div style={styles.mobileFiltersContainer} onClick={() => setMobileFiltersOpen(false)}>
+            <div style={styles.mobileFiltersPanel} onClick={e => e.stopPropagation()}>
+              <div style={styles.mobileFiltersHeader}>
+                <h3 style={{ margin: 0 }}>Filters</h3>
+                <button
+                  style={styles.closeButton}
+                  onClick={() => setMobileFiltersOpen(false)}
+                >
+                  <i className="fas fa-times" />
+                </button>
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                {/* Date Filter for mobile */}
+                <div style={{ marginBottom: '10px' }}>
+                  <div
+                    style={{
+                      ...styles.filterButton,
+                      width: '100%',
+                      justifyContent: 'space-between',
+                      marginBottom: filterDropdownOpen === "date" ? '10px' : '0'
+                    }}
+                    onClick={() => toggleFilterDropdown("date")}
+                  >
+                    {getFilterButtonLabel("date")}
+                    <i
+                      className={`fas fa-chevron-${
+                        filterDropdownOpen === "date" ? "up" : "down"
+                      }`}
+                      style={{ fontSize: "12px" }}
+                    />
+                  </div>
+                  {filterDropdownOpen === "date" && (
+                    <div style={{ ...styles.dropdownContent, position: 'static', width: '100%' }}>
+                      <div style={styles.dropdownSearch}>
+                        <input
+                          type="text"
+                          placeholder="Search dates..."
+                          value={filterSearchTerm}
+                          onChange={(e) => setFilterSearchTerm(e.target.value)}
+                          style={styles.dropdownSearchInput}
+                        />
+                      </div>
+                      <div style={styles.dropdownList}>
+                        {getFilterOptions("date").map((option) => (
+                          <div
+                            key={option.id || option.text}
+                            style={styles.checkboxItem}
+                            onClick={() =>
+                              handleFilterCheckboxChange(
+                                "date",
+                                option.id || option.text
+                              )
+                            }
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedFilters.date.includes(
+                                option.id || option.text
+                              )}
+                              onChange={() => {}}
+                              style={styles.checkbox}
+                            />
+                            <span style={{ fontSize: "14px" }}>
+                              {option.displayText}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Workspace Filter for mobile */}
+                <div style={{ marginBottom: '10px' }}>
+                  <div
+                    style={{
+                      ...styles.filterButton,
+                      width: '100%',
+                      justifyContent: 'space-between',
+                      marginBottom: filterDropdownOpen === "workspace" ? '10px' : '0'
+                    }}
+                    onClick={() => toggleFilterDropdown("workspace")}
+                  >
+                    {getFilterButtonLabel("workspace")}
+                    <i
+                      className={`fas fa-chevron-${
+                        filterDropdownOpen === "workspace" ? "up" : "down"
+                      }`}
+                      style={{ fontSize: "12px" }}
+                    />
+                  </div>
+                  {filterDropdownOpen === "workspace" && (
+                    <div style={{ ...styles.dropdownContent, position: 'static', width: '100%' }}>
+                      <div style={styles.dropdownSearch}>
+                        <input
+                          type="text"
+                          placeholder="Search workspaces..."
+                          value={filterSearchTerm}
+                          onChange={(e) => setFilterSearchTerm(e.target.value)}
+                          style={styles.dropdownSearchInput}
+                        />
+                      </div>
+                      <div style={styles.dropdownList}>
+                        {getFilterOptions("workspace").map((option) => (
+                          <div
+                            key={option.id}
+                            style={styles.checkboxItem}
+                            onClick={() =>
+                              handleFilterCheckboxChange("workspace", option.id)
+                            }
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedFilters.workspace.includes(
+                                option.id
+                              )}
+                              onChange={() => {}}
+                              style={styles.checkbox}
+                            />
+                            <span style={{ fontSize: "14px" }}>{option.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Project Filter for mobile */}
+                <div style={{ marginBottom: '10px' }}>
+                  <div
+                    style={{
+                      ...styles.filterButton,
+                      width: '100%',
+                      justifyContent: 'space-between',
+                      marginBottom: filterDropdownOpen === "project" ? '10px' : '0'
+                    }}
+                    onClick={() => toggleFilterDropdown("project")}
+                  >
+                    {getFilterButtonLabel("project")}
+                    <i
+                      className={`fas fa-chevron-${
+                        filterDropdownOpen === "project" ? "up" : "down"
+                      }`}
+                      style={{ fontSize: "12px" }}
+                    />
+                  </div>
+                  {filterDropdownOpen === "project" && (
+                <div style={styles.dropdownContent}>
+                  <div style={styles.dropdownSearch}>
+                    <input
+                      type="text"
+                      placeholder="Search projects..."
+                      value={filterSearchTerm}
+                      onChange={(e) => setFilterSearchTerm(e.target.value)}
+                      style={styles.dropdownSearchInput}
+                    />
+                  </div>
+                  <div style={styles.dropdownList}>
+                    {getFilterOptions("project").length > 0 ? (
+                      getFilterOptions("project").map((option) => (
+                        <div
+                          key={option.id}
+                          style={styles.checkboxItem}
+                          onClick={() =>
+                            handleFilterCheckboxChange("project", option.id)
+                          }
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = "#f8f9fa";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor =
+                              "transparent";
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedFilters.project.includes(
+                              option.id
+                            )}
+                            onChange={() => {}}
+                            style={styles.checkbox}
+                          />
+                          <span style={{ fontSize: "14px" }}>
+                            {option.text}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div style={styles.emptyFilterMessage}>
+                        {selectedFilters.workspace &&
+                        selectedFilters.workspace.length > 0
+                          ? "No projects found for the selected workspace(s)"
+                          : "No projects available"}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+                </div>
+                
+                {/* Job Filter for mobile */}
+                <div style={{ marginBottom: '10px' }}>
+                  <div
+                    style={{
+                      ...styles.filterButton,
+                      width: '100%',
+                      justifyContent: 'space-between',
+                      marginBottom: filterDropdownOpen === "job" ? '10px' : '0'
+                    }}
+                    onClick={() => toggleFilterDropdown("job")}
+                  >
+                    {getFilterButtonLabel("job")}
+                    <i
+                      className={`fas fa-chevron-${
+                        filterDropdownOpen === "job" ? "up" : "down"
+                      }`}
+                      style={{ fontSize: "12px" }}
+                    />
+                  </div>
+                  {filterDropdownOpen === "job" && (
+                <div style={styles.dropdownContent}>
+                  <div style={styles.dropdownSearch}>
+                    <input
+                      type="text"
+                      placeholder="Search jobs..."
+                      value={filterSearchTerm}
+                      onChange={(e) => setFilterSearchTerm(e.target.value)}
+                      style={styles.dropdownSearchInput}
+                    />
+                  </div>
+                  <div style={styles.dropdownList}>
+                    {getFilterOptions("job").length > 0 ? (
+                      getFilterOptions("job").map((option) => (
+                        <div
+                          key={option.id}
+                          style={styles.checkboxItem}
+                          onClick={() =>
+                            handleFilterCheckboxChange("job", option.id)
+                          }
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = "#f8f9fa";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor =
+                              "transparent";
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedFilters.job.includes(option.id)}
+                            onChange={() => {}}
+                            style={styles.checkbox}
+                          />
+                          <span style={{ fontSize: "14px" }}>
+                            {option.text}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div style={styles.emptyFilterMessage}>
+                        {selectedFilters.project &&
+                        selectedFilters.project.length > 0
+                          ? "No jobs found for the selected project(s)"
+                          : selectedFilters.workspace &&
+                            selectedFilters.workspace.length > 0
+                          ? "No jobs found for the selected workspace(s)"
+                          : "No jobs available"}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+                </div>
+                
+                {/* User Filter for mobile */}
+                <div style={{ marginBottom: '10px' }}>
+                  <div
+                    style={{
+                      ...styles.filterButton,
+                      width: '100%',
+                      justifyContent: 'space-between',
+                      marginBottom: filterDropdownOpen === "userName" ? '10px' : '0'
+                    }}
+                    onClick={() => toggleFilterDropdown("userName")}
+                  >
+                    {getFilterButtonLabel("userName")}
+                    <i
+                      className={`fas fa-chevron-${
+                        filterDropdownOpen === "userName" ? "up" : "down"
+                      }`}
+                      style={{ fontSize: "12px" }}
+                    />
+                  </div>
+                  {filterDropdownOpen === "userName" && (
+                <div style={styles.dropdownContent}>
+                  <div style={styles.dropdownSearch}>
+                    <input
+                      type="text"
+                      placeholder="Search users..."
+                      value={filterSearchTerm}
+                      onChange={(e) => setFilterSearchTerm(e.target.value)}
+                      style={styles.dropdownSearchInput}
+                    />
+                  </div>
+                  <div style={styles.dropdownList}>
+                    {getFilterOptions("userName").map((option) => (
+                      <div
+                        key={option.id || option.text}
+                        style={styles.checkboxItem}
+                        onClick={() =>
+                          handleFilterCheckboxChange(
+                            "userName",
+                            option.id || option.text
+                          )
+                        }
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = "#f8f9fa";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "transparent";
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedFilters.userName.includes(
+                            option.id || option.text
+                          )}
+                          onChange={() => {}}
+                          style={styles.checkbox}
+                        />
+                        <span style={{ fontSize: "14px" }}>{option.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+                </div>
+              </div>
+              
+              {/* Clear All Button for mobile */}
+              <div style={{ marginTop: '30px', paddingTop: '20px', borderTop: '1px solid #eee' }}>
+                <button
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    backgroundColor: '#f8f9fa',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                  }}
+                  onClick={clearAllFilters}
+                  onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#5a6268";
+                  e.currentTarget.style.borderColor = "#545b62";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "#6c757d";
+                  e.currentTarget.style.borderColor = "#6c757d";
+                }}
+                >
+                  Clear All Filters
+                </button>
+              </div>
+            </div>
           </div>
-          {/* New Filter Section */}
+        )}
+        
+        {!isMobile && (
           <div ref={filterRef} style={styles.filterContainer}>
             {/* Date Filter */}
             <div style={styles.filterDropdown}>
@@ -2137,6 +2624,14 @@ const Dashboard = ({
                           e.currentTarget.style.backgroundColor = "transparent";
                         }}
                       >
+                         <input
+                          type="checkbox"
+                          checked={selectedFilters.workspace.includes(
+                            option.id
+                          )}
+                          onChange={() => {}}
+                          style={styles.checkbox}
+                        />
                         <input
                           type="checkbox"
                           checked={selectedFilters.workspace.includes(
@@ -2393,6 +2888,8 @@ const Dashboard = ({
               )}
             </div>
           </div>
+        )}
+        
           {/* Active Filters Display with Clear All Button */}
           {getActiveFilterCount() > 0 && (
             <div style={styles.activeFiltersContainer}>
@@ -2441,7 +2938,9 @@ const Dashboard = ({
               </button>
             </div>
           )}
-        </div>
+        
+        
+
         <NotesTab
           viewMode={viewMode}
           finalDisplayNotes={finalDisplayNotes}
@@ -2664,6 +3163,7 @@ const Dashboard = ({
           apiUrl={apiUrl}
         />
       )}
+    </div>
     </div>
   );
 };
