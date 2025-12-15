@@ -54,6 +54,7 @@ const Dashboard = ({
           userName: [],
         };
   });
+  const [filteredNotesFromApi, setFilteredNotesFromApi] = useState([]);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showNewModal, setShowNewModal] = useState(false);
@@ -144,80 +145,114 @@ const Dashboard = ({
     },
     [apiUrl, inlineImagesMap]
   );
-  // Simple client-side filtering function
-  const applyFilters = useCallback((notesToFilter, filters) => {
-    if (
-      !notesToFilter ||
-      !Array.isArray(notesToFilter) ||
-      notesToFilter.length === 0
-    ) {
-      return notesToFilter;
-    }
-    // Check if any filters are active
-    const hasActiveFilters = Object.keys(filters).some(
-      (key) =>
-        filters[key] && Array.isArray(filters[key]) && filters[key].length > 0
-    );
-    if (!hasActiveFilters) {
-      return notesToFilter;
-    }
-    return notesToFilter.filter((note) => {
-      // Check each filter type
-      let passesAllFilters = true;
-      // Date filter
-      if (filters.date && filters.date.length > 0) {
-        const noteDate = note.date ? note.date.toString() : "";
-        passesAllFilters =
-          passesAllFilters &&
-          filters.date.some((date) => noteDate.includes(date.toString()));
+  const fetchNotesWithFilters = useCallback(
+    async (filters) => {
+      const storedUser = (() => {
+        try {
+          return JSON.parse(localStorage.getItem("user") || "{}");
+        } catch {
+          return {};
+        }
+      })();
+      const usernameParam =
+        (filters?.userName && filters.userName[0]) ||
+        storedUser?.userName ||
+        storedUser?.username ||
+        storedUser?.name ||
+        "";
+      const userIdParam = storedUser?.id || userid;
+      if (!usernameParam) {
+        toast.error("Username is required to filter notes.");
+        return;
       }
-      // Workspace filter
-      if (filters.workspace && filters.workspace.length > 0) {
-        const noteWorkspace = note.workspace ? note.workspace.toString() : "";
-        passesAllFilters =
-          passesAllFilters &&
-          filters.workspace.some(
-            (workspace) => noteWorkspace === workspace.toString()
-          );
+
+      const usernameList =
+        (filters?.userName && filters.userName.length > 0
+          ? filters.userName
+          : [usernameParam]).filter(Boolean);
+
+      const makeRequest = async (username, workspaceId, projectId, jobId, dateVal) => {
+        const params = new URLSearchParams({
+          pageNumber: "1",
+          pageSize: "10",
+          username,
+          userId: userIdParam ?? "",
+        });
+        if (dateVal) params.append("date", dateVal);
+        if (workspaceId) params.append("workspaceId", workspaceId);
+        if (projectId) params.append("projectId", projectId);
+        if (jobId) params.append("jobId", jobId);
+
+        const response = await fetch(
+          `${apiUrl}/SiteNote/GetSiteNotesWithFilters?${params.toString()}`
+        );
+        const raw = await response.text();
+        if (!response.ok) {
+          throw new Error(raw || "Failed to fetch filtered notes");
+        }
+        const data = raw ? JSON.parse(raw) : {};
+        return (data.siteNotes || []).map((n) => ({
+          ...n,
+          userName: n.userName || n.UserName,
+          documentCount: n.documentCount ?? n.DocumentCount ?? 0,
+        }));
+      };
+
+      const dateVals = filters.date?.length ? filters.date : [undefined];
+      const workspaceVals = filters.workspace?.length ? filters.workspace : [undefined];
+      const projectVals = filters.project?.length ? filters.project : [undefined];
+      const jobVals = filters.job?.length ? filters.job : [undefined];
+
+      setLoadingFiltered(true);
+      try {
+        const allNotes = [];
+        for (const u of usernameList) {
+          for (const d of dateVals) {
+            for (const w of workspaceVals) {
+              for (const p of projectVals) {
+                for (const j of jobVals) {
+                  const chunk = await makeRequest(u, w, p, j, d);
+                  allNotes.push(...chunk);
+                }
+              }
+            }
+          }
+        }
+        const dedup = [];
+        const seen = new Set();
+        allNotes.forEach((n) => {
+          const id = n.id;
+          if (!seen.has(id)) {
+            seen.add(id);
+            dedup.push(n);
+          }
+        });
+        setFilteredNotesFromApi(dedup);
+      } catch (error) {
+        console.error("Filter fetch error:", error);
+        toast.error("Failed to fetch filtered notes");
+        setFilteredNotesFromApi([]);
+      } finally {
+        setLoadingFiltered(false);
       }
-      // Project filter
-      if (filters.project && filters.project.length > 0) {
-        const noteProject = note.project ? note.project.toString() : "";
-        passesAllFilters =
-          passesAllFilters &&
-          filters.project.some((project) => noteProject === project.toString());
-      }
-      // Job filter
-      if (filters.job && filters.job.length > 0) {
-        const noteJob = note.job ? note.job.toString() : "";
-        passesAllFilters =
-          passesAllFilters &&
-          filters.job.some((job) => noteJob === job.toString());
-      }
-      // User filter
-      if (filters.userName && filters.userName.length > 0) {
-        const noteUser = note.userName ? note.userName.toString() : "";
-        passesAllFilters =
-          passesAllFilters &&
-          filters.userName.some((user) => noteUser === user.toString());
-      }
-      return passesAllFilters;
-    });
-  }, []);
-  // Get filtered notes based on selected filters
-  const filteredNotes = useMemo(() => {
-    if (!notes || !Array.isArray(notes)) {
-      return [];
-    }
-    return applyFilters(notes, selectedFilters);
-  }, [notes, selectedFilters, applyFilters]);
-  // Get display notes (search results OR filtered notes)
+    },
+    [apiUrl, userid]
+  );
+
+  const hasActiveFilters = useMemo(
+    () => Object.values(selectedFilters).some((arr) => arr?.length > 0),
+    [selectedFilters]
+  );
+
   const displayNotes = useMemo(() => {
     if (searchTerm.trim()) {
       return searchResults;
     }
-    return filteredNotes;
-  }, [searchTerm, searchResults, filteredNotes]);
+    if (hasActiveFilters) {
+      return filteredNotesFromApi;
+    }
+    return notes || [];
+  }, [searchTerm, searchResults, hasActiveFilters, filteredNotesFromApi, notes]);
   // Filter out archived jobs from display notes
   const finalDisplayNotes = useMemo(() => {
     if (!displayNotes || !Array.isArray(displayNotes)) {
@@ -667,6 +702,38 @@ const Dashboard = ({
       console.error(e);
     }
   };
+  const fetchProjectsByWorkspaces = useCallback(
+    async (workspaceIds) => {
+      if (!workspaceIds || workspaceIds.length === 0) return;
+      const results = [];
+      for (const wid of workspaceIds) {
+        try {
+          const r = await fetch(
+            `${apiUrl}/Project/GetProjectsByUserJobPermission/${userid}/${wid}`
+          );
+          if (r.ok) {
+            const data = await r.json();
+            if (Array.isArray(data.projects)) {
+              results.push(...data.projects);
+            }
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      const dedup = [];
+      const seen = new Set();
+      results.forEach((p) => {
+        const id = p.id ?? p.projectId ?? p.value;
+        if (id && !seen.has(id)) {
+          seen.add(id);
+          dedup.push(p);
+        }
+      });
+      setUniqueProjects(dedup);
+    },
+    [apiUrl, userid]
+  );
   const fetchUniqueJobs = async () => {
     try {
       const r = await fetch(
@@ -677,6 +744,38 @@ const Dashboard = ({
       console.error(e);
     }
   };
+  const fetchJobsByProjects = useCallback(
+    async (projectIds) => {
+      if (!projectIds || projectIds.length === 0) return;
+      const results = [];
+      for (const pid of projectIds) {
+        try {
+          const r = await fetch(
+            `${apiUrl}/UserJobAuth/GetJobsByUserAndProject/${userid}/${pid}`
+          );
+          if (r.ok) {
+            const data = await r.json();
+            if (Array.isArray(data.jobs)) {
+              results.push(...data.jobs);
+            }
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      const dedup = [];
+      const seen = new Set();
+      results.forEach((j) => {
+        const id = j.jobId ?? j.id ?? j.value;
+        if (id && !seen.has(id)) {
+          seen.add(id);
+          dedup.push(j);
+        }
+      });
+      setUniqueJobs(dedup);
+    },
+    [apiUrl, userid]
+  );
   const fetchUniqueWorkspaces = async () => {
     try {
       const r = await fetch(
@@ -764,6 +863,18 @@ const Dashboard = ({
       setLoadingFiltered(false);
     }
   }, [selectedFilters, notes, isDataLoaded]);
+
+  useEffect(() => {
+    if (!hasActiveFilters) {
+      setFilteredNotesFromApi(notes || []);
+    }
+  }, [notes, hasActiveFilters]);
+
+  useEffect(() => {
+    if (hasActiveFilters) {
+      fetchNotesWithFilters(selectedFilters);
+    }
+  }, [hasActiveFilters, fetchNotesWithFilters, selectedFilters]);
   useEffect(() => {
     if (userid && defaultUserWorkspaceID) {
       //fetchUserWorkspaceRole();
@@ -1207,12 +1318,38 @@ const Dashboard = ({
   };
   // Helper function to get filter options with cascading logic
   const getFilterOptions = (filterType) => {
-    if (filterType === "project") {
-      let options = (uniqueProjects || []).map(p => ({
-        id: p.value ?? p.id ?? p.projectId ?? p.name ?? p.text,
-        text: p.text ?? p.name ?? String(p.value ?? p.id ?? p.projectId ?? p),
-        displayText: p.text ?? p.name ?? String(p.value ?? p.id ?? p.projectId ?? p)
+    if (filterType === "workspace") {
+      let options = (uniqueWorkspaces || []).map((w) => ({
+        id:
+          w.id ??
+          w.workspaceId ??
+          w.workspaceID ??
+          w.value ??
+          w.name ??
+          w.text,
+        text: w.name ?? w.text ?? String(w.id ?? w.workspaceId ?? w.value ?? w),
+        displayText: w.name ?? w.text ?? String(w.id ?? w.workspaceId ?? w.value ?? w),
       }));
+      if (filterSearchTerm) {
+        options = options.filter(
+          (o) =>
+            o.displayText &&
+            o.displayText.toLowerCase().includes(filterSearchTerm.toLowerCase())
+        );
+      }
+      return options;
+    }
+    if (filterType === "project") {
+      let options = (uniqueProjects || []).map((p) => {
+        const id = p.value ?? p.id ?? p.projectId ?? p.projectID;
+        const label =
+          p.name ?? p.projectName ?? p.text ?? String(id ?? p);
+        return {
+          id,
+          text: label,
+          displayText: label,
+        };
+      });
       if (filterSearchTerm) {
         options = options.filter(o =>
             o.displayText && o.displayText.toLowerCase().includes(filterSearchTerm.toLowerCase())
@@ -1221,11 +1358,16 @@ const Dashboard = ({
       return options;
     }
     if (filterType === "job") {
-      let options = (uniqueJobs || []).map(j => ({
-        id: j.value ?? j.id ?? j.jobId ?? j.valueId ?? j.text,
-        text: j.text ?? j.name ?? String(j.value ?? j.id ?? j.jobId ?? j),
-        displayText: j.text ?? j.name ?? String(j.value ?? j.id ?? j.jobId ?? j)
-      }));
+      let options = (uniqueJobs || []).map((j) => {
+        const id = j.jobId ?? j.id ?? j.value ?? j.jobID;
+        const label =
+          j.jobName ?? j.name ?? j.text ?? String(id ?? j);
+        return {
+          id,
+          text: label,
+          displayText: label,
+        };
+      });
       if (filterSearchTerm) {
         options = options.filter(o =>
             o.displayText && o.displayText.toLowerCase().includes(filterSearchTerm.toLowerCase())
@@ -1360,6 +1502,27 @@ const Dashboard = ({
         }
       } catch (e) {}
     }
+    if (filterType === "workspace") {
+      const hit = (uniqueWorkspaces || []).find(
+        (w) =>
+          (w.id ?? w.workspaceId ?? w.workspaceID ?? w.value)?.toString() ===
+          value?.toString()
+      );
+      if (hit) return hit.name ?? hit.text ?? value;
+    }
+    if (filterType === "project") {
+      const hit = (uniqueProjects || []).find(
+        (p) =>
+          (p.id ?? p.projectId ?? p.projectID ?? p.value)?.toString() === value?.toString()
+      );
+      if (hit) return hit.name ?? hit.projectName ?? hit.text ?? value;
+    }
+    if (filterType === "job") {
+      const hit = (uniqueJobs || []).find(
+        (j) => (j.jobId ?? j.jobID ?? j.id ?? j.value)?.toString() === value?.toString()
+      );
+      if (hit) return hit.jobName ?? hit.name ?? hit.text ?? value;
+    }
     return value;
   };
   const getActiveFilterCount = () => {
@@ -1368,119 +1531,68 @@ const Dashboard = ({
       0
     );
   };
-  // Cascading filter logic - automatically clears child filters when parent changes
   const handleFilterCheckboxChange = useCallback(
-    (filterType, value) => {
+    async (filterType, value) => {
       const currentValues = selectedFilters[filterType] || [];
-      let newValues;
-      if (currentValues.includes(value)) {
-        // Remove the value if it already exists
-        newValues = currentValues.filter((v) => v !== value);
-      } else {
-        // Add the value
-        newValues = [...currentValues, value];
-      }
-      const newFilters = {
+      const newValues = currentValues.includes(value)
+        ? currentValues.filter((v) => v !== value)
+        : [...currentValues, value];
+      let newFilters = {
         ...selectedFilters,
         [filterType]: newValues,
       };
-      // Handle cascading filter clearing
+
+      // Cascading: workspace change clears project/job and refreshes project options
       if (filterType === "workspace") {
-        // When workspace changes, clear project and job filters if they're no longer valid
+        newFilters = {
+          ...newFilters,
+          project: [],
+          job: [],
+        };
+        setUniqueProjects([]);
+        setUniqueJobs([]);
         if (newValues.length === 0) {
-          // If all workspaces are cleared, keep other filters
+          await fetchUniqueProjects();
+          await fetchUniqueJobs();
         } else {
-          // Check which projects are still valid for selected workspaces
-          const validProjects = new Set();
-          notes.forEach((note) => {
-            const noteWorkspace = note.workspace
-              ? note.workspace.toString()
-              : "";
-            const noteProject = note.project ? note.project.toString() : "";
-            if (newValues.includes(noteWorkspace) && noteProject) {
-              validProjects.add(noteProject);
-            }
-          });
-          // Remove project filters that are no longer valid
-          const currentProjectFilters = newFilters.project || [];
-          const filteredProjectFilters = currentProjectFilters.filter(
-            (project) => validProjects.has(project)
-          );
-          newFilters.project = filteredProjectFilters;
-          // Also update job filters based on remaining projects
-          if (filteredProjectFilters.length > 0) {
-            const validJobs = new Set();
-            notes.forEach((note) => {
-              const noteProject = note.project ? note.project.toString() : "";
-              const noteJob = note.job ? note.job.toString() : "";
-              if (filteredProjectFilters.includes(noteProject) && noteJob) {
-                validJobs.add(noteJob);
-              }
-            });
-            const currentJobFilters = newFilters.job || [];
-            const filteredJobFilters = currentJobFilters.filter((job) =>
-              validJobs.has(job)
-            );
-            newFilters.job = filteredJobFilters;
-          } else {
-            // If no projects selected, filter jobs by selected workspaces
-            const validJobs = new Set();
-            notes.forEach((note) => {
-              const noteWorkspace = note.workspace
-                ? note.workspace.toString()
-                : "";
-              const noteJob = note.job ? note.job.toString() : "";
-              if (newValues.includes(noteWorkspace) && noteJob) {
-                validJobs.add(noteJob);
-              }
-            });
-            const currentJobFilters = newFilters.job || [];
-            const filteredJobFilters = currentJobFilters.filter((job) =>
-              validJobs.has(job)
-            );
-            newFilters.job = filteredJobFilters;
-          }
-        }
-      } else if (filterType === "project") {
-        // When project changes, clear job filters if they're no longer valid
-        if (newValues.length === 0) {
-          // If all projects are cleared, keep job filters only if workspace is selected
-          if (newFilters.workspace && newFilters.workspace.length > 0) {
-            const validJobs = new Set();
-            notes.forEach((note) => {
-              const noteWorkspace = note.workspace
-                ? note.workspace.toString()
-                : "";
-              const noteJob = note.job ? note.job.toString() : "";
-              if (newFilters.workspace.includes(noteWorkspace) && noteJob) {
-                validJobs.add(noteJob);
-              }
-            });
-            const currentJobFilters = newFilters.job || [];
-            const filteredJobFilters = currentJobFilters.filter((job) =>
-              validJobs.has(job)
-            );
-            newFilters.job = filteredJobFilters;
-          }
-        } else {
-          const validJobs = new Set();
-          notes.forEach((note) => {
-            const noteProject = note.project ? note.project.toString() : "";
-            const noteJob = note.job ? note.job.toString() : "";
-            if (newValues.includes(noteProject) && noteJob) {
-              validJobs.add(noteJob);
-            }
-          });
-          const currentJobFilters = newFilters.job || [];
-          const filteredJobFilters = currentJobFilters.filter((job) =>
-            validJobs.has(job)
-          );
-          newFilters.job = filteredJobFilters;
+          await fetchProjectsByWorkspaces(newValues);
         }
       }
+
+      // Cascading: project change clears job and refreshes job options
+      if (filterType === "project") {
+        newFilters = {
+          ...newFilters,
+          job: [],
+        };
+        setUniqueJobs([]);
+        if (newValues.length === 0) {
+          await fetchUniqueJobs();
+        } else {
+          await fetchJobsByProjects(newValues);
+        }
+      }
+
       setSelectedFilters(newFilters);
+
+      const active = Object.values(newFilters).some(
+        (arr) => Array.isArray(arr) && arr.length > 0
+      );
+      if (active) {
+        fetchNotesWithFilters(newFilters);
+      } else {
+        setFilteredNotesFromApi(notes || []);
+      }
     },
-    [selectedFilters, notes]
+    [
+      selectedFilters,
+      fetchNotesWithFilters,
+      fetchProjectsByWorkspaces,
+      fetchJobsByProjects,
+      fetchUniqueProjects,
+      fetchUniqueJobs,
+      notes,
+    ]
   );
   const removeFilter = useCallback(
     (filterType, value) => {
@@ -1490,64 +1602,17 @@ const Dashboard = ({
         ...selectedFilters,
         [filterType]: newValues,
       };
-      // Also handle cascading clearing when removing filters
-      if (filterType === "workspace") {
-        // Check which projects are still valid
-        const validProjects = new Set();
-        if (newValues.length > 0) {
-          notes.forEach((note) => {
-            const noteWorkspace = note.workspace
-              ? note.workspace.toString()
-              : "";
-            const noteProject = note.project ? note.project.toString() : "";
-            if (newValues.includes(noteWorkspace) && noteProject) {
-              validProjects.add(noteProject);
-            }
-          });
-          // Remove invalid project filters
-          const currentProjectFilters = newFilters.project || [];
-          const filteredProjectFilters = currentProjectFilters.filter(
-            (project) => validProjects.has(project)
-          );
-          newFilters.project = filteredProjectFilters;
-          // Update job filters
-          if (filteredProjectFilters.length > 0) {
-            const validJobs = new Set();
-            notes.forEach((note) => {
-              const noteProject = note.project ? note.project.toString() : "";
-              const noteJob = note.job ? note.job.toString() : "";
-              if (filteredProjectFilters.includes(noteProject) && noteJob) {
-                validJobs.add(noteJob);
-              }
-            });
-            const currentJobFilters = newFilters.job || [];
-            const filteredJobFilters = currentJobFilters.filter((job) =>
-              validJobs.has(job)
-            );
-            newFilters.job = filteredJobFilters;
-          }
-        }
-      } else if (filterType === "project") {
-        // Update job filters
-        const validJobs = new Set();
-        if (newValues.length > 0) {
-          notes.forEach((note) => {
-            const noteProject = note.project ? note.project.toString() : "";
-            const noteJob = note.job ? note.job.toString() : "";
-            if (newValues.includes(noteProject) && noteJob) {
-              validJobs.add(noteJob);
-            }
-          });
-          const currentJobFilters = newFilters.job || [];
-          const filteredJobFilters = currentJobFilters.filter((job) =>
-            validJobs.has(job)
-          );
-          newFilters.job = filteredJobFilters;
-        }
-      }
       setSelectedFilters(newFilters);
+      const active = Object.values(newFilters).some(
+        (arr) => Array.isArray(arr) && arr.length > 0
+      );
+      if (active) {
+        fetchNotesWithFilters(newFilters);
+      } else {
+        setFilteredNotesFromApi(notes || []);
+      }
     },
-    [selectedFilters, notes]
+    [selectedFilters, notes, fetchNotesWithFilters]
   );
   const clearAllFilters = useCallback(() => {
     const emptyFilters = {
@@ -1558,7 +1623,9 @@ const Dashboard = ({
       userName: [],
     };
     setSelectedFilters(emptyFilters);
-  }, []);
+    setFilteredNotesFromApi(notes || []);
+    setLoadingFiltered(false);
+  }, [notes]);
   const toggleFilterDropdown = (filterType) => {
     if (filterDropdownOpen === filterType) {
       setFilterDropdownOpen(null);
@@ -1569,41 +1636,7 @@ const Dashboard = ({
     }
   };
   // Check if filter has restricted options due to parent selection
-  const getFilterInfoMessage = (filterType) => {
-    if (
-      filterType === "project" &&
-      selectedFilters.workspace &&
-      selectedFilters.workspace.length > 0
-    ) {
-      return `Showing projects from ${selectedFilters.workspace.length} selected workspace(s)`;
-    }
-    if (filterType === "job") {
-      if (selectedFilters.project && selectedFilters.project.length > 0) {
-        return `Showing jobs from ${selectedFilters.project.length} selected project(s)`;
-      }
-      if (selectedFilters.workspace && selectedFilters.workspace.length > 0) {
-        return `Showing jobs from ${selectedFilters.workspace.length} selected workspace(s)`;
-      }
-    }
-    return null;
-  };
   // Check if filter button should show info style
-  const hasFilterInfo = (filterType) => {
-    if (
-      filterType === "project" &&
-      selectedFilters.workspace &&
-      selectedFilters.workspace.length > 0
-    ) {
-      return true;
-    }
-    if (filterType === 'job' && (selectedFilters.project && selectedFilters.project.length > 0) ||
-        (selectedFilters.workspace && selectedFilters.workspace.length > 0)) {
-      fetchUniqueJobs();
-      //
-      // return true;
-    }
-    return false;
-  };
   const getFilterButtonLabel = (filterType) => {
     const count = selectedFilters[filterType]?.length || 0;
     const baseLabels = {
@@ -1627,14 +1660,6 @@ const Dashboard = ({
           style={{ fontSize: "14px", color: "#3498db" }}
         />
         {baseLabels[filterType]} {count > 0 && `(${count})`}
-        {hasFilterInfo(filterType) && (
-          <span
-            style={styles.filterInfoBadge}
-            title={getFilterInfoMessage(filterType)}
-          >
-            i
-          </span>
-        )}
       </span>
     );
   };
@@ -2624,14 +2649,6 @@ const Dashboard = ({
                           e.currentTarget.style.backgroundColor = "transparent";
                         }}
                       >
-                         <input
-                          type="checkbox"
-                          checked={selectedFilters.workspace.includes(
-                            option.id
-                          )}
-                          onChange={() => {}}
-                          style={styles.checkbox}
-                        />
                         <input
                           type="checkbox"
                           checked={selectedFilters.workspace.includes(
@@ -2650,25 +2667,16 @@ const Dashboard = ({
             {/* Project Filter */}
             <div style={styles.filterDropdown}>
               <button
-                style={{
-                  ...styles.filterButton,
-                  ...(hasFilterInfo("project") ? styles.filterButtonInfo : {}),
-                }}
+                style={styles.filterButton}
                 onClick={() => toggleFilterDropdown("project")}
-                title={
-                  hasFilterInfo("project")
-                    ? getFilterInfoMessage("project")
-                    : "Filter by project"
-                }
+                title="Filter by project"
                 onMouseEnter={(e) => {
                   e.currentTarget.style.borderColor = "#3498db";
                   e.currentTarget.style.boxShadow =
                     "0 0 0 2px rgba(52, 152, 219, 0.2)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = hasFilterInfo("project")
-                    ? "#17a2b8"
-                    : "#ddd";
+                  e.currentTarget.style.borderColor = "#ddd";
                   e.currentTarget.style.boxShadow = "none";
                 }}
               >
@@ -2736,25 +2744,16 @@ const Dashboard = ({
             {/* Job Filter */}
             <div style={styles.filterDropdown}>
               <button
-                style={{
-                  ...styles.filterButton,
-                  ...(hasFilterInfo("job") ? styles.filterButtonInfo : {}),
-                }}
+                style={styles.filterButton}
                 onClick={() => toggleFilterDropdown("job")}
-                title={
-                  hasFilterInfo("job")
-                    ? getFilterInfoMessage("job")
-                    : "Filter by job"
-                }
+                title="Filter by job"
                 onMouseEnter={(e) => {
                   e.currentTarget.style.borderColor = "#3498db";
                   e.currentTarget.style.boxShadow =
                     "0 0 0 2px rgba(52, 152, 219, 0.2)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = hasFilterInfo("job")
-                    ? "#17a2b8"
-                    : "#ddd";
+                  e.currentTarget.style.borderColor = "#ddd";
                   e.currentTarget.style.boxShadow = "none";
                 }}
               >
