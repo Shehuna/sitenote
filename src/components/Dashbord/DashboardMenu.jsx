@@ -15,6 +15,7 @@ const DashboardMenu = ({
   const [isRoleLoading, setIsRoleLoading] = useState(false);
   const [userWorkspaces, setUserWorkspaces] = useState();
   const [role, setRole] = useState(null);
+  const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(true);
 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
  
@@ -65,6 +66,15 @@ const DashboardMenu = ({
       fetchUserWorkspaceRole();
     }
   }, [userid, defaultUserWorkspaceID]);
+
+  // Track when workspace name is loading
+  useEffect(() => {
+    if (defaultUserWorkspaceID && !defaultUserWorkspaceName) {
+      setIsWorkspaceLoading(true);
+    } else {
+      setIsWorkspaceLoading(false);
+    }
+  }, [defaultUserWorkspaceID, defaultUserWorkspaceName]);
   
   return (
     <div className="dashboard-menu">
@@ -75,7 +85,15 @@ const DashboardMenu = ({
 
       <div className="workspace-header">
         <div className="workspace-name">
-          {defaultUserWorkspaceName || "No Workspace"}
+          {isWorkspaceLoading ? (
+            <div className="horizontal-loading-dots">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          ) : (
+            defaultUserWorkspaceName
+          )}
         </div>
         <button
           onClick={() => setShowSettingsModal(true)}

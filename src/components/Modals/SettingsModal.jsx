@@ -29,11 +29,7 @@ const SettingsModal = ({
     const [databases, setDatabases] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [newWorkspaceName, setNewWorkspaceName] = useState('');
-
-    const [isAddWorkspaceOpen, setIsAddWorkspaceOpen] = useState(false);
-    const [isEditWorkspaceOpen, setIsEditWorkspaceOpen] = useState(false);
-
+   
     const [selectedProject, setSelectedProject] = useState('');
     const [selectedJob, setSelectedJob] = useState('');
     const [selectedUser, setSelectedUser] = useState('');
@@ -101,98 +97,36 @@ useEffect(() => {
     };
 
     const fetchInitialData = async () => {
-        setLoading(true);
-        setError(null);
+    setLoading(true);
+    setError(null);
 
-        try {
-          const projectsUrl = `${process.env.REACT_APP_API_BASE_URL}/api/Project/GetProjects`;
-          const jobsUrl = `${process.env.REACT_APP_API_BASE_URL}/api/Job/GetJobs`;
-          const usersURL = `${process.env.REACT_APP_API_BASE_URL}/api/UserManagement/GetUsers`;
+    try {
+        const usersURL = `${process.env.REACT_APP_API_BASE_URL}/api/UserManagement/GetUsers`;
 
-            console.log('Fetching from:', projectsUrl, jobsUrl);
+        console.log('Fetching users from:', usersURL);
 
-            const [projectsRes, jobsRes, userRes] = await Promise.all([
-                fetch(projectsUrl, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                }),
-                fetch(jobsUrl, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                }),
-                fetch(usersURL, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                })
-            ]);
+        const userRes = await fetch(usersURL, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+        });
 
-            if (!projectsRes.ok) throw new Error(`Projects API error: ${projectsRes.status}`);
-            if (!jobsRes.ok) throw new Error(`Jobs API error: ${jobsRes.status}`);
-            if (!userRes.ok) throw new Error(`Jobs API error: ${userRes.status}`);
+        if (!userRes.ok) throw new Error(`Users API error: ${userRes.status}`);
 
-            var projectsData = await projectsRes.json();
-            var jobsData = await jobsRes.json();
-            var userData = await userRes.json()
+        const userData = await userRes.json();
+        const usersList = userData.users || [];
 
-            projectsData = projectsData.projects || [];
-            jobsData = jobsData.jobs || [];
-            userData = userData.users || []
+        console.log('Received users data:', usersList);
 
-            console.log('Received data:', { projectsData, jobsData });
-
-            setProjects(projectsData);
-            setJobs(jobsData);
-            setUsers(userData)
-        } catch (err) {
-            setError(err.message);
-            console.error('API Error:', err);
-        } finally {
-            setLoading(false);
-        }
+        setUsers(usersList);
+    } catch (err) {
+        setError(err.message);
+        console.error('API Error:', err);
+    } finally {
+        setLoading(false);
     }
-
-    const handleDeleteProject = async () => {
-        try {
-            const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Project/DeleteProject/${selectedProject}`, {
-                method: 'DELETE'
-            });
-
-            if (!response.ok) throw new Error('Failed to delete project');
-
-            fetchInitialData();
-            setSelectedProject('');
-        } catch (err) {
-            setError(err.message);
-            console.error('Error deleting project:', err);
-        }
-    };
-
-
-    const handleAddUser = () => {
-        alert(`User ${selectedUser} added to database ${selectedDatabase}`);
-        setSelectedUser('');
-        setSelectedDatabase('');
-    };
-
-    const handleRemoveUser = () => {
-        alert(`User ${selectedUser} removed from database ${selectedDatabase}`);
-        setSelectedUser('');
-        setSelectedDatabase('');
-    };
-   
-    const handleUpdateStatus = () => {
-        alert(`Job ${selectedJob} status updated to ${selectedStatus}`);
-        setSelectedProject('');
-        setSelectedJob('');
-        setSelectedStatus(1);
-    };
-    
+}
 
     const renderMainMenu = () => {
         const options = [
@@ -296,7 +230,7 @@ useEffect(() => {
             case 'jobManagement':
                 return <JobManagment defWorkId={defWorkID} updateProjectsAndJobs={updateProjectsAndJobs}s/>;
             case 'userManagement':
-                return <UserManagement />;
+                return <UserManagement workspaceId={defWorkID}/>;
             case 'userProfile':
                 return (
                         <UserProfile userid={userId} />
@@ -360,16 +294,9 @@ useEffect(() => {
                     </div>
                 }
                 className="settings-modal" >
-                {loading ? (
-                    <div className="loading-message">Loading data...</div>
-                ) : error ? (
-                    <div className="error-message">
-                        Error: {error}
-                        <button onClick={fetchInitialData}>Retry</button>
-                    </div>
-                ) : (
+                {
                     renderContent()
-                )}
+                }
 
                 <div className="modal-footer">
                     <button className="btn-close" onClick={onClose}>
