@@ -3,6 +3,8 @@ import Modal from '../Modals/Modal';
 import ApproveRejectWorkspace from './ApproveRejectWorkspace';
 import toast from 'react-hot-toast';
 import ManageWorkspaceUsersModal from './ManageWorkspaceUsersModal';
+import ChangeWorkspaceModal from './ChangeWorkspaceModal';
+
 
 const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}) => {
     
@@ -39,21 +41,6 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
     const [isManageUsersOpen, setIsManageUsersOpen] = useState(false);
     const [addingUser, setAddingUser] = useState(false);
 
-    const COUNTRY_OPTIONS = [
-        "United States",
-        "Canada",
-        "United Kingdom",
-        "Australia",
-        "Germany",
-        "France",
-        "Japan",
-        "Brazil",
-        "India",
-        "China",
-        "Djibouti",
-        "Ethiopia",
-    ];
-
     const API_URL = process.env.REACT_APP_API_BASE_URL
 
     useEffect(() => {
@@ -65,7 +52,7 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
     }, []);
 
     useEffect(() => {
-        if (isChangeWorkspaceOpen && selectedWorkspace) {
+        if (isEditWorkspaceOpen && selectedWorkspace) {
             const workspace = workspaces.find(w => w.id === parseInt(selectedWorkspace));
             if (workspace) {
                 setWorkspaceName(workspace.name)
@@ -81,7 +68,7 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
         } else{
             setWorkspaceName('')
         }
-    }, [isChangeWorkspaceOpen, selectedWorkspace, workspaces]);
+    }, [isEditWorkspaceOpen, selectedWorkspace, workspaces]);
 
     const fetchWorkspaces = async (userid) => {
         setLoading(true);
@@ -104,38 +91,7 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
         }
     };
 
-    const validateAddWorkspace = () => {
-        if (!workspaceName.trim()) {
-            return 'Workspace name is required';
-        }
-        if (!ownerType) {
-            return 'Owner type is required';
-        }
-        if (!ownerName.trim()) {
-            return 'Owner name is required';
-        }
-        if (!email.trim()) {
-            return 'Email is required';
-        }
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            return 'Please enter a valid email address';
-        }
-        if (!phone.trim()) {
-            return 'Phone is required';
-        }
-        if (!addressLine1.trim()) {
-            return 'Address Line 1 is required';
-        }
-        if (!city.trim()) {
-            return 'City is required';
-        }
-        if (!country) {
-            return 'Country is required';
-        }
-        return '';
-    };
-
+    // Keep only functions that are still needed for other parts
     const validateEditWorkspace = () => {
         if (!selectedWorkspace) {
             return 'Please select a workspace';
@@ -247,88 +203,6 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
         } finally {
             setLoading(false);
         }
-    };
-
-    const handleAddWorkspace = async (e) => {
-        e.preventDefault();
-        setSuccessMessage('');
-        setWorkspaceError('');
-        const validationError = validateAddWorkspace();
-        if (validationError) {
-            setWorkspaceError(validationError);
-            return;
-        }
-        try {
-            setAddingWorkspace(true);
-            const response = await fetch(`${API_URL}/api/Workspace/AddWorkspace`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    name: workspaceName,
-                    ownerUserID: ownerUserID,
-                    ownerType: ownerType,
-                    ownerName: ownerName,
-                    email: email,
-                    phone: phone,
-                    addressLine1: addressLine1,
-                    city: city,
-                    country: country,
-                    status: 0 // Set status to 0 for pending approval
-                }),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                setWorkspaceError(errorData.message || `Failed to add workspace: ${response.status}`);
-                return;
-            }
-            const data = await response.json();
-            setSuccessMessage(data.message || 'Workspace requested successfully. Waiting for approval.');
-            setTimeout(() => {
-                setIsAddWorkspaceOpen(false);
-                const user = JSON.parse(localStorage.getItem('user'));
-                fetchWorkspaces(user.id); 
-            }, 2000);
-            setWorkspaceName('')
-            setOwnerType(1)
-            setOwnerName('')
-            setEmail('')
-            setPhone('')
-            setAddressLine1('')
-            setCity('')
-            setCountry('')
-            setStatus(0)
-        } catch (err) {
-            setWorkspaceError(err.message);
-            console.error('Error adding workspace:', err);
-        } finally {
-            setAddingWorkspace(false);
-        }
-    };
-
-    const openAddWorkspaceModal = () => {
-        setSuccessMessage('');
-        setWorkspaceError('');
-        setWorkspaceName('')
-        setOwnerType(1)
-        setOwnerName('')
-        setEmail('')
-        setPhone('')
-        setAddressLine1('')
-        setCity('')
-        setCountry('')
-        setStatus(0)
-        setIsAddWorkspaceOpen(true);
-    };
-
-    const openEditWorkspaceModal = () => {
-        setSuccessMessage('');
-        setWorkspaceError('');
-        setIsEditWorkspaceOpen(true);
-    };
-
-    const openApproveRejectModal = () => {
-        setIsApproveRejectOpen(true);
     };
 
     const addUserToWorkSpace = async() => {
@@ -449,12 +323,6 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
         return await response.json();
     }
 
-    const updateDefWorkspace = async () =>{
-        onUpdateDefaultWorkspace(selectedWorkspace, workspaceName)
-        setIsChangeWorkspaceOpen(false)
-        await updateUserDefaultWorkspace(ownerUserID)
-    }
-
     const handleOptionClick = (works) => {
         setWorkspaceName(works.name)
         setOwnerType(works.ownerType)
@@ -495,22 +363,17 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
     return (
         <div className="settings-content">
             <div className="settings-action-buttons">
-                <button
-                    className="btn-primary"
-                    onClick={openAddWorkspaceModal}
-                >
-                    Request Workspace
-                </button>
+                
                 <button
                     className="btn-secondary"
-                    onClick={openEditWorkspaceModal}
+                    onClick={() => setIsEditWorkspaceOpen(true)}
                     hidden={!(userRole === "Admin" && selectedWorkspace)}
                 >
                     Edit Workspace
                 </button>
                 <button
                     className="btn-secondary"
-                    onClick={openApproveRejectModal}
+                    onClick={() => setIsApproveRejectOpen(true)}
                     hidden={!(userRole === "Admin")}
                 >
                     Approve/Reject Workspace
@@ -524,16 +387,10 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
                 </button>
                 <button
                     className="btn-secondary"
-                    onClick={() => setIsChangeWorkspaceOpen(true)}
+                    onClick={() => setIsManageUsersOpen(true)}
+                    disabled={!selectedWorkspace || (userRole !== "Admin" && workspaceRole !== 1)}
                 >
-                    Select Workspace
-                </button>
-                <button
-                className="btn-secondary"
-                onClick={() => setIsManageUsersOpen(true)}
-                disabled={!selectedWorkspace || (userRole !== "Admin" && workspaceRole !== 1)}
-                >
-                Manage Users
+                    Manage Users
                 </button>
             </div>
             <div className="settings-lookup-list">
@@ -558,127 +415,6 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
                     ))}
                 </select>
             </div>
-            
-            {/* Add Workspace Modal */}
-            <Modal
-                isOpen={isAddWorkspaceOpen}
-                onClose={() => { setIsAddWorkspaceOpen(false); setSuccessMessage(''); setWorkspaceError(''); }}
-                title="Request Workspace"
-            >
-                <div className="settings-form">
-                    {successMessage && (
-                        <div className="success-message">
-                            <i className="fas fa-check-circle"></i> {successMessage}
-                        </div>
-                    )}
-                    <form onSubmit={(e) => { e.preventDefault(); handleAddWorkspace(e); }}>
-                        <div className="settings-form user-form-grid">
-                            <div className="form-group">
-                                <label>Workspace Name:</label>
-                                <input
-                                    type="text"
-                                    value={workspaceName}
-                                    onChange={(e) => setWorkspaceName(e.target.value)}
-                                    placeholder="Enter workspace name"
-                                    required
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>Owner Type:</label>
-                                <select
-                                    value={ownerType}
-                                    onChange={(e) => setOwnerType(e.target.value)}
-                                >
-                                    <option value="1">Individual</option>
-                                    <option value="2">Company</option>
-                                </select>
-                            </div>
-                            <div className="form-group">
-                                <label>Owner Name:</label>
-                                <input
-                                    type="text"
-                                    value={ownerName}
-                                    onChange={(e) => setOwnerName(e.target.value)}
-                                    placeholder="Enter Owner name"
-                                    required
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>Email:</label>
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    placeholder="Enter email"
-                                    required
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>Phone:</label>
-                                <input
-                                    type="tel"
-                                    value={phone}
-                                    onChange={(e) => setPhone(e.target.value)}
-                                    placeholder="Enter phone"
-                                    required
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>Address Line 1:</label>
-                                <input
-                                    type="text"
-                                    value={addressLine1}
-                                    onChange={(e) => setAddressLine1(e.target.value)}
-                                    placeholder="Enter address Line 1"
-                                    required
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>City:</label>
-                                <input
-                                    type="text"
-                                    value={city}
-                                    onChange={(e) => setCity(e.target.value)}
-                                    placeholder="Enter city"
-                                    required
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label htmlFor="country-select">Country:</label>
-                                <select
-                                    id="country-select"
-                                    value={country}
-                                    onChange={(e) => setCountry(e.target.value)}
-                                    required
-                                >
-                                    <option value="" disabled>
-                                        Select Country
-                                    </option>
-                                    {COUNTRY_OPTIONS.map((countryName) => (
-                                        <option key={countryName} value={countryName}>
-                                            {countryName}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-                        {workspaceError && <div className="error-message">{workspaceError}</div>}
-                        <div className="modal-footer">
-                            <button className="btn-primary" type="submit" disabled={addingWorkspace || !workspaceName || !ownerType || !ownerName || !email || !phone || !addressLine1 || !city || !country}>
-                                {addingWorkspace ? 'Requesting...' : 'Request Workspace'}
-                            </button>
-                            <button
-                                className="btn-close"
-                                type="button"
-                                onClick={() => { setIsAddWorkspaceOpen(false); setSuccessMessage(''); setWorkspaceError(''); }}
-                                disabled={addingWorkspace}
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </Modal>
 
             {/* Edit Workspace Modal */}
             <Modal
@@ -765,9 +501,8 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
                                 />
                             </div>
                             <div className="form-group">
-                                <label htmlFor="country-select">Country:</label>
+                                <label>Country:</label>
                                 <select
-                                    id="country-select"
                                     value={country}
                                     onChange={(e) => setCountry(e.target.value)}
                                     required
@@ -775,11 +510,18 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
                                     <option value="" disabled>
                                         Select Country
                                     </option>
-                                    {COUNTRY_OPTIONS.map((countryName) => (
-                                        <option key={countryName} value={countryName}>
-                                            {countryName}
-                                        </option>
-                                    ))}
+                                    <option value="United States">United States</option>
+                                    <option value="Canada">Canada</option>
+                                    <option value="United Kingdom">United Kingdom</option>
+                                    <option value="Australia">Australia</option>
+                                    <option value="Germany">Germany</option>
+                                    <option value="France">France</option>
+                                    <option value="Japan">Japan</option>
+                                    <option value="Brazil">Brazil</option>
+                                    <option value="India">India</option>
+                                    <option value="China">China</option>
+                                    <option value="Djibouti">Djibouti</option>
+                                    <option value="Ethiopia">Ethiopia</option>
                                 </select>
                             </div>
                         </div>
@@ -859,56 +601,26 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
             </Modal>
 
             {/* Change Workspace Modal */}
-            <Modal
+            <ChangeWorkspaceModal
                 isOpen={isChangeWorkspaceOpen}
                 onClose={() => setIsChangeWorkspaceOpen(false)}
-                title="Change Workspace"
-            >
-                <div className="settings-form">
-                    <div className="settings-form">
-                        <div className="form-group">
-                            <label>Workspaces:</label>
-                            <select
-                                value={selectedWorkspace}
-                                onChange={(e) => setSelectedWorkspace(e.target.value)}
-                            >
-                                <option value="">Select Workspaces</option>
-                                {workspaces.map((workspace) => (
-                                    <option
-                                        onClick={() => handleOptionClick(workspace)}
-                                        key={workspace.id}
-                                        value={workspace.id}
-                                    >
-                                        {workspace.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div className="modal-footer">
-                            <button className="btn-primary" onClick={updateDefWorkspace}>
-                                Change
-                            </button>
-                            <button
-                                className="btn-close"
-                                onClick={() => setIsChangeWorkspaceOpen(false)}
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </Modal>
+                ownerUserID={ownerUserID}
+                onUpdateDefaultWorkspace={onUpdateDefaultWorkspace}
+                onWorkspaceChanged={(workspaceId, workspaceName) => {
+                    setSelectedWorkspace(workspaceId);
+                }}
+            />
             
             {/* Manage Users Modal */}
             <ManageWorkspaceUsersModal
-            isOpen={isManageUsersOpen}
-            onClose={() => setIsManageUsersOpen(false)}
-            workspaceId={selectedWorkspace}
-            workspaceName={workspaces.find(w => w.id === parseInt(selectedWorkspace))?.name || ''}
-            allUsers={users}
+                isOpen={isManageUsersOpen}
+                onClose={() => setIsManageUsersOpen(false)}
+                workspaceId={selectedWorkspace}
+                workspaceName={workspaces.find(w => w.id === parseInt(selectedWorkspace))?.name || ''}
+                allUsers={users}
             />
         </div>
     );
 }
 
-export default WorkspaceManagement
+export default WorkspaceManagement;

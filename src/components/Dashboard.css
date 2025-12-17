@@ -1401,12 +1401,6 @@ tr.selected-row.priority-4 {
   justify-items: flex-end; 
 }
 
-.job-stack-container {
-  position: relative;
-  min-height: 280px;
-  width: 100%; 
-}
-
 .collapsed-vertical-stack {
     display: flex;
     justify-content: flex-end;

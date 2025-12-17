@@ -2304,7 +2304,17 @@ const Dashboard = ({
         onUpdateDefaultWorkspace={onUpdateDefaultWorkspace}
         workspaces={workspaces}
         userid={userid}
-        onLogout={onLogout}/>
+        onLogout={onLogout}
+        userRole={userRole}
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        searchColumn={searchColumn}
+        setSearchColumn={setSearchColumn}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        handleRefresh={handleRefresh}
+        handleNewNoteClick={handleNewNoteClick}
+        />
 
         <DashboardHeader
         searchTerm={searchTerm}

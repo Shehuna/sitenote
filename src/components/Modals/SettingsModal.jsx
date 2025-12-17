@@ -145,11 +145,11 @@ useEffect(() => {
                 icon: 'fa-user-plus',
                 text: 'User Management'
             },
-            {
+            /* {
                 id: 'userProfile',
                 icon: 'fa-user',
                 text: 'User Profile'
-            },
+            }, */
             {
                 id: 'jobPermissions',
                 icon: 'fa-user-shield',
@@ -204,7 +204,7 @@ useEffect(() => {
                     </button>
                 ))}
 
-                <button
+                {/* <button
                     className="settings-option logout-option"
                     onClick={handleLogout}
                     aria-label="Logout"
@@ -216,7 +216,7 @@ useEffect(() => {
                         <h4>Logout</h4>
                     </div>
                     <i className="fas fa-chevron-right option-arrow" />
-                </button>
+                </button> */}
             </div>
         );
     };
@@ -231,11 +231,11 @@ useEffect(() => {
                 return <JobManagment defWorkId={defWorkID} updateProjectsAndJobs={updateProjectsAndJobs}s/>;
             case 'userManagement':
                 return <UserManagement workspaceId={defWorkID}/>;
-            case 'userProfile':
+            /* case 'userProfile':
                 return (
                         <UserProfile userid={userId} />
                   
-                );
+                ); */
             case 'jobPermissions':
                 return <JobPermissionManagement defId={defWorkID} users={users} userId={userId}/>;
             case 'jobStatus':
@@ -263,8 +263,8 @@ useEffect(() => {
                 return 'Job Management';
             case 'userManagement':
                 return 'User Management';
-            case 'userProfile':
-                return 'User Profile';
+           /*  case 'userProfile':
+                return 'User Profile'; */
             case 'jobPermissions':
                 return 'Job Permissions';
             case 'jobStatus':

@@ -12,7 +12,7 @@
   top: 40%;
   left: 50%;
   transform: translate(-50%, -50%);
-  z-index: 1000;
+  z-index: 9999;
 }
 
 .settings-modal-title {
@@ -280,7 +280,6 @@
   box-shadow: none !important;
 }
 
-
 .settings-option-logout {
   background: white;
   border: 1px solid #ddd;
@@ -315,7 +314,6 @@
   background: #f0f0f0;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1); 
 }
-
 
 @media (max-width: 768px) {
   .settings-options-container {
@@ -359,3 +357,4 @@
     grid-template-columns: 1fr; 
   }
 }
+

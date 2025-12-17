@@ -18,7 +18,7 @@ const UserManagement = ({ workspaceId }) => {
     const [isDeleteUserConfirmOpen, setIsDeleteUserConfirmOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState('');
     const [users, setUsers] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
     const [formData, setFormData] = useState({

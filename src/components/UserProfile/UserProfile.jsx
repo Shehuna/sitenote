@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import Modal from '../Modals/Modal';
+import './UserProfile.css'; // Import the CSS file
 
 const UserProfile = ({ userid }) => {
   const [user, setUser] = useState(null);
-  const [workspaceName, setWorkspaceName] = useState('Loading...');
+  const [workspaceName, setWorkspaceName] = useState('');
   const [loading, setLoading] = useState(true);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -139,7 +140,11 @@ const UserProfile = ({ userid }) => {
   };
 
   if (loading) {
-    return <div className="loading">Loading profile...</div>;
+    return (
+      
+        <div className="loading-spinner"></div>
+      
+    );
   }
 
   const imageUrl = user?.profilePicturePath
@@ -265,51 +270,6 @@ const UserProfile = ({ userid }) => {
           </div>
         </div>
       </Modal>
-
-      <style jsx>{`
-        .user-profile { padding: 24px; max-width: 800px; margin: 0 auto; }
-        .profile-actions { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
-        .profile-card { background: white; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden; }
-        .profile-header { display: flex; align-items: center; padding: 32px; gap: 24px; background: #f8f9fa; }
-        .profile-avatar img { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 4px solid white; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-        .avatar-fallback { width: 120px; height: 120px; border-radius: 50%; background: #3498db; color: white; font-size: 48px; font-weight: bold; display: flex; align-items: center; justify-content: center; }
-        .profile-summary h2 { margin: 0; font-size: 28px; color: #2c3e50; }
-        .username { color: #7f8c8d; font-size: 16px; margin: 4px 0; }
-        .email { color: #3498db; font-weight: 500; }
-        .profile-details { padding: 24px 32px; }
-        .detail-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
-        .detail-row:last-child { border-bottom: none; }
-        .label { color: #6c757d; font-weight: 600; width: 40%; }
-        .value { text-align: right; color: #2c3e50; }
-        .status span { padding: 4px 12px; border-radius: 20px; font-size: 14px; }
-        .status .active { background: #d4edda; color: #27ae60; }
-        .status .inactive { background: #f8d7da; color: #e74c3c; }
-
-        .modal-form { display: flex; flex-direction: column; gap: 16px; }
-        .edit-header { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
-        .preview-avatar img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #dee2e6; }
-        .edit-summary h3 { margin: 0; font-size: 20px; color: #2c3e50; }
-        .edit-summary p { margin: 4px 0 0; color: #6c757d; font-size: 14px; }
-        .name-group { display: flex; gap: 12px; }
-        .name-group .form-group { flex: 1; }
-        .form-group label { display: block; margin-bottom: 6px; font-weight: 600; color: #495057; }
-        .form-group input { width: 100%; padding: 10px; border: 1px solid #ced4da; border-radius: 6px; font-size: 16px; }
-        .modal-footer { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; }
-        .btn-primary { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
-        .btn-primary:hover { background: #0056b3; }
-        .btn-primary:disabled { background: #6c757d; cursor: not-allowed; }
-        .btn-secondary { background: #6c757d; color: white; }
-        .btn-secondary:hover { background: #5a6268; }
-        .btn-cancel { background: #f8f9fa; color: #495057; border: 1px solid #ced4da; }
-        .success-msg { background: #d4edda; color: #155724; padding: 12px; border-radius: 6px; text-align: center; }
-        .error-msg { color: #e74c3c; background: #fceaea; padding: 10px; border-radius: 6px; }
-        .loading { text-align: center; padding: 60px; color: #6c757d; font-size: 18px; }
-
-        @media (max-width: 480px) {
-          .name-group { flex-direction: column; gap: 16px; }
-          .edit-header { flex-direction: column; text-align: center; }
-        }
-      `}</style>
     </div>
   );
 };
