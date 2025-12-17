@@ -314,8 +314,8 @@ const DashboardHeader = ({
                         >
                           <input
                             type="checkbox"
-                            checked={selectedFilters.date.includes(
-                              option.id || option.text
+                            checked={selectedFilters.date.map(v => String(v)).includes(
+                              String(option.id || option.text)
                             )}
                             onChange={() => {}}
                             style={styles.checkbox}
@@ -371,8 +371,8 @@ const DashboardHeader = ({
                         >
                           <input
                             type="checkbox"
-                            checked={selectedFilters.workspace.includes(
-                              option.id
+                            checked={selectedFilters.workspace.map(v => String(v)).includes(
+                              String(option.id)
                             )}
                             onChange={() => {}}
                             style={styles.checkbox}
@@ -434,8 +434,8 @@ const DashboardHeader = ({
                           >
                             <input
                               type="checkbox"
-                              checked={selectedFilters.project.includes(
-                                option.id
+                              checked={selectedFilters.project.map(v => String(v)).includes(
+                                String(option.id)
                               )}
                               onChange={() => {}}
                               style={styles.checkbox}
@@ -507,7 +507,7 @@ const DashboardHeader = ({
                           >
                             <input
                               type="checkbox"
-                              checked={selectedFilters.job.includes(option.id)}
+                              checked={selectedFilters.job.map(v => String(v)).includes(String(option.id))}
                               onChange={() => {}}
                               style={styles.checkbox}
                             />
@@ -582,8 +582,8 @@ const DashboardHeader = ({
                         >
                           <input
                             type="checkbox"
-                            checked={selectedFilters.userName.includes(
-                              option.id || option.text
+                            checked={selectedFilters.userName.map(v => String(v)).includes(
+                              String(option.id || option.text)
                             )}
                             onChange={() => {}}
                             style={styles.checkbox}
@@ -748,8 +748,8 @@ const DashboardHeader = ({
                     >
                       <input
                         type="checkbox"
-                        checked={selectedFilters.workspace.includes(
-                          option.id
+                        checked={selectedFilters.workspace.map(v => String(v)).includes(
+                          String(option.id)
                         )}
                         onChange={() => {}}
                         style={styles.checkbox}
@@ -892,7 +892,7 @@ const DashboardHeader = ({
                       >
                         <input
                           type="checkbox"
-                          checked={selectedFilters.job.includes(option.id)}
+                          checked={selectedFilters.job.map(v => String(v)).includes(String(option.id))}
                           onChange={() => {}}
                           style={styles.checkbox}
                         />
