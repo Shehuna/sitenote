@@ -49,11 +49,15 @@ const ManageWorkspaceUsersModal = ({
           status: 1,
         }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+                const errorData = await res.json();
+                toast.error(errorData.message);
+                return;
+            }
       toast.success('Role updated successfully');
       fetchWorkspaceMembers();
     } catch (err) {
-      toast.error('Failed to update role');
+      toast.error(err.message || 'Failed to update role');
     } finally {
       setUpdatingRoleId(null);
     }
@@ -66,7 +70,11 @@ const ManageWorkspaceUsersModal = ({
       const res = await fetch(`${API_URL}/api/UserWorkspace/DeleteUserWorkspace/${memberToDelete.userWorkspaceID}`, {
         method: 'DELETE',
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+                const errorData = await res.json();
+                toast.error(errorData.message);
+                return;
+            }
       toast.success('User removed from workspace');
       fetchWorkspaceMembers();
       setMemberToDelete(null);
