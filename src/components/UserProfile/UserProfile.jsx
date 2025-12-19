@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import Modal from '../Modals/Modal';
-import './UserProfile.css'; // Import the CSS file
+import './UserProfile.css';
 
 const UserProfile = ({ userid }) => {
   const [user, setUser] = useState(null);
@@ -42,12 +42,8 @@ const UserProfile = ({ userid }) => {
         Email: u.email || '',
       });
 
-      if (u.defaultWorkspaceId) {
-        const wsRes = await fetch(`${apiUrl}/api/Workspace/GetWorkspaceById/${u.defaultWorkspaceId}`);
-        if (wsRes.ok) {
-          const ws = await wsRes.json();
-          setWorkspaceName(ws.workspace?.name || 'Unknown');
-        }
+      if (u.defaultWorkspaceName) {
+        setWorkspaceName(u.defaultWorkspaceName || '-');
       } else {
         setWorkspaceName('-');
       }

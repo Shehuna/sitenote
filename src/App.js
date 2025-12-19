@@ -145,7 +145,17 @@ useEffect(() => {
         console.log(data.user.defaultWorkspaceId)
         setDefaultWorkspace(data.user.defaultWorkspaceId);
         setRole(data.user.role)
-        fetchDefaultWorkspace(data.user.defaultWorkspaceId);
+        // If API returns the default workspace name with the user, use it
+        if (data.user.defaultWorkspaceName) {
+          setUserDefaultWork(data.user.defaultWorkspaceName);
+          setIsInWorkspace(true);
+        } else if (data.user.defaultWorkspaceId) {
+          // fallback to fetching workspace by id when name not provided
+          fetchDefaultWorkspace(data.user.defaultWorkspaceId);
+        } else {
+          setUserDefaultWork('');
+          setIsInWorkspace(false);
+        }
         setLoading(false);  
       }
     } catch (error) {

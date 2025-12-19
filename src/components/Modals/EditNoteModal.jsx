@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import "./EditNoteModal.css";
 import toast from "react-hot-toast";
-import * as signalR from "@microsoft/signalr";
 
 const EditNoteModal = ({
   note,
@@ -38,14 +37,11 @@ const EditNoteModal = ({
   const [selectedPriority, setSelectedPriority] = useState("");
   const [priorityId, setPriorityId] = useState("");
 
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
 
-  const [downloadProgress, setDownloadProgress] = useState(0);
   const [isDownloading, setIsDownloading] = useState(false);
   const [currentDownloadingFileName, setCurrentDownloadingFileName] = useState('');
 
-  const connectionRef = useRef(null);
   const modalRef = useRef(null);
 
   // Rich text editor states 
@@ -117,53 +113,7 @@ const EditNoteModal = ({
     }
   }, [note?.value]);
 
-  // SignalR connection for upload progress
-  useEffect(() => {
-    const connect = async () => {
-      try {
-        const connection = new signalR.HubConnectionBuilder()
-          .withUrl(`${process.env.REACT_APP_API_BASE_URL}/hubs/transferprogress`)
-          .withAutomaticReconnect()
-          .build();
-
-        connection.on("ReceiveProgress", (percent) => {
-          setUploadProgress(Math.round(percent));
-        });
-
-        connection.on("DownloadStarted", (data) => {
-          setCurrentDownloadingFileName(data.fileName);
-          setDownloadProgress(0);
-          setIsDownloading(true);
-        });
-
-        connection.on("DownloadProgress", (data) => {
-          setDownloadProgress(data.percent);
-          if (data.percent === 100) {
-            setTimeout(() => setIsDownloading(false), 1000);
-          }
-        });
-
-        connection.on("DownloadError", (msg) => {
-          setError(msg);
-          setIsDownloading(false);
-        });
-
-        await connection.start();
-        connectionRef.current = connection;
-      } catch (err) {
-        console.warn("SignalR connection failed", err);
-      }
-    };
-
-    connect();
-
-    return () => {
-      connectionRef.current?.stop();
-      connectionRef.current = null;
-    };
-  }, []);
-
-  // Check if note is editable based on creation time
+  // Check if if note is editable based on creation time
   useEffect(() => {
     if (note) {
       const creationDate = note.timeStamp;
@@ -307,7 +257,7 @@ const EditNoteModal = ({
         }
       }
     }
-  }, [note, fetchInlineImages, projects, jobs, priorities]);
+  }, [note?.id, fetchInlineImages, projects, jobs, priorities]);
 
   // Restore editor content when switching back to journal tab
   useEffect(() => {
@@ -386,7 +336,7 @@ const EditNoteModal = ({
           <div class="image-wrapper" data-image-id="${imageId}" data-image-url="${base64Image}" data-image-name="${imageName}">
             <img src="${base64Image}" 
                  alt="${imageName}" 
-                 class="inline-image enhanced-image" />
+                 class="inline-image" />
             <button type="button" class="remove-image-btn" title="Remove image">
               <i class="fas fa-times"></i>
             </button>
@@ -696,8 +646,9 @@ const EditNoteModal = ({
       const errorText = await response.text();
       let errorMessage = 'Image upload failed';
       
+      let errorData;
       try {
-        const errorData = JSON.parse(errorText);
+        errorData = JSON.parse(errorText);
         errorMessage = errorData.message || errorData.errors?.File?.[0] || errorMessage;
       } catch (e) {
         errorMessage = `Server error: ${response.status} ${response.statusText}`;
@@ -800,7 +751,7 @@ const EditNoteModal = ({
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = htmlContent;
       
-      // Remove image elements completely (not replacing with placeholders)
+      // Remove image elements completely
       const imageWrappers = tempDiv.querySelectorAll('.image-wrapper');
       imageWrappers.forEach(wrapper => {
         wrapper.remove();
@@ -994,8 +945,8 @@ const EditNoteModal = ({
               };
               
               console.log(`Uploading new image "${image.name}" to inline images endpoint...`);
-              const result = await uploadInlineImage(imageDoc, note.id, user.id);
-              console.log(`Image "${image.name}" uploaded successfully with ID:`, result.id);
+              const imageResult = await uploadInlineImage(imageDoc, note.id, user.id);
+              console.log(`Image "${image.name}" uploaded successfully with ID:`, imageResult.id);
               
               return { success: true, name: image.name };
             } catch (imageError) {
@@ -1152,7 +1103,6 @@ const EditNoteModal = ({
 
     setError("");
     setIsUploading(true);
-    setUploadProgress(0);
 
     try {
       const user = getCurrentUser();
@@ -1162,15 +1112,9 @@ const EditNoteModal = ({
       formData.append("SiteNoteId", note.id);
       formData.append("UserId", user?.id || 1);
 
-      const headers = {};
-      if (connectionRef.current?.connectionId) {
-        headers["X-Connection-Id"] = connectionRef.current.connectionId;
-      }
-
       const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Documents/AddDocument`, {
         method: "POST",
-        body: formData,
-        headers
+        body: formData
       });
 
       if (!response.ok) {
@@ -1190,78 +1134,33 @@ const EditNoteModal = ({
 
       setDocuments(prev => [...prev, newDocEntry]);
 
-      setTimeout(() => {
-        setShowDocumentModal(false);
-        setNewDocument({ name: "", file: null });
-        setIsUploading(false);
-        setUploadProgress(0);
-        toast.success("Document uploaded successfully!");
-      }, 600);
+      setShowDocumentModal(false);
+      setNewDocument({ name: "", file: null });
+      setIsUploading(false);
+      toast.success("Document uploaded successfully!");
     } catch (err) {
       setError(err.message || "Upload failed");
       setIsUploading(false);
     }
   };
 
-  const handleDownloadDocument = async (documentToDownload) => {
-    if (!connectionRef.current?.connectionId) {
-      setError('Progress tracking not available');
-      return;
-    }
-
+  const handleDownloadDocument = (doc) => {
     setError('');
     setIsSubmitting(true);
     setIsDownloading(true);
-    setDownloadProgress(0);
-    setCurrentDownloadingFileName(documentToDownload.fileName || 'file');
+    setCurrentDownloadingFileName(doc.fileName || 'file');
 
-    try {
-      const headers = {
-        "X-Connection-Id": connectionRef.current.connectionId
-      };
+    const a = document.createElement('a');
+    a.href = doc.downloadApiTriggerUrl;
+    a.download = doc.fileName || 'download';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
 
-      const response = await fetch(documentToDownload.downloadApiTriggerUrl, { headers });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(errText || "Download failed");
-      }
-
-      const contentLength = +response.headers.get("Content-Length") || 0;
-      const reader = response.body.getReader();
-      const chunks = [];
-      let received = 0;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        received += value.length;
-
-        if (contentLength > 0) {
-          const percent = Math.round((received / contentLength) * 100);
-          setDownloadProgress(percent);
-        }
-      }
-
-      const blob = new Blob(chunks);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      a.download = documentToDownload.fileName || 'download';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-
-    } catch (err) {
-      setError(err.message);
+    setTimeout(() => {
       setIsDownloading(false);
-    } finally {
       setIsSubmitting(false);
-      setTimeout(() => setIsDownloading(false), 1000);
-    }
+    }, 1000); // Hide spinner after 1 second, adjust as needed
   };
 
   // Editor toolbar component with disabled clear button
@@ -1488,7 +1387,6 @@ const EditNoteModal = ({
             ×
           </button>
         </div>
-
         {/* Top error banner: visible when `error` state is set */}
         {error && (
           <div className="error-message" style={{ margin: '10px 20px', padding: '12px', borderRadius: '6px', background: '#ffebee' }}>
@@ -1639,24 +1537,13 @@ const EditNoteModal = ({
                       background: '#e8f5e8',
                       border: '1px solid #4caf50',
                       borderRadius: '8px',
-                      color: '#2e7d32'
+                      color: '#2e7d32',
+                      textAlign: 'center'
                     }}>
+                      <div className="spinner"></div>
                       <p style={{ fontWeight: '600', marginBottom: '8px' }}>
-                        Downloading {currentDownloadingFileName}... {downloadProgress}%
+                        Downloading {currentDownloadingFileName}...
                       </p>
-                      <div style={{
-                        height: '8px',
-                        background: '#e0e0e0',
-                        borderRadius: '4px',
-                        overflow: 'hidden'
-                      }}>
-                        <div style={{
-                          height: '100%',
-                          width: `${downloadProgress}%`,
-                          background: '#4caf50',
-                          transition: 'width 0.3s ease'
-                        }} />
-                      </div>
                     </div>
                   )}
 
@@ -1733,11 +1620,6 @@ const EditNoteModal = ({
         {showDocumentModal && (
           <div className="document-modal-overlay">
             <div className="document-modal" style={{ maxWidth: "560px" }}>
-              {isUploading && (
-                <div style={{ height: "6px", background: "#e0e0e0", borderRadius: "8px 8px 0 0", overflow: "hidden" , marginBottom: "10px" }}>
-                  <div style={{ height: "100%", width: `${uploadProgress}%`, background: "#4caf50", transition: "width 0.3s ease", marginBottom: "10px"  }} />
-                </div>
-              )}
 
               <div className="modal-header">
                 <h3>Add Document</h3>
@@ -1796,7 +1678,8 @@ const EditNoteModal = ({
                     fontWeight: "600",
                     fontSize: "16px"
                   }}>
-                    Uploading... {uploadProgress}%
+                    <div className="spinner"></div>
+                    Uploading...
                   </div>
                 )}
               </div>
@@ -1817,7 +1700,7 @@ const EditNoteModal = ({
                     fontWeight: "600"
                   }}
                 >
-                  {isUploading ? `Uploading ${uploadProgress}%` : "Save Document"}
+                  {isUploading ? `Uploading...` : "Save Document"}
                 </button>
               </div>
             </div>
