@@ -648,13 +648,13 @@ tr.selected-row.priority-4 {
   .notes-grid {
     grid-template-columns: 1fr;
     gap: 12px;
-    padding: 16px 0 !important;
+    padding: 16px 8px !important;
   }
   
   .note-card {
     min-height: auto;
     padding: 16px;
-    margin: 0 8px;
+    margin: 0 ;
   }
   
   .note-header {
@@ -1458,6 +1458,70 @@ tr.selected-row.priority-4 {
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 16px; 
 }
+/* Image thumbnail styles */
+.inline-images-thumbnails:hover .image-thumbnail {
+  transform: scale(1.05);
+  border-color: #3498db;
+}
+
+.image-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.image-btn:hover {
+  background-color: #f5f5f5;
+}
+
+/* Table cell specific */
+.image-cell {
+  text-align: center;
+}
+
+.image-cell .image-thumbnail:hover {
+  transform: scale(1.1);
+}
+
+/* Card view image preview */
+.inline-images-preview {
+  margin: 10px 0;
+  padding: 0 10px;
+}
+
+.images-scroll-container::-webkit-scrollbar {
+  height: 6px;
+}
+
+.images-scroll-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.images-scroll-container::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.images-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
+}
+
+/* Image thumbnail styles */
+.image-thumbnail {
+  transition: all 0.2s ease;
+}
+
+.image-thumbnail:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
 
 .job-stack-container {
   position: relative;
@@ -1471,8 +1535,7 @@ tr.selected-row.priority-4 {
     position: absolute !important; 
     top: 20px !important;       
     right: 20px !important;     
-    z-index: 2147483647 !important; 
-    
+    z-index: 2147483647 !important;     
     background-color: #f0f3f6;
     color: #7f8c8d;
     border: 1px solid #dcdfe3;

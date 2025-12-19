@@ -31,6 +31,10 @@ function App() {
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
   const scrollPositionRef = useRef(0);
   const isInitialFetchRef = useRef(true);
+  const [stackedJobs, setStackedJobs] = useState([]);
+  const [loadingStackedJobs, setLoadingStackedJobs] = useState(false);
+  const [pageNumber, setPageNumber] = useState(1);
+  
   
 
   useEffect(() => {
@@ -268,6 +272,64 @@ useEffect(() => {
       setLoading(false);
     }
   };
+const transformToStackedJobs = (siteNotes) => {
+  const notesByJob = {};
+  
+  siteNotes.forEach(note => {
+    const jobName = note.job || 'Unassigned';
+    if (!notesByJob[jobName]) {
+      notesByJob[jobName] = {
+        jobId: note.jobId,
+        jobName: jobName,
+        jobDescription: '', 
+        notes: [],
+        noteCount: 0
+      };
+    }
+    notesByJob[jobName].notes.push({
+      ...note,
+      id: note.id,
+      userName: note.userName,
+      documentCount: note.documentCount,
+      timeStamp: note.timeStamp,
+      date: note.date,
+      workspace: note.workspace,
+      project: note.project,
+      job: note.job,
+      note: note.note
+    });
+  });
+  return Object.values(notesByJob).map(job => ({
+    ...job,
+    noteCount: job.notes.length,
+    notes: job.notes.sort((a, b) => new Date(b.timeStamp) - new Date(a.timeStamp))
+  }));
+};
+
+const fetchStackedJobs = async () => {
+  setLoadingStackedJobs(true);
+  try {
+    const response = await fetch(`/GetStackedJobs?userId=${userId}&pageNumber=${pageNumber}&pageSize=${pageSize}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    if (data && data.siteNotes) {
+      const stackedJobsData = transformToStackedJobs(data.siteNotes);
+      setStackedJobs(stackedJobsData);
+    } else if (data && data.jobs) {
+      setStackedJobs(data.jobs);
+    } else {
+      console.error('Unexpected API response format:', data);
+      setStackedJobs([]);
+    }
+  } catch (error) {
+    console.error('Error fetching stacked jobs:', error);
+    setStackedJobs([]);
+  } finally {
+    setLoadingStackedJobs(false);
+  }
+};
 
    
   const fetchDocumentsByReference = async (noteId) => {
