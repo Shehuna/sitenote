@@ -27,8 +27,8 @@
             text-align: left;
             border-bottom: 1px solid #ddd;
             overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            text-overflow: ellipsis;
+            white-space: nowrap;
 
         }
         
@@ -500,3 +500,4 @@ input, textarea, body {
   font-size: 1.1em;
   line-height: 1.6;
 }
+

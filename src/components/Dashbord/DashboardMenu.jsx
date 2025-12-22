@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react'
 import SettingsModal from '../Modals/SettingsModal';
 import UserProfile from '../UserProfile/UserProfile';
 import ChangeWorkspaceModal from '../Workspaces/ChangeWorkspaceModal';
-import RequestWorkspaceModal from '../Workspaces/RequestWorkspaceModal'; // Import the new component
+import RequestWorkspaceModal from '../Workspaces/RequestWorkspaceModal';
 import './DashboardMenu.css';
 
 const DashboardMenu = ({
@@ -26,14 +26,13 @@ const DashboardMenu = ({
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
   const [showChangeWorkspaceModal, setShowChangeWorkspaceModal] = useState(false);
-  const [showRequestWorkspaceModal, setShowRequestWorkspaceModal] = useState(false); // New state
+  const [showRequestWorkspaceModal, setShowRequestWorkspaceModal] = useState(false);
   const [isRoleLoading, setIsRoleLoading] = useState(false);
   const [userWorkspaces, setUserWorkspaces] = useState();
   const [role, setRole] = useState(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   
-  // Mobile states
   const [isMobile, setIsMobile] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showViewOptions, setShowViewOptions] = useState(false);
@@ -47,7 +46,6 @@ const DashboardMenu = ({
 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
   
-  // Check if mobile on mount and resize
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth <= 768);
@@ -59,10 +57,8 @@ const DashboardMenu = ({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      // Close user menu
       if (
         userMenuRef.current && 
         !userMenuRef.current.contains(event.target) &&
@@ -72,7 +68,6 @@ const DashboardMenu = ({
         setShowUserMenu(false);
       }
       
-      // Close view options
       if (
         viewOptionsRef.current && 
         !viewOptionsRef.current.contains(event.target) &&
@@ -81,7 +76,6 @@ const DashboardMenu = ({
         setShowViewOptions(false);
       }
       
-      // Close mobile menu
       if (
         mobileMenuRef.current && 
         !mobileMenuRef.current.contains(event.target) &&
@@ -90,7 +84,6 @@ const DashboardMenu = ({
         setShowMobileMenu(false);
       }
       
-      // Close search if clicking outside on mobile
       if (
         isMobile && 
         showSearch && 
@@ -108,7 +101,6 @@ const DashboardMenu = ({
     };
   }, [isMobile, showSearch]);
 
-  // Get user details from localStorage
   const getUserDetails = () => {
     const user = JSON.parse(localStorage.getItem("user"));
     return {
@@ -118,7 +110,6 @@ const DashboardMenu = ({
     };
   };
 
-  // Get user initials
   const getUserInitials = () => {
     const user = getUserDetails();
     const nameParts = user.name.trim().split(' ');
@@ -126,7 +117,6 @@ const DashboardMenu = ({
     return (nameParts[0].charAt(0) + nameParts[nameParts.length - 1].charAt(0)).toUpperCase();
   };
 
-  // Close other menus when user menu opens
   useEffect(() => {
     if (showUserMenu) {
       setShowNotifications(false);
@@ -183,33 +173,28 @@ const DashboardMenu = ({
   
   const user = getUserDetails();
   
-  // Check if user is admin or has role 1
   const shouldShowSettings = () => {
     return (userRole === "Admin" || role === 1);
   };
   
-  // Handler for profile button click
   const handleProfileClick = () => {
     setShowUserProfileModal(true);
     setShowUserMenu(false);
     setShowMobileMenu(false);
   };
 
-  // Handler for switch workspace button click
   const handleSwitchWorkspaceClick = () => {
     setShowChangeWorkspaceModal(true);
     setShowUserMenu(false);
     setShowMobileMenu(false);
   };
 
-  // Handler for request workspace button click
   const handleRequestWorkspaceClick = () => {
     setShowRequestWorkspaceModal(true);
     setShowUserMenu(false);
     setShowMobileMenu(false);
   };
 
-  // Handler for when workspace is changed
   const handleWorkspaceChanged = (workspaceId, workspaceName) => {
     const user = JSON.parse(localStorage.getItem("user"));
     if (user) {
@@ -219,60 +204,52 @@ const DashboardMenu = ({
     window.location.reload();
   };
 
-  // Handler for when workspace request is completed
   const handleWorkspaceRequested = () => {
-    // You can add any refresh logic here if needed
     console.log('Workspace requested successfully');
   };
 
-  // Toggle search on mobile
   const toggleSearch = () => {
     setShowSearch(!showSearch);
     if (showSearch) {
-      setSearchTerm(""); // Clear search when closing
+      setSearchTerm("");
     }
   };
 
-  // Handle view mode change on mobile
   const handleMobileViewChange = (mode) => {
     setViewMode(mode);
     setShowViewOptions(false);
   };
 
-  // Mobile menu handlers
   const handleMobileSettings = () => {
     setShowSettingsModal(true);
-    setShowMobileMenu(false);
+    setShowUserMenu(false);
   };
 
   const handleMobileNotifications = () => {
     setShowNotifications(!showNotifications);
-    setShowMobileMenu(false);
+    setShowUserMenu(false);
   };
 
   const handleMobileProfile = () => {
     setShowUserProfileModal(true);
-    setShowMobileMenu(false);
+    setShowUserMenu(false);
   };
 
   const handleMobileRequestWorkspace = () => {
     setShowRequestWorkspaceModal(true);
-    setShowMobileMenu(false);
+    setShowUserMenu(false);
   };
   
   return (
     <div className="dashboard-menu">
-      {/* Left side: Icon only on mobile */}
       <div className="menu-left">
         <i className="fas fa-clipboard-list menu-icon" />
-        {!isMobile && <span className="menu-title">Site Notes</span>}
+        {!isMobile && <span className="menu-title">Site Notes: {defaultUserWorkspaceName }</span>}
       </div>
 
-      {/* Middle: Different layout for mobile */}
       <div className="menu-middle">
         {isMobile ? (
           <>
-            {/* Search toggle button on mobile */}
             <button 
               className={`mobile-search-toggle ${showSearch ? 'active' : ''}`}
               onClick={toggleSearch}
@@ -281,7 +258,6 @@ const DashboardMenu = ({
               <i className="fas fa-search" />
             </button>
             
-            {/* Search box - only shown when active on mobile */}
             {showSearch && (
               <div ref={searchRef} className="search-container active">
                 <div className="search-box-wrapper">
@@ -314,7 +290,6 @@ const DashboardMenu = ({
               </div>
             )}
             
-            {/* New Note button - plus sign only on mobile */}
             <button
               onClick={handleNewNoteClick}
               className="new-note-btn"
@@ -323,7 +298,6 @@ const DashboardMenu = ({
               <i className="fas fa-plus" />
             </button>
             
-            {/* View Options Button (...) */}
             <div style={{ position: 'relative' }}>
               <button
                 className="view-options-button"
@@ -363,9 +337,7 @@ const DashboardMenu = ({
             </div>
           </>
         ) : (
-          /* Desktop layout */
           <>
-            {/* Search box */}
             <div className="search-container">
               <div className="search-box-wrapper">
                 <input
@@ -410,7 +382,6 @@ const DashboardMenu = ({
               )}
             </div>
 
-            {/* View toggle buttons */}
             <div className="view-toggle-container">
               <button
                 onClick={() => setViewMode("table")}
@@ -435,7 +406,6 @@ const DashboardMenu = ({
               </button>
             </div>
 
-            {/* New Note button */}
             <button
               onClick={handleNewNoteClick}
               className="new-note-btn"
@@ -446,80 +416,114 @@ const DashboardMenu = ({
         )}
       </div>
 
-      {/* Right side: Different layout for mobile */}
       <div className="menu-right">
         {isMobile ? (
-          /* Mobile: Single Menu Button (...) */
-          <div style={{ position: 'relative' }}>
+          /* Mobile: User Initials Button (same as desktop) with combined dropdown */
+          <div className="user-menu-container">
             <button
-              className="mobile-menu-button"
-              onClick={() => setShowMobileMenu(!showMobileMenu)}
-              title="Menu"
+              ref={userAvatarRef}
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className="user-avatar"
+              title={user.name}
             >
-              ...
+              {getUserInitials()}
             </button>
             
-            {showMobileMenu && (
-              <div ref={mobileMenuRef} className="mobile-menu-dropdown">
+            {/* User Dropdown Menu for Mobile (includes everything) */}
+            {showUserMenu && (
+              <div 
+                ref={userMenuRef}
+                className="user-dropdown mobile-user-dropdown"
+              >
+                {/* User info section (same as desktop) */}
+                <div className="user-info-section">
+                  <div className="user-avatar-large">
+                    {getUserInitials()}
+                  </div>
+                  <div className="user-details">
+                    <div className="user-name">{user.name}</div>
+                    <div className="user-email">{user.email}</div>
+                    <div className="user-workspace">{defaultUserWorkspaceName}</div> 
+                  </div>
+                </div>
+                
+                <div className="dropdown-divider"></div>
+                
+                {/* Notifications item (added from desktop separate button) */}
                 <button 
-                  className="mobile-menu-item"
+                  className="dropdown-item"
                   onClick={handleMobileNotifications}
                 >
-                  <i className="fas fa-bell" /> Notifications
+                  <i className="fas fa-bell dropdown-icon" />
+                  <span className="dropdown-text">Notifications</span>
                 </button>
                 
-                {/* Hide Settings in mobile menu if user is admin or role 1 */}
+                {/* Settings item (added from desktop separate button) - only if user has access */}
                 {shouldShowSettings() && (
-                  <button 
-                    className="mobile-menu-item"
-                    onClick={handleMobileSettings}
-                  >
-                    <i className="fas fa-cog" /> Settings
-                  </button>
+                  <>
+                    <div className="dropdown-divider"></div>
+                    <button 
+                      className="dropdown-item"
+                      onClick={handleMobileSettings}
+                    >
+                      <i className="fas fa-cog dropdown-icon" />
+                      <span className="dropdown-text">Settings</span>
+                    </button>
+                  </>
                 )}
                 
-                <div className="mobile-menu-divider"></div>
+                <div className="dropdown-divider"></div>
                 
+                {/* Profile item */}
                 <button 
-                  className="mobile-menu-item"
-                  onClick={handleMobileProfile}
+                  className="dropdown-item"
+                  onClick={handleProfileClick}
                 >
-                  <i className="fas fa-user-circle" /> Profile
+                  <i className="fas fa-user-circle dropdown-icon" />
+                  <span className="dropdown-text">Profile</span>
                 </button>
                 
+                <div className="dropdown-divider"></div>
+                
+                {/* Request Workspace item */}
                 <button 
-                  className="mobile-menu-item"
+                  className="dropdown-item"
+                  onClick={handleRequestWorkspaceClick}
+                >
+                  <i className="fas fa-plus-square dropdown-icon" />
+                  <span className="dropdown-text">Request Workspace</span>
+                </button>
+                
+                <div className="dropdown-divider"></div>
+                
+                {/* Switch Workspace item */}
+                <button 
+                  className="dropdown-item"
                   onClick={handleSwitchWorkspaceClick}
                 >
-                  <i className="fas fa-exchange-alt" /> Switch Workspace
-                </button>
-
-                {/* Request Workspace item in mobile menu */}
-                <button 
-                  className="mobile-menu-item"
-                  onClick={handleMobileRequestWorkspace}
-                >
-                  <i className="fas fa-plus-square" /> Request Workspace
+                  <i className="fas fa-exchange-alt dropdown-icon" />
+                  <span className="dropdown-text">Switch Workspace</span>
                 </button>
                 
-                <div className="mobile-menu-divider"></div>
+                <div className="dropdown-divider"></div>
                 
+                {/* Logout item */}
                 <button 
-                  className="mobile-menu-item logout-item"
+                  className="dropdown-item logout-item"
                   onClick={() => {
                     onLogout();
-                    setShowMobileMenu(false);
+                    setShowUserMenu(false);
                   }}
                 >
-                  <i className="fas fa-sign-out-alt" /> Log out
+                  <i className="fas fa-sign-out-alt dropdown-icon" />
+                  <span className="dropdown-text">Log out</span>
                 </button>
               </div>
             )}
           </div>
         ) : (
-          /* Desktop layout */
+          /* Desktop layout - unchanged */
           <>
-            {/* Notifications Bell */}
             <button 
               className="notifications-button"
               onClick={() => {
@@ -531,7 +535,6 @@ const DashboardMenu = ({
               <i className="fas fa-bell" />
             </button>
             
-            {/* Settings Gear - Hide if user is admin or role 1 */}
             {shouldShowSettings() && (
               <button
                 onClick={() => {
@@ -545,7 +548,6 @@ const DashboardMenu = ({
               </button>
             )}
             
-            {/* User Initials with Dropdown */}
             <div className="user-menu-container">
               <button
                 ref={userAvatarRef}
@@ -556,13 +558,11 @@ const DashboardMenu = ({
                 {getUserInitials()}
               </button>
               
-              {/* User Dropdown Menu */}
               {showUserMenu && (
                 <div 
                   ref={userMenuRef}
                   className="user-dropdown"
                 >
-                  {/* User info section */}
                   <div className="user-info-section">
                     <div className="user-avatar-large">
                       {getUserInitials()}
@@ -570,13 +570,12 @@ const DashboardMenu = ({
                     <div className="user-details">
                       <div className="user-name">{user.name}</div>
                       <div className="user-email">{user.email}</div>
-                      <div className="user-workspace">{defaultUserWorkspaceName}</div>
+                      {/* <div className="user-workspace">{defaultUserWorkspaceName}</div> */}
                     </div>
                   </div>
                   
                   <div className="dropdown-divider"></div>
                   
-                  {/* Menu items */}
                   <button 
                     className="dropdown-item"
                     onClick={handleProfileClick}
@@ -586,7 +585,6 @@ const DashboardMenu = ({
                   </button>
                   <div className="dropdown-divider"></div>
 
-                  {/* Request Workspace item - added below Profile */}
                   <button 
                     className="dropdown-item"
                     onClick={handleRequestWorkspaceClick}
@@ -594,7 +592,7 @@ const DashboardMenu = ({
                     <i className="fas fa-plus-square dropdown-icon" />
                     <span className="dropdown-text">Request Workspace</span>
                   </button>
-                                        
+                                    
                   <div className="dropdown-divider"></div>
                   
                   <button 
@@ -624,7 +622,6 @@ const DashboardMenu = ({
         )}
       </div>
       
-      {/* Settings Modal */}
       {showSettingsModal && (
         <SettingsModal
           isOpen={showSettingsModal}
@@ -639,7 +636,6 @@ const DashboardMenu = ({
         />
       )}
       
-      {/* Change Workspace Modal */}
       {showChangeWorkspaceModal && (
         <ChangeWorkspaceModal
           isOpen={showChangeWorkspaceModal}
@@ -650,7 +646,6 @@ const DashboardMenu = ({
         />
       )}
       
-      {/* Request Workspace Modal */}
       {showRequestWorkspaceModal && (
         <RequestWorkspaceModal
           isOpen={showRequestWorkspaceModal}
@@ -660,7 +655,6 @@ const DashboardMenu = ({
         />
       )}
       
-      {/* User Profile Modal */}
       {showUserProfileModal && (
         <div className="modal-overlay" onClick={() => setShowUserProfileModal(false)}>
           <div className="modal-container" onClick={e => e.stopPropagation()}>
@@ -680,7 +674,6 @@ const DashboardMenu = ({
         </div>
       )}
       
-      {/* Notifications dropdown (optional) */}
       {showNotifications && (
         <div className="notifications-dropdown">
           <div className="notifications-header">
@@ -705,3 +698,4 @@ const DashboardMenu = ({
 }
 
 export default DashboardMenu;
+

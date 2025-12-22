@@ -9,15 +9,11 @@ import UserManagement from "./components/Users/UserManagement";
 function App() {
   const [notes, setNotes] = useState([]);
   const [userId, setUserId] = useState(0);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
   const [defaultWorkspace, setDefaultWorkspace] = useState('');
   const [userDefaultWork, setUserDefaultWork] = useState('');
   const [isInWorkspace, setIsInWorkspace] = useState(false);
   const [userWorkspaceMaps, setUserWorkspaceMaps] = useState([]);
   const [onRefresh, setOnRefresh] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
-  const loadingRef = useRef(false);
   const [projects, setProjects] = useState([]); 
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,110 +22,78 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [documentCounts, setDocumentCounts] = useState({});
   const [workspaces, setWorkspaces] = useState([]);
-  const [role, setRole] = useState('')
+  const [role, setRole] = useState('');
   const [showBackToTop, setShowBackToTop] = useState(false);
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
-  const scrollPositionRef = useRef(0);
   const isInitialFetchRef = useRef(true);
   const [stackedJobs, setStackedJobs] = useState([]);
   const [loadingStackedJobs, setLoadingStackedJobs] = useState(false);
   const [pageNumber, setPageNumber] = useState(1);
+  const pageSize = 50; // Fixed page size for consistency
   
-  
-
-  useEffect(() => {
-    initializeUser();
-  }, []);
   // Add this useEffect to sync authentication state
-useEffect(() => {
-  const checkAuthState = () => {
-    const userStr = localStorage.getItem("user");
-    if (userStr) {
-      const user = JSON.parse(userStr);
-      setUserId(parseInt(user.id));
-      setIsAuthenticated(true);
-    }
-  };
-
-  // Check auth state when component mounts
-  checkAuthState();
-
-  // Listen for storage changes (when UserManagement stores user)
-  window.addEventListener('storage', checkAuthState);
-  
-  return () => {
-    window.removeEventListener('storage', checkAuthState);
-  };
-}, []);
-
-  const fetchNotes = useCallback(async (specificPage = null) => {
-  const currentPage = specificPage !== null ? specificPage : page;
-  
-  if (loadingRef.current || (!isInitialFetchRef.current && !hasMore)) return;
-
-  loadingRef.current = true;
-  setLoading(true);
-
-  console.log("fetchNotes called - page:", currentPage, "userId:", userId);
-
-  try {
-    const response = await fetch(`${apiUrl}/SiteNote/GetSiteNotes?pageNumber=${currentPage}&pageSize=${pageSize}&userId=${userId}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
+  useEffect(() => {
+    const checkAuthState = () => {
+      const userStr = localStorage.getItem("user");
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        setUserId(parseInt(user.id));
+        setIsAuthenticated(true);
       }
-    });
+    };
 
-    const text = await response.text();
-    console.log("API Response data:", text);
+    // Check auth state when component mounts
+    checkAuthState();
 
-    if (response.ok) {
-      const data = JSON.parse(text);
+    // Listen for storage changes (when UserManagement stores user)
+    window.addEventListener('storage', checkAuthState);
+    
+    return () => {
+      window.removeEventListener('storage', checkAuthState);
+    };
+  }, []);
 
-      if (data.siteNotes.length === 0) {
-        console.log("No more notes to fetch");
-        setHasMore(false);
-        loadingRef.current = false;
-        setLoading(false);
-        return;
-      }
+  // Modified fetchNotes to return data instead of updating state
+  const fetchNotes = useCallback(async (page = 1, pageSize = 50) => {
+    console.log("fetchNotes called - page:", page, "userId:", userId, "pageSize:", pageSize);
 
-      scrollPositionRef.current = window.scrollY;
-
-      setNotes(prev => {
-        if (currentPage === 1) {
-          // If page is 1, replace all notes (for refresh)
-          console.log("Replacing all notes with:", data.siteNotes.length, "notes");
-          return data.siteNotes;
-        } else {
-          // If paginating, append new notes
-          const existingIds = new Set(prev.map(note => note.id));
-          const newNotes = data.siteNotes.filter(note => !existingIds.has(note.id));
-          console.log("Appending notes - previous:", prev.length, "new:", newNotes.length);
-          return [...prev, ...newNotes];
+    try {
+      const response = await fetch(`${apiUrl}/SiteNote/GetSiteNotes?pageNumber=${page}&pageSize=${pageSize}&userId=${userId}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
         }
       });
 
-      if (specificPage === null) {
-        setPage(prev => prev + 1);
-      }
+      const text = await response.text();
+      console.log("API Response data:", text);
 
-      setTimeout(() => {
-        window.scrollTo(0, scrollPositionRef.current);
-      }, 0);
-    } else {
-      console.error(`Failed to fetch: ${response.status}`);
-      setError("Failed to load more notes");
+      if (response.ok) {
+        const data = JSON.parse(text);
+
+        if (data.siteNotes.length === 0) {
+          console.log("No more notes to fetch");
+          return {
+            notes: [],
+            hasMore: false,
+            currentPage: page
+          };
+        }
+
+        return {
+          notes: data.siteNotes,
+          hasMore: data.siteNotes.length === pageSize,
+          currentPage: page
+        };
+      } else {
+        console.error(`Failed to fetch: ${response.status}`);
+        throw new Error("Failed to load notes");
+      }
+    } catch (error) {
+      console.error("Error fetching notes:", error);
+      throw error;
     }
-  } catch (error) {
-    console.error("Error fetching notes:", error);
-    setError("Failed to load more notes");
-  } finally {
-    loadingRef.current = false;
-    setLoading(false);
-    isInitialFetchRef.current = false;
-  }
-}, [page, pageSize, userId, hasMore]);
+  }, [apiUrl, userId]);
 
   const getUser = async (userid) => {
     try {
@@ -145,24 +109,14 @@ useEffect(() => {
         console.log(data.user.defaultWorkspaceId)
         setDefaultWorkspace(data.user.defaultWorkspaceId);
         setRole(data.user.role)
-        // If API returns the default workspace name with the user, use it
-        if (data.user.defaultWorkspaceName) {
-          setUserDefaultWork(data.user.defaultWorkspaceName);
-          setIsInWorkspace(true);
-        } else if (data.user.defaultWorkspaceId) {
-          // fallback to fetching workspace by id when name not provided
-          fetchDefaultWorkspace(data.user.defaultWorkspaceId);
-        } else {
-          setUserDefaultWork('');
-          setIsInWorkspace(false);
-        }
+        setUserDefaultWork(data.user.defaultWorkspaceName);
+        fetchDefaultWorkspace(data.user.defaultWorkspaceId);
         setLoading(false);  
       }
     } catch (error) {
       console.error("Error fetching notes:", error);
     } finally {
       setLoading(false);
-      loadingRef.current = false;
     }
   }
 
@@ -183,50 +137,14 @@ useEffect(() => {
       if (response.ok) {
         const data = await response.json();
         setIsInWorkspace(true);
-        setUserDefaultWork(data.workspace.name);
         setLoading(false);  
       }
     } catch (error) {
       console.error("Error fetching notes:", error);
     } finally {
       setLoading(false);
-      loadingRef.current = false;
     }
   }
-
-  const handleScroll = useCallback(() => {
-    if (loadingRef.current || !hasMore) return;
-
-    const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
-    const scrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight;
-    const clientHeight = document.documentElement.clientHeight || window.innerHeight;
-
-    setShowBackToTop(scrollTop > 200);
-
-    if (scrollTop + clientHeight >= scrollHeight - 100) {
-      fetchNotes();
-    }
-  }, [fetchNotes, hasMore]);
-
-  const handleBackToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth'
-    });
-  };
-
-  useEffect(() => {
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-    };
-  }, [handleScroll]);
-
-  useEffect(() => {
-    if (userId) {
-      fetchInitialData();
-    }
-  }, [userId]); 
 
   const initializeUser = () => {
     try {
@@ -255,26 +173,34 @@ useEffect(() => {
     setNotes([]);
     setUserId('');
     setUserDefaultWork('');
-    setPage(1);
   };
  
-  const refreshNote = () => {
-  console.log("refreshNote called - resetting state");
-  setNotes([]); 
-  setPage(1); 
-  setHasMore(true); 
-  isInitialFetchRef.current = true;
-  loadingRef.current = false;
-  
-  // Force fetch with page 1
-  fetchNotes(1);
-}
+  const refreshNote = async () => {
+    console.log("refreshNote called");
+    try {
+      // Reset notes to trigger re-fetch
+      setNotes([]);
+      // Fetch initial page
+      const result = await fetchNotes(1, pageSize);
+      if (result && result.notes) {
+        setNotes(result.notes);
+      }
+    } catch (error) {
+      console.error("Error refreshing notes:", error);
+    }
+  }
 
   const fetchInitialData = async () => {
     setLoading(true);
     setError(null);
     try {
-      await Promise.all([fetchNotes(1), fetchProjectsAndJobs()]);
+      // Fetch initial notes
+      const notesResult = await fetchNotes(1, pageSize);
+      if (notesResult && notesResult.notes) {
+        setNotes(notesResult.notes);
+      }
+      // Fetch projects and jobs
+      await fetchProjectsAndJobs();
     } catch (err) {
       setError(err.message);
       console.error("Initial data loading error:", err);
@@ -282,66 +208,7 @@ useEffect(() => {
       setLoading(false);
     }
   };
-const transformToStackedJobs = (siteNotes) => {
-  const notesByJob = {};
   
-  siteNotes.forEach(note => {
-    const jobName = note.job || 'Unassigned';
-    if (!notesByJob[jobName]) {
-      notesByJob[jobName] = {
-        jobId: note.jobId,
-        jobName: jobName,
-        jobDescription: '', 
-        notes: [],
-        noteCount: 0
-      };
-    }
-    notesByJob[jobName].notes.push({
-      ...note,
-      id: note.id,
-      userName: note.userName,
-      documentCount: note.documentCount,
-      timeStamp: note.timeStamp,
-      date: note.date,
-      workspace: note.workspace,
-      project: note.project,
-      job: note.job,
-      note: note.note
-    });
-  });
-  return Object.values(notesByJob).map(job => ({
-    ...job,
-    noteCount: job.notes.length,
-    notes: job.notes.sort((a, b) => new Date(b.timeStamp) - new Date(a.timeStamp))
-  }));
-};
-
-const fetchStackedJobs = async () => {
-  setLoadingStackedJobs(true);
-  try {
-    const response = await fetch(`/GetStackedJobs?userId=${userId}&pageNumber=${pageNumber}&pageSize=${pageSize}`);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const data = await response.json();
-    if (data && data.siteNotes) {
-      const stackedJobsData = transformToStackedJobs(data.siteNotes);
-      setStackedJobs(stackedJobsData);
-    } else if (data && data.jobs) {
-      setStackedJobs(data.jobs);
-    } else {
-      console.error('Unexpected API response format:', data);
-      setStackedJobs([]);
-    }
-  } catch (error) {
-    console.error('Error fetching stacked jobs:', error);
-    setStackedJobs([]);
-  } finally {
-    setLoadingStackedJobs(false);
-  }
-};
-
-   
   const fetchDocumentsByReference = async (noteId) => {
     try {
       const response = await fetch(
@@ -398,8 +265,6 @@ const fetchStackedJobs = async () => {
 
       const result = await response.json(); 
       console.log('Document uploaded successfully:', result.message);
-      /* isInitialFetchRef.current = true;
-      fetchNotes(); */
       return {
         id: result.document.Id, 
         name: result.document.Name, 
@@ -600,11 +465,22 @@ const fetchStackedJobs = async () => {
   const onUpdateProjectAndJob = async () =>{
     await fetchProjectsAndJobs()
   }
+
+  // Initialize user and fetch data when userId changes
+  useEffect(() => {
+    initializeUser();
+  }, []);
+
+  useEffect(() => {
+    if (userId) {
+      fetchInitialData();
+    }
+  }, [userId]); 
   
   return (
     <Router>
       <div className="app">
-        {loading && isInitialFetchRef.current && isAuthenticated && (
+        {loading && isAuthenticated && (
           <div className="loading-container">
             <div className="loading-content">
               <div className="spinner"></div>
@@ -614,17 +490,6 @@ const fetchStackedJobs = async () => {
         )}
         <style>
           {`
-            @media (max-width: 768px) {
-              .back-to-top {
-                position: fixed !important;
-                width: 40px !important;
-                height: 40px !important;
-                font-size: 20px !important;
-                bottom: 60px !important;
-                right: 10px !important;
-                z-index: 1001 !important;
-              }
-            }
             @keyframes spin {
               0% { transform: rotate(0deg); }
               100% { transform: rotate(360deg); }
@@ -663,7 +528,6 @@ const fetchStackedJobs = async () => {
             }
             .loading-content {
               background: rgba(255, 255, 255, 0.95);
-            
               display: flex;
               flex-direction: column;
               align-items: center;
@@ -692,83 +556,29 @@ const fetchStackedJobs = async () => {
                     <button onClick={fetchInitialData}>Retry</button>
                   </div>
                 ) : (
-                  <>
-                    <Dashboard 
-                      notes={notes} 
-                      userid={userId}
-                      userRole={role}
-                      workspaces={workspaces}
-                      defaultUserWorkspaceID={defaultWorkspace}
-                      defaultUserWorkspaceName={userDefaultWork}
-                      onUpdateDefaultWorkspace={updateDefaultWorkspace}
-                      refreshNotes={refreshNote} 
-                      addSiteNote={addSiteNote} 
-                      updateNote={updateNote}
-                      projects={projects} 
-                      updateProject={updateProject} 
-                      jobs={jobs}
-                      files={files}
-                      onUploadDocument={handleUploadDocument}
-                      onDeleteDocument={handleDeleteDocument}
-                      fetchDocuments={fetchDocumentsByReference}
-                      onLogout={handleLogout} 
-                      documentCounts={documentCounts}
-                      fetchProjectAndJobs={onUpdateProjectAndJob}
-                    />
-                    {loading && !isInitialFetchRef.current && (
-                      <div style={{
-                        position: 'fixed',
-                        bottom: '20px',
-                        right: '20px',
-                        background: 'rgba(0, 0, 0, 0.7)',
-                        color: 'white',
-                        padding: '10px 20px',
-                        borderRadius: '5px',
-                        zIndex: 1000,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px'
-                      }}>
-                        <div className="spinner" style={{
-                          width: '20px',
-                          height: '20px',
-                          border: '3px solid #f3f3f3',
-                          borderTop: '3px solid #3498db',
-                          borderRadius: '50%',
-                          animation: 'spin 1s linear infinite'
-                        }}></div>
-                        Loading more notes...
-                      </div>
-                    )}
-                    {showBackToTop && (
-                      <button
-                        onClick={handleBackToTop}
-                        className="back-to-top"
-                        style={{
-                          position: 'fixed',
-                          bottom: '70px',
-                          right: '20px',
-                          background: '#3498db',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '50%',
-                          width: '50px',
-                          height: '50px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          cursor: 'pointer',
-                          zIndex: 1000,
-                          boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
-                          fontSize: '24px',
-                          touchAction: 'manipulation'
-                        }}
-                        title="Back to Top"
-                      >
-                        <i className="fas fa-arrow-up"></i>
-                      </button>
-                    )}
-                  </>
+                  <Dashboard 
+                    notes={notes} 
+                    userid={userId}
+                    userRole={role}
+                    workspaces={workspaces}
+                    defaultUserWorkspaceID={defaultWorkspace}
+                    defaultUserWorkspaceName={userDefaultWork}
+                    onUpdateDefaultWorkspace={updateDefaultWorkspace}
+                    refreshNotes={refreshNote} 
+                    addSiteNote={addSiteNote} 
+                    updateNote={updateNote}
+                    projects={projects} 
+                    updateProject={updateProject} 
+                    jobs={jobs}
+                    files={files}
+                    onUploadDocument={handleUploadDocument}
+                    onDeleteDocument={handleDeleteDocument}
+                    fetchDocuments={fetchDocumentsByReference}
+                    onLogout={handleLogout} 
+                    documentCounts={documentCounts}
+                    fetchProjectAndJobs={onUpdateProjectAndJob}
+                    fetchNotes={fetchNotes}
+                  />
                 )
               ) : (
                 <Navigate to="/login" replace />
@@ -801,4 +611,3 @@ const fetchStackedJobs = async () => {
 }
 
 export default App;
-

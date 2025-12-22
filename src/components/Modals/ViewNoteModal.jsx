@@ -334,12 +334,13 @@ const ViewNoteModal = ({
       <div className={`view-note-modal-overlay theme-${currentTheme}`}>
         <div className="view-note-modal loading">
           <div className="loading-spinner">
-            <i className="fas fa-spinner fa-spin" /> <p>Loading note...</p>
           </div>
+            <p>Loading note...</p>
         </div>
       </div>
     );
   }
+
   if (!currentNote) return null;
 
   return (
@@ -406,9 +407,9 @@ const ViewNoteModal = ({
                       {formatDate(doc.date)}
                     </div>
                     <div 
-  className="message-text" 
-  dangerouslySetInnerHTML={{ __html: doc.note }} 
-/>
+                      className="message-text" 
+                      dangerouslySetInnerHTML={{ __html: doc.note }} 
+                    />
                     
                     {/* Render images below the note text */}
                     {renderNoteImages(doc.id)}
@@ -503,3 +504,4 @@ const ViewNoteModal = ({
 };
 
 export default ViewNoteModal;
+

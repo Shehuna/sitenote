@@ -1508,3 +1508,397 @@ tr.selected-row.priority-4 {
   transform: translateY(-2px);
   box-shadow: 0 4px 10px rgba(0,0,0,0.25);
 }
+/* User status indicators */
+.user-status-inactive,
+.user-status-active,
+.user-status-loading {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  cursor: default;
+}
+
+.user-status-inactive i {
+  color: #95a5a6;
+}
+
+.user-status-active i {
+  color: #2ecc71;
+}
+
+.user-status-loading i {
+  color: #7f8c8d;
+}
+
+/* Tooltip styles for status indicators */
+.user-status-inactive:hover::after,
+.user-status-active:hover::after,
+.user-status-loading:hover::after {
+  content: attr(title);
+  position: absolute;
+  background: #333;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 1000;
+  margin-top: 24px;
+  margin-left: -8px;
+  pointer-events: none;
+}
+
+/* For table view */
+td .user-status-inactive,
+td .user-status-active,
+td .user-status-loading {
+  margin-left: 4px;
+}
+
+/* For card view */
+.note-author {
+  display: flex;
+  align-items: center;
+}
+
+.note-author .user-status-inactive,
+.note-author .user-status-active,
+.note-author .user-status-loading {
+  margin-left: 6px;
+}
+
+/* Stacked view adjustments */
+.stack-layer-card .user-status-inactive,
+.stack-layer-card .user-status-active,
+.stack-layer-card .user-status-loading {
+  margin-left: 4px;
+  font-size: 10px;
+}
+
+/* Expanded stack cards */
+.stack-expanded-card .note-author {
+  display: flex;
+  align-items: center;
+}
+
+.stack-expanded-card .user-status-inactive,
+.stack-expanded-card .user-status-active,
+.stack-expanded-card .user-status-loading {
+  margin-left: 6px;
+}
+
+/* Hover effects for inactive status */
+.user-status-inactive:hover i {
+  transform: scale(1.1);
+  transition: transform 0.2s ease;
+}
+
+/* Animation for loading spinner */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.user-status-loading i.fa-spinner {
+  animation: spin 1s linear infinite;
+}
+
+/* User status indicators */
+.user-status-inactive,
+.user-status-active,
+.user-status-loading {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  cursor: default;
+}
+
+.user-status-inactive i {
+  color: #95a5a6;
+}
+
+.user-status-active i {
+  color: #2ecc71;
+}
+
+.user-status-loading i {
+  color: #7f8c8d;
+}
+
+/* Inactive user text styling */
+.user-inactive-text {
+  color: #95a5a6 !important;
+  font-style: italic;
+  opacity: 0.7;
+}
+
+/* Tooltip styles for status indicators */
+.user-status-inactive:hover::after,
+.user-status-active:hover::after,
+.user-status-loading:hover::after {
+  content: attr(title);
+  position: absolute;
+  background: #333;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 1000;
+  margin-top: 24px;
+  margin-left: -8px;
+  pointer-events: none;
+}
+
+/* For table view */
+td .user-status-inactive,
+td .user-status-active,
+td .user-status-loading {
+  margin-left: 4px;
+}
+
+/* For card view */
+.note-author {
+  display: flex;
+  align-items: center;
+}
+
+.note-author .user-status-inactive,
+.note-author .user-status-active,
+.note-author .user-status-loading {
+  margin-left: 6px;
+}
+
+/* Stacked view adjustments */
+.stack-layer-card .user-status-inactive,
+.stack-layer-card .user-status-active,
+.stack-layer-card .user-status-loading {
+  margin-left: 4px;
+  font-size: 10px;
+}
+
+/* Expanded stack cards */
+.stack-expanded-card .note-author {
+  display: flex;
+  align-items: center;
+}
+
+.stack-expanded-card .user-status-inactive,
+.stack-expanded-card .user-status-active,
+.stack-expanded-card .user-status-loading {
+  margin-left: 6px;
+}
+
+/* Hover effects for inactive status */
+.user-status-inactive:hover i {
+  transform: scale(1.1);
+  transition: transform 0.2s ease;
+}
+
+/* Animation for loading spinner */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.user-status-loading i.fa-spinner {
+  animation: spin 1s linear infinite;
+}
+
+/* Style for inactive usernames across all views */
+.note-author span[style*="color: #95a5a6"],
+td span[style*="color: #95a5a6"] {
+  transition: color 0.3s ease;
+}
+
+.note-author span[style*="color: #95a5a6"]:hover,
+td span[style*="color: #95a5a6"]:hover {
+  color: #7f8c8d !important;
+}
+/* NotesTab.css - Add these styles at the end */
+
+.loading-more {
+  padding: 20px;
+  text-align: center;
+  color: #666;
+  font-size: 14px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  margin: 10px 0;
+}
+
+.loading-more-cards {
+  grid-column: 1 / -1;
+  padding: 20px;
+  text-align: center;
+  color: #666;
+  font-size: 14px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  margin: 20px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.skeleton-row {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+}
+
+.skeleton-cell {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+  border-radius: 4px;
+}
+
+.skeleton-cell.short {
+  width: 80px;
+  height: 20px;
+}
+
+.skeleton-cell.medium {
+  width: 120px;
+  height: 20px;
+}
+
+.skeleton-cell.long {
+  width: 200px;
+  height: 20px;
+}
+
+.note-card.skeleton {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 15px;
+  animation: pulse 1.5s infinite;
+}
+
+.skeleton-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.skeleton-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+.skeleton-text {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+  border-radius: 4px;
+}
+
+.skeleton-text.short {
+  width: 100px;
+  height: 16px;
+}
+
+.skeleton-text.long {
+  width: 100%;
+  height: 60px;
+  margin-bottom: 15px;
+}
+
+.skeleton-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.skeleton-actions {
+  width: 100px;
+  height: 24px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+  border-radius: 4px;
+}
+
+@keyframes loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.user-status-loading,
+.user-status-inactive {
+  display: inline-flex;
+  align-items: center;
+}
+
+.table-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.table-actions button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #666;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.table-actions button:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+/* Add these styles to NotesTab.css */
+
+.inactive-user-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.inactive-user-wrapper:hover .inactive-user-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.inactive-user-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #333;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s, visibility 0.2s;
+  margin-bottom: 5px;
+  pointer-events: none;
+}
+
+.inactive-user-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 5px;
+  border-style: solid;
+  border-color: #333 transparent transparent transparent;
+}

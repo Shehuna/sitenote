@@ -34,6 +34,8 @@ const Dashboard = ({
   defaultUserWorkspaceName,
   onUpdateDefaultWorkspace,
   fetchProjectAndJobs,
+  fetchNotes,
+  
 }) => {
   const [searchTerm, setSearchTerm] = useState(() => {
     const saved = localStorage.getItem("dashboardSearchTerm");
@@ -116,10 +118,13 @@ const Dashboard = ({
   const [isMobile, setIsMobile] = useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
-  // Fetch inline images for a note
+  
+  // Fetch inline images only when thumbnail is clicked
   const fetchInlineImages = useCallback(
     async (noteId) => {
-      if (!noteId || inlineImagesMap[noteId]) return;
+      // Don't fetch if already loading
+      if (!noteId || loadingImages[noteId]) return;
+      
       setLoadingImages((prev) => ({ ...prev, [noteId]: true }));
       try {
         const response = await fetch(
@@ -132,22 +137,29 @@ const Dashboard = ({
             ...prev,
             [noteId]: images,
           }));
+          return images; // Return images for immediate use
+        } else {
+          console.error(`Failed to fetch images for note ${noteId}:`, response.status);
+          setInlineImagesMap((prev) => ({
+            ...prev,
+            [noteId]: [],
+          }));
+          return [];
         }
       } catch (error) {
-        console.error(
-          `Error fetching inline images for note ${noteId}:`,
-          error
-        );
+        console.error(`Error fetching inline images for note ${noteId}:`, error);
         setInlineImagesMap((prev) => ({
           ...prev,
           [noteId]: [],
         }));
+        return [];
       } finally {
         setLoadingImages((prev) => ({ ...prev, [noteId]: false }));
       }
     },
-    [apiUrl, inlineImagesMap]
+    [apiUrl, loadingImages]
   );
+
   const fetchNotesWithFilters = useCallback(
     async (filters) => {
       const storedUser = (() => {
@@ -247,16 +259,17 @@ const Dashboard = ({
     [selectedFilters]
   );
 
-  const displayNotes = useMemo(() => {
-    if (searchTerm.trim()) {
-      return searchResults;
-    }
-    if (hasActiveFilters) {
-      return filteredNotesFromApi;
-    }
-    return notes || [];
-  }, [searchTerm, searchResults, hasActiveFilters, filteredNotesFromApi, notes]);
-  // Filter out archived jobs from display notes
+const displayNotes = useMemo(() => {
+  if (searchTerm.trim()) {
+    return searchResults;
+  }
+  if (hasActiveFilters) {
+    return filteredNotesFromApi;
+  }
+  // Return notes from App.js (these are the initial notes)
+  return notes || [];
+}, [searchTerm, searchResults, hasActiveFilters, filteredNotesFromApi, notes]);
+  
   const finalDisplayNotes = useMemo(() => {
     if (!displayNotes || !Array.isArray(displayNotes)) {
       return [];
@@ -270,81 +283,102 @@ const Dashboard = ({
       })
       .sort((a, b) => b.id - a.id);
   }, [displayNotes, jobs]);
-  // Fetch inline images when notes are loaded
-  useEffect(() => {
-    if (isDataLoaded && finalDisplayNotes && finalDisplayNotes.length > 0) {
-      finalDisplayNotes.forEach((note) => {
-        if (!inlineImagesMap[note.id] && !loadingImages[note.id]) {
-          fetchInlineImages(note.id);
-        }
-      });
+
+  // Handle image thumbnail click - fetch images on demand
+  const handleImageThumbnailClick = useCallback(async (note, imageIndex = 0) => {
+    // Check if note has inline images using inlineImageCount
+    if (!note.inlineImageCount || note.inlineImageCount <= 0) {
+      return;
     }
-  }, [
-    isDataLoaded,
-    finalDisplayNotes,
-    inlineImagesMap,
-    loadingImages,
-    fetchInlineImages,
-  ]);
-  
-  // Handle image thumbnail click
-  const handleImageThumbnailClick = useCallback(
-    (note, imageIndex = 0) => {
-      const images = inlineImagesMap[note.id] || [];
-      if (images.length > 0) {
-        setSelectedImageNote(note);
-        setSelectedImage({
-          image: images[imageIndex],
-          index: imageIndex,
-          total: images.length,
-        });
-        setShowImageViewer(true);
+    
+    // Check if images are already loaded
+    const existingImages = inlineImagesMap[note.id] || [];
+    let images = existingImages;
+    
+    // If no images loaded yet, fetch them
+    if (existingImages.length === 0) {
+      setLoadingImages((prev) => ({ ...prev, [note.id]: true }));
+      try {
+        const fetchedImages = await fetchInlineImages(note.id);
+        images = fetchedImages;
+        
+        if (images.length > 0) {
+          setSelectedImageNote(note);
+          setSelectedImage({
+            image: images[imageIndex],
+            index: imageIndex,
+            total: images.length,
+          });
+          setShowImageViewer(true);
+        }
+      } catch (error) {
+        console.error("Error loading images:", error);
+        toast.error("Failed to load images");
       }
-    },
-    [inlineImagesMap]
-  );
+    } else {
+      // Images already loaded, show them
+      setSelectedImageNote(note);
+      setSelectedImage({
+        image: images[imageIndex],
+        index: imageIndex,
+        total: images.length,
+      });
+      setShowImageViewer(true);
+    }
+  }, [inlineImagesMap, fetchInlineImages]);
+
   // Navigate through images
   const handleNextImage = useCallback(() => {
     if (selectedImage && selectedImageNote) {
       const images = inlineImagesMap[selectedImageNote.id] || [];
-      const nextIndex = (selectedImage.index + 1) % images.length;
-      setSelectedImage({
-        image: images[nextIndex],
-        index: nextIndex,
-        total: images.length,
-      });
+      if (images.length > 0) {
+        const nextIndex = (selectedImage.index + 1) % images.length;
+        setSelectedImage({
+          image: images[nextIndex],
+          index: nextIndex,
+          total: images.length,
+        });
+      }
     }
   }, [selectedImage, selectedImageNote, inlineImagesMap]);
+
   const handlePrevImage = useCallback(() => {
     if (selectedImage && selectedImageNote) {
       const images = inlineImagesMap[selectedImageNote.id] || [];
-      const prevIndex =
-        (selectedImage.index - 1 + images.length) % images.length;
-      setSelectedImage({
-        image: images[prevIndex],
-        index: prevIndex,
-        total: images.length,
-      });
+      if (images.length > 0) {
+        const prevIndex =
+          (selectedImage.index - 1 + images.length) % images.length;
+        setSelectedImage({
+          image: images[prevIndex],
+          index: prevIndex,
+          total: images.length,
+        });
+      }
     }
   }, [selectedImage, selectedImageNote, inlineImagesMap]);
+
   useEffect(() => {
     localStorage.setItem("dashboardSearchTerm", searchTerm);
   }, [searchTerm]);
+
   useEffect(() => {
     localStorage.setItem(
       "dashboardSearchResults",
       JSON.stringify(searchResults)
     );
   }, [searchResults]);
+
   useEffect(() => {
     localStorage.setItem(
       "dashboardSelectedFilters",
       JSON.stringify(selectedFilters)
     );
   }, [selectedFilters]);
+
   useEffect(() => {
     localStorage.setItem("dashboardViewMode", viewMode);
   }, [viewMode]);
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (filterRef.current && !filterRef.current.contains(event.target)) {
@@ -355,15 +389,17 @@ const Dashboard = ({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
   useEffect(() => {
-  const checkMobile = () => {
-    setIsMobile(window.innerWidth <= 768);
-  };
-  
-  checkMobile();
-  window.addEventListener('resize', checkMobile);
-  return () => window.removeEventListener('resize', checkMobile);
-}, []);
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   const styles = {
     searchBox: {
       display: "flex",
@@ -590,65 +626,66 @@ const Dashboard = ({
       cursor: "help",
     },
     
-  mobileFilterButton: {
-    display: 'none',
-    '@media (max-width: 768px)': {
+    mobileFilterButton: {
+      display: 'none',
+      '@media (max-width: 768px)': {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
+        padding: '10px 16px',
+        backgroundColor: '#3498db',
+        color: 'white',
+        border: 'none',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontSize: '14px',
+        fontWeight: '500',
+        margin: '10px 0',
+        width: '100%',
+      }
+    },
+    
+    mobileFiltersContainer: {
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      right: '0',
+      bottom: '0',
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      zIndex: 1000,
       display: 'flex',
+      justifyContent: 'flex-end',
+    },
+    
+    mobileFiltersPanel: {
+      width: '85%',
+      maxWidth: '400px',
+      height: '100%',
+      backgroundColor: 'white',
+      overflowY: 'auto',
+      padding: '20px',
+      boxShadow: '-2px 0 10px rgba(0, 0, 0, 0.1)',
+    },
+    
+    mobileFiltersHeader: {
+      display: 'flex',
+      justifyContent: 'space-between',
       alignItems: 'center',
-      justifyContent: 'center',
-      gap: '8px',
-      padding: '10px 16px',
-      backgroundColor: '#3498db',
-      color: 'white',
+      marginBottom: '20px',
+      paddingBottom: '15px',
+      borderBottom: '1px solid #eee',
+    },
+    
+    closeButton: {
+      background: 'none',
       border: 'none',
-      borderRadius: '4px',
+      fontSize: '20px',
       cursor: 'pointer',
-      fontSize: '14px',
-      fontWeight: '500',
-      margin: '10px 0',
-      width: '100%',
-    }
-  },
-  
-  mobileFiltersContainer: {
-    position: 'fixed',
-    top: '0',
-    left: '0',
-    right: '0',
-    bottom: '0',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    zIndex: 1000,
-    display: 'flex',
-    justifyContent: 'flex-end',
-  },
-  
-  mobileFiltersPanel: {
-    width: '85%',
-    maxWidth: '400px',
-    height: '100%',
-    backgroundColor: 'white',
-    overflowY: 'auto',
-    padding: '20px',
-    boxShadow: '-2px 0 10px rgba(0, 0, 0, 0.1)',
-  },
-  
-  mobileFiltersHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '20px',
-    paddingBottom: '15px',
-    borderBottom: '1px solid #eee',
-  },
-  
-  closeButton: {
-    background: 'none',
-    border: 'none',
-    fontSize: '20px',
-    cursor: 'pointer',
-    color: '#666',
-  },
+      color: '#666',
+    },
   };
+
   const toggleStackExpansion = (jobName) => {
     setExpandedStacks((prev) => ({ ...prev, [jobName]: !prev[jobName] }));
     if (!expandedStacks[jobName]) {
@@ -661,6 +698,7 @@ const Dashboard = ({
       });
     }
   };
+
   const loadMoreCards = (jobName) => {
     setExpandedCardLimit((prev) => {
       const currentLimit = prev[jobName] ?? 50;
@@ -670,18 +708,19 @@ const Dashboard = ({
       };
     });
   };
-  // Define handleViewAttachments function
+
   const handleViewAttachments = useCallback((note) => {
     setSelectedFileNote(note);
     setShowAttachedFileModal(true);
   }, []);
+
   const handleRequestWorkspace = () => {
     setShowRequestWorkspaceModal(true);
     toast.success("Workspace request feature coming soon!");
   };
- const handleRowDoubleClick = useCallback(
+
+  const handleRowDoubleClick = useCallback(
     (note) => {
-     
       let job = jobs.find((j) => j.name && note.job && j.name === note.job);
       if (!job && note.jobId) {
         job = jobs.find((j) => (j.id || j.jobId)?.toString() === note.jobId.toString());
@@ -694,6 +733,7 @@ const Dashboard = ({
     },
     [jobs]
   );
+
   const fetchUniqueProjects = async () => {
     try {
       const r = await fetch(
@@ -704,6 +744,7 @@ const Dashboard = ({
       console.error(e);
     }
   };
+
   const fetchProjectsByWorkspaces = useCallback(
     async (workspaceIds) => {
       if (!workspaceIds || workspaceIds.length === 0) return;
@@ -736,6 +777,7 @@ const Dashboard = ({
     },
     [apiUrl, userid]
   );
+
   const fetchUniqueJobs = async () => {
     try {
       const r = await fetch(
@@ -746,6 +788,7 @@ const Dashboard = ({
       console.error(e);
     }
   };
+
   const fetchJobsByProjects = useCallback(
     async (projectIds) => {
       if (!projectIds || projectIds.length === 0) return;
@@ -778,6 +821,7 @@ const Dashboard = ({
     },
     [apiUrl, userid]
   );
+
   const fetchUniqueWorkspaces = async () => {
     try {
       const r = await fetch(
@@ -788,6 +832,7 @@ const Dashboard = ({
       console.error(e);
     }
   };
+
   const fetchUniqueDates = async () => {
     try {
       const r = await fetch(
@@ -798,6 +843,7 @@ const Dashboard = ({
       console.error(e);
     }
   };
+
   const fetchUniqueUsernames = async () => {
     try {
       const r = await fetch(
@@ -808,39 +854,76 @@ const Dashboard = ({
       console.error(e);
     }
   };
+
   const fetchStackedJobs = useCallback(async () => {
-  if (!userid) return;
-  
-  setLoadingStackedJobs(true);
-  try {
-    const jobResponse = await fetch(
-      `${apiUrl}/SiteNote/GetStackedJobs?userId=${userid}&pageNumber=1&pageSize=50`
-    );
+    if (!userid) return;
     
-    if (!jobResponse.ok) {
-      throw new Error(`Failed to fetch stacked jobs: ${jobResponse.status}`);
-    }
-    
-    const jobData = await jobResponse.json();
-    console.log('Job Summaries from GetStackedJobs:', jobData.jobs);
-    
-    if (!jobData.jobs || !Array.isArray(jobData.jobs) || jobData.jobs.length === 0) {
-      console.log('No jobs found in GetStackedJobs response');
-      setStackedJobs([]);
-      return;
-    }
-     const jobsWithNotes = await Promise.all(
-      jobData.jobs.map(async (job) => {
-        try {
-          console.log(`Fetching notes for job ${job.jobId} (${job.jobName})...`);
-          
-          const notesResponse = await fetch(
-            `${apiUrl}/SiteNote/GetSiteNotesByJobId?` + 
-            `jobId=${job.jobId}&userId=${userid}&pageNumber=1&pageSize=100`
-          );
-          
-          if (!notesResponse.ok) {
-            console.error(`Failed to fetch notes for job ${job.jobId}:`, notesResponse.status);
+    setLoadingStackedJobs(true);
+    try {
+      const jobResponse = await fetch(
+        `${apiUrl}/SiteNote/GetStackedJobs?userId=${userid}&pageNumber=1&pageSize=50`
+      );
+      
+      if (!jobResponse.ok) {
+        throw new Error(`Failed to fetch stacked jobs: ${jobResponse.status}`);
+      }
+      
+      const jobData = await jobResponse.json();
+      
+      if (!jobData.jobs || !Array.isArray(jobData.jobs) || jobData.jobs.length === 0) {
+        setStackedJobs([]);
+        return;
+      }
+      
+      const jobsWithNotes = await Promise.all(
+        jobData.jobs.map(async (job) => {
+          try {
+            const notesResponse = await fetch(
+              `${apiUrl}/SiteNote/GetSiteNotesByJobId?` + 
+              `jobId=${job.jobId}&userId=${userid}&pageNumber=1&pageSize=100`
+            );
+            
+            if (!notesResponse.ok) {
+              console.error(`Failed to fetch notes for job ${job.jobId}:`, notesResponse.status);
+              return {
+                jobId: job.jobId,
+                jobName: job.jobName,
+                jobDescription: job.jobDescription || '',
+                noteCount: job.totalSiteNotes || 0,
+                latestTimeStamp: job.latestTimeStamp,
+                notes: []
+              };
+            }
+            
+            const notesData = await notesResponse.json();
+            
+            const transformedNotes = (notesData.siteNotes || []).map(note => ({
+              ...note,
+              id: note.id,
+              userName: note.userName || note.UserName || 'Unknown User',
+              documentCount: note.documentCount || note.DocumentCount || 0,
+              timeStamp: note.timeStamp || note.date || note.createdDate,
+              date: note.date || note.createdDate || new Date().toISOString(),
+              workspace: note.workspace || note.workspaceName || '',
+              project: note.project || note.projectName || '',
+              job: note.job || job.jobName,
+              note: note.note || note.content || '',
+              jobId: note.jobId || job.jobId
+            }));
+            
+            return {
+              jobId: job.jobId,
+              jobName: job.jobName,
+              jobDescription: job.jobDescription || '',
+              noteCount: job.totalSiteNotes || transformedNotes.length,
+              latestTimeStamp: job.latestTimeStamp,
+              notes: transformedNotes.sort((a, b) => 
+                new Date(b.timeStamp || b.date) - new Date(a.timeStamp || a.date)
+              )
+            };
+            
+          } catch (error) {
+            console.error(`Error fetching notes for job ${job.jobId}:`, error);
             return {
               jobId: job.jobId,
               jobName: job.jobName,
@@ -850,62 +933,21 @@ const Dashboard = ({
               notes: []
             };
           }
-          
-          const notesData = await notesResponse.json();
-          console.log(`Notes for job ${job.jobId}:`, notesData.siteNotes);
-          
-          
-          const transformedNotes = (notesData.siteNotes || []).map(note => ({
-            ...note,
-            id: note.id,
-            userName: note.userName || note.UserName || 'Unknown User',
-            documentCount: note.documentCount || note.DocumentCount || 0,
-            timeStamp: note.timeStamp || note.date || note.createdDate,
-            date: note.date || note.createdDate || new Date().toISOString(),
-            workspace: note.workspace || note.workspaceName || '',
-            project: note.project || note.projectName || '',
-            job: note.job || job.jobName,
-            note: note.note || note.content || '',
-            jobId: note.jobId || job.jobId
-          }));
-          
-          return {
-            jobId: job.jobId,
-            jobName: job.jobName,
-            jobDescription: job.jobDescription || '',
-            noteCount: job.totalSiteNotes || transformedNotes.length,
-            latestTimeStamp: job.latestTimeStamp,
-            notes: transformedNotes.sort((a, b) => 
-              new Date(b.timeStamp || b.date) - new Date(a.timeStamp || a.date)
-            )
-          };
-          
-        } catch (error) {
-          console.error(`Error fetching notes for job ${job.jobId}:`, error);
-          return {
-            jobId: job.jobId,
-            jobName: job.jobName,
-            jobDescription: job.jobDescription || '',
-            noteCount: job.totalSiteNotes || 0,
-            latestTimeStamp: job.latestTimeStamp,
-            notes: []
-          };
-        }
-      })
-    );
-    const jobsWithActualNotes = jobsWithNotes.filter(job => job.notes.length > 0);
-    
-    console.log('Final jobs with notes:', jobsWithActualNotes);
-    setStackedJobs(jobsWithActualNotes);
-    
-  } catch (error) {
-    console.error('Error in fetchStackedJobs:', error);
-    toast.error('Failed to load stacked jobs');
-    setStackedJobs([]);
-  } finally {
-    setLoadingStackedJobs(false);
-  }
-}, [apiUrl, userid]);
+        })
+      );
+      
+      const jobsWithActualNotes = jobsWithNotes.filter(job => job.notes.length > 0);
+      setStackedJobs(jobsWithActualNotes);
+      
+    } catch (error) {
+      console.error('Error in fetchStackedJobs:', error);
+      toast.error('Failed to load stacked jobs');
+      setStackedJobs([]);
+    } finally {
+      setLoadingStackedJobs(false);
+    }
+  }, [apiUrl, userid]);
+
   const getHash = (str) => {
     if (!str) return 0;
     let hash = 0;
@@ -914,6 +956,7 @@ const Dashboard = ({
     }
     return Math.abs(hash);
   };
+
   useEffect(() => {
     const fetchCurrentUser = async () => {
       try {
@@ -932,6 +975,7 @@ const Dashboard = ({
       fetchCurrentUser();
     }
   }, [userid, apiUrl]);
+
   const formatRelativeTime = (dateString) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -957,6 +1001,7 @@ const Dashboard = ({
       });
     }
   };
+
   // Apply filters when selectedFilters changes
   useEffect(() => {
     if (isDataLoaded && notes && notes.length > 0) {
@@ -975,13 +1020,14 @@ const Dashboard = ({
       fetchNotesWithFilters(selectedFilters);
     }
   }, [hasActiveFilters, fetchNotesWithFilters, selectedFilters]);
+
   useEffect(() => {
     if (userid && defaultUserWorkspaceID) {
-      //fetchUserWorkspaceRole();
       fetchWorkspacesByUserId();
       fetchPriorities();
     }
   }, [userid, defaultUserWorkspaceID]);
+
   useEffect(() => {
     const fetchAllUniques = async () => {
       if (userid) {
@@ -997,20 +1043,24 @@ const Dashboard = ({
     };
     fetchAllUniques();
   }, [userid]);
+
   useEffect(() => {
     if (notes !== undefined) {
       setIsDataLoaded(true);
       setInitialLoading(false);
     }
   }, [notes]);
+
   useEffect(() => {
-  if (userid && viewMode === 'stacked') {
-    fetchStackedJobs();
-  }
-}, [userid, viewMode, fetchStackedJobs]);
+    if (userid && viewMode === 'stacked') {
+      fetchStackedJobs();
+    }
+  }, [userid, viewMode, fetchStackedJobs]);
+
   const handlePriorityUpdate = () => {
     fetchPriorities();
   };
+
   const handlePriorityChange = async (priorityValue) => {
     if (!selectedNoteForPriority) return;
     try {
@@ -1063,10 +1113,12 @@ const Dashboard = ({
       setSelectedNoteForPriority(null);
     }
   };
+
   const handleRowClick = useCallback((note, event) => {
     setFocusedRow(note.id);
     setSelectedRow(note.id);
   }, []);
+
   const handleKeyDown = useCallback(
     (event) => {
       if (!focusedRow) return;
@@ -1114,12 +1166,14 @@ const Dashboard = ({
     },
     [focusedRow, finalDisplayNotes]
   );
+
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [handleKeyDown]);
+
   const handleRefresh = async () => {
     setInitialLoading(true);
     try {
@@ -1131,18 +1185,16 @@ const Dashboard = ({
         fetchUniqueDates(),
         fetchUniqueUsernames(),
       ]);
-       if (viewMode === 'stacked') {
-      await fetchStackedJobs();
-    }
-      /* if (defaultUserWorkspaceID) {
-        await fetchUserWorkspaceRole();
-      } */
+      if (viewMode === 'stacked') {
+        await fetchStackedJobs();
+      }
     } catch {
       toast.error("Refresh error");
     } finally {
       setInitialLoading(false);
     }
   };
+
   const handleAddFromRow = (note) => {
     const today = new Date();
     const year = today.getFullYear();
@@ -1159,11 +1211,13 @@ const Dashboard = ({
     setModalSource("grid");
     setShowNewModal(true);
   };
+
   const handleNewNoteClick = () => {
     setPrefilledData(null);
     setModalSource("dashboard");
     setShowNewModal(true);
   };
+
   useEffect(() => {
     if (showNewModal && modalSource === "grid" && newNoteModalRef.current) {
       const timer = setTimeout(() => {
@@ -1174,10 +1228,12 @@ const Dashboard = ({
       return () => clearTimeout(timer);
     }
   }, [showNewModal, modalSource]);
+
   const handleEdit = (note) => {
     setSelectedNote(note);
     setShowEditModal(true);
   };
+
   const handleDelete = (note) => {
     // Check if current user is the note creator
     const currentUser = JSON.parse(localStorage.getItem("user"));
@@ -1193,6 +1249,7 @@ const Dashboard = ({
       setShowDeleteConfirm(true);
     }
   };
+
   // Function to delete inline images associated with a note
   const deleteInlineImages = async (noteId) => {
     try {
@@ -1229,6 +1286,7 @@ const Dashboard = ({
       return false;
     }
   };
+
   // Function to delete attached documents associated with a note
   const deleteAttachedDocuments = async (noteId) => {
     try {
@@ -1263,6 +1321,7 @@ const Dashboard = ({
       return false;
     }
   };
+
   const handleConfirmDelete = async () => {
     if (!noteToDelete) return;
     setIsDeleting(true);
@@ -1309,6 +1368,7 @@ const Dashboard = ({
       setNoteToDelete(null);
     }
   };
+
   useEffect(() => {
     const run = async () => {
       const t = searchTerm.trim();
@@ -1342,46 +1402,6 @@ const Dashboard = ({
     };
     run();
   }, [searchTerm, userid, apiUrl]);
- 
-
-  /* const fetchUserWorkspaceRole = async () => {
-    setIsRoleLoading(true);
-    try {
-      const response = await fetch(
-        `${apiUrl}/UserWorkspace/GetWorkspacesByUserId/${userid}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json; charset=utf-8",
-          },
-        }
-      );
-      if (response.ok) {
-        const data = await response.json();
-        const userWorkspaces = data.userWorkspaces || data || [];
-        setUserWorkspaces(userWorkspaces);
-        const workspace = userWorkspaces.find(
-          (ws) =>
-            (ws.workspaceID &&
-              ws.workspaceID.toString() ===
-                defaultUserWorkspaceID.toString()) ||
-            (ws.workspaceId &&
-              ws.workspaceId.toString() ===
-                defaultUserWorkspaceID.toString()) ||
-            (ws.id && ws.id.toString() === defaultUserWorkspaceID.toString())
-        );
-        const newRole = workspace?.role || null;
-        setRole(newRole);
-      } else {
-        console.error("API response not OK:", response.status);
-      }
-    } catch (error) {
-      console.error("Error:", error);
-      setRole(null);
-    } finally {
-      setIsRoleLoading(false);
-    }
-  }; */
 
   const fetchWorkspacesByUserId = async () => {
     try {
@@ -1408,6 +1428,7 @@ const Dashboard = ({
       setIsRoleLoading(false);
     }
   };
+
   const fetchPriorities = async () => {
     try {
       const response = await fetch(`${apiUrl}/Priority/GetPriorities`, {
@@ -1424,6 +1445,7 @@ const Dashboard = ({
       console.error(error);
     }
   };
+
   const getFilterOptions = (filterType) => {
     if (filterType === "workspace") {
       let options = (uniqueWorkspaces || []).map((w) => ({
@@ -1596,6 +1618,7 @@ const Dashboard = ({
     }
     return options;
   };
+
   const getFilterDisplayValue = (filterType, value) => {
     if (filterType === "date") {
       try {
@@ -1632,12 +1655,14 @@ const Dashboard = ({
     }
     return value;
   };
+
   const getActiveFilterCount = () => {
     return Object.values(selectedFilters).reduce(
       (total, arr) => total + arr.length,
       0
     );
   };
+
   const handleFilterCheckboxChange = useCallback(
     async (filterType, value) => {
       const currentValues = selectedFilters[filterType] || [];
@@ -1700,6 +1725,7 @@ const Dashboard = ({
       notes,
     ]
   );
+
   const removeFilter = useCallback(
     (filterType, value) => {
       const currentValues = selectedFilters[filterType] || [];
@@ -1720,6 +1746,7 @@ const Dashboard = ({
     },
     [selectedFilters, notes, fetchNotesWithFilters]
   );
+
   const clearAllFilters = useCallback(() => {
     const emptyFilters = {
       date: [],
@@ -1732,6 +1759,7 @@ const Dashboard = ({
     setFilteredNotesFromApi(notes || []);
     setLoadingFiltered(false);
   }, [notes]);
+
   const toggleFilterDropdown = (filterType) => {
     if (filterDropdownOpen === filterType) {
       setFilterDropdownOpen(null);
@@ -1741,7 +1769,206 @@ const Dashboard = ({
       setFilterSearchTerm("");
     }
   };
-  // Check if filter has restricted options due to parent selection
+
+  // Function to render inline image icon for stacked view
+  const renderStackedImageIcon = (note) => {
+    const imageCount = note.inlineImageCount || 0;
+    const isLoading = loadingImages[note.id];
+    const hasImages = imageCount > 0;
+    
+    if (!hasImages) {
+      return null;
+    }
+    
+    if (isLoading) {
+      return (
+        <button
+          className="image-icon-btn"
+          style={{ opacity: 0.5, marginRight: "4px" }}
+          title="Loading images..."
+        >
+          <i className="fas fa-spinner fa-spin" />
+        </button>
+      );
+    }
+    
+    return (
+      <div
+        className="inline-image-icon"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          marginRight: "4px",
+          position: "relative",
+          cursor: "pointer",
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleImageThumbnailClick(note);
+        }}
+        title={`${imageCount} inline image${imageCount !== 1 ? "s" : ""} - Click to view`}
+      >
+        <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+          <i
+            className="fas fa-image"
+            style={{
+              fontSize: "18px",
+              color: "#3498db",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.transform = "scale(1.2)";
+              e.target.style.color = "#2980b9";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.transform = "scale(1)";
+              e.target.style.color = "#3498db";
+            }}
+          />
+          {/* Image count badge - using inlineImageCount from note */}
+          <div
+            style={{
+              position: "absolute",
+              top: "-5px",
+              right: "-5px",
+              backgroundColor: "#e74c3c",
+              color: "white",
+              fontSize: "9px",
+              fontWeight: "bold",
+              minWidth: "16px",
+              height: "16px",
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "2px solid white",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+              padding: "0 2px",
+            }}
+          >
+            {imageCount}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Function to render inline image icon for table view
+  const renderTableImageIcon = (note) => {
+    const imageCount = note.inlineImageCount || 0;
+    const isLoading = loadingImages[note.id];
+    const hasImages = imageCount > 0;
+    
+    if (!hasImages) {
+      return null;
+    }
+    
+    if (isLoading) {
+      return (
+        <div style={{ display: "inline-flex", alignItems: "center", marginLeft: "6px" }}>
+          <i className="fas fa-spinner fa-spin" style={{ fontSize: "12px", color: "#666" }} />
+        </div>
+      );
+    }
+    
+    return (
+      <div
+        className="inline-image-icon"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          marginLeft: "6px",
+          cursor: "pointer",
+          position: "relative",
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleImageThumbnailClick(note);
+        }}
+        title={`${imageCount} inline image${imageCount !== 1 ? "s" : ""} - Click to view`}
+      >
+        <div style={{ position: "relative" }}>
+          <i
+            className="fas fa-image"
+            style={{
+              fontSize: "16px",
+              color: "#3498db",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.transform = "scale(1.2)";
+              e.target.style.color = "#2980b9";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.transform = "scale(1)";
+              e.target.style.color = "#3498db";
+            }}
+          />
+          {/* Image count badge - using inlineImageCount from note */}
+         
+        </div>
+      </div>
+    );
+  };
+
+  // Function to render inline image icon for card view
+  const renderCardImageIcon = (note) => {
+    const imageCount = note.inlineImageCount || 0;
+    const isLoading = loadingImages[note.id];
+    const hasImages = imageCount > 0;
+    
+    if (!hasImages) {
+      return null;
+    }
+    
+    if (isLoading) {
+      return (
+        <button className="image-icon-btn" style={{ opacity: 0.5 }} title="Loading images...">
+          <i className="fas fa-spinner fa-spin" />
+        </button>
+      );
+    }
+    
+    return (
+      <div
+        className="inline-image-icon"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          marginRight: "4px",
+          position: "relative",
+          cursor: "pointer",
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleImageThumbnailClick(note);
+        }}
+        title={`${imageCount} inline image${imageCount !== 1 ? "s" : ""} - Click to view`}
+      >
+        <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+          <i
+            className="fas fa-image"
+            style={{
+              fontSize: "18px",
+              color: "#3498db",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.transform = "scale(1.2)";
+              e.target.style.color = "#2980b9";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.transform = "scale(1)";
+              e.target.style.color = "#3498db";
+            }}
+          />
+          {/* Image count badge - using inlineImageCount from note */}
+          
+        </div>
+      </div>
+    );
+  };
+
   // Check if filter button should show info style
   const getFilterButtonLabel = (filterType) => {
     const count = selectedFilters[filterType]?.length || 0;
@@ -1769,311 +1996,56 @@ const Dashboard = ({
       </span>
     );
   };
-  // Function to render inline image icon for stacked view (similar to card view)
-  const renderStackedImageIcon = (note) => {
-    const images = inlineImagesMap[note.id] || [];
-    const isLoading = loadingImages[note.id];
-    if (isLoading) {
-      return (
-        <button
-          className="image-icon-btn"
-          style={{ opacity: 0.5, marginRight: "4px" }}
-        >
-          <i className="fas fa-spinner fa-spin" />
-        </button>
-      );
-    }
-    if (images.length === 0) {
-      return null;
-    }
-    return (
-      <div
-        className="inline-image-icon"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          marginRight: "4px",
-          position: "relative",
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          handleImageThumbnailClick(note);
-        }}
-        title={`${images.length} inline image${
-          images.length !== 1 ? "s" : ""
-        } - Click to view`}
-      >
-        <div
-          style={{
-            position: "relative",
-            display: "flex",
-            alignItems: "center",
-          }}
-        >
-          <i
-            className="fas fa-image"
-            style={{
-              fontSize: "18px",
-              color: "#3498db",
-              cursor: "pointer",
-              transition: "all 0.2s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.transform = "scale(1.2)";
-              e.target.style.color = "#2980b9";
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = "scale(1)";
-              e.target.style.color = "#3498db";
-            }}
-          />
-          {/* Image count badge */}
-          {images.length > 1 && (
-            <div
-              style={{
-                position: "absolute",
-                top: "-5px",
-                right: "-5px",
-                backgroundColor: "#e74c3c",
-                color: "white",
-                fontSize: "9px",
-                fontWeight: "bold",
-                width: "16px",
-                height: "16px",
-                borderRadius: "50%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                border: "2px solid white",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-              }}
-            >
-              {images.length}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-  // Function to render inline image icon for table view (inside Attached Files column)
-  const renderTableImageIcon = (note) => {
-    const images = inlineImagesMap[note.id] || [];
-    const isLoading = loadingImages[note.id];
-    if (isLoading) {
-      return (
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            marginLeft: "6px",
-          }}
-        >
-          <i
-            className="fas fa-spinner fa-spin"
-            style={{ fontSize: "12px", color: "#666" }}
-          />
-        </div>
-      );
-    }
-    if (images.length === 0) {
-      return null;
-    }
-    return (
-      <div
-        className="inline-image-icon"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          marginLeft: "6px",
-          cursor: "pointer",
-          position: "relative",
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          handleImageThumbnailClick(note);
-        }}
-        title={`${images.length} inline image${
-          images.length !== 1 ? "s" : ""
-        } - Click to view`}
-      >
-        <div style={{ position: "relative" }}>
-          <i
-            className="fas fa-image"
-            style={{
-              fontSize: "16px",
-              color: "#3498db",
-              transition: "all 0.2s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.transform = "scale(1.2)";
-              e.target.style.color = "#2980b9";
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = "scale(1)";
-              e.target.style.color = "#3498db";
-            }}
-          />
-          {/* Image count badge */}
-          {images.length > 1 && (
-            <div
-              style={{
-                position: "absolute",
-                top: "-6px",
-                right: "-6px",
-                backgroundColor: "#e74c3c",
-                color: "white",
-                fontSize: "9px",
-                fontWeight: "bold",
-                width: "16px",
-                height: "16px",
-                borderRadius: "50%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                border: "2px solid white",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-              }}
-            >
-              {images.length}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
-  // Function to render inline image icon for card view (inside Attachments section)
-  const renderCardImageIcon = (note) => {
-    const images = inlineImagesMap[note.id] || [];
-    const isLoading = loadingImages[note.id];
-    if (isLoading) {
-      return (
-        <button className="image-icon-btn" style={{ opacity: 0.5 }}>
-          F
-          <i className="fas fa-spinner fa-spin" />
-        </button>
-      );
-    }
-    if (images.length === 0) {
-      return null;
-    }
-    return (
-      <div
-        className="inline-image-icon"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          marginRight: "4px",
-          position: "relative",
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          handleImageThumbnailClick(note);
-        }}
-        title={`${images.length} inline image${
-          images.length !== 1 ? "s" : ""
-        } - Click to view`}
-      >
-        <div
-          style={{
-            position: "relative",
-            display: "flex",
-            alignItems: "center",
-          }}
-        >
-          <i
-            className="fas fa-image"
-            style={{
-              fontSize: "18px",
-              color: "#3498db",
-              cursor: "pointer",
-              transition: "all 0.2s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.transform = "scale(1.2)";
-              e.target.style.color = "#2980b9";
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = "scale(1)";
-              e.target.style.color = "#3498db";
-            }}
-          />
-          {/* Image count badge */}
-          {images.length > 1 && (
-            <div
-              style={{
-                position: "absolute",
-                top: "-5px",
-                right: "-5px",
-                backgroundColor: "#e74c3c",
-                color: "white",
-                fontSize: "9px",
-                fontWeight: "bold",
-                width: "16px",
-                height: "16px",
-                borderRadius: "50%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                border: "2px solid white",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-              }}
-            >
-              {images.length}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
+
   return (
     <div className="main-content">
       <div className="dashboard">
         <DashboardMenu 
-        defaultUserWorkspaceID={defaultUserWorkspaceID}
-        defaultUserWorkspaceName={defaultUserWorkspaceName}
-        fetchProjectAndJobs={fetchProjectAndJobs}
-        onUpdateDefaultWorkspace={onUpdateDefaultWorkspace}
-        workspaces={workspaces}
-        userid={userid}
-        onLogout={onLogout}
-        userRole={userRole}
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        searchColumn={searchColumn}
-        setSearchColumn={setSearchColumn}
-        viewMode={viewMode}
-        setViewMode={setViewMode}
-        handleRefresh={handleRefresh}
-        handleNewNoteClick={handleNewNoteClick}
+          defaultUserWorkspaceID={defaultUserWorkspaceID}
+          defaultUserWorkspaceName={defaultUserWorkspaceName}
+          fetchProjectAndJobs={fetchProjectAndJobs}
+          onUpdateDefaultWorkspace={onUpdateDefaultWorkspace}
+          workspaces={workspaces}
+          userid={userid}
+          onLogout={onLogout}
+          userRole={userRole}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          searchColumn={searchColumn}
+          setSearchColumn={setSearchColumn}
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          handleRefresh={handleRefresh}
+          handleNewNoteClick={handleNewNoteClick}
         />
 
         <DashboardHeader
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        searchColumn={searchColumn}
-        setSearchColumn={setSearchColumn}
-        viewMode={viewMode}
-        setViewMode={setViewMode}
-        handleRefresh={handleRefresh}
-        handleNewNoteClick={handleNewNoteClick}
-        isMobile={isMobile}
-        mobileFiltersOpen={mobileFiltersOpen}
-        setMobileFiltersOpen={setMobileFiltersOpen}
-        selectedFilters={selectedFilters}
-        filterDropdownOpen={filterDropdownOpen}
-        toggleFilterDropdown={toggleFilterDropdown}
-        filterSearchTerm={filterSearchTerm}
-        setFilterSearchTerm={setFilterSearchTerm}
-        handleFilterCheckboxChange={handleFilterCheckboxChange}
-        getFilterOptions={getFilterOptions}
-        getFilterButtonLabel={getFilterButtonLabel}
-        clearAllFilters={clearAllFilters}
-        getActiveFilterCount={getActiveFilterCount}
-        removeFilter={removeFilter}
-        getFilterDisplayValue={getFilterDisplayValue}
-        filterRef={filterRef}
-        styles={styles}
-      />
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          searchColumn={searchColumn}
+          setSearchColumn={setSearchColumn}
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          handleRefresh={handleRefresh}
+          handleNewNoteClick={handleNewNoteClick}
+          isMobile={isMobile}
+          mobileFiltersOpen={mobileFiltersOpen}
+          setMobileFiltersOpen={setMobileFiltersOpen}
+          selectedFilters={selectedFilters}
+          filterDropdownOpen={filterDropdownOpen}
+          toggleFilterDropdown={toggleFilterDropdown}
+          filterSearchTerm={filterSearchTerm}
+          setFilterSearchTerm={setFilterSearchTerm}
+          handleFilterCheckboxChange={handleFilterCheckboxChange}
+          getFilterOptions={getFilterOptions}
+          getFilterButtonLabel={getFilterButtonLabel}
+          clearAllFilters={clearAllFilters}
+          getActiveFilterCount={getActiveFilterCount}
+          removeFilter={removeFilter}
+          getFilterDisplayValue={getFilterDisplayValue}
+          filterRef={filterRef}
+          styles={styles}
+        />
 
         <NotesTab
           viewMode={viewMode}
@@ -2117,8 +2089,14 @@ const Dashboard = ({
           stackedJobs={stackedJobs}
           loadingStackedJobs={loadingStackedJobs}
           fetchStackedJobs={fetchStackedJobs} 
+            fetchNotes={fetchNotes} // Pass fetchNotes function from App.js
+          userId={userid} // Pass userid
+          hasActiveFilters={hasActiveFilters}
+          filteredNotesFromApi={filteredNotesFromApi}
+          searchResults={searchResults}
         />
       </div>
+      
       {showDeleteConfirm && (
         <div
           className="modal-overlay"
@@ -2165,6 +2143,7 @@ const Dashboard = ({
           </div>
         </div>
       )}
+      
       {showPriorityDropdown && selectedNoteForPriority && (
         <div
           className="priority-dropdown-overlay"
@@ -2210,6 +2189,7 @@ const Dashboard = ({
           </div>
         </div>
       )}
+      
       {showViewModal && viewNote && (
         <ViewNoteModal
           noteId={viewNote.id}
@@ -2228,6 +2208,7 @@ const Dashboard = ({
           scrollToNoteId={viewNote.id}
         />
       )}
+      
       {showNewModal && (
         <NewNoteModal
           ref={newNoteModalRef}
@@ -2249,6 +2230,7 @@ const Dashboard = ({
           source={modalSource}
         />
       )}
+      
       {showEditModal && selectedNote && (
         <EditNoteModal
           note={selectedNote}
@@ -2269,6 +2251,7 @@ const Dashboard = ({
           openToPriorityTab={true}
         />
       )}
+      
       {showAttachedFileModal && selectedFileNote && (
         <AttachedFileModal
           note={selectedFileNote}
@@ -2284,6 +2267,7 @@ const Dashboard = ({
           onDeleteDocument={onDeleteDocument}
         />
       )}
+      
       {showImageViewer && selectedImage && selectedImageNote && (
         <InlineImageViewer
           image={selectedImage.image}
@@ -2303,6 +2287,7 @@ const Dashboard = ({
     </div>
   );
 };
+
 Dashboard.propTypes = {
   notes: PropTypes.array.isRequired,
   refreshNotes: PropTypes.func.isRequired,
@@ -2319,5 +2304,7 @@ Dashboard.propTypes = {
   onUpdateDefaultWorkspace: PropTypes.func.isRequired,
   fetchProjectAndJobs: PropTypes.func.isRequired,
 };
-Dashboard.defaultProps = { projects: [], jobs: [] };
-export default Dashboard
+
+Dashboard.defaultProps = { projects: [], jobs: [], fetchNotes: () => {},};
+
+export default Dashboard;
