@@ -801,624 +801,574 @@ const renderUserStatusIndicator = (userId, userName) => {
           </table>
         </div>
       ) : viewMode === "stacked" ? (
-        <div className="stacked-notes-horizontal">
-          {loadingStackedJobs ? (
-            [...Array(3)].map((_, i) => (
-              <div key={i} className="job-stack-skeleton">
-                <div className="skeleton-stack-header" />
-                <div className="skeleton-stack-content" />
-              </div>
-            ))
-          ) : !stackedJobs || stackedJobs.length === 0 ? (
-            <div className="empty-state">
-              <i className="fas fa-layer-group" style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}/>
-              <h3>No stacked jobs available</h3>
-              <p>
-                {stackedJobs && stackedJobs.length === 0 
-                  ? "No jobs with notes found."
-                  : "Failed to load stacked jobs. Please try refreshing."}
-              </p>
-              <button 
-                onClick={() => fetchStackedJobs && fetchStackedJobs()}
-                style={{ 
-                  marginTop: '16px', 
-                  padding: '8px 16px',
-                  backgroundColor: '#3498db',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}
-              >
-                <i className="fas fa-redo" style={{ marginRight: '8px' }} />
-                Retry Loading
-              </button>
-            </div>
-          ) : (
-            <div className="stacked-container">
-              {isAnyStackExpanded && (
-                <div className="fixed-collapse-btn-wrapper">
-                  <button
-                    className="collapse-all-stacks-btn"
-                    onClick={() => {
-                      Object.keys(expandedStacks).forEach(jobName => {
-                        if (expandedStacks[jobName]) {
-                          toggleStackExpansion(jobName);
-                        }
-                      });
-                    }}
-                  >
-                    <i className="fas fa-compress" />
-                  </button>
-                </div> 
-              )}
-              {sortedJobs.map((job) => {
-                const jobName = job.jobName;
-                const jobNotes = job.notes || [];
-                const noteCount = job.noteCount || job.totalSiteNotes || jobNotes.length || 0;
-                const actualNoteCount = jobNotes.length;
-                const apiNoteCount = job.noteCount || job.totalSiteNotes || 0;
-                
-                const displayNoteCount = jobNotes.length > 0 ? jobNotes.length : apiNoteCount;
-                const isExpanded = expandedStacks[jobName];
-                const currentLimit = expandedCardLimit[jobName] ?? 50;
-                const displayNotes = isExpanded ? jobNotes : [];
-                const remainingNotes = noteCount - currentLimit;
-                          
-                if (!isExpanded && isAnyStackExpanded) {
-                  return null;
-                }
-                
-                return (
-                  <div
-                    key={`stack-${job.jobId || jobName}`}
-                    className={`job-stack-container ${
-                      isExpanded
-                        ? "expanded-full-width"
-                        : "collapsed-vertical-stack"
-                    }`}
-                  >
-                    {isExpanded ? (
-                      <div className="expanded-stack">
-                        <div className="expanded-stack-header">
-                          <div className="expanded-stack-title-section">
-                            <div className="expanded-stack-title">
-                              <i className="fas fa-briefcase" />
-                              {jobName}
+  <div className="stacked-notes-horizontal">
+    {loadingStackedJobs ? (
+      [...Array(3)].map((_, i) => (
+        <div key={i} className="job-stack-skeleton">
+          <div className="skeleton-stack-header" />
+          <div className="skeleton-stack-content" />
+        </div>
+      ))
+    ) : !stackedJobs || stackedJobs.length === 0 ? (
+      <div className="empty-state">
+        <i className="fas fa-layer-group" style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}/>
+        <h3>No stacked jobs available</h3>
+        <p>
+          {stackedJobs && stackedJobs.length === 0 
+            ? "No jobs with notes found."
+            : "Failed to load stacked jobs. Please try refreshing."}
+        </p>
+        <button 
+          onClick={() => fetchStackedJobs && fetchStackedJobs()} // Safe call
+          style={{ 
+            marginTop: '16px', 
+            padding: '8px 16px',
+            backgroundColor: '#3498db',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          <i className="fas fa-redo" style={{ marginRight: '8px' }} />
+          Retry Loading
+        </button>
+      </div>
+    ) : (
+      <div className="stacked-container">
+        {isAnyStackExpanded && (
+          <div className="fixed-collapse-btn-wrapper">
+            <button
+              className="collapse-all-stacks-btn"
+              onClick={() => {
+                Object.keys(expandedStacks).forEach(jobName => {
+                  if (expandedStacks[jobName]) {
+                    toggleStackExpansion(jobName);
+                  }
+                });
+              }}
+            >
+              <i className="fas fa-compress" />
+            </button>
+          </div> 
+        )}
+        {sortedJobs.map((job) => {
+          const jobName = job.jobName;
+          const jobNotes = job.notes || [];
+          const noteCount = job.noteCount || job.totalSiteNotes || jobNotes.length || 0;
+          const actualNoteCount = jobNotes.length;
+          const apiNoteCount = job.noteCount || job.totalSiteNotes || 0;
+          
+          const displayNoteCount = jobNotes.length > 0 ? jobNotes.length : apiNoteCount;
+          const isExpanded = expandedStacks[jobName];
+          const currentLimit = expandedCardLimit[jobName] ?? 50;
+          const displayNotes = isExpanded ? jobNotes : [];
+          const remainingNotes = noteCount - currentLimit;
+            console.log(`Job: ${jobName}, API Count: ${apiNoteCount}, Actual Notes: ${jobNotes.length}`);
+                    
+          
+          if (!isExpanded && isAnyStackExpanded) {
+            return null;
+          }
+          
+          return (
+            <div
+              key={`stack-${job.jobId || jobName}`}
+              className={`job-stack-container ${
+                isExpanded
+                  ? "expanded-full-width"
+                  : "collapsed-vertical-stack"
+              }`}
+            >
+              {isExpanded ? (
+                <div className="expanded-stack">
+                  <div className="expanded-stack-header">
+                    <div className="expanded-stack-title-section">
+                      <div className="expanded-stack-title">
+                        <i className="fas fa-briefcase" />
+                        {jobName}
+                      </div>
+                    </div>
+                    <div className="expanded-stack-count">
+                      <i className="fas fa-layer-group" />
+                      <span>{displayNoteCount} notes</span>
+                    </div>
+                  </div>
+                  {displayNotes.length > 0 && displayNotes.length < apiNoteCount && (
+                    <div className="notes-count-info" style={{
+                      padding: "8px",
+                      backgroundColor: "#e3f2fd",
+                      borderRadius: "4px",
+                      margin: "10px 0",
+                      fontSize: "12px",
+                      color: "#1565c0"
+                    }}>
+                      <i className="fas fa-info-circle" /> Showing {displayNotes.length} of {apiNoteCount} notes
+                    </div>
+                  )}
+                  <div className="expanded-notes-grid">
+                    
+                    {displayNotes.map((note) => {
+                      const notePriority = priorities.find(
+                        (p) => p.noteID === note.id
+                      );
+                      return (
+                        <div
+                          key={note.id}
+                          className={`note-card ${
+                            selectedRow === note.id ? "selected" : ""
+                          } stack-expanded-card`}
+                          onClick={() => handleRowClick(note)}
+                          onDoubleClick={() =>
+                            handleRowDoubleClick(note)
+                          }
+                        >
+                          <div className="note-header">
+                            <div className="user-avatar-wrapper">
+                              <div className="user-avatar">
+                                {note.userName ? (
+                                  (() => {
+                                    const names = note.userName
+                                      .trim()
+                                      .split(/\s+/);
+                                    const firstInitial = names[0]
+                                      ? names[0]
+                                          .charAt(0)
+                                          .toUpperCase()
+                                      : "";
+                                    const lastInitial =
+                                      names.length > 1
+                                        ? names[names.length - 1]
+                                            .charAt(0)
+                                            .toUpperCase()
+                                        : "";
+                                    return firstInitial + lastInitial;
+                                  })()
+                                ) : (
+                                  <i className="fas fa-user" />
+                                )}
+                              </div>
+                              <div className="user-tooltip">
+                                {note.userName || "Unknown User"}
+                              </div>
+                            </div>
+                            <div className="note-meta">
+                              <div
+                                className="note-author"
+                                title={
+                                  note.userName || "Unknown User"
+                                }
+                              >
+                                {note.userName}
+                              </div>
+                              <div
+                                className="note-date"
+                                title={new Date(
+                                  note.date
+                                ).toLocaleDateString("en-US", {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                })}
+                              >
+                                {formatRelativeTime(note.timeStamp)}
+                              </div>
+                            </div>
+                            <div className="note-context">
+                              <div
+                                className="context-item job"
+                                title={note.job}
+                              >
+                                {note.job}
+                              </div>
+                              <div className="context-item workspace-project">
+                                <span title={note.workspace}>
+                                  {note.workspace}
+                                </span>
+                                /
+                                <span title={note.project}>
+                                  {note.project}
+                                </span>
+                              </div>
                             </div>
                           </div>
-                          <div className="expanded-stack-count">
-                            <i className="fas fa-layer-group" />
-                            <span>{displayNoteCount} notes</span>
+                          <div className="note-content">
+                            <div
+                              className="note-card-content-container"
+                              style={{ position: "relative" }}
+                            >
+                              <div
+                                className="note-text"
+                                dangerouslySetInnerHTML={{
+                                  __html: note.note,
+                                }}
+                              />
+                              {note.note.length > 150 && (
+                                <div className="note-card-popup">
+                                  {note.note}
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                        {displayNotes.length > 0 && displayNotes.length < apiNoteCount && (
-                          <div className="notes-count-info" style={{
-                            padding: "8px",
-                            backgroundColor: "#e3f2fd",
-                            borderRadius: "4px",
-                            margin: "10px 0",
-                            fontSize: "12px",
-                            color: "#1565c0"
-                          }}>
-                            <i className="fas fa-info-circle" /> Showing {displayNotes.length} of {apiNoteCount} notes
-                          </div>
-                        )}
-                        <div className="expanded-notes-grid">
-                          
-                          {displayNotes.map((note) => {
-                            const notePriority = priorities.find(
-                              (p) => p.noteID === note.id
-                            );
-                            const isInactive = userStatusMap[note.userId] && !userStatusMap[note.userId].active;
-                            
-                            return (
-                              <div
-                                key={note.id}
-                                className={`note-card ${
-                                  selectedRow === note.id ? "selected" : ""
-                                } stack-expanded-card`}
-                                onClick={() => handleRowClick(note)}
-                                onDoubleClick={() =>
-                                  handleRowDoubleClick(note)
-                                }
-                                onMouseEnter={(e) => {
-                                  // Show tooltip on hover for inactive users
-                                  if (isInactive) {
-                                    const tooltip = e.currentTarget.querySelector('.inactive-user-tooltip');
-                                    if (tooltip) {
-                                      tooltip.style.opacity = '1';
-                                      tooltip.style.visibility = 'visible';
-                                    }
-                                  }
-                                }}
-                                onMouseLeave={(e) => {
-                                  // Hide tooltip when mouse leaves
-                                  if (isInactive) {
-                                    const tooltip = e.currentTarget.querySelector('.inactive-user-tooltip');
-                                    if (tooltip) {
-                                      tooltip.style.opacity = '0';
-                                      tooltip.style.visibility = 'hidden';
-                                    }
-                                  }
-                                }}
-                              >
-                                <div className="note-header">
-                                  <div className="user-avatar-wrapper">
-                                    <div className="user-avatar">
-                                      {note.userName ? (
-                                        (() => {
-                                          const names = note.userName
-                                            .trim()
-                                            .split(/\s+/);
-                                          const firstInitial = names[0]
-                                            ? names[0]
-                                                .charAt(0)
-                                                .toUpperCase()
-                                            : "";
-                                          const lastInitial =
-                                            names.length > 1
-                                              ? names[names.length - 1]
-                                                  .charAt(0)
-                                                  .toUpperCase()
-                                              : "";
-                                          return firstInitial + lastInitial;
-                                        })()
-                                      ) : (
-                                        <i className="fas fa-user" />
-                                      )}
-                                    </div>
-                                    <div className="user-tooltip">
-                                      {note.userName || "Unknown User"}
-                                    </div>
-                                  </div>
-                                  <div className="note-meta">
-                                    <div className="note-author" title={note.userName || "Unknown User"}>
-                                      {isInactive ? (
-                                        <span className="inactive-user-wrapper" style={{ position: 'relative', display: 'inline-block' }}>
-                                          <span style={getUserStatusStyle(note.userId)}>
-                                            {note.userName}
-                                          </span>
-                                          <div className="inactive-user-tooltip" style={{
-                                            position: 'absolute',
-                                            bottom: '100%',
-                                            left: '50%',
-                                            transform: 'translateX(-50%)',
-                                            backgroundColor: '#333',
-                                            color: 'white',
-                                            padding: '4px 8px',
-                                            borderRadius: '4px',
-                                            fontSize: '12px',
-                                            whiteSpace: 'nowrap',
-                                            zIndex: 1000,
-                                            opacity: 0,
-                                            visibility: 'hidden',
-                                            transition: 'opacity 0.2s, visibility 0.2s',
-                                            marginBottom: '5px'
-                                          }}>
-                                            Inactive User
-                                          </div>
-                                        </span>
-                                      ) : (
-                                        <span>{note.userName}</span>
-                                      )}
-                                      {renderUserStatusIndicator(note.userId, note.userName)}
-                                    </div>
-                                    <div
-                                      className="note-date"
-                                      title={new Date(
-                                        note.date
-                                      ).toLocaleDateString("en-US", {
-                                        year: "numeric",
-                                        month: "short",
-                                        day: "numeric",
-                                      })}
-                                    >
-                                      {formatRelativeTime(note.timeStamp)}
-                                    </div>
-                                  </div>
-                                  <div className="note-context">
-                                    <div
-                                      className="context-item job"
-                                      title={note.job}
-                                    >
-                                      {note.job}
-                                    </div>
-                                    <div className="context-item workspace-project">
-                                      <span title={note.workspace}>
-                                        {note.workspace}
-                                      </span>
-                                      /
-                                      <span title={note.project}>
-                                        {note.project}
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="note-content">
-                                  <div
-                                    className="note-card-content-container"
-                                    style={{ position: "relative" }}
-                                  >
-                                    <div
-                                      className="note-text"
-                                      dangerouslySetInnerHTML={{
-                                        __html: note.note,
-                                      }}
-                                    />
-                                    {note.note.length > 150 && (
-                                      <div className="note-card-popup">
-                                        {note.note}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="note-footer">
-                                  <div
-                                    className="note-attachments"
-                                    style={{
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: "12px",
-                                    }}
-                                  >
-                                    {renderStackedImageIcon(note)}
-                                    <button
-                                      className="attachment-btn"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleViewAttachments(note);
-                                      }}
-                                    >
-                                      <i
-                                        className="fas fa-paperclip"
-                                        style={{
-                                          opacity:
-                                            note.documentCount > 0
-                                              ? 1
-                                              : 0.3,
-                                        }}
-                                      />
-                                      <span>
-                                        ({note.documentCount || 0})
-                                      </span>
-                                    </button>
-                                  </div>
-                                  <div className="note-actions">
-                                    {notePriority &&
-                                    notePriority.priorityValue > 1 ? (
-                                      <div
-                                        className={`priority-indicator priority-${notePriority.priorityValue}`}
-                                        style={{ cursor: "pointer" }}
-                                        title={
-                                          notePriority.priorityValue === 3
-                                            ? "Medium Priority - Click to change"
-                                            : notePriority.priorityValue ===
-                                              4
-                                            ? "High Priority - Click to change"
-                                            : "No Priority"
-                                        }
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setSelectedNoteForPriority(note);
-                                          setPriorityDropdownPosition({
-                                            x: e.clientX,
-                                            y: e.clientY,
-                                          });
-                                          setShowPriorityDropdown(true);
-                                        }}
-                                      />
-                                    ) : (
-                                      <div
-                                        className="priority-placeholder"
-                                        style={{
-                                          cursor: "pointer",
-                                          opacity: 0.2,
-                                          transition: "all 0.2s ease",
-                                          width: "16px",
-                                          height: "16px",
-                                          borderRadius: "50%",
-                                          border: "1px dashed #ddd",
-                                          backgroundColor: "transparent",
-                                        }}
-                                        title="Click to set priority"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setSelectedNoteForPriority(note);
-                                          setPriorityDropdownPosition({
-                                            x: e.clientX,
-                                            y: e.clientY,
-                                          });
-                                          setShowPriorityDropdown(true);
-                                        }}
-                                        onMouseEnter={(e) => {
-                                          e.currentTarget.style.opacity =
-                                            "0.5";
-                                          e.currentTarget.style.borderColor =
-                                            "#3498db";
-                                        }}
-                                        onMouseLeave={(e) => {
-                                          e.currentTarget.style.opacity =
-                                            "0.2";
-                                          e.currentTarget.style.borderColor =
-                                            "#ddd";
-                                        }}
-                                      />
-                                    )}
-                                    <button
-                                      className="action-btn"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleAddFromRow(note);
-                                      }}
-                                      title="Add New Note"
-                                    >
-                                      <i className="fas fa-plus" />
-                                    </button>
-                                    <button
-                                      className="action-btn"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleEdit(note);
-                                      }}
-                                      title="Edit Note"
-                                    >
-                                      <i className="fas fa-edit" />
-                                    </button>
-                                    <button
-                                      className="action-btn delete"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDelete(note);
-                                      }}
-                                      title="Delete Note"
-                                    >
-                                      <i className="fas fa-trash" />
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          }
-                        )}
-                        </div>
-                        
-                      </div>
-                    ) : (
-                        <div
-                          className="collapsed-stack"
-                          onClick={() => toggleStackExpansion(jobName)}
-                          style={{
-                            cursor: "pointer",
-                            position: "relative",
-                            height: "280px",
-                            width: "100%",
-                          }}
-                        >
-                        {[...Array(Math.min(noteCount, 5))].map(
-                          (_, index) => {
-                            const isTopCard = index === 0;
-                            return (
-                              <div
-                                key={`layer-${index}`}
-                                className="stack-layer-card"
-                                style={{
-                                  position: "absolute",
-                                  right: "0",
-                                  left: `${index * 15}px`,
-                                  transform: `rotate(${index * -2}deg)`,
-                                  zIndex: 5 - index,
-                                  width: "300px",
-                                  height: "250px",
-                                  opacity: 1 - index * 0.2,
-                                  transition: "all 0.3s ease",
-                                  overflow: "hidden",
-                                }}
-                                >
-                                  {isTopCard ? (
-                                    <div
-                                      style={{
-                                        padding: "15px",
-                                        height: "100%",
-                                        display: "flex",
-                                        flexDirection: "column",
-                                      }}
-                                    >
-                                      <div
-                                        style={{
-                                          display: "flex",
-                                          justifyContent: "space-between",
-                                          alignItems: "flex-start",
-                                          marginBottom: "10px",
-                                          paddingBottom: "10px",
-                                          borderBottom: "1px solid #f0f0f0",
-                                        }}
-                                      >
-                                        <div
-                                          style={{
-                                            flex: 1,
-                                          }}
-                                        >
-                                  <div
-                                    style={{
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: "8px",
-                                      marginBottom: "5px",
-                                    }}
-                                  >
-                                    <i
-                                      className="fas fa-briefcase"
-                                      style={{ color: "#3498db" }}
-                                    />
-                                    <span
-                                      style={{
-                                        fontWeight: 600,
-                                        color: "#2c3e50",
-                                        fontSize: "16px",
-                                      }}
-                                    >
-                                      {jobName}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "6px",
-                                    background: "#3498db",
-                                    color: "white",
-                                    padding: "4px 10px",
-                                    borderRadius: "20px",
-                                    fontSize: "12px",
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  <i className="fas fa-layer-group" />
-                                  <span>{noteCount} notes</span>
-                                </div>
-                              </div>
-                              <div
-                                style={{
-                                  flex: 1,
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  gap: "10px",
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "10px",
-                                  }}
-                                >
-                                  <div
-                                    style={{
-                                      width: "28px",
-                                      height: "28px",
-                                      borderRadius: "50%",
-                                      backgroundColor: "#3498db",
-                                      color: "white",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      fontSize: "12px",
-                                      fontWeight: "bold",
-                                    }}
-                                  >
-                                    {job.lastSiteNoteUserName
-                                      ? job.lastSiteNoteUserName.charAt(0).toUpperCase()
-                                      : job.jobName?.charAt(0)?.toUpperCase() || "J"}
-                                  </div>
-                                  <span style={{ fontSize: "14px", color: "#555" }}>
-                                    {job.lastSiteNoteUserName || 
-                                    (job.notes && job.notes[0] && job.notes[0].userName)}
-                                    {renderUserStatusIndicator(
-                                      job.lastSiteNoteUserId || 
-                                      (job.notes && job.notes[0] && job.notes[0].userId), 
-                                      job.lastSiteNoteUserName || 
-                                      (job.notes && job.notes[0] && job.notes[0].userName)
-                                    )}
-                                  </span>
-                                </div>
-                      
-                      <div
-                        style={{
-                          fontSize: "13px",
-                          color: "#666",
-                          lineHeight: 1.4,
-                          flex: 1,
-                          overflow: "hidden",
-                          display: "-webkit-box",
-                          WebkitLineClamp: 3,
-                          WebkitBoxOrient: "vertical",
-                          padding: "8px",
-                          backgroundColor: "#f8f9fa",
-                          borderRadius: "4px",
-                          borderLeft: "3px solid #3498db",
-                          marginTop: "8px",
-                        }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
-                                           
-                        </div>
-                        <div style={{ fontSize: "12px", color: "#666", lineHeight: 1.4 }}>
-                          {job.jobDescription || "No description available for this job."}
-                        </div>
-                      </div>
-                      
-                                  <div
-                                    style={{
-                                      fontSize: "11px",
-                                      color: "#888",
-                                      marginTop: "auto",
-                                      paddingTop: "8px",
-                                      borderTop: "1px dashed #e9ecef",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: "6px",
-                                    }}
-                                  >
-                                    <i className="fas fa-clock" style={{ fontSize: "10px" }} />
-                                    <span>
-                                      {job.latestTimeStamp ? 
-                                      formatRelativeTime(job.latestTimeStamp) : "No updates"}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div
-                                  style={{
-                                    textAlign: "center",
-                                    paddingTop: "10px",
-                                    borderTop: "1px dashed #e9ecef",
-                                    marginTop: "10px",
-                                  }}
-                                >
-                                  <div
-                                    style={{
-                                      fontSize: "12px",
-                                      color: "#7f8c8d",
-                                      fontStyle: "italic",
-                                    }}
-                                  >
-                                    Click to expand
-                                  </div>
-                                </div>
-                              </div>
-                            ) : (
-                              <div
-                                style={{
-                                  height: "100%",
-                                  background:
-                                    "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  color: "#bdc3c7",
+                          <div className="note-footer">
+                            <div
+                              className="note-attachments"
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "12px",
+                              }}
+                            >
+                              {renderStackedImageIcon(note)}
+                              <button
+                                className="attachment-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleViewAttachments(note);
                                 }}
                               >
                                 <i
-                                  className="fas fa-sticky-note"
-                                  style={{ fontSize: "24px" }}
+                                  className="fas fa-paperclip"
+                                  style={{
+                                    opacity:
+                                      note.documentCount > 0
+                                        ? 1
+                                        : 0.3,
+                                  }}
                                 />
-                              </div>
-                            )}
+                                <span>
+                                  ({note.documentCount || 0})
+                                </span>
+                              </button>
+                            </div>
+                            <div className="note-actions">
+                              {notePriority &&
+                              notePriority.priorityValue > 1 ? (
+                                <div
+                                  className={`priority-indicator priority-${notePriority.priorityValue}`}
+                                  style={{ cursor: "pointer" }}
+                                  title={
+                                    notePriority.priorityValue === 3
+                                      ? "Medium Priority - Click to change"
+                                      : notePriority.priorityValue ===
+                                        4
+                                      ? "High Priority - Click to change"
+                                      : "No Priority"
+                                  }
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedNoteForPriority(note);
+                                    setPriorityDropdownPosition({
+                                      x: e.clientX,
+                                      y: e.clientY,
+                                    });
+                                    setShowPriorityDropdown(true);
+                                  }}
+                                />
+                              ) : (
+                                <div
+                                  className="priority-placeholder"
+                                  style={{
+                                    cursor: "pointer",
+                                    opacity: 0.2,
+                                    transition: "all 0.2s ease",
+                                    width: "16px",
+                                    height: "16px",
+                                    borderRadius: "50%",
+                                    border: "1px dashed #ddd",
+                                    backgroundColor: "transparent",
+                                  }}
+                                  title="Click to set priority"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedNoteForPriority(note);
+                                    setPriorityDropdownPosition({
+                                      x: e.clientX,
+                                      y: e.clientY,
+                                    });
+                                    setShowPriorityDropdown(true);
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.opacity =
+                                      "0.5";
+                                    e.currentTarget.style.borderColor =
+                                      "#3498db";
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.opacity =
+                                      "0.2";
+                                    e.currentTarget.style.borderColor =
+                                      "#ddd";
+                                  }}
+                                />
+                              )}
+                              <button
+                                className="action-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleAddFromRow(note);
+                                }}
+                                title="Add New Note"
+                              >
+                                <i className="fas fa-plus" />
+                              </button>
+                              <button
+                                className="action-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEdit(note);
+                                }}
+                                title="Edit Note"
+                              >
+                                <i className="fas fa-edit" />
+                              </button>
+                              <button
+                                className="action-btn delete"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(note);
+                                }}
+                                title="Delete Note"
+                              >
+                                <i className="fas fa-trash" />
+                              </button>
+                            </div>
                           </div>
-                        );
-                      }
-                    )}
-                    </div>
-                  )}
-                              </div>
-                            );
-                          })}
                         </div>
-                      )}
+                      );
+                    }
+                  )}
+                  </div>
+                  
+                </div>
+              ) : (
+                  <div
+                    className="collapsed-stack"
+                    onClick={() => toggleStackExpansion(jobName)}
+                    style={{
+                      cursor: "pointer",
+                      position: "relative",
+                      height: "280px",
+                      width: "100%",
+                    }}
+                  >
+                  {[...Array(Math.min(noteCount, 5))].map(
+                    (_, index) => {
+                      const isTopCard = index === 0;
+                      return (
+                        <div
+                          key={`layer-${index}`}
+                          className="stack-layer-card"
+                          style={{
+                            position: "absolute",
+                            right: "0",
+                            left: `${index * 15}px`,
+                            transform: `rotate(${index * -2}deg)`,
+                            zIndex: 5 - index,
+                            width: "300px",
+                            height: "250px",
+                            opacity: 1 - index * 0.2,
+                            transition: "all 0.3s ease",
+                            overflow: "hidden",
+                          }}
+                          >
+                            {isTopCard ? (
+                              <div
+                                style={{
+                                  padding: "15px",
+                                  height: "100%",
+                                  display: "flex",
+                                  flexDirection: "column",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    alignItems: "flex-start",
+                                    marginBottom: "10px",
+                                    paddingBottom: "10px",
+                                    borderBottom: "1px solid #f0f0f0",
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      flex: 1,
+                                    }}
+                                  >
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "8px",
+                                  marginBottom: "5px",
+                                }}
+                              >
+                                <i
+                                  className="fas fa-briefcase"
+                                  style={{ color: "#3498db" }}
+                                />
+                                <span
+                                  style={{
+                                    fontWeight: 600,
+                                    color: "#2c3e50",
+                                    fontSize: "16px",
+                                  }}
+                                >
+                                  {jobName}
+                                </span>
+                              </div>
+                            </div>
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                background: "#3498db",
+                                color: "white",
+                                padding: "4px 10px",
+                                borderRadius: "20px",
+                                fontSize: "12px",
+                                fontWeight: 600,
+                              }}
+                            >
+                              <i className="fas fa-layer-group" />
+                              <span>{noteCount} notes</span>
+                            </div>
+                          </div>
+                          <div
+                            style={{
+                              flex: 1,
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "10px",
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "10px",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: "28px",
+                                  height: "28px",
+                                  borderRadius: "50%",
+                                  backgroundColor: "#3498db",
+                                  color: "white",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: "12px",
+                                  fontWeight: "bold",
+                                }}
+                              >
+                                {job.lastSiteNoteUserName
+                                  ? job.lastSiteNoteUserName.charAt(0).toUpperCase()
+                                  : job.jobName?.charAt(0)?.toUpperCase() || "J"}
+                              </div>
+                              <span style={{ fontSize: "14px", color: "#555" }}>
+                                {job.lastSiteNoteUserName || 
+                                (job.notes && job.notes[0] && job.notes[0].userName) }
+                              </span>
+                            </div>
+                  
+                  <div
+                    style={{
+                      fontSize: "13px",
+                      color: "#666",
+                      lineHeight: 1.4,
+                      flex: 1,
+                      overflow: "hidden",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 3,
+                      WebkitBoxOrient: "vertical",
+                      padding: "8px",
+                      backgroundColor: "#f8f9fa",
+                      borderRadius: "4px",
+                      borderLeft: "3px solid #21f869ff",
+                      marginTop: "8px",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                                         
                     </div>
-                  ) : (
-        // Card view
+                    <div style={{ fontSize: "12px", color: "#666", lineHeight: 1.4 }}>
+                      {job.jobDescription || "No description available for this job."}
+                    </div>
+                  </div>
+                  
+                              <div
+                                style={{
+                                  fontSize: "11px",
+                                  color: "#888",
+                                  marginTop: "auto",
+                                  paddingTop: "8px",
+                                  borderTop: "1px dashed #e9ecef",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "6px",
+                                }}
+                              >
+                                <i className="fas fa-clock" style={{ fontSize: "10px" }} />
+                                <span>
+                                  {job.latestTimeStamp ? 
+                                  formatRelativeTime(job.latestTimeStamp) : "No updates"}
+                                </span>
+                              </div>
+                            </div>
+                            <div
+                              style={{
+                                textAlign: "center",
+                                paddingTop: "10px",
+                                borderTop: "1px dashed #e9ecef",
+                                marginTop: "10px",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontSize: "12px",
+                                  color: "#7f8c8d",
+                                  fontStyle: "italic",
+                                }}
+                              >
+                                Click to expand
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            style={{
+                              height: "100%",
+                              background:
+                                "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              color: "#bdc3c7",
+                            }}
+                          >
+                            <i
+                              className="fas fa-sticky-note"
+                              style={{ fontSize: "24px" }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                )}
+              </div>
+            )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : (
         <div className="notes-grid">
           {!isDataLoaded || initialLoading || searchLoading || loadingFiltered ? (
             renderCardSkeleton()

@@ -1256,7 +1256,7 @@ tr.selected-row.priority-4 {
     align-items: center;
     gap: 6px;
     background-color: #e8f5ff; 
-    color: #3498db; 
+    color: #1976d2; 
     padding: 4px 10px; 
     border-radius: 16px; 
     font-size: 12px;
@@ -1296,7 +1296,7 @@ tr.selected-row.priority-4 {
 }
 
 .expanded-stack-title i {
-    color: #3498db;
+    color: #1976d2;
     font-size: 1em;
 }
 
@@ -1372,7 +1372,14 @@ tr.selected-row.priority-4 {
   width: 340px; 
   cursor: pointer;
 }
-
+.collapsed-stack:active .stack-layer-card,
+.collapsed-stack:hover .stack-layer-card {
+  opacity: 1 !important;
+  box-shadow: 
+    0 6px 12px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(25, 118, 210, 0.1);
+  border-color: rgba(25, 118, 210, 0.3);
+}
 .stack-layer-card {
   position: absolute;
   width: 300px; 
@@ -1424,7 +1431,7 @@ tr.selected-row.priority-4 {
 
 .fixed-collapse-btn-wrapper {
   position: fixed;
-  top: 60%;
+  top: 40%;
   right: 90px !important;
   transform: translateY(-50%);
   z-index: 10000;
