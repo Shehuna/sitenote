@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './AttachedFileModal.css';
 
 const AttachedFileModal = ({
@@ -20,11 +20,13 @@ const AttachedFileModal = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
-
   const [isUploading, setIsUploading] = useState(false);
-
   const [isDownloading, setIsDownloading] = useState(false);
   const [currentDownloadingFileName, setCurrentDownloadingFileName] = useState('');
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [pasteIndicator, setPasteIndicator] = useState(false);
+
+  const dragDropAreaRef = useRef(null);
 
   const allowedFileTypes = {
     'image/jpeg': ['.jpg', '.jpeg'],
@@ -52,7 +54,104 @@ const AttachedFileModal = ({
     'video/x-msvideo': ['.avi']
   };
 
-  const isValidFileType = (file) => Object.keys(allowedFileTypes).includes(file.type);
+  const isValidFileType = (file) => {
+    return Object.keys(allowedFileTypes).includes(file.type);
+  };
+
+  const handlePaste = useCallback((e) => {
+    if (!showDocumentModal) return;
+    
+    const clipboardItems = e.clipboardData?.items;
+    if (!clipboardItems) return;
+
+    for (let i = 0; i < clipboardItems.length; i++) {
+      const item = clipboardItems[i];
+      
+      if (item.kind === 'file') {
+        const file = item.getAsFile();
+        if (file) {
+          setPasteIndicator(true);
+          setTimeout(() => setPasteIndicator(false), 1500);
+          
+          handleDocumentFileChange(file);
+          e.preventDefault();
+          break;
+        }
+      }
+    }
+  }, [showDocumentModal]);
+
+  const handleDocumentFileChange = (file) => {
+    setError('');
+    if (!file) return;
+
+    if (!isValidFileType(file)) {
+      setError(`Invalid file type: ${file.type}. Please upload a supported file type.`);
+      return;
+    }
+    
+    const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+    
+    const defaultName = !newDocument.name.trim() 
+      ? `${fileNameWithoutExt} - ${new Date().toLocaleDateString()}`
+      : newDocument.name;
+    
+    setNewDocument(prev => ({ 
+      ...prev, 
+      file, 
+      name: defaultName
+    }));
+  };
+
+  const handleFileInputChange = (e) => {
+    const file = e.target.files[0];
+    handleDocumentFileChange(file);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const file = files[0];
+      handleDocumentFileChange(file);
+    }
+  };
+
+  useEffect(() => {
+    if (showDocumentModal) {
+      document.addEventListener('paste', handlePaste);
+      if (dragDropAreaRef.current) {
+        dragDropAreaRef.current.focus();
+      }
+    }
+    
+    return () => {
+      document.removeEventListener('paste', handlePaste);
+    };
+  }, [showDocumentModal, handlePaste]);
+
+  useEffect(() => {
+    if (showDocumentModal && dragDropAreaRef.current) {
+      setTimeout(() => {
+        dragDropAreaRef.current?.focus();
+      }, 100);
+    }
+  }, [showDocumentModal]);
 
   const fetchDocumentsByReference = useCallback(async (referenceId) => {
     try {
@@ -86,20 +185,6 @@ const AttachedFileModal = ({
       fetchDocumentsByReference(note.id);
     }
   }, [note, fetchDocumentsByReference]);
-
-  const handleDocumentFileChange = (e) => {
-    const file = e.target.files[0];
-    setError('');
-    if (!file) return;
-
-    if (!isValidFileType(file)) {
-      setError('Invalid file type.');
-      return;
-    }
-    const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
-
-    setNewDocument(prev => ({ ...prev, file, name: !prev.name.trim() ? fileNameWithoutExt : prev.name }));
-  };
 
   const handleDocumentSubmit = async () => {
     if (!newDocument.name.trim()) {
@@ -170,7 +255,7 @@ const AttachedFileModal = ({
     setTimeout(() => {
       setIsDownloading(false);
       setIsSubmitting(false);
-    }, 1000); // Hide spinner after 1 second, adjust as needed
+    }, 1000);
   };
 
   if (!note) return null;
@@ -204,21 +289,11 @@ const AttachedFileModal = ({
               </div>
 
               {isDownloading && (
-                <div style={{
-                  margin: '16px 0',
-                  padding: '16px',
-                  background: '#e8f5e8',
-                  border: '1px solid #4caf50',
-                  borderRadius: '8px',
-                  color: '#2e7d32',
-                  textAlign: 'center'
-                }}>
-                  <div className="spinner"></div>
-                  <p style={{ fontWeight: '600', marginBottom: '8px' }}>
-                    Downloading {currentDownloadingFileName}...
-                  </p>
-                </div>
-              )}
+              <div className="downloading-indicator">
+                <div className="spinner"></div>
+                <p>Downloading {currentDownloadingFileName}...</p>
+              </div>
+            )}
 
               <div className="afm-doc-list">
                 {documents.length === 0 ? (
@@ -268,7 +343,11 @@ const AttachedFileModal = ({
 
               <div className="afm-header">
                 <h3>Add Document</h3>
-                <button className="afm-close" onClick={() => setShowDocumentModal(false)} disabled={isUploading}>
+                <button className="afm-close" onClick={() => {
+                  setShowDocumentModal(false);
+                  setNewDocument({ name: '', file: null });
+                  setPasteIndicator(false);
+                }} disabled={isUploading}>
                   &times;
                 </button>
               </div>
@@ -279,6 +358,12 @@ const AttachedFileModal = ({
                   <button onClick={() => setError('')}>×</button>
                 </div>
               )}
+
+              {pasteIndicator && (
+              <div className="paste-indicator">
+                File pasted from clipboard!
+              </div>
+            )}
 
               <div className="afm-content">
                 <div className="afm-field">
@@ -294,47 +379,98 @@ const AttachedFileModal = ({
 
                 <div className="afm-field">
                   <label>File:</label>
+                  
+                  <div 
+                    ref={dragDropAreaRef}
+                    className={`drag-drop-area ${isDragOver ? 'drag-over' : ''} ${pasteIndicator ? 'paste-success' : ''}`}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    tabIndex={0} 
+                    onClick={() => document.getElementById('fileInput')?.click()}
+                  >
+                    <div className="drag-drop-icon">
+                    {pasteIndicator ? '📋' : isDragOver ? '⬆️' : '📋'}
+                  </div>
+                    
+                    <p className="drag-drop-title">
+                    {pasteIndicator ? 'File Pasted Successfully!' : 
+                    isDragOver ? 'Drop file here' : 
+                    'Drag & Drop or Paste file here'}
+                  </p>
+                                    
+                                    <p className="drag-drop-subtitle">
+                    {pasteIndicator ? 'Ready to upload!' : 'You can also copy a file and paste (Ctrl+V) here'}
+                  </p>
+                    
+                    
+                  </div>
+
                   <input
+                    id="fileInput"
                     type="file"
-                    onChange={handleDocumentFileChange}
+                    onChange={handleFileInputChange}
                     disabled={isUploading}
+                    style={{ display: 'none' }}
                   />
 
+                  <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+                    <button
+                      type="button"
+                      onClick={() => document.getElementById('fileInput')?.click()}
+                      disabled={isUploading}
+                      style={{
+                        padding: '10px 20px',
+                        backgroundColor: '#f0f0f0',
+                        border: '1px solid #ddd',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '14px'
+                      }}
+                    >
+                      Or Choose File
+                    </button>
+                  </div>
+
                   {newDocument.file && (
-                    <div style={{
-                      marginTop: '12px',
-                      padding: '14px 16px',
-                      background: '#e8f5e8',
-                      border: '1px solid #4caf50',
-                      borderRadius: '8px',
-                      color: '#2e7d32',
-                      fontWeight: '500'
-                    }}>
-                      Selected: <strong>{newDocument.file.name}</strong>
-                      <span style={{ marginLeft: '10px', opacity: 0.8 }}>
-                        ({(newDocument.file.size / 1024 / 1024).toFixed(1)} MB)
-                      </span>
+                    <div className="file-preview">
+                      <div className="file-preview-header">
+                        <div>
+                          <div className="file-preview-name">
+                            {newDocument.file.name}
+                          </div>
+                          <div className="file-preview-details">
+                            Size: {(newDocument.file.size / 1024 / 1024).toFixed(2)} MB
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => setNewDocument(prev => ({ ...prev, file: null }))}
+                          
+                          disabled={isUploading}
+                          
+                        >
+                          ×
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
 
                 {isUploading && (
-                  <div style={{
-                    textAlign: 'center',
-                    margin: '20px 0',
-                    color: '#4caf50',
-                    fontWeight: '600',
-                    fontSize: '16px'
-                  }}>
-                    <div className="spinner"></div>
-                    Uploading...
-                  </div>
-                )}
+                <div className="uploading-indicator">
+                  <div className="spinner"></div>
+                  Uploading {newDocument.file?.name}...
+                </div>
+              )}
               </div>
 
               <div className="afm-footer">
                 <button
-                  onClick={() => setShowDocumentModal(false)}
+                  onClick={() => {
+                    setShowDocumentModal(false);
+                    setNewDocument({ name: '', file: null });
+                    setPasteIndicator(false);
+                  }}
                   className="afm-cancel-button"
                   disabled={isUploading}
                 >

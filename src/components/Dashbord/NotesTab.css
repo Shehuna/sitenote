@@ -1256,7 +1256,7 @@ tr.selected-row.priority-4 {
     align-items: center;
     gap: 6px;
     background-color: #e8f5ff; 
-    color: #1976d2; 
+    color: #14A2B6; 
     padding: 4px 10px; 
     border-radius: 16px; 
     font-size: 12px;
@@ -1296,7 +1296,7 @@ tr.selected-row.priority-4 {
 }
 
 .expanded-stack-title i {
-    color: #1976d2;
+    color: #14A2B6;
     font-size: 1em;
 }
 

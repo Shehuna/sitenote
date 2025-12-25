@@ -1206,7 +1206,7 @@ const renderUserStatusIndicator = (userId, userName) => {
                               >
                                 <i
                                   className="fas fa-briefcase"
-                                  style={{ color: "#3498db" }}
+                                  style={{ color: "#14A2B6" }}
                                 />
                                 <span
                                   style={{
@@ -1224,7 +1224,7 @@ const renderUserStatusIndicator = (userId, userName) => {
                                 display: "flex",
                                 alignItems: "center",
                                 gap: "6px",
-                                background: "#3498db",
+                                background: "#14A2B6",
                                 color: "white",
                                 padding: "4px 10px",
                                 borderRadius: "20px",
@@ -1256,7 +1256,7 @@ const renderUserStatusIndicator = (userId, userName) => {
                                   width: "28px",
                                   height: "28px",
                                   borderRadius: "50%",
-                                  backgroundColor: "#3498db",
+                                  backgroundColor: " #14A2B6",
                                   color: "white",
                                   display: "flex",
                                   alignItems: "center",
