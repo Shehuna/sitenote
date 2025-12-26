@@ -37,6 +37,7 @@ const Dashboard = ({
   fetchNotes,
   
 }) => {
+
   const [searchTerm, setSearchTerm] = useState(() => {
     const saved = localStorage.getItem("dashboardSearchTerm");
     return saved || "";
@@ -2016,6 +2017,7 @@ const displayNotes = useMemo(() => {
           viewMode={viewMode}
           setViewMode={setViewMode}
           handleRefresh={handleRefresh}
+          refreshNotes={refreshNotes}
           handleNewNoteClick={handleNewNoteClick}
         />
 

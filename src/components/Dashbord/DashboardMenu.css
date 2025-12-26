@@ -1623,6 +1623,9 @@
     gap: 4px;
     animation: fadeInDown 0.2s ease;
   }
+  .refresh-btn{
+    border-radius: 50%;
+  }
   
   .mobile-menu-item {
     display: flex;

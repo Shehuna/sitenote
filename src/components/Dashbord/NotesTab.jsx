@@ -50,7 +50,7 @@ const NotesTab = ({
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [isLoadingInitial, setIsLoadingInitial] = useState(true);
+  const [isLoadingInitial, setIsLoadingInitial] = useState(false);
   const loadingRef = useRef(false);
   const observerRef = useRef(null);
   const lastRowRef = useRef(null);
@@ -58,18 +58,101 @@ const NotesTab = ({
   const containerRef = useRef(null);
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
   
-  const pageSize = 50; // Fixed page size
+  const pageSize = 50;
+  const initialPageNumber = 1;
 
   // Determine which notes to display based on filters/search
   const displayNotes = useMemo(() => {
-    if (searchTerm.trim()) {
-      return searchResults;
+    // If we have active filters or search term, use those results from parent
+    if (searchTerm.trim() || hasActiveFilters) {
+      return searchTerm.trim() ? (searchResults || []) : (filteredNotesFromApi || []);
     }
-    if (hasActiveFilters) {
-      return filteredNotesFromApi;
+    
+    // Otherwise, use localNotes for infinite scroll OR finalDisplayNotes if we have them
+    // Prefer localNotes for infinite scroll, but also include any new notes from parent
+    if (finalDisplayNotes && finalDisplayNotes.length > 0) {
+      // When localNotes is empty but we have finalDisplayNotes, use them
+      if (localNotes.length === 0) {
+        return [...finalDisplayNotes].sort((a, b) => b.id - a.id);
+      }
+      
+      // Merge and deduplicate notes from both sources
+      const allNotesMap = new Map();
+      
+      // First add all localNotes
+      localNotes.forEach(note => {
+        allNotesMap.set(note.id, note);
+      });
+      
+      // Then add/update with finalDisplayNotes (these are newer/more up-to-date)
+      finalDisplayNotes.forEach(note => {
+        allNotesMap.set(note.id, note);
+      });
+      
+      // Convert back to array and sort by ID descending (newest first)
+      return Array.from(allNotesMap.values()).sort((a, b) => b.id - a.id);
     }
-    return localNotes;
-  }, [searchTerm, searchResults, hasActiveFilters, filteredNotesFromApi, localNotes]);
+    
+    return localNotes || [];
+  }, [
+    searchTerm, 
+    hasActiveFilters, 
+    searchResults, 
+    filteredNotesFromApi, 
+    localNotes,
+    finalDisplayNotes
+  ]);
+
+  // Sync finalDisplayNotes from parent to localNotes when appropriate
+  useEffect(() => {
+    // Only sync when we have finalDisplayNotes and no active filters/search
+    if (finalDisplayNotes && 
+        finalDisplayNotes.length > 0 && 
+        !hasActiveFilters && 
+        !searchTerm.trim()) {
+      
+      // If this is initial load, set localNotes directly
+      if (isInitialLoad) {
+        setLocalNotes([...finalDisplayNotes].sort((a, b) => b.id - a.id));
+        setHasMore(finalDisplayNotes.length >= pageSize);
+        setIsInitialLoad(false);
+      } else {
+        // Merge new notes from parent with existing local notes
+        const existingIds = new Set(localNotes.map(note => note.id));
+        const newNotesFromParent = finalDisplayNotes.filter(note => !existingIds.has(note.id));
+        
+        if (newNotesFromParent.length > 0) {
+          // Sort new notes by ID descending and add to beginning (newest first)
+          const sortedNewNotes = [...newNotesFromParent].sort((a, b) => b.id - a.id);
+          setLocalNotes(prev => [...sortedNewNotes, ...prev]);
+          
+          // Also update any existing notes that might have changed
+          const updatedNotes = finalDisplayNotes.filter(note => existingIds.has(note.id));
+          if (updatedNotes.length > 0) {
+            setLocalNotes(prev => prev.map(note => {
+              const updatedNote = updatedNotes.find(u => u.id === note.id);
+              return updatedNote || note;
+            }));
+          }
+        }
+      }
+    }
+  }, [finalDisplayNotes, hasActiveFilters, searchTerm, isInitialLoad, localNotes, pageSize]);
+
+  // Reset infinite scroll when filters/search are cleared
+  useEffect(() => {
+    if (!hasActiveFilters && !searchTerm.trim() && !isInitialLoad) {
+      setHasMore(true);
+      setPage(1);
+      
+      // If we have finalDisplayNotes, use them as base
+      if (finalDisplayNotes && finalDisplayNotes.length > 0) {
+        setLocalNotes([...finalDisplayNotes].sort((a, b) => b.id - a.id));
+        setPage(2);
+        setHasMore(finalDisplayNotes.length >= pageSize);
+      }
+    }
+  }, [hasActiveFilters, searchTerm, isInitialLoad, finalDisplayNotes, pageSize]);
 
   // Function to fetch user status by ID
   const fetchUserStatus = async (userId) => {
@@ -95,19 +178,19 @@ const NotesTab = ({
     }
   };
 
-  // Load initial notes
+  // Load initial notes via API (only when parent doesn't provide data)
   const loadInitialNotes = useCallback(async () => {
-    if (loadingRef.current) return;
+    if (loadingRef.current || (finalDisplayNotes && finalDisplayNotes.length > 0)) return;
     
     loadingRef.current = true;
     setIsLoadingInitial(true);
     
     try {
-      const result = await fetchNotes(1, pageSize);
+      const result = await fetchNotes(initialPageNumber, pageSize);
       if (result && result.notes) {
-        setLocalNotes(result.notes);
+        setLocalNotes([...result.notes].sort((a, b) => b.id - a.id));
         setHasMore(result.hasMore);
-        setPage(2); // Next page to load
+        setPage(initialPageNumber + 1);
       }
     } catch (error) {
       console.error("Error loading initial notes:", error);
@@ -116,11 +199,13 @@ const NotesTab = ({
       setIsLoadingInitial(false);
       setIsInitialLoad(false);
     }
-  }, [fetchNotes, pageSize]);
+  }, [fetchNotes, pageSize, finalDisplayNotes]);
 
-  // Load more notes
+  // Load more notes via API
   const loadMoreNotes = useCallback(async () => {
-    if (loadingRef.current || !hasMore || hasActiveFilters || searchTerm.trim()) return;
+    if (loadingRef.current || !hasMore || hasActiveFilters || searchTerm.trim()) {
+      return;
+    }
     
     loadingRef.current = true;
     setLoadingMore(true);
@@ -132,7 +217,9 @@ const NotesTab = ({
           // Filter out duplicates
           const existingIds = new Set(prev.map(note => note.id));
           const newNotes = result.notes.filter(note => !existingIds.has(note.id));
-          return [...prev, ...newNotes];
+          // Sort by ID descending (newest first)
+          const sortedNewNotes = [...newNotes].sort((a, b) => b.id - a.id);
+          return [...prev, ...sortedNewNotes];
         });
         setHasMore(result.hasMore);
         setPage(prev => prev + 1);
@@ -147,18 +234,39 @@ const NotesTab = ({
     }
   }, [fetchNotes, page, hasMore, hasActiveFilters, searchTerm]);
 
-  // Initialize notes on mount
+  // Initialize notes on mount if parent doesn't provide them
   useEffect(() => {
     if (isDataLoaded && !hasActiveFilters && !searchTerm.trim() && isInitialLoad) {
-      loadInitialNotes();
+      if (!finalDisplayNotes || finalDisplayNotes.length === 0) {
+        loadInitialNotes();
+      } else {
+        // Parent already provided notes
+        setIsInitialLoad(false);
+      }
     }
-  }, [isDataLoaded, hasActiveFilters, searchTerm, isInitialLoad, loadInitialNotes]);
+  }, [isDataLoaded, hasActiveFilters, searchTerm, isInitialLoad, loadInitialNotes, finalDisplayNotes]);
 
-  // Setup intersection observer for infinite scroll - TABLE VIEW
-  useEffect(() => {
-    if (viewMode !== 'table' || hasActiveFilters || searchTerm.trim() || !hasMore || loadingMore) {
+  // Setup intersection observer for infinite scroll
+  const setupObserver = useCallback(() => {
+    // Clean up existing observer
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+    }
+
+    // Don't setup observer if we shouldn't be loading more
+    if (hasActiveFilters || searchTerm.trim() || !hasMore || loadingMore) {
       return;
     }
+
+    // Determine which element to observe based on view mode
+    let targetElement = null;
+    if (viewMode === 'table' && lastRowRef.current) {
+      targetElement = lastRowRef.current;
+    } else if (viewMode === 'cards' && lastCardRef.current) {
+      targetElement = lastCardRef.current;
+    }
+
+    if (!targetElement) return;
 
     const options = {
       root: null,
@@ -168,51 +276,35 @@ const NotesTab = ({
 
     const observer = new IntersectionObserver((entries) => {
       const [entry] = entries;
-      if (entry.isIntersecting && hasMore && !loadingMore) {
+      if (entry.isIntersecting && hasMore && !loadingMore && !loadingRef.current) {
         loadMoreNotes();
       }
     }, options);
 
-    if (lastRowRef.current) {
-      observer.observe(lastRowRef.current);
-    }
-
-    return () => {
-      if (lastRowRef.current) {
-        observer.unobserve(lastRowRef.current);
-      }
-    };
+    observer.observe(targetElement);
+    observerRef.current = observer;
   }, [viewMode, hasMore, loadingMore, hasActiveFilters, searchTerm, loadMoreNotes]);
 
-  // Setup intersection observer for infinite scroll - CARD VIEW
+  // Update observer when dependencies change
   useEffect(() => {
-    if (viewMode !== 'cards' || hasActiveFilters || searchTerm.trim() || !hasMore || loadingMore) {
-      return;
-    }
-
-    const options = {
-      root: null,
-      rootMargin: '100px',
-      threshold: 0.1,
-    };
-
-    const observer = new IntersectionObserver((entries) => {
-      const [entry] = entries;
-      if (entry.isIntersecting && hasMore && !loadingMore) {
-        loadMoreNotes();
-      }
-    }, options);
-
-    if (lastCardRef.current) {
-      observer.observe(lastCardRef.current);
-    }
-
+    setupObserver();
+    
     return () => {
-      if (lastCardRef.current) {
-        observer.unobserve(lastCardRef.current);
+      if (observerRef.current) {
+        observerRef.current.disconnect();
       }
     };
-  }, [viewMode, hasMore, loadingMore, hasActiveFilters, searchTerm, loadMoreNotes]);
+  }, [setupObserver]);
+
+  // Re-setup observer when displayNotes changes
+  useEffect(() => {
+    // Small delay to ensure DOM is updated
+    const timer = setTimeout(() => {
+      setupObserver();
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [displayNotes, setupObserver]);
 
   // Fetch user statuses when displayNotes changes
   useEffect(() => {
@@ -242,17 +334,18 @@ const NotesTab = ({
     return {};
   };
 
-const renderUserStatusIndicator = (userId, userName) => {
-  if (loadingUsers[userId]) {
-    return (
-      <span className="user-status-loading" title="Loading user status...">
-        <i className="fas fa-spinner fa-spin" style={{ marginLeft: '4px', fontSize: '10px' }} />
-      </span>
-    );
-  }
+  const renderUserStatusIndicator = (userId, userName) => {
+    if (loadingUsers[userId]) {
+      return (
+        <span className="user-status-loading" title="Loading user status...">
+          <i className="fas fa-spinner fa-spin" style={{ marginLeft: '4px', fontSize: '10px' }} />
+        </span>
+      );
+    }
 
-  return null;
-};
+    return null;
+  };
+
   // New function to render user name with hover tooltip for inactive users
   const renderUserNameWithStatus = (note) => {
     const isInactive = userStatusMap[note.userId] && !userStatusMap[note.userId].active;
@@ -768,7 +861,7 @@ const renderUserStatusIndicator = (userId, userName) => {
               </tr>
             </thead>
             <tbody>
-              {!isDataLoaded || initialLoading || searchLoading || loadingFiltered || loadingUniques ? (
+              {!isDataLoaded || initialLoading || searchLoading || loadingFiltered || loadingUniques || isLoadingInitial ? (
                 renderTableSkeleton()
               ) : displayNotes.length === 0 ? (
                 renderTableEmptyState()
@@ -789,8 +882,8 @@ const renderUserStatusIndicator = (userId, userName) => {
                   )}
                   {!hasMore && displayNotes.length > 0 && !loadingMore && !hasActiveFilters && !searchTerm.trim() && (
                     <tr>
-                      <td colSpan={8} style={{ textAlign: "center", padding: "20px", color: "#666", fontStyle: "italic" }}>
-                        <i className="fas fa-check-circle" style={{ marginRight: "8px", color: "#27ae60" }} />
+                      <td colSpan={8} style={{ textAlign: "center", padding: "10px", color: "#666", fontStyle: "italic" }}>
+                        <i className="fas fa-check-circle" style={{ marginRight: "8px", color: "#75a0f5ff" }} />
                         No more notes to load
                       </td>
                     </tr>
@@ -1370,7 +1463,7 @@ const renderUserStatusIndicator = (userId, userName) => {
               </div>
             ) : (
         <div className="notes-grid">
-          {!isDataLoaded || initialLoading || searchLoading || loadingFiltered ? (
+          {!isDataLoaded || initialLoading || searchLoading || loadingFiltered || isLoadingInitial ? (
             renderCardSkeleton()
           ) : displayNotes.length === 0 ? (
             renderCardEmptyState()
@@ -1389,14 +1482,13 @@ const renderUserStatusIndicator = (userId, userName) => {
                 <div className="no-more-notes" style={{ 
                   gridColumn: "1 / -1", 
                   textAlign: "center", 
-                  padding: "20px", 
+                  padding: "8px", 
                   color: "#666", 
                   fontStyle: "italic",
-                  backgroundColor: "#f8f9fa",
                   borderRadius: "8px",
-                  margin: "20px 0"
+                  margin: "5px 0"
                 }}>
-                  <i className="fas fa-check-circle" style={{ marginRight: "8px", color: "#27ae60" }} />
+                  <i className="fas fa-check-circle" style={{ marginRight: "8px", color: "#75a0f5ff" }} />
                   No more notes to load
                 </div>
               )}

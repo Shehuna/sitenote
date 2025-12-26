@@ -13,8 +13,7 @@ const NewNoteModal = forwardRef(({
     refreshNotes,
     refreshFilteredNotes,
     addSiteNote,
-    onUploadDocument,
-    onDeleteDocument,
+    
     prefilledData = null,
     defWorkSpaceId,
     userworksaces = [],

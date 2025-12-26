@@ -11,8 +11,9 @@ function App() {
   const [userId, setUserId] = useState(0);
   const [defaultWorkspace, setDefaultWorkspace] = useState('');
   const [userDefaultWork, setUserDefaultWork] = useState('');
-  const [isInWorkspace, setIsInWorkspace] = useState(false);
-  const [userWorkspaceMaps, setUserWorkspaceMaps] = useState([]);
+  
+  /* const [isInWorkspace, setIsInWorkspace] = useState(false);
+  const [userWorkspaceMaps, setUserWorkspaceMaps] = useState([]); */
   const [onRefresh, setOnRefresh] = useState(0);
   const [projects, setProjects] = useState([]); 
   const [jobs, setJobs] = useState([]);
@@ -23,15 +24,14 @@ function App() {
   const [documentCounts, setDocumentCounts] = useState({});
   const [workspaces, setWorkspaces] = useState([]);
   const [role, setRole] = useState('');
-  const [showBackToTop, setShowBackToTop] = useState(false);
+ 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
-  const isInitialFetchRef = useRef(true);
+  /* const isInitialFetchRef = useRef(true);
   const [stackedJobs, setStackedJobs] = useState([]);
   const [loadingStackedJobs, setLoadingStackedJobs] = useState(false);
-  const [pageNumber, setPageNumber] = useState(1);
-  const pageSize = 50; // Fixed page size for consistency
+  const [pageNumber, setPageNumber] = useState(1); */
+  const pageSize = 50;   
   
-  // Add this useEffect to sync authentication state
   useEffect(() => {
     const checkAuthState = () => {
       const userStr = localStorage.getItem("user");
@@ -42,7 +42,6 @@ function App() {
       }
     };
 
-    // Check auth state when component mounts
     checkAuthState();
 
     // Listen for storage changes (when UserManagement stores user)
@@ -53,7 +52,6 @@ function App() {
     };
   }, []);
 
-  // Modified fetchNotes to return data instead of updating state
   const fetchNotes = useCallback(async (page = 1, pageSize = 50) => {
     console.log("fetchNotes called - page:", page, "userId:", userId, "pageSize:", pageSize);
 
@@ -66,8 +64,7 @@ function App() {
       });
 
       const text = await response.text();
-      console.log("API Response data:", text);
-
+      
       if (response.ok) {
         const data = JSON.parse(text);
 
@@ -110,7 +107,7 @@ function App() {
         setDefaultWorkspace(data.user.defaultWorkspaceId);
         setRole(data.user.role)
         setUserDefaultWork(data.user.defaultWorkspaceName);
-        fetchDefaultWorkspace(data.user.defaultWorkspaceId);
+        //fetchDefaultWorkspace(data.user.defaultWorkspaceId);
         setLoading(false);  
       }
     } catch (error) {
@@ -125,7 +122,7 @@ function App() {
     setUserDefaultWork(newDefName);
   };
 
-  const fetchDefaultWorkspace = async (defId) => {
+/*   const fetchDefaultWorkspace = async (defId) => {
     try {
       const response = await fetch(`${apiUrl}/Workspace/GetWorkspaceById/${defId}`, {
         method: "GET",
@@ -144,7 +141,7 @@ function App() {
     } finally {
       setLoading(false);
     }
-  }
+  } */
 
   const initializeUser = () => {
     try {

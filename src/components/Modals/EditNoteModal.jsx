@@ -7,11 +7,10 @@ const EditNoteModal = ({
   onClose,
   refreshNotes,
   updateNote,
-  uploadDocument,
+ 
   projects = [],
   jobs = [],
-  priorities = [],
-  onPriorityUpdate,
+  
   defaultWorkspaceId,
   openToPriorityTab = false
 }) => {
@@ -22,6 +21,8 @@ const EditNoteModal = ({
     jobId: "",
     note: "",
   });
+
+  console.log(note)
 
   const [documents, setDocuments] = useState([]);
   const [showDocumentModal, setShowDocumentModal] = useState(false);
@@ -34,8 +35,9 @@ const EditNoteModal = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
-  const [selectedPriority, setSelectedPriority] = useState("");
-  const [priorityId, setPriorityId] = useState("");
+  const [selectedPriority, setSelectedPriority] = useState("1"); // Default to "No Priority"
+  const [priorityId, setPriorityId] = useState(null); // Will store the priority ID if exists
+  const [isLoadingPriority, setIsLoadingPriority] = useState(false);
 
   const [isUploading, setIsUploading] = useState(false);
 
@@ -105,6 +107,62 @@ const EditNoteModal = ({
 
   const isValidFileType = (file) => Object.keys(allowedFileTypes).includes(file.type);
 
+  // Fetch priority by note ID
+  const fetchPriorityByNoteId = useCallback(async (noteId) => {
+    if (!noteId) return null;
+    
+    setIsLoadingPriority(true);
+    try {
+      const response = await fetch(
+        `${process.env.REACT_APP_API_BASE_URL}/api/Priority/GetPriorityByNoteId/${noteId}`
+      );
+      
+      if (!response.ok) {
+        // If no priority exists (404), that's OK - notes have default priority
+        if (response.status === 404) {
+          console.log(`No priority found for note ${noteId}, using default (1)`);
+          setSelectedPriority("1");
+          setPriorityId(null);
+          return null;
+        }
+        throw new Error(`Failed to fetch priority: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('Priority data fetched:', data);
+      
+      // Handle different response formats
+      if (data.priority) {
+        // If response has a priority object
+        setSelectedPriority(data.priority.priorityValue?.toString() || "1");
+        setPriorityId(data.priority.id?.toString() || null);
+      } else if (data.priorityValue) {
+        // If response is the priority object itself
+        setSelectedPriority(data.priorityValue.toString());
+        setPriorityId(data.id?.toString() || null);
+      } else if (Array.isArray(data) && data.length > 0) {
+        // If response is an array
+        const priority = data[0];
+        setSelectedPriority(priority.priorityValue?.toString() || "1");
+        setPriorityId(priority.id?.toString() || null);
+      } else {
+        // No priority found, use default
+        setSelectedPriority("1");
+        setPriorityId(null);
+      }
+      
+      return data;
+    } catch (error) {
+      console.error("Error fetching priority:", error);
+      // On error, use default priority
+      setSelectedPriority("1");
+      setPriorityId(null);
+      return null;
+    } finally {
+      setIsLoadingPriority(false);
+    }
+  }, []);
+
   // Initialize editor content
   useEffect(() => {
     if (editorRef.current && note?.value && isInitialLoad.current) {
@@ -155,7 +213,7 @@ const EditNoteModal = ({
     }
   }, []);
 
-  // Load note data including inline images
+  // Load note data including inline images and priority
   useEffect(() => {
     if (note) {
       const projectId = note.projectId
@@ -187,6 +245,11 @@ const EditNoteModal = ({
 
       // Store original note content
       setOriginalNoteContent(note.note || '');
+
+      // Fetch priority for this note
+      if (note.id) {
+        fetchPriorityByNoteId(note.id);
+      }
 
       // Fetch documents and images
       if (note.id) {
@@ -239,25 +302,8 @@ const EditNoteModal = ({
           }, 100);
         });
       }
-
-      if (note.id) {
-        const user = JSON.parse(localStorage.getItem("user"));
-        let result = priorities.find((p) => p.noteID == note.id);
-        if (!result) {
-          result = priorities.find(
-            (p) => p.noteID === note.id && p.userId === user.id
-          );
-        }
-        if (result) {
-          setSelectedPriority(result.priorityValue.toString());
-          setPriorityId(result.id.toString());
-        } else {
-          setSelectedPriority("1");
-          setPriorityId("");
-        }
-      }
     }
-  }, [note?.id, fetchInlineImages, projects, jobs, priorities]);
+  }, [note?.id, fetchInlineImages, fetchPriorityByNoteId, projects, jobs]);
 
   // Restore editor content when switching back to journal tab
   useEffect(() => {
@@ -856,7 +902,10 @@ const EditNoteModal = ({
       
       // If user is not creator, only allow priority update
       if (!canEditNote) {
-        await handleUpdatepriority();
+        // Only update priority if it exists (has priorityId)
+        if (priorityId) {
+          await handleUpdatepriority();
+        }
         onClose(noteIdToReturn);
         refreshNotes();
         return;
@@ -864,7 +913,10 @@ const EditNoteModal = ({
 
       // If note is older than 24 hours, only allow priority update
       if (!isEditable) {
-        await handleUpdatepriority();
+        // Only update priority if it exists (has priorityId)
+        if (priorityId) {
+          await handleUpdatepriority();
+        }
         onClose(noteIdToReturn);
         refreshNotes();
         return;
@@ -975,7 +1027,11 @@ const EditNoteModal = ({
           }
         }
         
-        await handleUpdatepriority();
+        // Update priority if it exists
+        if (priorityId) {
+          await handleUpdatepriority();
+        }
+        
         onClose();
         refreshNotes();
         toast.success('Note updated successfully!');
@@ -1029,37 +1085,36 @@ const EditNoteModal = ({
     }
   }, [error]);
 
+  // UPDATED: Only update priority, no add operation
   const handleUpdatepriority = async () => {
+    if (!priorityId) {
+      console.log('No priority ID, skipping priority update');
+      return; // No priority to update
+    }
+
     try {
       const user = JSON.parse(localStorage.getItem("user"));
-      let response;
-
-      if (priorityId) {
-        response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Priority/UpdatePriority/${priorityId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ priorityValue: selectedPriority }),
-        });
-      } else {
-        response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Priority/AddPriority`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            noteID: note.id,
-            priorityValue: selectedPriority,
-            userId: user.id,
-          }),
-        });
-      }
+      
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Priority/UpdatePriority/${priorityId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          priorityValue: selectedPriority,
+          userId: user.id 
+        }),
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || `Failed to ${priorityId ? "update" : "create"} priority`);
+        throw new Error(errorData.message || `Failed to update priority`);
       }
 
-      toast.success(`Priority ${priorityId ? "updated" : "created"} successfully`);
+      const result = await response.json();
+      //toast.success("Priority updated successfully");
+      return result;
     } catch (error) {
-      console.error("Error saving priority:", error);
+      console.error("Error updating priority:", error);
+      toast.error(error.message || "Failed to update priority");
       throw error;
     }
   };
@@ -1424,7 +1479,7 @@ const EditNoteModal = ({
             className={`tab-button ${activeTab === "priority" ? "active" : ""}`}
             onClick={() => setActiveTab("priority")}
           >
-            Priority
+            Priority {priorityId && "✓"}
           </button>
         </div>
 
@@ -1584,20 +1639,36 @@ const EditNoteModal = ({
             </div>
           ) : (
             <div className="journal-section">
-              <div className="form-group">
-                <label>Priority</label>
-                <select
-                  value={selectedPriority}
-                  onChange={(e) => setSelectedPriority(e.target.value)}
-                  disabled={isSubmitting}
-                  className={`priority-select ${selectedPriority ? `priority-${selectedPriority}` : "priority-default"}`}
-                >
-                  <option value="">Select Priority</option>
-                  <option value="4" className="priority-option-4">High</option>
-                  <option value="3" className="priority-option-3">Medium</option>
-                  <option value="1" className="priority-option-1">No Priority</option>
-                </select>
-              </div>
+              {isLoadingPriority ? (
+                <div className="loading-priority">
+                  <div className="spinner"></div>
+                  <p>Loading priority...</p>
+                </div>
+              ) : (
+                <div className="form-group">
+                  <label>Priority {priorityId ? "(Update Only)" : "(Default - No Priority)"}</label>
+                  <select
+                    value={selectedPriority}
+                    onChange={(e) => setSelectedPriority(e.target.value)}
+                    disabled={isSubmitting || !priorityId} // Disable if no priority exists
+                    className={`priority-select ${selectedPriority ? `priority-${selectedPriority}` : "priority-default"}`}
+                  >
+                    <option value="1" className="priority-option-1">No Priority (Default)</option>
+                    <option value="3" className="priority-option-3">Medium</option>
+                    <option value="4" className="priority-option-4">High</option>
+                  </select>
+                  {!priorityId && (
+                    <div className="priority-note">
+                      <i className="fas fa-info-circle"></i> This note has no priority set. It uses the default "No Priority" setting.
+                    </div>
+                  )}
+                  {priorityId && (
+                    <div className="priority-note">
+                      <i className="fas fa-info-circle"></i> Priority exists. Changing will update the existing priority.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -3,6 +3,7 @@ import SettingsModal from '../Modals/SettingsModal';
 import UserProfile from '../UserProfile/UserProfile';
 import ChangeWorkspaceModal from '../Workspaces/ChangeWorkspaceModal';
 import RequestWorkspaceModal from '../Workspaces/RequestWorkspaceModal';
+import RequestWorkspaceOtpModal from '../Modals/RequestWorkspaceOtpModal'; // NEW IMPORT
 import './DashboardMenu.css';
 
 const DashboardMenu = ({
@@ -21,12 +22,15 @@ const DashboardMenu = ({
     viewMode,
     setViewMode,
     handleRefresh,
-    handleNewNoteClick
+    handleNewNoteClick,
+    refreshNotes
 }) => {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
   const [showChangeWorkspaceModal, setShowChangeWorkspaceModal] = useState(false);
   const [showRequestWorkspaceModal, setShowRequestWorkspaceModal] = useState(false);
+  const [showRequestWorkspaceOtpModal, setShowRequestWorkspaceOtpModal] = useState(false); // NEW STATE
+  const [verifiedEmail, setVerifiedEmail] = useState(''); // NEW STATE
   const [isRoleLoading, setIsRoleLoading] = useState(false);
   const [userWorkspaces, setUserWorkspaces] = useState();
   const [role, setRole] = useState(null);
@@ -176,7 +180,7 @@ const DashboardMenu = ({
   const shouldShowSettings = () => {
     return (userRole === "Admin" || role === 1);
   };
-  
+
   const handleProfileClick = () => {
     setShowUserProfileModal(true);
     setShowUserMenu(false);
@@ -189,10 +193,22 @@ const DashboardMenu = ({
     setShowMobileMenu(false);
   };
 
+  // UPDATED: Now shows OTP modal first
   const handleRequestWorkspaceClick = () => {
-    setShowRequestWorkspaceModal(true);
+    setShowRequestWorkspaceOtpModal(true); // Show OTP verification modal
     setShowUserMenu(false);
     setShowMobileMenu(false);
+  };
+
+  // NEW: Handle OTP verification success
+  const handleOtpVerificationSuccess = (email) => {
+    setVerifiedEmail(email);
+    
+    // Close OTP modal and show workspace request modal
+    setShowRequestWorkspaceOtpModal(false);
+    setTimeout(() => {
+      setShowRequestWorkspaceModal(true);
+    }, 300);
   };
 
   const handleWorkspaceChanged = (workspaceId, workspaceName) => {
@@ -236,7 +252,7 @@ const DashboardMenu = ({
   };
 
   const handleMobileRequestWorkspace = () => {
-    setShowRequestWorkspaceModal(true);
+    setShowRequestWorkspaceOtpModal(true); // Show OTP modal first
     setShowUserMenu(false);
   };
   
@@ -331,6 +347,13 @@ const DashboardMenu = ({
                     >
                       <i className="fas fa-layer-group" />
                     </button>
+                    <button
+                      onClick={handleRefresh}
+                      className={`mobile-view-btn ${viewMode === "stacked" ? "active" : ""}`}
+                      title="Refresh"
+                    >
+                      <i className="fas fa-refresh" />
+                    </button>
                   </div>
                 </div>
               )}
@@ -403,6 +426,13 @@ const DashboardMenu = ({
                 title="Stacked View"
               >
                 <i className="fas fa-layer-group" />
+              </button>
+              <button
+                onClick={handleRefresh}
+                className='refresh-btn'
+                title="refresh"
+              >
+                <i className="fas fa-refresh" />
               </button>
             </div>
 
@@ -488,7 +518,7 @@ const DashboardMenu = ({
                 {/* Request Workspace item */}
                 <button 
                   className="dropdown-item"
-                  onClick={handleRequestWorkspaceClick}
+                  onClick={handleMobileRequestWorkspace}
                 >
                   <i className="fas fa-plus-square dropdown-icon" />
                   <span className="dropdown-text">Request Workspace</span>
@@ -522,7 +552,7 @@ const DashboardMenu = ({
             )}
           </div>
         ) : (
-          /* Desktop layout - unchanged */
+          /* Desktop layout */
           <>
             <button 
               className="notifications-button"
@@ -646,12 +676,24 @@ const DashboardMenu = ({
         />
       )}
       
+      {/* NEW: OTP Verification Modal */}
+      {showRequestWorkspaceOtpModal && (
+        <RequestWorkspaceOtpModal
+          isOpen={showRequestWorkspaceOtpModal}
+          onClose={() => setShowRequestWorkspaceOtpModal(false)}
+          onVerificationSuccess={handleOtpVerificationSuccess}
+          existingEmail={user.email || ''}
+        />
+      )}
+      
+      {/* Updated: Only show workspace request modal after OTP verification */}
       {showRequestWorkspaceModal && (
         <RequestWorkspaceModal
           isOpen={showRequestWorkspaceModal}
           onClose={() => setShowRequestWorkspaceModal(false)}
           ownerUserID={user.id}
           onWorkspaceAdded={handleWorkspaceRequested}
+          verifiedEmail={verifiedEmail} // Pass verified email to workspace modal
         />
       )}
       
@@ -698,4 +740,3 @@ const DashboardMenu = ({
 }
 
 export default DashboardMenu;
-

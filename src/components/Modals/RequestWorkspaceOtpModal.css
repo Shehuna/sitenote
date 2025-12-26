@@ -1,0 +1,348 @@
+
+.otp-modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background-color: rgba(0, 0, 0, 0.7) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 9999 !important;
+}
+
+.otp-modal {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  animation: slideUp 0.3s ease;
+}
+
+.otp-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px 30px;
+  border-bottom: 1px solid #e9ecef;
+  background: white; /* Changed from gradient to white */
+  color: #333; /* Changed from white to dark text */
+  border-radius: 12px 12px 0 0;
+}
+
+.otp-modal-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #333; /* Ensure text is dark */
+}
+
+.step-indicator {
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #666; /* Changed to dark gray */
+}
+
+.close-button {
+  background: #f5f5f5; /* Changed to light gray */
+  border: none;
+  color: #333; /* Changed to dark text */
+  font-size: 24px;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.close-button:hover {
+  background: #e8e8e8; /* Darker gray on hover */
+  color: #000;
+}
+
+.close-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.otp-modal-body {
+  padding: 30px;
+}
+
+.step-description {
+  color: #666;
+  margin-bottom: 25px;
+  font-size: 14px;
+  line-height: 1.6;
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 8px;
+  border-left: 4px solid #3498db; /* Changed to theme blue */
+}
+
+.step-description strong {
+  color: #333;
+  font-weight: 600;
+}
+
+.change-email-btn {
+  display: block;
+  margin-top: 8px;
+  background: none;
+  border: none;
+  color: #3498db; /* Changed to theme blue */
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+  transition: color 0.3s ease;
+}
+
+.change-email-btn:hover:not(:disabled) {
+  color: #2980b9; /* Darker theme blue on hover */
+}
+
+.change-email-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.input-group {
+  margin-bottom: 25px;
+}
+
+.input-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: #333;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.input-group input {
+  width: 100%;
+  padding: 14px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 15px;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+  background: #fff;
+}
+
+.input-group input:focus {
+  outline: none;
+  border-color: #3498db; /* Changed to theme blue */
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1); /* Changed to theme blue */
+}
+
+.input-group input:disabled {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.otp-modal-actions {
+  display: flex;
+  gap: 15px;
+  margin-top: 30px;
+}
+
+.otp-modal-actions button {
+  flex: 1;
+  padding: 14px;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.cancel-btn {
+  background: #f5f5f5;
+  color: #666;
+  border: 1px solid #ddd !important;
+}
+
+.cancel-btn:hover:not(:disabled) {
+  background: #e8e8e8;
+  color: #333;
+}
+
+.cancel-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.submit-btn {
+  background: #3498db; /* Changed to theme blue */
+  color: white;
+  font-weight: 600;
+}
+
+.submit-btn:hover:not(:disabled) {
+  background: #2980b9; /* Darker theme blue on hover */
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3); /* Changed to theme blue */
+}
+
+.submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.resend-otp-container {
+  text-align: center;
+  margin: 20px 0;
+}
+
+.resend-otp-btn {
+  background: none;
+  border: none;
+  color: #3498db; /* Changed to theme blue */
+  cursor: pointer;
+  font-size: 14px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.resend-otp-btn:hover:not(:disabled) {
+  background: rgba(52, 152, 219, 0.1); /* Changed to theme blue */
+  text-decoration: none;
+}
+
+.resend-otp-btn:disabled {
+  color: #95a5a6;
+  cursor: not-allowed;
+}
+
+.error-message {
+  background: #fee;
+  color: #e74c3c;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin: 20px 0;
+  font-size: 14px;
+  border: 1px solid #fadbd8;
+  animation: shake 0.5s ease;
+}
+
+.success-message {
+  background: #d4edda;
+  color: #155724;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin: 20px 0;
+  font-size: 14px;
+  border: 1px solid #c3e6cb;
+}
+
+.otp-info {
+  display: flex;
+  gap: 15px;
+  margin-top: 25px;
+  padding: 15px;
+  background: #f0f7ff;
+  border-radius: 8px;
+  border-left: 4px solid #3498db; /* Changed to theme blue */
+}
+
+.info-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+  color: #3498db; /* Added theme blue color */
+}
+
+.info-text {
+  flex: 1;
+}
+
+.info-text p {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #555;
+}
+
+.info-text p:last-child {
+  margin-bottom: 0;
+}
+
+.info-text strong {
+  color: #2c3e50;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-5px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(5px);
+  }
+}
+
+/* Responsive design */
+@media (max-width: 576px) {
+  .otp-modal {
+    width: 95%;
+    margin: 10px;
+  }
+  
+  .otp-modal-header {
+    padding: 20px;
+  }
+  
+  .otp-modal-body {
+    padding: 20px;
+  }
+  
+  .otp-modal-actions {
+    flex-direction: column;
+  }
+  
+  .otp-modal-actions button {
+    width: 100%;
+  }
+}
