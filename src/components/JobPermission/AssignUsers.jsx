@@ -387,7 +387,8 @@ const AssignUsers = ({ filteredUsers, projects, jobs, loading, setLoading, defId
                         fontSize: '12px',
                         fontWeight: '500',
                         width: '100%',
-                        height: '32px'
+                        height: '32px',
+                        margin: '12px'
                     }}
                 >
                     {loading ? (

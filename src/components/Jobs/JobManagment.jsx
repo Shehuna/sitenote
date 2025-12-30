@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import Modal from '../Modals/Modal';
 import toast from 'react-hot-toast';
+import '../Modals/SettingsModal.css'
 
 const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
     const [selectedJob, setSelectedJob] = useState('');

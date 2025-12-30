@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import Modal from '../Modals/Modal';
 import toast from 'react-hot-toast';
+import '../Modals/SettingsModal.css'
 
 const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
      const [projects, setProjects] = useState([])

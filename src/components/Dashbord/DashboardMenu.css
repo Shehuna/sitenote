@@ -10,6 +10,7 @@
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
   position: relative;
   gap: 10px;
+
 }
 
 /* Left section */
@@ -1776,5 +1777,272 @@
     font-size: 34px !important; /* Significantly bigger */
     margin: 0;
     color: #1976d2;
+  }
+}
+/* Add these styles to your existing DashboardMenu.css */
+
+/* Settings Menu Container */
+.settings-menu-container {
+  position: relative;
+  display: inline-block;
+}
+
+/* Settings Dropdown */
+.settings-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  min-width: 220px;
+  z-index: 1000;
+  margin-top: 8px;
+  animation: fadeIn 0.2s ease;
+  border: 1px solid #e1e4e8;
+}
+
+.settings-dropdown-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  font-weight: 600;
+  color: #333;
+  border-bottom: 1px solid #f0f0f0;
+  background: #f8f9fa;
+  border-radius: 8px 8px 0 0;
+}
+
+.settings-dropdown-header i {
+  margin-right: 10px;
+  color: #6c757d;
+}
+
+/* Dropdown Items */
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: #333;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.dropdown-item:hover {
+  background-color: #f5f5f5;
+}
+
+.dropdown-item:active {
+  background-color: #e8e8e8;
+}
+
+.dropdown-icon {
+  margin-right: 12px;
+  width: 20px;
+  text-align: center;
+  color: #6c757d;
+}
+
+.dropdown-text {
+  flex: 1;
+  font-size: 14px;
+}
+
+/* Dropdown Divider */
+.dropdown-divider {
+  height: 1px;
+  background-color: #f0f0f0;
+  margin: 4px 0;
+}
+
+/* Animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Settings Button */
+.settings-button {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #6c757d;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-button:hover {
+  color: #333;
+  background-color: #f5f5f5;
+}
+
+/* Mobile adjustments for settings dropdown */
+@media (max-width: 768px) {
+  .settings-dropdown {
+    min-width: 200px;
+    right: -10px;
+  }
+}
+/* Mobile Settings Styles */
+.mobile-settings-container {
+  margin-right: 10px;
+}
+
+.mobile-settings-button {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #6c757d;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+}
+
+.mobile-settings-button:hover {
+  color: #333;
+  background-color: #f5f5f5;
+}
+
+/* Mobile Settings Dropdown */
+.mobile-settings-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  min-width: 200px;
+  z-index: 1001;
+  margin-top: 8px;
+  animation: fadeIn 0.2s ease;
+  border: 1px solid #e1e4e8;
+  transform: translateX(0);
+}
+
+/* Mobile User Menu */
+.mobile-user-menu-container {
+  position: relative;
+}
+
+.mobile-user-avatar {
+  width: 40px;
+  height: 40px;
+}
+
+/* Mobile menu adjustments */
+@media (max-width: 768px) {
+  .menu-right {
+    display: flex;
+    align-items: center;
+  }
+  
+  .mobile-settings-button {
+    font-size: 16px;
+    width: 36px;
+    height: 36px;
+  }
+  
+  .mobile-user-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+  }
+  
+  /* Mobile dropdown positioning */
+  .mobile-settings-dropdown {
+    right: -10px;
+    min-width: 180px;
+  }
+  
+  .mobile-user-dropdown {
+    right: 0;
+    min-width: 250px;
+    transform: translateX(0);
+  }
+  
+  /* Ensure dropdowns don't overflow on mobile */
+  .settings-dropdown,
+  .user-dropdown {
+    max-width: calc(100vw - 20px);
+  }
+}
+
+/* Ensure proper z-index for dropdowns */
+.settings-dropdown {
+  z-index: 1001;
+}
+
+.user-dropdown {
+  z-index: 1000;
+}
+
+.notifications-dropdown {
+  z-index: 1002;
+}
+
+/* Mobile view for menu-right */
+@media (max-width: 768px) {
+  .menu-right {
+    gap: 8px;
+  }
+}
+/* User Dropdown - Consolidated */
+.user-dropdown {
+  position: absolute;
+  top: 50px;
+  left: -200px !important; /* Force to open to the left */
+  right: auto !important; /* Override any right positioning */
+  width: 280px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 1002;
+  overflow: visible;
+  animation: slideDown 0.2s ease-out;
+}
+
+/* Mobile User Dropdown */
+.mobile-user-dropdown {
+  position: absolute;
+  top: 50px;
+  left: -200px !important;
+  right: auto !important;
+  width: 280px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 1002;
+  overflow: visible;
+  animation: slideDown 0.2s ease-out;
+}
+
+/* Responsive adjustment for smaller screens */
+@media (max-width: 480px) {
+  .user-dropdown,
+  .mobile-user-dropdown {
+    left: -150px !important;
+    width: 250px;
   }
 }

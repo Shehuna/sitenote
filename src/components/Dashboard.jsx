@@ -25,7 +25,7 @@ const Dashboard = ({
   addSiteNote,
   updateNote,
   projects,
-  jobs,
+  jobs, 
   onUploadDocument,
   onDeleteDocument,
   onLogout,
@@ -58,6 +58,8 @@ const Dashboard = ({
           userName: [],
         };
   });
+  const [defaultWorkspaceRole, setDefaultWorkspaceRole] = useState(null);
+  const [loadingWorkspaceRole, setLoadingWorkspaceRole] = useState(false);
   const [filteredNotesFromApi, setFilteredNotesFromApi] = useState([]);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -119,7 +121,48 @@ const Dashboard = ({
   const [isMobile, setIsMobile] = useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
-  
+
+  const fetchWorkspaceRole = useCallback(async () => {
+  if (!userid || !defaultUserWorkspaceID) {
+    setDefaultWorkspaceRole(null);
+    return;
+  }
+
+  setLoadingWorkspaceRole(true);
+  try {
+    const response = await fetch(
+      `${apiUrl}/Workspace/GetWorkspacesByUserId/${userid}`
+    );
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch workspaces: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log(data)
+    const workspaces = data.workspaces || [];
+    
+    // Find the workspace with matching ID
+    const defaultWorkspace = workspaces.find(
+      (workspace) => 
+        (workspace.id || workspace.workspaceId)?.toString() === defaultUserWorkspaceID?.toString()
+    );
+    
+    if (defaultWorkspace) {
+      // Set the role (should be 3 for the example you provided)
+      setDefaultWorkspaceRole(defaultWorkspace.role || null);
+    } else {
+      console.warn(`Default workspace with ID ${defaultUserWorkspaceID} not found in user's workspaces`);
+      setDefaultWorkspaceRole(null);
+    }
+  } catch (error) {
+    console.error("Error fetching workspace role:", error);
+    setDefaultWorkspaceRole(null);
+  } finally {
+    setLoadingWorkspaceRole(false);
+  }
+}, [apiUrl, userid, defaultUserWorkspaceID]);
+
   // Fetch inline images only when thumbnail is clicked
   const fetchInlineImages = useCallback(
     async (noteId) => {
@@ -1024,10 +1067,11 @@ const displayNotes = useMemo(() => {
 
   useEffect(() => {
     if (userid && defaultUserWorkspaceID) {
+      fetchWorkspaceRole();
       fetchWorkspacesByUserId();
-      fetchPriorities();
+      //fetchPriorities();
     }
-  }, [userid, defaultUserWorkspaceID]);
+  }, [userid, defaultUserWorkspaceID, fetchWorkspaceRole]);
 
   useEffect(() => {
     const fetchAllUniques = async () => {
@@ -1157,8 +1201,11 @@ const displayNotes = useMemo(() => {
           setPrefilledData({
             date: currentDateFormatted,
             project: selectedNote.project,
+            projectId: selectedNote.projectId,
             job: selectedNote.job,
+            jobId: selectedNote.jobId,
             workspace: selectedNote.workspace,
+
           });
           setModalSource("grid");
           setShowNewModal(true);
@@ -1205,7 +1252,9 @@ const displayNotes = useMemo(() => {
     setPrefilledData({
       date: currentDateFormatted,
       project: note.project,
+      projectId: note.projectId,
       job: note.job,
+      jobId: note.jobId,
       workspace: note.workspace,
       userId: note.userId,
     });
@@ -2019,6 +2068,8 @@ const displayNotes = useMemo(() => {
           handleRefresh={handleRefresh}
           refreshNotes={refreshNotes}
           handleNewNoteClick={handleNewNoteClick}
+          defWorkName={defaultUserWorkspaceName}
+          role={role}
         />
 
         <DashboardHeader
@@ -2222,14 +2273,15 @@ const displayNotes = useMemo(() => {
           refreshNotes={refreshNotes}
           refreshFilteredNotes={() => {}}
           addSiteNote={addSiteNote}
-          projects={projects}
-          jobs={jobs}
+          /* projects={projects}
+          jobs={jobs} */
           onUploadDocument={onUploadDocument}
           onDeleteDocument={onDeleteDocument}
           defWorkSpaceId={defaultUserWorkspaceID}
           userworksaces={userWorkspace}
           prefilledData={prefilledData}
           source={modalSource}
+          defaultWorkspaceRole={defaultWorkspaceRole}
         />
       )}
       

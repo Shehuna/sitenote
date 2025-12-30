@@ -184,6 +184,7 @@
     cursor: pointer;
     font-size: 14px;
     transition: background-color 0.2s;
+    
 }
 
 .btn-primary:hover:not(:disabled) {

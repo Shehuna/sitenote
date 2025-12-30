@@ -292,7 +292,7 @@ const UserManagement = ({ workspaceId }) => {
                     </div>
 
                     <div className="settings-lookup-list">
-                        <h4>Workspace User Lookups</h4>
+                        
                         <select size="5" className="lookup-select" value={selectedUser} onChange={(e) => setSelectedUser(e.target.value)}>
                             <option value="">Select a User</option>
                             {users.map(user => (

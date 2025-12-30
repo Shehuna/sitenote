@@ -1,17 +1,23 @@
 import React, { useEffect, useState, useRef } from 'react'
-import SettingsModal from '../Modals/SettingsModal';
+import { useNavigate } from 'react-router-dom';
 import UserProfile from '../UserProfile/UserProfile';
 import ChangeWorkspaceModal from '../Workspaces/ChangeWorkspaceModal';
 import RequestWorkspaceModal from '../Workspaces/RequestWorkspaceModal';
-import RequestWorkspaceOtpModal from '../Modals/RequestWorkspaceOtpModal'; // NEW IMPORT
+import RequestWorkspaceOtpModal from '../Modals/RequestWorkspaceOtpModal';
+import Modal from '../Modals/Modal';
+
 import './DashboardMenu.css';
+import ProjectManagement from '../Projects/ProjectManagement';
+import JobManagment from '../Jobs/JobManagment';
+import UserManagement from '../Users/UserManagement';
+import JobPermissionManagement from '../JobPermission/JobPermissionManagement';
+import JobStatusManagement from '../JobStatus/JobStatusManagement';
+import WorkspaceManagement from '../Workspaces/WorkspaceManagement';
 
 const DashboardMenu = ({
     defaultUserWorkspaceID,
     defaultUserWorkspaceName,
     onUpdateDefaultWorkspace,
-    fetchProjectAndJobs,
-    workspaces,
     userid,
     onLogout,
     userRole,
@@ -23,19 +29,24 @@ const DashboardMenu = ({
     setViewMode,
     handleRefresh,
     handleNewNoteClick,
-    refreshNotes
+    defWorkName
 }) => {
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
   const [showChangeWorkspaceModal, setShowChangeWorkspaceModal] = useState(false);
   const [showRequestWorkspaceModal, setShowRequestWorkspaceModal] = useState(false);
-  const [showRequestWorkspaceOtpModal, setShowRequestWorkspaceOtpModal] = useState(false); // NEW STATE
-  const [verifiedEmail, setVerifiedEmail] = useState(''); // NEW STATE
+  const [showRequestWorkspaceOtpModal, setShowRequestWorkspaceOtpModal] = useState(false);
+  const [verifiedEmail, setVerifiedEmail] = useState('');
   const [isRoleLoading, setIsRoleLoading] = useState(false);
   const [userWorkspaces, setUserWorkspaces] = useState();
   const [role, setRole] = useState(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  
+  // State for active settings component
+  const [activeSettingsComponent, setActiveSettingsComponent] = useState(null);
+  const [settingsModalTitle, setSettingsModalTitle] = useState('Settings');
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   
   const [isMobile, setIsMobile] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -47,8 +58,12 @@ const DashboardMenu = ({
   const viewOptionsRef = useRef(null);
   const mobileMenuRef = useRef(null);
   const searchRef = useRef(null);
+  const settingsMenuRef = useRef(null);
+  const settingsButtonRef = useRef(null);
+  const mobileSettingsButtonRef = useRef(null);
 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
+  const navigate = useNavigate();
   
   useEffect(() => {
     const checkMobile = () => {
@@ -63,6 +78,7 @@ const DashboardMenu = ({
 
   useEffect(() => {
     const handleClickOutside = (event) => {
+      // Close user menu when clicking outside
       if (
         userMenuRef.current && 
         !userMenuRef.current.contains(event.target) &&
@@ -72,6 +88,17 @@ const DashboardMenu = ({
         setShowUserMenu(false);
       }
       
+      // Close settings menu when clicking outside (desktop)
+      if (
+        settingsMenuRef.current && 
+        !settingsMenuRef.current.contains(event.target) &&
+        settingsButtonRef.current && 
+        !settingsButtonRef.current.contains(event.target)
+      ) {
+        setShowSettingsMenu(false);
+      }
+      
+      // Close view options when clicking outside
       if (
         viewOptionsRef.current && 
         !viewOptionsRef.current.contains(event.target) &&
@@ -80,6 +107,7 @@ const DashboardMenu = ({
         setShowViewOptions(false);
       }
       
+      // Close mobile menu when clicking outside
       if (
         mobileMenuRef.current && 
         !mobileMenuRef.current.contains(event.target) &&
@@ -88,6 +116,7 @@ const DashboardMenu = ({
         setShowMobileMenu(false);
       }
       
+      // Close mobile search when clicking outside
       if (
         isMobile && 
         showSearch && 
@@ -124,8 +153,17 @@ const DashboardMenu = ({
   useEffect(() => {
     if (showUserMenu) {
       setShowNotifications(false);
+      setShowSettingsMenu(false);
     }
-  }, [showUserMenu]);
+    if (showSettingsMenu) {
+      setShowUserMenu(false);
+      setShowNotifications(false);
+    }
+    if (showNotifications) {
+      setShowUserMenu(false);
+      setShowSettingsMenu(false);
+    }
+  }, [showUserMenu, showSettingsMenu, showNotifications]);
 
   const fetchUserWorkspaceRole = async () => {
     setIsRoleLoading(true);
@@ -185,26 +223,25 @@ const DashboardMenu = ({
     setShowUserProfileModal(true);
     setShowUserMenu(false);
     setShowMobileMenu(false);
+    setShowSettingsMenu(false);
   };
 
   const handleSwitchWorkspaceClick = () => {
     setShowChangeWorkspaceModal(true);
     setShowUserMenu(false);
     setShowMobileMenu(false);
+    setShowSettingsMenu(false);
   };
 
-  // UPDATED: Now shows OTP modal first
   const handleRequestWorkspaceClick = () => {
-    setShowRequestWorkspaceOtpModal(true); // Show OTP verification modal
+    setShowRequestWorkspaceOtpModal(true);
     setShowUserMenu(false);
     setShowMobileMenu(false);
+    setShowSettingsMenu(false);
   };
 
-  // NEW: Handle OTP verification success
   const handleOtpVerificationSuccess = (email) => {
     setVerifiedEmail(email);
-    
-    // Close OTP modal and show workspace request modal
     setShowRequestWorkspaceOtpModal(false);
     setTimeout(() => {
       setShowRequestWorkspaceModal(true);
@@ -236,24 +273,125 @@ const DashboardMenu = ({
     setShowViewOptions(false);
   };
 
+  // Function to handle Admin Dashboard click
+  const handleAdminDashboardClick = () => {
+    // Close settings menu
+    setShowSettingsMenu(false);
+    setShowUserMenu(false);
+    // Navigate to admin dashboard
+    navigate('/admin-dashboard');
+  };
+
+  // Settings menu items handler
+  const handleSettingsMenuItemClick = (menuId) => {
+    let component = null;
+    let title = 'Settings';
+    
+    switch(menuId) {
+      case 'projectManagement':
+        component = <ProjectManagement 
+          workspaceId={defaultUserWorkspaceID}
+        />;
+        title = 'Project Management';
+        break;
+      case 'jobManagement':
+        component = <JobManagment 
+          defWorkId={defaultUserWorkspaceID}
+        />;
+        title = 'Job Management';
+        break;
+      case 'userManagement':
+        if (userRole !== "User") {
+          component = <UserManagement 
+            workspaceId={defaultUserWorkspaceID}
+          />;
+          title = 'User Management';
+        }
+        break;
+      case 'jobPermissions':
+        component = <JobPermissionManagement 
+          defId={defaultUserWorkspaceID}
+          //users={users} 
+          userId={userid}
+          
+        />;
+        title = 'Job Permissions';
+        break;
+      case 'jobStatus':
+        component = <JobStatusManagement 
+          defId={defaultUserWorkspaceID}
+        />;
+        title = 'Job Status Update';
+        break;
+      case 'workspaceSettings':
+        component = <WorkspaceManagement 
+          onUpdateDefaultWorkspace={onUpdateDefaultWorkspace} 
+          userRole={userRole}
+          workspaceRole={role}
+          defWorkId={defaultUserWorkspaceID}
+          defWorkName={defWorkName}
+        />;
+        title = 'Workspace Settings';
+        break;
+      case 'adminDashboard':
+        // Handle admin dashboard navigation
+        handleAdminDashboardClick();
+        return; // Return early since we're navigating, not opening a modal
+      default:
+        break;
+    }
+    
+    if (component) {
+      setActiveSettingsComponent(component);
+      setSettingsModalTitle(title);
+      setShowSettingsModal(true);
+      setShowSettingsMenu(false);
+    }
+  };
+
+  const toggleSettingsMenu = () => {
+    setShowSettingsMenu(!showSettingsMenu);
+    setShowUserMenu(false);
+    setShowNotifications(false);
+  };
+
+  // Function to close settings modal and reset component
+  const closeSettingsModal = () => {
+    setShowSettingsModal(false);
+    setActiveSettingsComponent(null);
+    setSettingsModalTitle('Settings');
+  };
+
   const handleMobileSettings = () => {
+    setActiveSettingsComponent(
+      <div className="mobile-settings-default">
+        <h3>Settings</h3>
+        <p>Select an option from the settings menu</p>
+      </div>
+    );
+    setSettingsModalTitle('Settings');
     setShowSettingsModal(true);
     setShowUserMenu(false);
+    setShowSettingsMenu(false);
   };
 
   const handleMobileNotifications = () => {
     setShowNotifications(!showNotifications);
     setShowUserMenu(false);
-  };
-
-  const handleMobileProfile = () => {
-    setShowUserProfileModal(true);
-    setShowUserMenu(false);
+    setShowSettingsMenu(false);
   };
 
   const handleMobileRequestWorkspace = () => {
-    setShowRequestWorkspaceOtpModal(true); // Show OTP modal first
+    setShowRequestWorkspaceOtpModal(true);
     setShowUserMenu(false);
+    setShowSettingsMenu(false);
+  };
+  
+  // Toggle mobile settings menu
+  const toggleMobileSettingsMenu = () => {
+    setShowSettingsMenu(!showSettingsMenu);
+    setShowUserMenu(false);
+    setShowNotifications(false);
   };
   
   return (
@@ -448,109 +586,194 @@ const DashboardMenu = ({
 
       <div className="menu-right">
         {isMobile ? (
-          /* Mobile: User Initials Button (same as desktop) with combined dropdown */
-          <div className="user-menu-container">
-            <button
-              ref={userAvatarRef}
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="user-avatar"
-              title={user.name}
-            >
-              {getUserInitials()}
-            </button>
-            
-            {/* User Dropdown Menu for Mobile (includes everything) */}
-            {showUserMenu && (
-              <div 
-                ref={userMenuRef}
-                className="user-dropdown mobile-user-dropdown"
-              >
-                {/* User info section (same as desktop) */}
-                <div className="user-info-section">
-                  <div className="user-avatar-large">
-                    {getUserInitials()}
-                  </div>
-                  <div className="user-details">
-                    <div className="user-name">{user.name}</div>
-                    <div className="user-email">{user.email}</div>
-                    <div className="user-workspace">{defaultUserWorkspaceName}</div> 
-                  </div>
-                </div>
-                
-                <div className="dropdown-divider"></div>
-                
-                {/* Notifications item (added from desktop separate button) */}
-                <button 
-                  className="dropdown-item"
-                  onClick={handleMobileNotifications}
+          /* Mobile Layout - Show separate settings button */
+          <>
+            {/* Settings Button for Mobile (only if user has access) */}
+            {shouldShowSettings() && (
+              <div className="mobile-settings-container" style={{ position: 'relative' }}>
+                <button
+                  ref={mobileSettingsButtonRef}
+                  onClick={toggleMobileSettingsMenu}
+                  className="mobile-settings-button"
+                  title="Settings"
                 >
-                  <i className="fas fa-bell dropdown-icon" />
-                  <span className="dropdown-text">Notifications</span>
+                  <i className="fas fa-cog" />
                 </button>
                 
-                {/* Settings item (added from desktop separate button) - only if user has access */}
-                {shouldShowSettings() && (
-                  <>
+                {/* Settings Dropdown for Mobile */}
+                {showSettingsMenu && (
+                  <div 
+                    ref={settingsMenuRef}
+                    className="settings-dropdown mobile-settings-dropdown"
+                  >
+                    <div className="settings-dropdown-header">
+                     
+                      <span>Settings</span>
+                    </div>
+                    
                     <div className="dropdown-divider"></div>
+                    
                     <button 
                       className="dropdown-item"
-                      onClick={handleMobileSettings}
+                      onClick={() => handleSettingsMenuItemClick('projectManagement')}
                     >
-                      <i className="fas fa-cog dropdown-icon" />
-                      <span className="dropdown-text">Settings</span>
+                      <i className="fas fa-project-diagram dropdown-icon" />
+                      <span className="dropdown-text">Project Management</span>
                     </button>
-                  </>
+                    
+                    <button 
+                      className="dropdown-item"
+                      onClick={() => handleSettingsMenuItemClick('jobManagement')}
+                    >
+                      <i className="fas fa-tasks dropdown-icon" />
+                      <span className="dropdown-text">Job Management</span>
+                    </button>
+                    
+                    {userRole !== "User" && (
+                      <button 
+                        className="dropdown-item"
+                        onClick={() => handleSettingsMenuItemClick('userManagement')}
+                      >
+                        <i className="fas fa-user-plus dropdown-icon" />
+                        <span className="dropdown-text">User Management</span>
+                      </button>
+                    )}
+                    
+                    <button 
+                      className="dropdown-item"
+                      onClick={() => handleSettingsMenuItemClick('jobPermissions')}
+                    >
+                      <i className="fas fa-user-shield dropdown-icon" />
+                      <span className="dropdown-text">Job Permissions</span>
+                    </button>
+                    
+                    <button 
+                      className="dropdown-item"
+                      onClick={() => handleSettingsMenuItemClick('jobStatus')}
+                    >
+                      <i className="fas fa-sync-alt dropdown-icon" />
+                      <span className="dropdown-text">Job Status Update</span>
+                    </button>
+                    
+                    <div className="dropdown-divider"></div>
+                    
+                    <button 
+                      className="dropdown-item"
+                      onClick={() => handleSettingsMenuItemClick('workspaceSettings')}
+                    >
+                      <i className="fas fa-building dropdown-icon" />
+                      <span className="dropdown-text">Workspace Settings</span>
+                    </button>
+                    
+                    {/* Add Admin Dashboard item for mobile */}
+                    {userRole === 'Admin' && (
+                      <button 
+                      className="dropdown-item admin-dashboard-item"
+                      onClick={() => handleSettingsMenuItemClick('adminDashboard')}
+                    >
+                      <i className="fas fa-tachometer-alt dropdown-icon" />
+                      <span className="dropdown-text">Admin Dashboard</span>
+                    </button>
+                    )}
+                    
+                  </div>
                 )}
-                
-                <div className="dropdown-divider"></div>
-                
-                {/* Profile item */}
-                <button 
-                  className="dropdown-item"
-                  onClick={handleProfileClick}
-                >
-                  <i className="fas fa-user-circle dropdown-icon" />
-                  <span className="dropdown-text">Profile</span>
-                </button>
-                
-                <div className="dropdown-divider"></div>
-                
-                {/* Request Workspace item */}
-                <button 
-                  className="dropdown-item"
-                  onClick={handleMobileRequestWorkspace}
-                >
-                  <i className="fas fa-plus-square dropdown-icon" />
-                  <span className="dropdown-text">Request Workspace</span>
-                </button>
-                
-                <div className="dropdown-divider"></div>
-                
-                {/* Switch Workspace item */}
-                <button 
-                  className="dropdown-item"
-                  onClick={handleSwitchWorkspaceClick}
-                >
-                  <i className="fas fa-exchange-alt dropdown-icon" />
-                  <span className="dropdown-text">Switch Workspace</span>
-                </button>
-                
-                <div className="dropdown-divider"></div>
-                
-                {/* Logout item */}
-                <button 
-                  className="dropdown-item logout-item"
-                  onClick={() => {
-                    onLogout();
-                    setShowUserMenu(false);
-                  }}
-                >
-                  <i className="fas fa-sign-out-alt dropdown-icon" />
-                  <span className="dropdown-text">Log out</span>
-                </button>
               </div>
             )}
-          </div>
+            
+            {/* User Menu for Mobile */}
+            <div className="user-menu-container mobile-user-menu-container">
+              <button
+                ref={userAvatarRef}
+                onClick={() => {
+                  setShowUserMenu(!showUserMenu);
+                  setShowSettingsMenu(false);
+                  setShowNotifications(false);
+                }}
+                className="user-avatar mobile-user-avatar"
+                title={user.name}
+              >
+                {getUserInitials()}
+              </button>
+              
+              {/* User Dropdown for Mobile */}
+              {showUserMenu && (
+                <div 
+                  ref={userMenuRef}
+                  className="user-dropdown mobile-user-dropdown"
+                >
+                  <div className="user-info-section">
+                    <div className="user-avatar-large">
+                      {getUserInitials()}
+                    </div>
+                    <div className="user-details">
+                      <div className="user-name">{user.name}</div>
+                      <div className="user-email">{user.email}</div>
+                      <div className="user-workspace">{defaultUserWorkspaceName}</div> 
+                    </div>
+                  </div>
+                  
+                  <div className="dropdown-divider"></div>
+                  
+                  {/* Notifications item */}
+                  <button 
+                    className="dropdown-item"
+                    onClick={handleMobileNotifications}
+                  >
+                    <i className="fas fa-bell dropdown-icon" />
+                    <span className="dropdown-text">Notifications</span>
+                  </button>
+                  
+                  <div className="dropdown-divider"></div>
+                  
+                  {/* Profile item */}
+                  <button 
+                    className="dropdown-item"
+                    onClick={handleProfileClick}
+                  >
+                    <i className="fas fa-user-circle dropdown-icon" />
+                    <span className="dropdown-text">Profile</span>
+                  </button>
+                  
+                  <div className="dropdown-divider"></div>
+                  
+                  {/* Request Workspace item */}
+                  <button 
+                    className="dropdown-item"
+                    onClick={handleMobileRequestWorkspace}
+                  >
+                    <i className="fas fa-plus-square dropdown-icon" />
+                    <span className="dropdown-text">Request Workspace</span>
+                  </button>
+                  
+                  <div className="dropdown-divider"></div>
+                  
+                  {/* Switch Workspace item */}
+                  <button 
+                    className="dropdown-item"
+                    onClick={handleSwitchWorkspaceClick}
+                  >
+                    <i className="fas fa-exchange-alt dropdown-icon" />
+                    <span className="dropdown-text">Switch Workspace</span>
+                  </button>
+                  
+                  <div className="dropdown-divider"></div>
+                  
+                  {/* Logout item */}
+                  <button 
+                    className="dropdown-item logout-item"
+                    onClick={() => {
+                      onLogout();
+                      setShowUserMenu(false);
+                    }}
+                  >
+                    <i className="fas fa-sign-out-alt dropdown-icon" />
+                    <span className="dropdown-text">Log out</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
         ) : (
           /* Desktop layout */
           <>
@@ -559,6 +782,7 @@ const DashboardMenu = ({
               onClick={() => {
                 setShowNotifications(!showNotifications);
                 setShowUserMenu(false);
+                setShowSettingsMenu(false);
               }}
               title="Notifications"
             >
@@ -566,22 +790,105 @@ const DashboardMenu = ({
             </button>
             
             {shouldShowSettings() && (
-              <button
-                onClick={() => {
-                  setShowSettingsModal(true);
-                  setShowUserMenu(false);
-                }}
-                className="settings-button"
-                title="Settings"
-              >
-                <i className="fas fa-cog" />
-              </button>
+              <div className="settings-menu-container" style={{ position: 'relative' }}>
+                <button
+                  ref={settingsButtonRef}
+                  onClick={toggleSettingsMenu}
+                  className="settings-button"
+                  title="Settings"
+                >
+                  <i className="fas fa-cog" />
+                </button>
+                
+                {/* Settings Dropdown Menu */}
+                {showSettingsMenu && (
+                  <div 
+                    ref={settingsMenuRef}
+                    className="settings-dropdown"
+                  >
+                    <div className="settings-dropdown-header">
+                      
+                      <span>Settings</span>
+                    </div>
+                    
+                    <div className="dropdown-divider"></div>
+                    
+                    <button 
+                      className="dropdown-item"
+                      onClick={() => handleSettingsMenuItemClick('projectManagement')}
+                    >
+                      <i className="fas fa-project-diagram dropdown-icon" />
+                      <span className="dropdown-text">Project Management</span>
+                    </button>
+                    
+                    <button 
+                      className="dropdown-item"
+                      onClick={() => handleSettingsMenuItemClick('jobManagement')}
+                    >
+                      <i className="fas fa-tasks dropdown-icon" />
+                      <span className="dropdown-text">Job Management</span>
+                    </button>
+                    
+                    {userRole !== "User" && (
+                      <button 
+                        className="dropdown-item"
+                        onClick={() => handleSettingsMenuItemClick('userManagement')}
+                      >
+                        <i className="fas fa-user-plus dropdown-icon" />
+                        <span className="dropdown-text">User Management</span>
+                      </button>
+                    )}
+                    
+                    <button 
+                      className="dropdown-item"
+                      onClick={() => handleSettingsMenuItemClick('jobPermissions')}
+                    >
+                      <i className="fas fa-user-shield dropdown-icon" />
+                      <span className="dropdown-text">Job Permissions</span>
+                    </button>
+                    
+                    <button 
+                      className="dropdown-item"
+                      onClick={() => handleSettingsMenuItemClick('jobStatus')}
+                    >
+                      <i className="fas fa-sync-alt dropdown-icon" />
+                      <span className="dropdown-text">Job Status Update</span>
+                    </button>
+                    
+                    <div className="dropdown-divider"></div>
+                    
+                    <button 
+                      className="dropdown-item"
+                      onClick={() => handleSettingsMenuItemClick('workspaceSettings')}
+                    >
+                      <i className="fas fa-building dropdown-icon" />
+                      <span className="dropdown-text">Workspace Settings</span>
+                    </button>
+                    
+                    {/* Add Admin Dashboard item */}
+                    {userRole === 'Admin' && (
+                      <button 
+                      className="dropdown-item admin-dashboard-item"
+                      onClick={() => handleSettingsMenuItemClick('adminDashboard')}
+                    >
+                      <i className="fas fa-tachometer-alt dropdown-icon" />
+                      <span className="dropdown-text">Admin Dashboard</span>
+                    </button>
+                    )}
+                    
+                  </div>
+                )}
+              </div>
             )}
             
             <div className="user-menu-container">
               <button
                 ref={userAvatarRef}
-                onClick={() => setShowUserMenu(!showUserMenu)}
+                onClick={() => {
+                  setShowUserMenu(!showUserMenu);
+                  setShowSettingsMenu(false);
+                  setShowNotifications(false);
+                }}
                 className="user-avatar"
                 title={user.name}
               >
@@ -600,7 +907,6 @@ const DashboardMenu = ({
                     <div className="user-details">
                       <div className="user-name">{user.name}</div>
                       <div className="user-email">{user.email}</div>
-                      {/* <div className="user-workspace">{defaultUserWorkspaceName}</div> */}
                     </div>
                   </div>
                   
@@ -652,20 +958,17 @@ const DashboardMenu = ({
         )}
       </div>
       
-      {showSettingsModal && (
-        <SettingsModal
-          isOpen={showSettingsModal}
-          onClose={() => setShowSettingsModal(false)}
-          onLogout={onLogout}
-          defWorkID={defaultUserWorkspaceID}
-          defWorkName={defaultUserWorkspaceName}
-          onUpdateDefaultWorkspace={onUpdateDefaultWorkspace}
-          role={role}
-          userWorkspaces={workspaces}
-          updateProjectsAndJobs={fetchProjectAndJobs}
-        />
-      )}
+      {/* Settings Modal */}
+      <Modal
+        isOpen={showSettingsModal}
+        onClose={closeSettingsModal}
+        title={settingsModalTitle}
+        className="modal-sm"
+      >
+        {activeSettingsComponent}
+      </Modal>
       
+      {/* Other modals */}
       {showChangeWorkspaceModal && (
         <ChangeWorkspaceModal
           isOpen={showChangeWorkspaceModal}
@@ -676,7 +979,6 @@ const DashboardMenu = ({
         />
       )}
       
-      {/* NEW: OTP Verification Modal */}
       {showRequestWorkspaceOtpModal && (
         <RequestWorkspaceOtpModal
           isOpen={showRequestWorkspaceOtpModal}
@@ -686,14 +988,13 @@ const DashboardMenu = ({
         />
       )}
       
-      {/* Updated: Only show workspace request modal after OTP verification */}
       {showRequestWorkspaceModal && (
         <RequestWorkspaceModal
           isOpen={showRequestWorkspaceModal}
           onClose={() => setShowRequestWorkspaceModal(false)}
           ownerUserID={user.id}
           onWorkspaceAdded={handleWorkspaceRequested}
-          verifiedEmail={verifiedEmail} // Pass verified email to workspace modal
+          verifiedEmail={verifiedEmail}
         />
       )}
       
@@ -735,6 +1036,7 @@ const DashboardMenu = ({
           </div>
         </div>
       )}
+
     </div>
   )
 }

@@ -5,6 +5,7 @@ import Dashboard from "./components/Dashboard";
 import toast, { Toaster } from 'react-hot-toast';
 import "./App.css";
 import UserManagement from "./components/Users/UserManagement";
+import AdminDashboard from "./components/AdminDashboard";
 
 function App() {
   const [notes, setNotes] = useState([]);
@@ -12,8 +13,6 @@ function App() {
   const [defaultWorkspace, setDefaultWorkspace] = useState('');
   const [userDefaultWork, setUserDefaultWork] = useState('');
   
-  /* const [isInWorkspace, setIsInWorkspace] = useState(false);
-  const [userWorkspaceMaps, setUserWorkspaceMaps] = useState([]); */
   const [onRefresh, setOnRefresh] = useState(0);
   const [projects, setProjects] = useState([]); 
   const [jobs, setJobs] = useState([]);
@@ -30,7 +29,7 @@ function App() {
   const [stackedJobs, setStackedJobs] = useState([]);
   const [loadingStackedJobs, setLoadingStackedJobs] = useState(false);
   const [pageNumber, setPageNumber] = useState(1); */
-  const pageSize = 50;   
+  const pageSize = 15;   
   
   useEffect(() => {
     const checkAuthState = () => {
@@ -533,6 +532,7 @@ function App() {
           `}
         </style>
         <Routes>
+          <Route path="/admin-dashboard" element={<AdminDashboard />} />
           <Route 
             path="/login" 
             element={

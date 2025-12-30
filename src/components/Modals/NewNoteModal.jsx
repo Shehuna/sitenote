@@ -8,16 +8,16 @@ import * as signalR from "@microsoft/signalr";
 const NewNoteModal = forwardRef(({
     isOpen,
     onClose,
-    projects = [],
-    jobs = [],
+    /* projects = [],
+    jobs = [], */
     refreshNotes,
     refreshFilteredNotes,
     addSiteNote,
-    
     prefilledData = null,
     defWorkSpaceId,
     userworksaces = [],
-    source = 'dashboard'
+    source = 'dashboard',
+    defaultWorkspaceRole // Add this prop
 }, ref) => {
     // State declarations - REMOVE text mode states
     const [activeTab, setActiveTab] = useState('journal');
@@ -64,6 +64,11 @@ const NewNoteModal = forwardRef(({
     const searchInputRef = useRef(null);
     const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
 
+    // Check if user has read-only access (role 3)
+    const isReadOnly = defaultWorkspaceRole === 3;
+
+    console.log('defaultWorkspaceRole:', defaultWorkspaceRole, 'isReadOnly:', isReadOnly);
+
     // Constants
     const ALLOWED_FILE_TYPES = {
         'image/jpeg': ['.jpg', '.jpeg'], 'image/png': ['.png'], 'image/gif': ['.gif'],
@@ -79,7 +84,7 @@ const NewNoteModal = forwardRef(({
     
     // Initialize SignalR connection when modal opens
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && !isReadOnly) { // Don't connect SignalR if read-only
             const connectSignalR = async () => {
                 try {
                     const connection = new signalR.HubConnectionBuilder()
@@ -114,7 +119,7 @@ const NewNoteModal = forwardRef(({
                 }
             };
         }
-    }, [isOpen]);
+    }, [isOpen, isReadOnly]);
 
     // Utility functions
     const getCurrentUser = () => {
@@ -187,7 +192,7 @@ const NewNoteModal = forwardRef(({
 };
 
    const handlePaste = useCallback((e) => {
-    if (!editorRef.current) return;
+    if (!editorRef.current || isReadOnly) return; // Disable paste if read-only
     
     e.preventDefault();
     const clipboardData = e.clipboardData || window.Clipboard;
@@ -239,9 +244,11 @@ const NewNoteModal = forwardRef(({
         document.execCommand('insertText', false, pastedText);
         setRichTextContent(editorRef.current.innerHTML);
     }
-}, []);
+}, [isReadOnly]);
 
 const handleImageUpload = useCallback((e) => {
+    if (isReadOnly) return; // Disable image upload if read-only
+    
     const file = e.target.files[0];
     if (!file) return;
     
@@ -273,7 +280,7 @@ const handleImageUpload = useCallback((e) => {
     
     // Reset file input
     e.target.value = '';
-}, []);
+}, [isReadOnly]);
 
     const handleEditorInput = useCallback(() => {
         if (editorRef.current) {
@@ -282,6 +289,8 @@ const handleImageUpload = useCallback((e) => {
     }, []);
 
     const clearEditor = () => {
+        if (isReadOnly) return; // Disable clear editor if read-only
+        
         if (editorRef.current) {
             editorRef.current.innerHTML = '';
             setRichTextContent('');
@@ -290,6 +299,8 @@ const handleImageUpload = useCallback((e) => {
     };
 
     const formatText = (command, value = null) => {
+        if (isReadOnly) return; // Disable formatting if read-only
+        
         document.execCommand(command, false, value);
         if (editorRef.current) {
             setRichTextContent(editorRef.current.innerHTML);
@@ -318,7 +329,7 @@ const handleImageUpload = useCallback((e) => {
 
     // Internal focus logic for grid source - SIMPLIFIED
     useEffect(() => {
-        if (isOpen && source === 'grid' && !hasFocusedRef.current) {
+        if (isOpen && source === 'grid' && !hasFocusedRef.current && !isReadOnly) {
             const focusEditor = () => {
                 if (editorRef.current && document.contains(editorRef.current)) {
                     editorRef.current.focus();
@@ -338,7 +349,7 @@ const handleImageUpload = useCallback((e) => {
                 clearTimeout(timeout3);
             };
         }
-    }, [isOpen, source]);
+    }, [isOpen, source, isReadOnly]);
 
     // Reset states when modal closes
     useEffect(() => {
@@ -358,7 +369,7 @@ const handleImageUpload = useCallback((e) => {
     // Fetch all search data when modal opens
     useEffect(() => {
         const fetchAllSearchData = async () => {
-            if (!isOpen) return;
+            if (!isOpen || isReadOnly) return; // Don't fetch if read-only
 
             try {
                 const user = getCurrentUser();
@@ -379,11 +390,13 @@ const handleImageUpload = useCallback((e) => {
         };
 
         fetchAllSearchData();
-    }, [isOpen, apiUrl]);
+    }, [isOpen, apiUrl, isReadOnly]);
 
     // Fetch projects when workspace changes OR when prefilled data is provided
     useEffect(() => {
         const fetchProjectsByWorkspace = async () => {
+            if (isReadOnly) return; // Don't fetch if read-only
+            
             if (prefilledData?.projectId && selectedWorkspace === prefilledData.workspaceId?.toString()) {
                 return;
             }
@@ -420,11 +433,13 @@ const handleImageUpload = useCallback((e) => {
         };
 
         fetchProjectsByWorkspace();
-    }, [selectedWorkspace, apiUrl, prefilledData]);
+    }, [selectedWorkspace, apiUrl, prefilledData, isReadOnly]);
 
     // Fetch jobs when project changes OR when prefilled data is provided
     useEffect(() => {
         const fetchJobsByProject = async () => {
+            if (isReadOnly) return; // Don't fetch if read-only
+            
             if (prefilledData?.jobId && selectedProject === prefilledData.projectId?.toString()) {
                 return;
             }
@@ -461,7 +476,7 @@ const handleImageUpload = useCallback((e) => {
         };
 
         fetchJobsByProject();
-    }, [selectedProject, apiUrl, prefilledData]);
+    }, [selectedProject, apiUrl, prefilledData, isReadOnly]);
 
     // Initialize modal state when opened
     useEffect(() => {
@@ -497,7 +512,7 @@ const handleImageUpload = useCallback((e) => {
 
     // Handle prefilled data for workspace, project, and job
     useEffect(() => {
-        if (isOpen && prefilledData) {
+        if (isOpen && prefilledData && !isReadOnly) {
             if (prefilledData.date) {
                 setSelectedDate(prefilledData.date);
             }
@@ -522,14 +537,6 @@ const handleImageUpload = useCallback((e) => {
                 };
                 setSelectedProjectData(projectData);
                 setSelectedProject(prefilledData.projectId.toString());
-            } else if (prefilledData.project) {
-                const project = projects.find(p => 
-                    p && p.name && p.name === prefilledData.project
-                );
-                if (project) {
-                    setSelectedProjectData(project);
-                    setSelectedProject(project.id.toString());
-                }
             }
 
             if (prefilledData.jobId) {
@@ -541,21 +548,13 @@ const handleImageUpload = useCallback((e) => {
                 };
                 setSelectedJobData(jobData);
                 setSelectedJob(prefilledData.jobId.toString());
-            } else if (prefilledData.job) {
-                const job = jobs.find(j => 
-                    j && j.name && j.name === prefilledData.job
-                );
-                if (job) {
-                    setSelectedJobData(job);
-                    setSelectedJob(job.id.toString());
-                }
             }
         }
-    }, [isOpen, prefilledData, userworksaces, projects, jobs]);
+    }, [isOpen, prefilledData, userworksaces, isReadOnly]);
 
     // Client-side search function
     const performSearch = useCallback((query) => {
-        if (!query.trim()) {
+        if (!query.trim() || isReadOnly) {
             setSearchResults([]);
             setShowSearchResults(false);
             return;
@@ -589,14 +588,14 @@ const handleImageUpload = useCallback((e) => {
                 setIsSearching(false);
             }
         }, 300);
-    }, [allSearchData]);
+    }, [allSearchData, isReadOnly]);
 
     // Debounced search
     useEffect(() => {
         if (!isOpen) return;
 
         const timer = setTimeout(() => {
-            if (searchQuery.trim()) {
+            if (searchQuery.trim() && !isReadOnly) {
                 performSearch(searchQuery);
             } else {
                 setSearchResults([]);
@@ -605,7 +604,7 @@ const handleImageUpload = useCallback((e) => {
         }, 300);
 
         return () => clearTimeout(timer);
-    }, [searchQuery, performSearch, isOpen]);
+    }, [searchQuery, performSearch, isOpen, isReadOnly]);
 
     // Get project options for dropdown
     const getProjectOptions = () => {
@@ -647,7 +646,7 @@ const handleImageUpload = useCallback((e) => {
 
     // Handle search result selection - UPDATED
     const handleSearchResultSelect = useCallback(async (result) => {
-        if (!result) return;
+        if (!result || isReadOnly) return; // Disable selection if read-only
 
         setSelectedWorkspace('');
         setSelectedProject('');
@@ -731,11 +730,11 @@ const handleImageUpload = useCallback((e) => {
         setSearchResults([]);
         
         setTimeout(() => {
-            if (editorRef.current) {
+            if (editorRef.current && !isReadOnly) {
                 editorRef.current.focus();
             }
         }, 500);
-    }, [userworksaces, apiUrl]);
+    }, [userworksaces, apiUrl, isReadOnly]);
 
     // Handle click outside to close search results
     useEffect(() => {
@@ -752,141 +751,143 @@ const handleImageUpload = useCallback((e) => {
     }, [showSearchResults]);
 
     // Prepare note content with images
-    // Prepare note content with images
-const prepareNoteContent = () => {
-    // If there are no pasted images, return the content as-is
-    if (pastedImages.length === 0) {
-        // Still clean up any potential empty elements
-        let cleanContent = richTextContent;
-        if (cleanContent) {
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = cleanContent;
-            
-            // Remove any image elements
-            const images = tempDiv.querySelectorAll('img');
-            images.forEach(img => img.remove());
-            
-            // Clean up empty elements
-            cleanContent = cleanHtml(tempDiv.innerHTML);
+    const prepareNoteContent = () => {
+        // If read-only, return empty content
+        if (isReadOnly) return '';
+        
+        // If there are no pasted images, return the content as-is
+        if (pastedImages.length === 0) {
+            // Still clean up any potential empty elements
+            let cleanContent = richTextContent;
+            if (cleanContent) {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = cleanContent;
+                
+                // Remove any image elements
+                const images = tempDiv.querySelectorAll('img');
+                images.forEach(img => img.remove());
+                
+                // Clean up empty elements
+                cleanContent = cleanHtml(tempDiv.innerHTML);
+            }
+            return cleanContent || '';
         }
-        return cleanContent || '';
-    }
-    
-    // Create a temporary div to work with the content
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = richTextContent;
-    
-    // Remove image elements completely
-    const images = tempDiv.querySelectorAll('img[data-image-id]');
-    images.forEach(img => {
-        img.remove();
-    });
-    
-    // Get the cleaned HTML
-    let cleanContent = tempDiv.innerHTML;
-    
-    // Clean up the HTML to remove empty elements and excessive whitespace
-    cleanContent = cleanHtml(cleanContent);
-    
-    return cleanContent;
-};
+        
+        // Create a temporary div to work with the content
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = richTextContent;
+        
+        // Remove image elements completely
+        const images = tempDiv.querySelectorAll('img[data-image-id]');
+        images.forEach(img => {
+            img.remove();
+        });
+        
+        // Get the cleaned HTML
+        let cleanContent = tempDiv.innerHTML;
+        
+        // Clean up the HTML to remove empty elements and excessive whitespace
+        cleanContent = cleanHtml(cleanContent);
+        
+        return cleanContent;
+    };
 
-// Helper function to clean HTML and remove empty elements/whitespace
-const cleanHtml = (htmlContent) => {
-    if (!htmlContent || htmlContent.trim() === '') {
-        return '';
-    }
-    
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = htmlContent;
-    
-    // Remove empty elements
-    const emptyElements = tempDiv.querySelectorAll('div:empty, p:empty, span:empty, br:only-child');
-    emptyElements.forEach(el => {
-        // Check if element is truly empty or just has whitespace
-        if (!el.textContent.trim() && !el.querySelector('*')) {
-            el.remove();
-        }
-    });
-    
-    // Remove <br> tags that are at the beginning or end of block elements
-    const blockElements = tempDiv.querySelectorAll('div, p');
-    blockElements.forEach(block => {
-        // Remove leading <br> tags
-        let firstChild = block.firstChild;
-        while (firstChild && 
-               ((firstChild.nodeType === Node.ELEMENT_NODE && firstChild.tagName === 'BR') ||
-                (firstChild.nodeType === Node.TEXT_NODE && !firstChild.textContent.trim()))) {
-            const nextSibling = firstChild.nextSibling;
-            firstChild.remove();
-            firstChild = nextSibling;
+    // Helper function to clean HTML and remove empty elements/whitespace
+    const cleanHtml = (htmlContent) => {
+        if (!htmlContent || htmlContent.trim() === '') {
+            return '';
         }
         
-        // Remove trailing <br> tags
-        let lastChild = block.lastChild;
-        while (lastChild && 
-               ((lastChild.nodeType === Node.ELEMENT_NODE && lastChild.tagName === 'BR') ||
-                (lastChild.nodeType === Node.TEXT_NODE && !lastChild.textContent.trim()))) {
-            const previousSibling = lastChild.previousSibling;
-            lastChild.remove();
-            lastChild = previousSibling;
-        }
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = htmlContent;
         
-        // Remove consecutive <br> tags
-        const brElements = block.querySelectorAll('br');
-        brElements.forEach((br, index) => {
-            if (br.nextSibling && br.nextSibling.nodeType === Node.ELEMENT_NODE && 
-                br.nextSibling.tagName === 'BR') {
-                br.remove();
+        // Remove empty elements
+        const emptyElements = tempDiv.querySelectorAll('div:empty, p:empty, span:empty, br:only-child');
+        emptyElements.forEach(el => {
+            // Check if element is truly empty or just has whitespace
+            if (!el.textContent.trim() && !el.querySelector('*')) {
+                el.remove();
             }
         });
-    });
-    
-    // Remove empty text nodes
-    const walker = document.createTreeWalker(
-        tempDiv,
-        NodeFilter.SHOW_TEXT,
-        {
-            acceptNode: function(node) {
-                if (!node.textContent.trim()) {
-                    return NodeFilter.FILTER_ACCEPT;
-                }
-                return NodeFilter.FILTER_SKIP;
+        
+        // Remove <br> tags that are at the beginning or end of block elements
+        const blockElements = tempDiv.querySelectorAll('div, p');
+        blockElements.forEach(block => {
+            // Remove leading <br> tags
+            let firstChild = block.firstChild;
+            while (firstChild && 
+                   ((firstChild.nodeType === Node.ELEMENT_NODE && firstChild.tagName === 'BR') ||
+                    (firstChild.nodeType === Node.TEXT_NODE && !firstChild.textContent.trim()))) {
+                const nextSibling = firstChild.nextSibling;
+                firstChild.remove();
+                firstChild = nextSibling;
             }
+        
+            // Remove trailing <br> tags
+            let lastChild = block.lastChild;
+            while (lastChild && 
+                   ((lastChild.nodeType === Node.ELEMENT_NODE && lastChild.tagName === 'BR') ||
+                    (lastChild.nodeType === Node.TEXT_NODE && !lastChild.textContent.trim()))) {
+                const previousSibling = lastChild.previousSibling;
+                lastChild.remove();
+                lastChild = previousSibling;
+            }
+        
+            // Remove consecutive <br> tags
+            const brElements = block.querySelectorAll('br');
+            brElements.forEach((br, index) => {
+                if (br.nextSibling && br.nextSibling.nodeType === Node.ELEMENT_NODE && 
+                    br.nextSibling.tagName === 'BR') {
+                    br.remove();
+                }
+            });
+        });
+        
+        // Remove empty text nodes
+        const walker = document.createTreeWalker(
+            tempDiv,
+            NodeFilter.SHOW_TEXT,
+            {
+                acceptNode: function(node) {
+                    if (!node.textContent.trim()) {
+                        return NodeFilter.FILTER_ACCEPT;
+                    }
+                    return NodeFilter.FILTER_SKIP;
+                }
+            }
+        );
+        
+        const emptyTextNodes = [];
+        let node = walker.nextNode();
+        while (node) {
+            emptyTextNodes.push(node);
+            node = walker.nextNode();
         }
-    );
-    
-    const emptyTextNodes = [];
-    let node = walker.nextNode();
-    while (node) {
-        emptyTextNodes.push(node);
-        node = walker.nextNode();
-    }
-    
-    emptyTextNodes.forEach(node => node.remove());
-    
-    // Get the cleaned HTML
-    let cleanedHtml = tempDiv.innerHTML;
-    
-    // Remove excessive whitespace in text
-    cleanedHtml = cleanedHtml
-        .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-        .replace(/>\s+</g, '><') // Remove whitespace between tags
-        .replace(/\s+$/g, '') // Remove trailing whitespace
-        .replace(/^\s+/g, '') // Remove leading whitespace
-        .trim();
-    
-    // Remove empty tags that might have been created
-    cleanedHtml = cleanedHtml
-        .replace(/<div><\/div>/g, '')
-        .replace(/<p><\/p>/g, '')
-        .replace(/<span><\/span>/g, '')
-        .replace(/<div>\s*<\/div>/g, '')
-        .replace(/<p>\s*<\/p>/g, '')
-        .replace(/<span>\s*<\/span>/g, '');
-    
-    return cleanedHtml;
-};
+        
+        emptyTextNodes.forEach(node => node.remove());
+        
+        // Get the cleaned HTML
+        let cleanedHtml = tempDiv.innerHTML;
+        
+        // Remove excessive whitespace in text
+        cleanedHtml = cleanedHtml
+            .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+            .replace(/>\s+</g, '><') // Remove whitespace between tags
+            .replace(/\s+$/g, '') // Remove trailing whitespace
+            .replace(/^\s+/g, '') // Remove leading whitespace
+            .trim();
+        
+        // Remove empty tags that might have been created
+        cleanedHtml = cleanedHtml
+            .replace(/<div><\/div>/g, '')
+            .replace(/<p><\/p>/g, '')
+            .replace(/<span><\/span>/g, '')
+            .replace(/<div>\s*<\/div>/g, '')
+            .replace(/<p>\s*<\/p>/g, '')
+            .replace(/<span>\s*<\/span>/g, '');
+        
+        return cleanedHtml;
+    };
 
     // Document upload function with SignalR support
     const uploadDocumentWithSignalR = async (doc, siteNoteId, userId) => {
@@ -985,137 +986,136 @@ const cleanHtml = (htmlContent) => {
     return result;
 };
 
-    // Save journal note with image handling - UPDATED
-// Save journal note with image handling - UPDATED
-// Save journal note with image handling - UPDATED
-// Save journal note with image handling - UPDATED
-const handleSaveJournal = async () => {
-    const newErrors = {};
-    if (!selectedProject) newErrors.project = "Please select a project";
-    if (!selectedJob) newErrors.job = "Please select a job";
-    if (!selectedDate) newErrors.date = "Please select a date";
-    
-    // Get cleaned note content
-    const noteHtmlContent = prepareNoteContent();
-    
-    // Check if there's any content (text OR images)
-    const hasTextContent = noteHtmlContent.replace(/<[^>]*>/g, '').trim();
-    const hasImages = pastedImages.length > 0;
-    
-    if (!hasTextContent && !hasImages) {
-        newErrors.note = "Note content is required";
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-        setErrors(newErrors);
-        return;
-    }
-
-    setIsSaving(true);
-    setApiError(null);
-
-    try {
-        const user = getCurrentUser();
+    // Save journal note with image handling
+    const handleSaveJournal = async () => {
+        if (isReadOnly) return; // Don't save if read-only
         
-        // Save the cleaned note content
-        const noteData = {
-            note: noteHtmlContent, // Save the cleaned HTML content
-            date: new Date(selectedDate).toISOString(),
-            jobId: selectedJob,
-            userId: user.id,
-        }; 
+        const newErrors = {};
+        if (!selectedProject) newErrors.project = "Please select a project";
+        if (!selectedJob) newErrors.job = "Please select a job";
+        if (!selectedDate) newErrors.date = "Please select a date";
         
-        const savedNote = await addSiteNote(noteData);
-        const siteNoteId = savedNote.siteNoteId; 
-
-        if (!siteNoteId) {
-            throw new Error("Failed to retrieve SiteNoteId from the saved note.");
+        // Get cleaned note content
+        const noteHtmlContent = prepareNoteContent();
+        
+        // Check if there's any content (text OR images)
+        const hasTextContent = noteHtmlContent.replace(/<[^>]*>/g, '').trim();
+        const hasImages = pastedImages.length > 0;
+        
+        if (!hasTextContent && !hasImages) {
+            newErrors.note = "Note content is required";
         }
 
-        // Upload documents with SignalR support
-        for (const doc of documents) {
-            if (doc.file) {
-                try {
-                    await uploadDocumentWithSignalR(doc, siteNoteId, user.id);
-                    console.log(`Document "${doc.name}" uploaded successfully`);
-                } catch (err) {
-                    console.error(`Error uploading document "${doc.name}":`, err);
-                    // Continue with other documents even if one fails
-                    toast.error(`Failed to upload document "${doc.name}": ${err.message}`);
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
+            return;
+        }
+
+        setIsSaving(true);
+        setApiError(null);
+
+        try {
+            const user = getCurrentUser();
+            
+            // Save the cleaned note content
+            const noteData = {
+                note: noteHtmlContent, // Save the cleaned HTML content
+                date: new Date(selectedDate).toISOString(),
+                jobId: selectedJob,
+                userId: user.id,
+            }; 
+            
+            const savedNote = await addSiteNote(noteData);
+            const siteNoteId = savedNote.siteNoteId; 
+
+            if (!siteNoteId) {
+                throw new Error("Failed to retrieve SiteNoteId from the saved note.");
+            }
+
+            // Upload documents with SignalR support
+            for (const doc of documents) {
+                if (doc.file) {
+                    try {
+                        await uploadDocumentWithSignalR(doc, siteNoteId, user.id);
+                        console.log(`Document "${doc.name}" uploaded successfully`);
+                    } catch (err) {
+                        console.error(`Error uploading document "${doc.name}":`, err);
+                        // Continue with other documents even if one fails
+                        toast.error(`Failed to upload document "${doc.name}": ${err.message}`);
+                    }
                 }
             }
-        }
-        
-        // Upload pasted images separately to the inline images endpoint
-        if (pastedImages.length > 0) {
-            const imageUploadPromises = pastedImages.map(async (image, index) => {
-                try {
-                    // Convert base64 to blob
-                    const base64Response = await fetch(image.base64);
-                    const blob = await base64Response.blob();
-                    
-                    // Create a file from blob
-                    const file = new File([blob], image.name, { type: image.type });
-                    
-                    // Upload as inline image
-                    const imageDoc = {
-                        name: image.name,
-                        file: file,
-                        fileName: image.name
-                    };
-                    
-                    console.log(`Uploading image "${image.name}" to inline images endpoint...`);
-                    const result = await uploadInlineImage(imageDoc, siteNoteId, user.id);
-                    console.log(`Image "${image.name}" uploaded successfully with ID:`, result.id);
-                    
-                    return { success: true, name: image.name };
-                } catch (imageError) {
-                    console.error('Error uploading pasted image:', imageError);
-                    return { 
-                        success: false, 
-                        name: image.name, 
-                        error: imageError.message 
-                    };
+            
+            // Upload pasted images separately to the inline images endpoint
+            if (pastedImages.length > 0) {
+                const imageUploadPromises = pastedImages.map(async (image, index) => {
+                    try {
+                        // Convert base64 to blob
+                        const base64Response = await fetch(image.base64);
+                        const blob = await base64Response.blob();
+                        
+                        // Create a file from blob
+                        const file = new File([blob], image.name, { type: image.type });
+                        
+                        // Upload as inline image
+                        const imageDoc = {
+                            name: image.name,
+                            file: file,
+                            fileName: image.name
+                        };
+                        
+                        console.log(`Uploading image "${image.name}" to inline images endpoint...`);
+                        const result = await uploadInlineImage(imageDoc, siteNoteId, user.id);
+                        console.log(`Image "${image.name}" uploaded successfully with ID:`, result.id);
+                        
+                        return { success: true, name: image.name };
+                    } catch (imageError) {
+                        console.error('Error uploading pasted image:', imageError);
+                        return { 
+                            success: false, 
+                            name: image.name, 
+                            error: imageError.message 
+                        };
+                    }
+                });
+                
+                // Wait for all image uploads to complete
+                const results = await Promise.all(imageUploadPromises);
+                
+                // Check for failures
+                const failedUploads = results.filter(r => !r.success);
+                if (failedUploads.length > 0) {
+                    console.warn(`${failedUploads.length} image(s) failed to upload:`, failedUploads);
+                    toast.error(`${failedUploads.length} image(s) failed to upload`);
                 }
-            });
-            
-            // Wait for all image uploads to complete
-            const results = await Promise.all(imageUploadPromises);
-            
-            // Check for failures
-            const failedUploads = results.filter(r => !r.success);
-            if (failedUploads.length > 0) {
-                console.warn(`${failedUploads.length} image(s) failed to upload:`, failedUploads);
-                toast.error(`${failedUploads.length} image(s) failed to upload`);
+                
+                const successfulUploads = results.filter(r => r.success);
+                if (successfulUploads.length > 0) {
+                    toast.success(`${successfulUploads.length} image(s) uploaded successfully`);
+                }
             }
-            
-            const successfulUploads = results.filter(r => r.success);
-            if (successfulUploads.length > 0) {
-                toast.success(`${successfulUploads.length} image(s) uploaded successfully`);
-            }
-        }
 
-        await handleAddPriority(siteNoteId, user.id);
-        refreshNotes();
-        if (refreshFilteredNotes) refreshFilteredNotes();
-        onClose();
-        toast.success('Note saved successfully!');
-    } catch (error) {
-        console.error("Save error:", error);
-        setApiError(error.message || "Failed to save note");
-        toast.error('Failed to save note');
-    } finally {
-        setIsSaving(false);
-    }
-};
+            await handleAddPriority(siteNoteId, user.id);
+            refreshNotes();
+            if (refreshFilteredNotes) refreshFilteredNotes();
+            onClose();
+            toast.success('Note saved successfully!');
+        } catch (error) {
+            console.error("Save error:", error);
+            setApiError(error.message || "Failed to save note");
+            toast.error('Failed to save note');
+        } finally {
+            setIsSaving(false);
+        }
+    };
 
     // Keyboard shortcut for save
     const handleSaveShortcut = useCallback((event) => {
-        if ((event.ctrlKey || event.metaKey) && event.key === 's' && !isSaving) {
+        if ((event.ctrlKey || event.metaKey) && event.key === 's' && !isSaving && !isReadOnly) {
             event.preventDefault(); 
             handleSaveJournal();
         }
-    }, [isSaving, handleSaveJournal]);
+    }, [isSaving, handleSaveJournal, isReadOnly]);
 
     useEffect(() => {
         if (isOpen) {
@@ -1146,6 +1146,8 @@ const handleSaveJournal = async () => {
 
     // Document handling functions
     const handleAddDocument = () => {
+        if (isReadOnly) return; // Disable if read-only
+        
         setCurrentDocumentBeingEdited(null);
         setNewDocument({ name: '', file: null });
         setErrors({});
@@ -1153,6 +1155,8 @@ const handleSaveJournal = async () => {
     };
 
     const handleEditDocument = (doc) => {
+        if (isReadOnly) return; // Disable if read-only
+        
         setCurrentDocumentBeingEdited(doc);
         setNewDocument({ name: doc.name, file: null });
         setErrors({});
@@ -1160,6 +1164,8 @@ const handleSaveJournal = async () => {
     };
 
     const handleDeleteDocument = (indexToDelete) => {
+        if (isReadOnly) return; // Disable if read-only
+        
         if (window.confirm('Are you sure you want to remove this document from the list? It will not be saved.')) {
             setDocuments(prev => prev.filter((_, i) => i !== indexToDelete));
         }
@@ -1170,6 +1176,8 @@ const handleSaveJournal = async () => {
     };
 
     const handleDocumentFileChange = (e) => {
+        if (isReadOnly) return; // Disable if read-only
+        
         const file = e.target.files[0];
         setError('');
 
@@ -1182,6 +1190,8 @@ const handleSaveJournal = async () => {
     };
 
     const handleDocumentSubmit = () => {
+        if (isReadOnly) return; // Disable if read-only
+        
         const newDocErrors = {};
         if (!newDocument.name.trim()) {
             setError('Document name is required.');
@@ -1241,98 +1251,129 @@ const handleSaveJournal = async () => {
 
     // Search component
     const renderSearchSection = () => (
-    <div className="search-section">
-        <div className="form-group full-width search-container" ref={searchInputRef}>
-            <label>🔍 Quick Search</label>
-            <div className="search-input-wrapper" style={{ width: '100%' }}>
-                <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Type to search for workspace, project, or job..."
-                    className="search-input"
-                    style={{ width: '100%' }}
-                />
-                {isSearching && <div className="search-spinner">🔍 Searching...</div>}
-            </div>
-            
-            {showSearchResults && searchResults.length > 0 && (
-                <div className="search-results-dropdown" style={{ width: '100%' }}>
-                    <div className="search-results-header">
-                        Found {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for "{searchQuery}"
-                    </div>
-                    {searchResults.map((result, index) => (
-                        <div
-                            key={`${result.workspaceId}-${result.projectId}-${result.jobId}-${index}`}
-                            className="search-result-item"
-                            onClick={() => handleSearchResultSelect(result)}
-                        >
-                            <div className="search-result-fullpath">
-                                {result.fullPath || `${result.workspaceName} → ${result.projectName} → ${result.jobName}`}
+        <div className="search-section">
+            <div className="form-group full-width search-container" ref={searchInputRef}>
+                <label>🔍 Quick Search</label>
+                <div className="search-input-wrapper" style={{ width: '100%' }}>
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Type to search for workspace, project, or job..."
+                        className="search-input"
+                        style={{ width: '100%' }}
+                        disabled={isReadOnly} // Disable if read-only
+                    />
+                    {isSearching && !isReadOnly && <div className="search-spinner">🔍 Searching...</div>}
+                </div>
+                
+                {showSearchResults && searchResults.length > 0 && !isReadOnly && (
+                    <div className="search-results-dropdown" style={{ width: '100%' }}>
+                        <div className="search-results-header">
+                            Found {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} for "{searchQuery}"
+                        </div>
+                        {searchResults.map((result, index) => (
+                            <div
+                                key={`${result.workspaceId}-${result.projectId}-${result.jobId}-${index}`}
+                                className="search-result-item"
+                                onClick={() => handleSearchResultSelect(result)}
+                            >
+                                <div className="search-result-fullpath">
+                                    {result.fullPath || `${result.workspaceName} → ${result.projectName} → ${result.jobName}`}
+                                </div>
                             </div>
-                            {/* <div className="search-result-details">
-                                <span>Workspace: {result.workspaceName}</span>
-                                <span>Project: {result.projectName}</span>
-                                <span>Job: {result.jobName}</span>
-                            </div> */}
-                        </div>
-                    ))}
-                </div>
-            )}
-            
-            {showSearchResults && searchQuery && searchResults.length === 0 && !isSearching && (
-                <div className="search-results-dropdown" style={{ width: '100%' }}>
-                    <div className="search-no-results">
-                        No results found for "<strong>{searchQuery}</strong>"
-                        <div style={{ fontSize: '11px', marginTop: '4px' }}>
-                            Try searching with different keywords
+                        ))}
+                    </div>
+                )}
+                
+                {showSearchResults && searchQuery && searchResults.length === 0 && !isSearching && !isReadOnly && (
+                    <div className="search-results-dropdown" style={{ width: '100%' }}>
+                        <div className="search-no-results">
+                            No results found for "<strong>{searchQuery}</strong>"
+                            <div style={{ fontSize: '11px', marginTop: '4px' }}>
+                                Try searching with different keywords
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )}
+            </div>
         </div>
-    </div>
-);
+    );
 
     // Editor toolbar component - SIMPLIFIED (no mode toggle)
     const renderEditorToolbar = () => (
         <div className="editor-toolbar">
             <div className="editor-formatting-tools">
-                <button onClick={() => formatText('bold')} title="Bold">
+                <button 
+                    onClick={() => formatText('bold')} 
+                    title="Bold"
+                    disabled={isReadOnly}
+                    className={isReadOnly ? 'disabled' : ''}
+                >
                     <i className="fas fa-bold"></i>
                 </button>
-                <button onClick={() => formatText('italic')} title="Italic">
+                <button 
+                    onClick={() => formatText('italic')} 
+                    title="Italic"
+                    disabled={isReadOnly}
+                    className={isReadOnly ? 'disabled' : ''}
+                >
                     <i className="fas fa-italic"></i>
                 </button>
-                <button onClick={() => formatText('underline')} title="Underline">
+                <button 
+                    onClick={() => formatText('underline')} 
+                    title="Underline"
+                    disabled={isReadOnly}
+                    className={isReadOnly ? 'disabled' : ''}
+                >
                     <i className="fas fa-underline"></i>
                 </button>
-                <button onClick={() => formatText('insertUnorderedList')} title="Bullet List">
+                <button 
+                    onClick={() => formatText('insertUnorderedList')} 
+                    title="Bullet List"
+                    disabled={isReadOnly}
+                    className={isReadOnly ? 'disabled' : ''}
+                >
                     <i className="fas fa-list-ul"></i>
                 </button>
-                <button onClick={() => formatText('insertOrderedList')} title="Numbered List">
+                <button 
+                    onClick={() => formatText('insertOrderedList')} 
+                    title="Numbered List"
+                    disabled={isReadOnly}
+                    className={isReadOnly ? 'disabled' : ''}
+                >
                     <i className="fas fa-list-ol"></i>
                 </button>
                 
                 <div className="image-upload-wrapper">
-                    <label htmlFor="image-upload" className="image-upload-button" title="Upload Image">
+                    <label 
+                        htmlFor="image-upload" 
+                        className={`image-upload-button ${isReadOnly ? 'disabled' : ''}`} 
+                        title={isReadOnly ? "Read-only mode" : "Upload Image"}
+                    >
                         <i className="fas fa-image"></i>
                         <input
                             id="image-upload"
                             type="file"
                             accept="image/*"
                             onChange={handleImageUpload}
+                            disabled={isReadOnly}
                             style={{ display: 'none' }}
                         />
                     </label>
                 </div>
                 
-                <button onClick={clearEditor} title="Clear All" className="clear-button">
+                <button 
+                    onClick={clearEditor} 
+                    title={isReadOnly ? "Read-only mode" : "Clear All"} 
+                    className={`clear-button ${isReadOnly ? 'disabled' : ''}`}
+                    disabled={isReadOnly}
+                >
                     <i className="fas fa-trash"></i>
                 </button>
             </div>
             
-            {pastedImages.length > 0 && (
+            {pastedImages.length > 0 && !isReadOnly && (
                 <div className="image-counter">
                     <i className="fas fa-images"></i> {pastedImages.length} image{pastedImages.length !== 1 ? 's' : ''} attached
                 </div>
@@ -1352,19 +1393,25 @@ const handleSaveJournal = async () => {
                     </span>
                 </label>
                 
-                {renderEditorToolbar()}
+                {!isReadOnly && renderEditorToolbar()}
                 
                 <div 
                     ref={editorRef}
-                    contentEditable
-                    className="rich-text-editor"
+                    contentEditable={!isReadOnly}
+                    className={`rich-text-editor ${isReadOnly ? 'read-only' : ''}`}
                     onPaste={handlePaste}
                     onInput={handleEditorInput}
-                    placeholder="Type your note here and paste images."
+                    placeholder={isReadOnly ? "Read-only mode - Cannot edit" : "Type your note here and paste images."}
                     suppressContentEditableWarning={true}
+                    style={{
+                        pointerEvents: isReadOnly ? 'none' : 'auto',
+                        opacity: isReadOnly ? 0.7 : 1,
+                        backgroundColor: isReadOnly ? '#f5f5f5' : '#fff',
+                        cursor: isReadOnly ? 'not-allowed' : 'text'
+                    }}
                 />
                 
-                {pastedImages.length > 0 && (
+                {pastedImages.length > 0 && !isReadOnly && (
                     <div className="image-upload-status">
                         <i className="fas fa-images"></i>
                         {pastedImages.length} image{pastedImages.length !== 1 ? 's' : ''} attached (will be saved separately)
@@ -1382,13 +1429,14 @@ const handleSaveJournal = async () => {
 
         return (
             <div className="journal-section">
-                {renderSearchSection()}
+                {!isReadOnly && renderSearchSection()}
                 
                 <div className="form-group">
                     <label>Workspace</label>
                     <select
                         value={selectedWorkspace}
                         onChange={(e) => setSelectedWorkspace(e.target.value)}
+                        disabled={isReadOnly}
                     >
                         <option value="">Select Workspace</option>
                         {userworksaces.map(workspace => (
@@ -1414,7 +1462,7 @@ const handleSaveJournal = async () => {
                             setSelectedProjectData(selectedProjectObj || null);
                             setErrors(prev => ({ ...prev, project: undefined, job: undefined }));
                         }}
-                        disabled={!selectedWorkspace || isLoadingProjects}
+                        disabled={!selectedWorkspace || isLoadingProjects || isReadOnly}
                     >
                         <option value="">Select Project</option>
                         {isLoadingProjects ? (
@@ -1447,7 +1495,7 @@ const handleSaveJournal = async () => {
                             setSelectedJobData(selectedJobObj || null);
                             setErrors(prev => ({ ...prev, job: undefined }));
                         }}
-                        disabled={!selectedProject || isLoadingJobs}
+                        disabled={!selectedProject || isLoadingJobs || isReadOnly}
                     >
                         <option value="">Select Job</option>
                         {isLoadingJobs ? (
@@ -1476,6 +1524,7 @@ const handleSaveJournal = async () => {
                             setSelectedDate(e.target.value);
                             setErrors(prev => ({ ...prev, date: undefined }));
                         }}
+                        disabled={isReadOnly}
                     />
                 </div>
 
@@ -1487,11 +1536,13 @@ const handleSaveJournal = async () => {
     const renderDocumentsTab = () => (
         <div className="documents-section">
             <h3>Attached Documents</h3>
-            <div className="document-actions">
-                <button className="add-button" onClick={handleAddDocument}>
-                    Add Document
-                </button>
-            </div>
+            {!isReadOnly && (
+                <div className="document-actions">
+                    <button className="add-button" onClick={handleAddDocument}>
+                        Add Document
+                    </button>
+                </div>
+            )}
 
             <div className="documents-list">
                 {documents.length === 0 ? (
@@ -1502,7 +1553,7 @@ const handleSaveJournal = async () => {
                             <tr>
                                 <th>Document Name</th>
                                 <th>File Name</th>
-                                <th>Actions</th>
+                                {!isReadOnly && <th>Actions</th>}
                             </tr>
                         </thead>
                         <tbody>
@@ -1510,14 +1561,16 @@ const handleSaveJournal = async () => {
                                 <tr key={doc.id || index}>
                                     <td>{doc.name}</td>
                                     <td>{doc.fileName || 'N/A'}</td>
-                                    <td className="document-actions-cell">
-                                        <button onClick={() => handleEditDocument(doc)} className="edit-button">
-                                            Edit
-                                        </button>
-                                        <button onClick={() => handleDeleteDocument(index)} className="delete-button">
-                                            Delete
-                                        </button>
-                                    </td>
+                                    {!isReadOnly && (
+                                        <td className="document-actions-cell">
+                                            <button onClick={() => handleEditDocument(doc)} className="edit-button">
+                                                Edit
+                                            </button>
+                                            <button onClick={() => handleDeleteDocument(index)} className="delete-button">
+                                                Delete
+                                            </button>
+                                        </td>
+                                    )}
                                 </tr>
                             ))}
                         </tbody>
@@ -1538,6 +1591,7 @@ const handleSaveJournal = async () => {
                         setErrors(prev => ({ ...prev, priority: undefined }));
                     }}
                     className={`priority-select ${selectedPriority ? `priority-${selectedPriority}` : ''} ${errors.priority ? 'error' : ''}`}
+                    disabled={isReadOnly}
                 >
                     <option value="">Select Priority</option>
                     <option value="4" className="priority-option-4">High</option>
@@ -1561,11 +1615,32 @@ const handleSaveJournal = async () => {
         <div className="edit-note-modal-overlay">
             <div className="edit-note-modal" ref={modalRef}>
                 <div className="modal-header">
-                    <h2>New Note</h2>
+                    <h2>New Note {isReadOnly && <span style={{ fontSize: '14px', color: '#666', marginLeft: '10px' }}>(Read-Only)</span>}</h2>
                     <button className="close-button" onClick={onClose} disabled={isSaving}>
                         ×
                     </button>
                 </div>
+
+                {/* Read-only access message */}
+                {isReadOnly && (
+                    <div className="read-only-message" style={{
+                        margin: '10px 20px',
+                        padding: '15px',
+                        backgroundColor: '#ffe9edff',
+                        border: '1px solid #ffe9edff',
+                        borderRadius: '4px',
+                        color: '#5b4504ff',
+                        textAlign: 'center',
+                        fontWeight: '500',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '10px'
+                    }}>
+                        <i className="fas fa-eye" style={{ fontSize: '18px' }}></i>
+                        <span>You have read-only access and cannot create site notes.</span>
+                    </div>
+                )}
 
                 {apiError && (
                     <div className="error-message">
@@ -1576,20 +1651,23 @@ const handleSaveJournal = async () => {
 
                 <div className="tabs">
                     <button 
-                        className={`tab-button ${activeTab === 'journal' ? 'active' : ''}`} 
+                        className={`tab-button ${activeTab === 'journal' ? 'active' : ''} ${isReadOnly ? 'read-only-tab' : ''}`} 
                         onClick={() => setActiveTab('journal')}
+                        disabled={isReadOnly}
                     >
                         Journal
                     </button>
                     <button 
-                        className={`tab-button ${activeTab === 'documents' ? 'active' : ''}`} 
+                        className={`tab-button ${activeTab === 'documents' ? 'active' : ''} ${isReadOnly ? 'read-only-tab' : ''}`} 
                         onClick={() => setActiveTab('documents')}
+                        disabled={isReadOnly}
                     >
                         Documents ({documents.length})
                     </button>
                     <button 
-                        className={`tab-button ${activeTab === 'priority' ? 'active' : ''}`} 
+                        className={`tab-button ${activeTab === 'priority' ? 'active' : ''} ${isReadOnly ? 'read-only-tab' : ''}`} 
                         onClick={() => setActiveTab('priority')}
+                        disabled={isReadOnly}
                     >
                         Priority
                     </button>
@@ -1603,13 +1681,15 @@ const handleSaveJournal = async () => {
                     <button className="cancel-button" onClick={onClose} disabled={isSaving}>
                         Cancel
                     </button>
-                    <button className="save-button" onClick={handleSaveJournal} disabled={isSaving}>
-                        {isSaving ? "Saving..." : "Save"}
-                    </button>
+                    {!isReadOnly && (
+                        <button className="save-button" onClick={handleSaveJournal} disabled={isSaving}>
+                            {isSaving ? "Saving..." : "Save"}
+                        </button>
+                    )}
                 </div>
 
                 {/* Document Modal */}
-                {showDocumentModal && (
+                {showDocumentModal && !isReadOnly && (
                     <div className="document-modal-overlay">
                         <div className="document-modal">
                             <div className="modal-header">
@@ -1719,7 +1799,8 @@ NewNoteModal.propTypes = {
             text: PropTypes.string
         })
     ),
-    source: PropTypes.oneOf(['grid', 'dashboard'])
+    source: PropTypes.oneOf(['grid', 'dashboard']),
+    defaultWorkspaceRole: PropTypes.number // Add this prop type
 };
 
 NewNoteModal.defaultProps = {
@@ -1728,7 +1809,8 @@ NewNoteModal.defaultProps = {
     prefilledData: null,
     defWorkSpaceId: null,
     userworksaces: [],
-    source: 'dashboard'
+    source: 'dashboard',
+    defaultWorkspaceRole: null
 };
 
 export default NewNoteModal;

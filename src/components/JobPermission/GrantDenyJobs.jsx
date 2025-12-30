@@ -521,7 +521,8 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
                         cursor: (selectedUsers.length > 0 && selectedProject && selectedJob && !loading) ? 'pointer' : 'not-allowed',
                         fontSize: '12px',
                         fontWeight: '500',
-                        height: '32px'
+                        height: '32px',
+                        margin: '12px'
                     }}
                 >
                     {loading ? 'Granting...' : `Grant (${selectedUsers.length})`}
@@ -539,7 +540,8 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
                         cursor: (selectedUsers.length > 0 && selectedProject && selectedJob && !loading) ? 'pointer' : 'not-allowed',
                         fontSize: '12px',
                         fontWeight: '500',
-                        height: '32px'
+                        height: '32px',
+                         margin: '12px'
                     }}
                 >
                     {loading ? 'Denying...' : `Deny (${selectedUsers.length})`}

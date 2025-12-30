@@ -7,22 +7,17 @@ const EditNoteModal = ({
   onClose,
   refreshNotes,
   updateNote,
- 
-  projects = [],
-  jobs = [],
-  
   defaultWorkspaceId,
-  openToPriorityTab = false
 }) => {
   const [isEditable, setIsEditable] = useState(true);
   const [journalData, setJournalData] = useState({
     date: "",
     userId: "",
+    projectId: "",
     jobId: "",
     note: "",
+    workspaceId: "",
   });
-
-  console.log(note)
 
   const [documents, setDocuments] = useState([]);
   const [showDocumentModal, setShowDocumentModal] = useState(false);
@@ -35,16 +30,15 @@ const EditNoteModal = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
-  const [selectedPriority, setSelectedPriority] = useState("1"); // Default to "No Priority"
-  const [priorityId, setPriorityId] = useState(null); // Will store the priority ID if exists
+  const [selectedPriority, setSelectedPriority] = useState("1");
+  const [priorityId, setPriorityId] = useState(null);
   const [isLoadingPriority, setIsLoadingPriority] = useState(false);
-
   const [isUploading, setIsUploading] = useState(false);
-
   const [isDownloading, setIsDownloading] = useState(false);
   const [currentDownloadingFileName, setCurrentDownloadingFileName] = useState('');
 
   const modalRef = useRef(null);
+  const editorContainerRef = useRef(null);
 
   // Rich text editor states 
   const [richTextContent, setRichTextContent] = useState('');
@@ -60,6 +54,13 @@ const EditNoteModal = ({
   const editorRef = useRef(null);
   const isInitialLoad = useRef(true);
   const lastRichTextContent = useRef('');
+  const hasSetContent = useRef(false);
+  const hasFocused = useRef(false); // CORRECTED: Added const declaration
+  const hasScrolledToEditor = useRef(false);
+  
+  // NEW: Add flags to track if data has been fetched
+  const hasFetchedData = useRef(false);
+  const isFetchingData = useRef(false);
 
   // Get current user
   const getCurrentUser = () => {
@@ -71,13 +72,6 @@ const EditNoteModal = ({
   const currentUser = getCurrentUser();
   const isCreator = note?.userId && note.userId.toString() === currentUser.id.toString();
   const canEditNote = isCreator;
-
-  console.log('EditNoteModal Permission Debug:', {
-    noteUserId: note?.userId,
-    currentUserId: currentUser.id,
-    isCreator,
-    canEditNote
-  });
 
   const allowedFileTypes = {
     "image/jpeg": [".jpg", ".jpeg"],
@@ -118,7 +112,6 @@ const EditNoteModal = ({
       );
       
       if (!response.ok) {
-        // If no priority exists (404), that's OK - notes have default priority
         if (response.status === 404) {
           console.log(`No priority found for note ${noteId}, using default (1)`);
           setSelectedPriority("1");
@@ -131,22 +124,17 @@ const EditNoteModal = ({
       const data = await response.json();
       console.log('Priority data fetched:', data);
       
-      // Handle different response formats
       if (data.priority) {
-        // If response has a priority object
         setSelectedPriority(data.priority.priorityValue?.toString() || "1");
         setPriorityId(data.priority.id?.toString() || null);
       } else if (data.priorityValue) {
-        // If response is the priority object itself
         setSelectedPriority(data.priorityValue.toString());
         setPriorityId(data.id?.toString() || null);
       } else if (Array.isArray(data) && data.length > 0) {
-        // If response is an array
         const priority = data[0];
         setSelectedPriority(priority.priorityValue?.toString() || "1");
         setPriorityId(priority.id?.toString() || null);
       } else {
-        // No priority found, use default
         setSelectedPriority("1");
         setPriorityId(null);
       }
@@ -154,7 +142,6 @@ const EditNoteModal = ({
       return data;
     } catch (error) {
       console.error("Error fetching priority:", error);
-      // On error, use default priority
       setSelectedPriority("1");
       setPriorityId(null);
       return null;
@@ -163,15 +150,97 @@ const EditNoteModal = ({
     }
   }, []);
 
-  // Initialize editor content
-  useEffect(() => {
-    if (editorRef.current && note?.value && isInitialLoad.current) {
-      editorRef.current.innerHTML = note.value;
-      isInitialLoad.current = false;
+  // Fetch inline images for the note
+  const fetchInlineImages = useCallback(async (siteNoteId) => {
+    try {
+      const response = await fetch(
+        `${process.env.REACT_APP_API_BASE_URL}/api/InlineImages/GetInlineImagesBySiteNote?siteNoteId=${siteNoteId}`
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch images: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      if (data.images && Array.isArray(data.images)) {
+        return data.images;
+      }
+      return [];
+    } catch (error) {
+      console.error("Error fetching inline images:", error);
+      return [];
     }
-  }, [note?.value]);
+  }, []);
 
-  // Check if if note is editable based on creation time
+  const fetchDocumentsByReference = useCallback(async (referenceId) => {
+    try {
+      setIsLoadingDocuments(true);
+      setError(null);
+
+      const response = await fetch(
+        `${process.env.REACT_APP_API_BASE_URL}/api/Documents/GetDocumentMetadataByReference?siteNoteId=${referenceId}`,
+        { headers: { accept: "application/json" } }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch documents: ${response.status} ${response.statusText}`);
+      }
+
+      var docs = await response.json();
+      docs = docs.documents || docs;
+
+      const formattedDocs = docs.map((doc) => {
+        const downloadApiTriggerUrl = `${process.env.REACT_APP_API_BASE_URL}/api/Documents/DownloadDocument/${doc.id}`;
+        return {
+          ...doc,
+          fileType: doc.fileName?.split(".").pop(),
+          fileUrl: null,
+          downloadApiTriggerUrl,
+        };
+      });
+      
+      setDocuments(formattedDocs);
+      return formattedDocs;
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+      setError("Failed to load documents: " + error.message);
+      return [];
+    } finally {
+      setIsLoadingDocuments(false);
+    }
+  }, []);
+
+  // Fetch all data for note - optimized single function
+  const fetchAllNoteData = useCallback(async (noteData) => {
+    if (!noteData?.id || hasFetchedData.current || isFetchingData.current) return;
+    
+    isFetchingData.current = true;
+    console.log('Fetching all note data for note:', noteData.id);
+    
+    try {
+      // Fetch priority, inline images, and documents in parallel
+      const [priorityData, imagesData, documentsData] = await Promise.all([
+        fetchPriorityByNoteId(noteData.id),
+        fetchInlineImages(noteData.id),
+        fetchDocumentsByReference(noteData.id)
+      ]);
+      
+      console.log('All data fetched:', { priorityData, imagesData, documentsData });
+      
+      // Set existing images
+      if (imagesData && Array.isArray(imagesData)) {
+        setExistingImages(imagesData);
+      }
+      
+    } catch (error) {
+      console.error('Error fetching note data:', error);
+    } finally {
+      isFetchingData.current = false;
+      hasFetchedData.current = true;
+    }
+  }, [fetchPriorityByNoteId, fetchInlineImages, fetchDocumentsByReference]);
+
+  // Check if note is editable based on creation time
   useEffect(() => {
     if (note) {
       const creationDate = note.timeStamp;
@@ -190,40 +259,66 @@ const EditNoteModal = ({
     }
   }, [note]);
 
-  // Fetch inline images for the note
-  const fetchInlineImages = useCallback(async (siteNoteId) => {
-    try {
-      const response = await fetch(
-        `${process.env.REACT_APP_API_BASE_URL}/api/InlineImages/GetInlineImagesBySiteNote?siteNoteId=${siteNoteId}`
-      );
+  const placeCursorAtEnd = (element) => {
+    if (!element) return;
+    
+    const range = document.createRange();
+    const selection = window.getSelection();
+    
+    if (element.childNodes.length > 0) {
+      let lastNode = element.lastChild;
       
-      if (!response.ok) {
-        throw new Error(`Failed to fetch images: ${response.status} ${response.statusText}`);
+      while (lastNode && lastNode.nodeType === Node.ELEMENT_NODE && lastNode.lastChild) {
+        lastNode = lastNode.lastChild;
       }
       
-      const data = await response.json();
-      if (data.images && Array.isArray(data.images)) {
-        setExistingImages(data.images);
-        return data.images;
+      if (lastNode.nodeType === Node.TEXT_NODE) {
+        range.setStart(lastNode, lastNode.length);
+        range.setEnd(lastNode, lastNode.length);
+      } else {
+        range.setStartAfter(lastNode);
+        range.setEndAfter(lastNode);
       }
-      return [];
-    } catch (error) {
-      console.error("Error fetching inline images:", error);
-      return [];
+    } else {
+      range.selectNodeContents(element);
+      range.collapse(false);
     }
-  }, []);
+    
+    selection.removeAllRanges();
+    selection.addRange(range);
+  };
 
-  // Load note data including inline images and priority
+  const focusEditorAtEnd = () => {
+    if (editorRef.current && document.contains(editorRef.current)) {
+      editorRef.current.focus();
+      placeCursorAtEnd(editorRef.current);
+      hasFocused.current = true;
+      return true;
+    }
+    return false;
+  };
+
+  const scrollModalToEditor = () => {
+    if (editorContainerRef.current && modalRef.current) {
+      const editorRect = editorContainerRef.current.getBoundingClientRect();
+      const modalRect = modalRef.current.getBoundingClientRect();
+      const modalScrollTop = modalRef.current.scrollTop;
+      
+      const editorTopRelativeToModal = editorRect.top - modalRect.top + modalScrollTop;
+      
+      modalRef.current.scrollTo({
+        top: editorTopRelativeToModal - 100,
+        behavior: 'smooth'
+      });
+      
+      hasScrolledToEditor.current = true;
+    }
+  };
+
+  // Load note data - MAIN EFFECT - optimized
   useEffect(() => {
-    if (note) {
-      const projectId = note.projectId
-        ? note.projectId.toString()
-        : findProjectIdByName(note.project || "");
-
-      const jobId = note.jobId
-        ? note.jobId.toString()
-        : findJobIdByName(note.job || "", projectId);
-
+    if (note && !hasFetchedData.current) {
+      // Format date for input field
       let correctedDate = "";
       if (note.date) {
         const dateObj = new Date(note.date);
@@ -235,88 +330,145 @@ const EditNoteModal = ({
       
       const user = JSON.parse(localStorage.getItem("user"));
 
+      // Set journal data directly from note prop
       setJournalData({
         date: correctedDate,
-        projectId: projectId || "",
-        jobId: jobId || "",
+        projectId: note.projectId?.toString() || "",
+        jobId: note.jobId?.toString() || "",
         note: note.note || "",
-        userId: user.id
+        userId: user.id,
+        workspaceId: note.workspaceId?.toString() || ""
       });
 
       // Store original note content
       setOriginalNoteContent(note.note || '');
-
-      // Fetch priority for this note
-      if (note.id) {
-        fetchPriorityByNoteId(note.id);
+      
+      // Fetch all note data (priority, images, documents) - SINGLE CALL
+      fetchAllNoteData(note);
+      
+      // Set initial rich text content
+      let content = note.note || '';
+      
+      if (content && !content.includes('<') && !content.includes('>')) {
+        content = `<div>${content}</div>`;
       }
-
-      // Fetch documents and images
-      if (note.id) {
-        fetchDocumentsByReference(note.id);
-        
-        // Load images properly
-        fetchInlineImages(note.id).then(images => {
-          setExistingImages(images);
+      
+      setRichTextContent(content);
+      lastRichTextContent.current = content;
+      
+      // Set editor content
+      const setEditorContent = () => {
+        if (editorRef.current) {
+          editorRef.current.innerHTML = content;
+          hasSetContent.current = true;
           
-          // Start with the note's existing HTML content
-          let content = note.note || '';
-          
-          // If note content doesn't have HTML formatting, check if it's plain text
-          if (content && !content.includes('<') && !content.includes('>')) {
-            // It's plain text, wrap it in a div to preserve formatting
-            content = `<div>${content}</div>`;
-          }
-          
-          // Append images as separate wrappers
-          if (images.length > 0) {
-            const imageHtml = images.map(img => {
-              const imageUrl = img.url.startsWith('http') ? img.url : 
-                `${process.env.REACT_APP_API_BASE_URL}${img.url}`;
-              return `
-                <div class="image-wrapper" data-image-id="${img.id}" data-image-url="${imageUrl}" data-image-name="${img.fileName}">
-                  <img src="${imageUrl}" 
-                       alt="${img.fileName}" 
-                       class="inline-image" />
-                  <button type="button" class="remove-image-btn" title="Remove image">
-                    <i class="fas fa-times"></i>
-                  </button>
-                </div>
-              `;
-            }).join('');
-            
-            // Append images directly after text content
-            content += imageHtml;
-          }
-          
-          setRichTextContent(content);
-          lastRichTextContent.current = content;
-          
-          // Set editor content
+          // Scroll modal to show editor, then focus with cursor at end
           setTimeout(() => {
-            if (editorRef.current) {
-              editorRef.current.innerHTML = content;
-              // Add click handlers to images
-              addImageClickHandlers();
+            if (editorRef.current && !hasScrolledToEditor.current) {
+              scrollModalToEditor();
+              setTimeout(() => {
+                if (!hasFocused.current) {
+                  focusEditorAtEnd();
+                }
+              }, 300);
             }
-          }, 100);
-        });
+          }, 300);
+        } else {
+          setTimeout(setEditorContent, 100);
+        }
+      };
+      
+      setEditorContent();
+    }
+    
+    return () => {
+      // Reset flags when component unmounts
+      hasFetchedData.current = false;
+      isFetchingData.current = false;
+      hasFocused.current = false;
+      hasSetContent.current = false;
+      hasScrolledToEditor.current = false;
+    };
+  }, [note, fetchAllNoteData]);
+
+  // Update editor content with images when existingImages are loaded
+  useEffect(() => {
+    if (existingImages.length > 0 && editorRef.current && hasSetContent.current) {
+      const content = editorRef.current.innerHTML;
+      
+      // Check if images are already added
+      const hasImages = content.includes('image-wrapper');
+      if (!hasImages) {
+        // Append images as separate wrappers
+        const imageHtml = existingImages.map(img => {
+          const imageUrl = img.url.startsWith('http') ? img.url : 
+            `${process.env.REACT_APP_API_BASE_URL}${img.url}`;
+          return `
+            <div class="image-wrapper" data-image-id="${img.id}" data-image-url="${imageUrl}" data-image-name="${img.fileName}">
+              <img src="${imageUrl}" 
+                   alt="${img.fileName}" 
+                   class="inline-image" />
+              <button type="button" class="remove-image-btn" title="Remove image">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+          `;
+        }).join('');
+        
+        // Append images directly after text content
+        const newContent = content + imageHtml;
+        editorRef.current.innerHTML = newContent;
+        setRichTextContent(newContent);
+        lastRichTextContent.current = newContent;
+        
+        // Add click handlers
+        addImageClickHandlers();
       }
     }
-  }, [note?.id, fetchInlineImages, fetchPriorityByNoteId, projects, jobs]);
+  }, [existingImages]);
 
-  // Restore editor content when switching back to journal tab
+  // Set editor content when tab changes to journal
   useEffect(() => {
-    if (activeTab === "journal" && editorRef.current) {
+    if (activeTab === "journal" && editorRef.current && richTextContent) {
       setTimeout(() => {
         if (editorRef.current) {
           const contentToRestore = richTextContent || lastRichTextContent.current;
-          editorRef.current.innerHTML = contentToRestore;
-          addImageClickHandlers();
+          if (contentToRestore && editorRef.current.innerHTML !== contentToRestore) {
+            editorRef.current.innerHTML = contentToRestore;
+            hasSetContent.current = true;
+            addImageClickHandlers();
+            
+            if (canEditNote && isEditable) {
+              setTimeout(() => {
+                scrollModalToEditor();
+                setTimeout(() => {
+                  if (!hasFocused.current) {
+                    focusEditorAtEnd();
+                  }
+                }, 200);
+              }, 100);
+            } else {
+              setTimeout(() => {
+                scrollModalToEditor();
+              }, 100);
+            }
+          }
         }
-      }, 10);
+      }, 50);
     }
-  }, [activeTab]);
+  }, [activeTab, richTextContent, canEditNote, isEditable]);
+
+  // Focus editor when modal opens and content is loaded
+  useEffect(() => {
+    if (note && editorRef.current && hasSetContent.current && !hasFocused.current) {
+      const timeout1 = setTimeout(() => {
+        scrollModalToEditor();
+        setTimeout(() => focusEditorAtEnd(), 200);
+      }, 200);
+      
+      return () => clearTimeout(timeout1);
+    }
+  }, [note, hasSetContent.current]);
 
   // Add click handlers to images for fullscreen view
   const addImageClickHandlers = useCallback(() => {
@@ -349,19 +501,6 @@ const EditNoteModal = ({
       };
     });
   }, []);
-
-  const findProjectIdByName = (projectName) => {
-    const project = projects.find((p) => p.name === projectName);
-    return project ? project.id.toString() : "";
-  };
-
-  const findJobIdByName = (jobName, projectId) => {
-    const job = jobs.find(
-      (j) =>
-        j.name === jobName && j.projectId?.toString() === projectId.toString()
-    );
-    return job ? job.id.toString() : "";
-  };
 
   const handleJournalChange = (e) => {
     if (!isEditable || !canEditNote) return;
@@ -421,7 +560,6 @@ const EditNoteModal = ({
           if (selection.rangeCount > 0) {
             const range = selection.getRangeAt(0);
             
-            // Insert a line break before the image if needed
             const previousNode = range.startContainer;
             if (previousNode.nodeType === Node.TEXT_NODE && 
                 previousNode.textContent && 
@@ -434,7 +572,6 @@ const EditNoteModal = ({
             range.deleteContents();
             range.insertNode(fragment);
             
-            // Add a line break after the image
             const br = document.createElement('br');
             range.insertNode(br);
             
@@ -473,11 +610,9 @@ const EditNoteModal = ({
   // Handle editor input
   const handleEditorInput = useCallback((e) => {
     if (editorRef.current) {
-      // Only update if content actually changed
       const newContent = editorRef.current.innerHTML;
       const currentContent = richTextContent || lastRichTextContent.current;
       
-      // Simple comparison to avoid unnecessary updates
       if (newContent !== currentContent) {
         setRichTextContent(newContent);
         lastRichTextContent.current = newContent;
@@ -499,7 +634,6 @@ const EditNoteModal = ({
     
     processPastedImage(file).then((imageHtml) => {
       if (editorRef.current) {
-        // Insert at the end with proper spacing
         const br = document.createElement('br');
         editorRef.current.appendChild(br);
         
@@ -534,10 +668,12 @@ const EditNoteModal = ({
       const newContent = editorRef.current.innerHTML;
       setRichTextContent(newContent);
       lastRichTextContent.current = newContent;
-    }
-    
-    if (editorRef.current) {
-      editorRef.current.focus();
+      
+      setTimeout(() => {
+        if (editorRef.current) {
+          focusEditorAtEnd();
+        }
+      }, 10);
     }
   };
 
@@ -662,15 +798,10 @@ const EditNoteModal = ({
     }
 
     const formData = new FormData();
-    
-    // Append the file with correct field name
     formData.append('File', doc.file);
-    
-    // Append other required fields
     formData.append('SiteNoteId', siteNoteId);
     formData.append('UserId', userId);
     
-    // Optional: add description or name if API supports it
     if (doc.name) {
       formData.append('Description', doc.name);
     }
@@ -685,7 +816,6 @@ const EditNoteModal = ({
     const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/InlineImages/UploadInlineImage`, {
       method: "POST",
       body: formData,
-      // Don't set Content-Type header - browser will set it with boundary for FormData
     });
 
     if (!response.ok) {
@@ -730,99 +860,49 @@ const EditNoteModal = ({
     }
   };
 
-  const fetchDocumentsByReference = useCallback(async (referenceId) => {
-    try {
-      setIsLoadingDocuments(true);
-      setError(null);
-
-      const response = await fetch(
-        `${process.env.REACT_APP_API_BASE_URL}/api/Documents/GetDocumentMetadataByReference?siteNoteId=${referenceId}`,
-        { headers: { accept: "application/json" } }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch documents: ${response.status} ${response.statusText}`);
-      }
-
-      var docs = await response.json();
-      docs = docs.documents || docs;
-
-      setDocuments(
-        docs.map((doc) => {
-          const downloadApiTriggerUrl = `${process.env.REACT_APP_API_BASE_URL}/api/Documents/DownloadDocument/${doc.id}`;
-          return {
-            ...doc,
-            fileType: doc.fileName?.split(".").pop(),
-            fileUrl: null,
-            downloadApiTriggerUrl,
-          };
-        })
-      );
-    } catch (error) {
-      console.error("Error fetching documents:", error);
-      setError("Failed to load documents: " + error.message);
-    } finally {
-      setIsLoadingDocuments(false);
-    }
-  }, []);
-
   // Helper function to clean note content
   const cleanNoteContent = (content) => {
     if (!content || content.trim() === '') return '';
     
-    // Remove trailing <br> tags
     content = content.replace(/<br\s*\/?>$/gi, '');
-    
-    // Remove empty paragraphs and divs at the end
     content = content.replace(/<(p|div)>\s*<\/\1>$/gi, '');
-    
-    // Trim whitespace
     content = content.trim();
     
     return content;
   };
 
-  // FIXED: Prepare note content for saving - remove images completely
+  // Prepare note content for saving - remove images completely
   const prepareNoteContent = () => {
     if (editorRef.current) {
-      // Get the HTML content
       let htmlContent = editorRef.current.innerHTML;
       
-      // If content is empty, return empty string
       if (!htmlContent || htmlContent.trim() === '') {
         return '';
       }
       
-      // Create a temporary div to clean the HTML
       const tempDiv = document.createElement('div');
       tempDiv.innerHTML = htmlContent;
       
-      // Remove image elements completely
       const imageWrappers = tempDiv.querySelectorAll('.image-wrapper');
       imageWrappers.forEach(wrapper => {
         wrapper.remove();
       });
       
-      // Clean up empty elements
       const cleanupEmptyElements = (element) => {
-        // Remove empty text nodes
         Array.from(element.childNodes).forEach(child => {
           if (child.nodeType === Node.TEXT_NODE && child.textContent.trim() === '') {
             child.remove();
           }
         });
         
-        // Remove empty elements
         const emptyElements = element.querySelectorAll('div, p, span, br');
         emptyElements.forEach(el => {
-          // Check if element is empty or only contains whitespace
           const hasContent = el.textContent && el.textContent.trim() !== '';
           const hasChildren = el.children && el.children.length > 0;
           
           if (!hasContent && !hasChildren) {
             el.remove();
           } else if (el.tagName === 'BR' && !el.nextSibling && !el.previousSibling) {
-            // Remove lone <br> tags
             el.remove();
           }
         });
@@ -830,10 +910,8 @@ const EditNoteModal = ({
       
       cleanupEmptyElements(tempDiv);
       
-      // Get clean HTML content without images
       htmlContent = tempDiv.innerHTML.trim();
       
-      // If content is just empty tags, return empty string
       if (!htmlContent || htmlContent === '<br>' || htmlContent === '<div></div>' || 
           htmlContent === '<p></p>' || htmlContent === '<span></span>') {
         return '';
@@ -842,22 +920,18 @@ const EditNoteModal = ({
       return htmlContent;
     }
     
-    // Fallback: use stored content and remove any image references
     let content = richTextContent || lastRichTextContent.current || originalNoteContent || '';
     
     if (!content || content.trim() === '') {
       return '';
     }
     
-    // Create a temporary div
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = content;
     
-    // Remove image wrappers
     const imageWrappers = tempDiv.querySelectorAll('.image-wrapper');
     imageWrappers.forEach(wrapper => wrapper.remove());
     
-    // Clean up empty elements
     const cleanupEmptyElements = (element) => {
       Array.from(element.childNodes).forEach(child => {
         if (child.nodeType === Node.TEXT_NODE && child.textContent.trim() === '') {
@@ -880,10 +954,8 @@ const EditNoteModal = ({
     
     cleanupEmptyElements(tempDiv);
     
-    // Get cleaned content
     let htmlContent = tempDiv.innerHTML.trim();
     
-    // Check for empty content
     if (!htmlContent || htmlContent === '<br>' || htmlContent === '<div></div>' || 
         htmlContent === '<p></p>' || htmlContent === '<span></span>') {
       return '';
@@ -900,53 +972,27 @@ const EditNoteModal = ({
     try {
       let noteIdToReturn = note.id;
       
-      // If user is not creator, only allow priority update
       if (!canEditNote) {
-        // Only update priority if it exists (has priorityId)
         if (priorityId) {
           await handleUpdatepriority();
         }
         onClose(noteIdToReturn);
-        refreshNotes();
+        //refreshNotes();
         return;
       }
 
-      // If note is older than 24 hours, only allow priority update
       if (!isEditable) {
-        // Only update priority if it exists (has priorityId)
         if (priorityId) {
           await handleUpdatepriority();
         }
         onClose(noteIdToReturn);
-        refreshNotes();
+        //refreshNotes();
         return;
       }
 
-      const originalProjectId = note.projectId
-        ? note.projectId.toString()
-        : findProjectIdByName(note.project || "");
-      const originalJobId = note.jobId
-        ? note.jobId.toString()
-        : findJobIdByName(note.job || "", originalProjectId);
-
-      if (
-        journalData.projectId !== originalProjectId ||
-        journalData.jobId !== originalJobId
-      ) {
-        setError(
-          "Cannot update this record. You can only update the notes you created."
-        );
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Extract clean text content WITHOUT images
       let noteText = prepareNoteContent();
-      
-      // Clean the content further
       noteText = cleanNoteContent(noteText);
 
-      // Check if there's any content (text OR images)
       const hasTextContent = noteText.replace(/<[^>]*>/g, '').trim().length > 0;
       const hasImages = pastedImages.length > 0;
       
@@ -956,7 +1002,6 @@ const EditNoteModal = ({
         return;
       }
 
-      // Save the note without any image references
       const result = await updateNote(note.id, {
         Date: new Date(journalData.date).toISOString(),
         Note: noteText,
@@ -982,14 +1027,11 @@ const EditNoteModal = ({
         if (pastedImages.length > 0) {
           const imageUploadPromises = pastedImages.map(async (image, index) => {
             try {
-              // Convert base64 to blob
               const base64Response = await fetch(image.base64);
               const blob = await base64Response.blob();
               
-              // Create a file from blob
               const file = new File([blob], image.name, { type: image.type });
               
-              // Upload as inline image
               const imageDoc = {
                 name: image.name,
                 file: file,
@@ -1011,10 +1053,8 @@ const EditNoteModal = ({
             }
           });
           
-          // Wait for all image uploads to complete
           const results = await Promise.all(imageUploadPromises);
           
-          // Check for failures
           const failedUploads = results.filter(r => !r.success);
           if (failedUploads.length > 0) {
             console.warn(`${failedUploads.length} image(s) failed to upload:`, failedUploads);
@@ -1063,7 +1103,6 @@ const EditNoteModal = ({
     };
   }, [handleSaveShortcut]);
 
-  // When there's an error, ensure the modal scrolls to top so the error is visible
   useEffect(() => {
     if (!error) return;
     try {
@@ -1089,7 +1128,7 @@ const EditNoteModal = ({
   const handleUpdatepriority = async () => {
     if (!priorityId) {
       console.log('No priority ID, skipping priority update');
-      return; // No priority to update
+      return;
     }
 
     try {
@@ -1110,7 +1149,6 @@ const EditNoteModal = ({
       }
 
       const result = await response.json();
-      //toast.success("Priority updated successfully");
       return result;
     } catch (error) {
       console.error("Error updating priority:", error);
@@ -1215,7 +1253,7 @@ const EditNoteModal = ({
     setTimeout(() => {
       setIsDownloading(false);
       setIsSubmitting(false);
-    }, 1000); // Hide spinner after 1 second, adjust as needed
+    }, 1000);
   };
 
   // Editor toolbar component with disabled clear button
@@ -1291,7 +1329,7 @@ const EditNoteModal = ({
       {(pastedImages.length > 0 || existingImages.length > 0) && (
         <div className="image-counter">
           <i className="fas fa-images"></i> 
-          {existingImages.length} existing image{existingImages.length !== 1 ? 's' : ''}
+          {existingImages.length} attached image{existingImages.length !== 1 ? 's' : ''}
           {pastedImages.length > 0 && `, ${pastedImages.length} new image${pastedImages.length !== 1 ? 's' : ''} (will be saved separately)`}
         </div>
       )}
@@ -1500,48 +1538,42 @@ const EditNoteModal = ({
 
               <div className="form-group">
                 <label>Project:</label>
-                <select
+                <input
+                  type="text"
+                  name="projectId"
+                  value={note.project || "No project name available"}
+                  disabled
+                  className="read-only-field"
+                />
+                <input
+                  type="hidden"
                   name="projectId"
                   value={journalData.projectId}
-                  onChange={handleJournalChange}
-                  required
-                  disabled={!isEditable || !canEditNote || isSubmitting}
-                >
-                  <option value="">Select Project</option>
-                  {projects.filter(project => 
-                      !defaultWorkspaceId || project.workspaceId?.toString() === defaultWorkspaceId.toString()
-                  ).map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
 
               <div className="form-group">
                 <label>Job:</label>
-                <select
+                <input
+                  type="text"
+                  name="jobId"
+                  value={note.job || "No job name available"}
+                  disabled
+                  className="read-only-field"
+                />
+                <input
+                  type="hidden"
                   name="jobId"
                   value={journalData.jobId}
-                  onChange={handleJournalChange}
-                  required
-                  disabled={
-                    !isEditable || !canEditNote || !journalData.projectId || isSubmitting
-                  }
-                >
-                  <option value="">Select Job</option>
-                  {jobs
-                    .filter((job) => job.projectId?.toString() === journalData.projectId)
-                    .map((job) => (
-                      <option key={job.id} value={job.id}>
-                        {job.name}
-                      </option>
-                    ))}
-                </select>
+                />
               </div>
 
-              {/* Rich Text Editor Section */}
-              <div className="form-group">
+              {/* Rich Text Editor Section - Full Height */}
+              <div 
+                ref={editorContainerRef} 
+                className="form-group" 
+                style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '200px' }}
+              >
                 <label>Notes:</label>
                 {renderEditorToolbar()}
                 
@@ -1552,21 +1584,37 @@ const EditNoteModal = ({
                   onPaste={handlePaste}
                   onInput={handleEditorInput}
                   onBlur={handleEditorInput}
-                  placeholder="Edit your note here... You can add new images and they will be saved separately."
+                  placeholder={hasSetContent.current ? "Edit your note here... You can add new images and they will be saved separately." : "Loading content..."}
                   suppressContentEditableWarning={true}
                   style={{
-                    pointerEvents: isEditable && canEditNote ? 'auto' : 'none',
-                    opacity: isEditable && canEditNote ? 1 : 0.7,
-                    minHeight: '200px',
-                    maxHeight: '400px',
+                    pointerEvents: (isEditable && canEditNote && hasSetContent.current) ? 'auto' : 'none',
+                    opacity: (isEditable && canEditNote && hasSetContent.current) ? 1 : 0.7,
+                    flex: 1,
+                    minHeight: '300px',
+                    maxHeight: 'none',
+                    height: 'calc(100vh - 450px)',
                     overflowY: 'auto',
                     border: '1px solid #ccc',
                     borderRadius: '4px',
-                    padding: '10px',
-                    backgroundColor: isEditable && canEditNote ? '#fff' : '#f5f5f5',
-                    cursor: isEditable && canEditNote ? 'text' : 'default'
+                    padding: '15px',
+                    backgroundColor: (isEditable && canEditNote && hasSetContent.current) ? '#fff' : '#f5f5f5',
+                    cursor: (isEditable && canEditNote && hasSetContent.current) ? 'text' : 'default',
+                    fontSize: '14px',
+                    lineHeight: '1.5'
                   }}
                 />
+                {!hasSetContent.current && (
+                  <div className="editor-loading" style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    textAlign: 'center',
+                    color: '#666'
+                  }}>
+                    <i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i> Loading content...
+                  </div>
+                )}
               </div>
             </div>
           ) : activeTab === "documents" ? (
@@ -1650,7 +1698,7 @@ const EditNoteModal = ({
                   <select
                     value={selectedPriority}
                     onChange={(e) => setSelectedPriority(e.target.value)}
-                    disabled={isSubmitting || !priorityId} // Disable if no priority exists
+                    disabled={isSubmitting || !priorityId}
                     className={`priority-select ${selectedPriority ? `priority-${selectedPriority}` : "priority-default"}`}
                   >
                     <option value="1" className="priority-option-1">No Priority (Default)</option>
