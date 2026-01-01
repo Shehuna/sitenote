@@ -48,6 +48,10 @@ const DashboardMenu = ({
   const [settingsModalTitle, setSettingsModalTitle] = useState('Settings');
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   
+  // State for submenu
+  const [showJobSubmenu, setShowJobSubmenu] = useState(false);
+  const [submenuPosition, setSubmenuPosition] = useState({ top: 0, left: 0 });
+  
   const [isMobile, setIsMobile] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showViewOptions, setShowViewOptions] = useState(false);
@@ -61,6 +65,8 @@ const DashboardMenu = ({
   const settingsMenuRef = useRef(null);
   const settingsButtonRef = useRef(null);
   const mobileSettingsButtonRef = useRef(null);
+  const jobMenuButtonRef = useRef(null);
+  const submenuRef = useRef(null);
 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
   const navigate = useNavigate();
@@ -78,6 +84,17 @@ const DashboardMenu = ({
 
   useEffect(() => {
     const handleClickOutside = (event) => {
+      // Close job submenu when clicking outside (both desktop and mobile)
+      if (
+        showJobSubmenu &&
+        submenuRef.current && 
+        !submenuRef.current.contains(event.target) &&
+        jobMenuButtonRef.current && 
+        !jobMenuButtonRef.current.contains(event.target)
+      ) {
+        setShowJobSubmenu(false);
+      }
+      
       // Close user menu when clicking outside
       if (
         userMenuRef.current && 
@@ -88,12 +105,14 @@ const DashboardMenu = ({
         setShowUserMenu(false);
       }
       
-      // Close settings menu when clicking outside (desktop)
+      // Close settings menu when clicking outside
       if (
         settingsMenuRef.current && 
         !settingsMenuRef.current.contains(event.target) &&
         settingsButtonRef.current && 
-        !settingsButtonRef.current.contains(event.target)
+        !settingsButtonRef.current.contains(event.target) &&
+        mobileSettingsButtonRef.current && 
+        !mobileSettingsButtonRef.current.contains(event.target)
       ) {
         setShowSettingsMenu(false);
       }
@@ -132,7 +151,7 @@ const DashboardMenu = ({
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isMobile, showSearch]);
+  }, [isMobile, showSearch, showJobSubmenu, showSettingsMenu]);
 
   const getUserDetails = () => {
     const user = JSON.parse(localStorage.getItem("user"));
@@ -311,9 +330,7 @@ const DashboardMenu = ({
       case 'jobPermissions':
         component = <JobPermissionManagement 
           defId={defaultUserWorkspaceID}
-          //users={users} 
           userId={userid}
-          
         />;
         title = 'Job Permissions';
         break;
@@ -346,13 +363,52 @@ const DashboardMenu = ({
       setSettingsModalTitle(title);
       setShowSettingsModal(true);
       setShowSettingsMenu(false);
+      setShowJobSubmenu(false);
+    }
+  };
+
+  // Handle job menu click - opens submenu
+  const handleJobMenuClick = (e) => {
+    e.stopPropagation();
+    
+    if (jobMenuButtonRef.current) {
+      const rect = jobMenuButtonRef.current.getBoundingClientRect();
+      const scrollY = window.scrollY || document.documentElement.scrollTop;
+      const scrollX = window.scrollX || document.documentElement.scrollLeft;
+      
+      // For desktop: show submenu to the left
+      if (!isMobile) {
+        setSubmenuPosition({
+          top: rect.top + scrollY,
+          left: rect.left + scrollX - 210
+        });
+        setShowJobSubmenu(!showJobSubmenu);
+      }
+      // For mobile: position submenu below the job management button
+      else {
+        // Position it below the button with a small gap
+        const submenuTop = rect.bottom + scrollY + 5;
+        // Center it horizontally relative to the button
+        const submenuLeft = Math.max(10, rect.left + scrollX - 90);
+        
+        setSubmenuPosition({
+          top: submenuTop,
+          left: submenuLeft
+        });
+        setShowJobSubmenu(!showJobSubmenu);
+      }
     }
   };
 
   const toggleSettingsMenu = () => {
-    setShowSettingsMenu(!showSettingsMenu);
+    const newShowSettingsMenu = !showSettingsMenu;
+    setShowSettingsMenu(newShowSettingsMenu);
     setShowUserMenu(false);
     setShowNotifications(false);
+    // Close submenu when closing settings menu
+    if (!newShowSettingsMenu) {
+      setShowJobSubmenu(false);
+    }
   };
 
   // Function to close settings modal and reset component
@@ -392,6 +448,14 @@ const DashboardMenu = ({
     setShowSettingsMenu(!showSettingsMenu);
     setShowUserMenu(false);
     setShowNotifications(false);
+    setShowJobSubmenu(false); // Close any open submenu
+  };
+  
+  // Handle submenu item click
+  const handleSubmenuItemClick = (menuId) => {
+    handleSettingsMenuItemClick(menuId);
+    setShowJobSubmenu(false);
+    setShowSettingsMenu(false);
   };
   
   return (
@@ -487,7 +551,7 @@ const DashboardMenu = ({
                     </button>
                     <button
                       onClick={handleRefresh}
-                      className={`mobile-view-btn ${viewMode === "stacked" ? "active" : ""}`}
+                      className={`mobile-view-btn ${viewMode === "stacked" ? "active" : ''}`}
                       title="Refresh"
                     >
                       <i className="fas fa-refresh" />
@@ -586,7 +650,7 @@ const DashboardMenu = ({
 
       <div className="menu-right">
         {isMobile ? (
-          /* Mobile Layout - Show separate settings button */
+          /* Mobile Layout */
           <>
             {/* Settings Button for Mobile (only if user has access) */}
             {shouldShowSettings() && (
@@ -607,7 +671,6 @@ const DashboardMenu = ({
                     className="settings-dropdown mobile-settings-dropdown"
                   >
                     <div className="settings-dropdown-header">
-                     
                       <span>Settings</span>
                     </div>
                     
@@ -621,13 +684,16 @@ const DashboardMenu = ({
                       <span className="dropdown-text">Project Management</span>
                     </button>
                     
-                    <button 
-                      className="dropdown-item"
-                      onClick={() => handleSettingsMenuItemClick('jobManagement')}
+                    {/* Job Management with submenu trigger for mobile */}
+                    <div 
+                      className="dropdown-item has-submenu"
+                      ref={jobMenuButtonRef}
+                      onClick={handleJobMenuClick}
                     >
                       <i className="fas fa-tasks dropdown-icon" />
                       <span className="dropdown-text">Job Management</span>
-                    </button>
+                      <i className={`fas ${showJobSubmenu ? 'fa-chevron-up' : 'fa-chevron-down'} submenu-arrow`} />
+                    </div>
                     
                     {userRole !== "User" && (
                       <button 
@@ -639,22 +705,6 @@ const DashboardMenu = ({
                       </button>
                     )}
                     
-                    <button 
-                      className="dropdown-item"
-                      onClick={() => handleSettingsMenuItemClick('jobPermissions')}
-                    >
-                      <i className="fas fa-user-shield dropdown-icon" />
-                      <span className="dropdown-text">Job Permissions</span>
-                    </button>
-                    
-                    <button 
-                      className="dropdown-item"
-                      onClick={() => handleSettingsMenuItemClick('jobStatus')}
-                    >
-                      <i className="fas fa-sync-alt dropdown-icon" />
-                      <span className="dropdown-text">Job Status Update</span>
-                    </button>
-                    
                     <div className="dropdown-divider"></div>
                     
                     <button 
@@ -662,22 +712,68 @@ const DashboardMenu = ({
                       onClick={() => handleSettingsMenuItemClick('workspaceSettings')}
                     >
                       <i className="fas fa-building dropdown-icon" />
-                      <span className="dropdown-text">Workspace Settings</span>
+                      <span className="dropdown-text">Workspace Management</span>
                     </button>
                     
                     {/* Add Admin Dashboard item for mobile */}
                     {userRole === 'Admin' && (
                       <button 
-                      className="dropdown-item admin-dashboard-item"
-                      onClick={() => handleSettingsMenuItemClick('adminDashboard')}
-                    >
-                      <i className="fas fa-tachometer-alt dropdown-icon" />
-                      <span className="dropdown-text">Admin Dashboard</span>
-                    </button>
+                        className="dropdown-item admin-dashboard-item"
+                        onClick={() => handleSettingsMenuItemClick('adminDashboard')}
+                      >
+                        <i className="fas fa-tachometer-alt dropdown-icon" />
+                        <span className="dropdown-text">Admin Dashboard</span>
+                      </button>
                     )}
                     
                   </div>
                 )}
+              </div>
+            )}
+            
+            {/* Mobile Job Management Submenu - Separate overlay */}
+            {isMobile && showJobSubmenu && (
+              <div 
+                ref={submenuRef}
+                className="job-submenu mobile-job-submenu"
+                style={{
+                  position: 'fixed',
+                  top: `${submenuPosition.top}px`,
+                  left: `${Math.max(10, Math.min(submenuPosition.left, window.innerWidth - 210))}px`,
+                  zIndex: 1006
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="submenu-header">
+                  <i className="fas fa-tasks submenu-header-icon" />
+                  <span>Job Management</span>
+                </div>
+                
+                <div className="submenu-divider"></div>
+                
+                <button 
+                  className="submenu-item"
+                  onClick={() => handleSubmenuItemClick('jobManagement')}
+                >
+                  <i className="fas fa-tasks submenu-icon" />
+                  <span className="submenu-text">Add/Edit Job</span>
+                </button>
+                
+                <button 
+                  className="submenu-item"
+                  onClick={() => handleSubmenuItemClick('jobPermissions')}
+                >
+                  <i className="fas fa-user-shield submenu-icon" />
+                  <span className="submenu-text">Job Permissions</span>
+                </button>
+                
+                <button 
+                  className="submenu-item"
+                  onClick={() => handleSubmenuItemClick('jobStatus')}
+                >
+                  <i className="fas fa-sync-alt submenu-icon" />
+                  <span className="submenu-text">Job Status Update</span>
+                </button>
               </div>
             )}
             
@@ -807,7 +903,6 @@ const DashboardMenu = ({
                     className="settings-dropdown"
                   >
                     <div className="settings-dropdown-header">
-                      
                       <span>Settings</span>
                     </div>
                     
@@ -821,13 +916,16 @@ const DashboardMenu = ({
                       <span className="dropdown-text">Project Management</span>
                     </button>
                     
-                    <button 
-                      className="dropdown-item"
-                      onClick={() => handleSettingsMenuItemClick('jobManagement')}
+                    {/* Job Management with submenu trigger */}
+                    <div 
+                      className="dropdown-item has-submenu"
+                      ref={jobMenuButtonRef}
+                      onClick={handleJobMenuClick}
                     >
                       <i className="fas fa-tasks dropdown-icon" />
                       <span className="dropdown-text">Job Management</span>
-                    </button>
+                      <i className={`fas ${showJobSubmenu ? 'fa-chevron-left' : 'fa-chevron-right'} submenu-arrow`} />
+                    </div>
                     
                     {userRole !== "User" && (
                       <button 
@@ -839,22 +937,6 @@ const DashboardMenu = ({
                       </button>
                     )}
                     
-                    <button 
-                      className="dropdown-item"
-                      onClick={() => handleSettingsMenuItemClick('jobPermissions')}
-                    >
-                      <i className="fas fa-user-shield dropdown-icon" />
-                      <span className="dropdown-text">Job Permissions</span>
-                    </button>
-                    
-                    <button 
-                      className="dropdown-item"
-                      onClick={() => handleSettingsMenuItemClick('jobStatus')}
-                    >
-                      <i className="fas fa-sync-alt dropdown-icon" />
-                      <span className="dropdown-text">Job Status Update</span>
-                    </button>
-                    
                     <div className="dropdown-divider"></div>
                     
                     <button 
@@ -862,22 +944,68 @@ const DashboardMenu = ({
                       onClick={() => handleSettingsMenuItemClick('workspaceSettings')}
                     >
                       <i className="fas fa-building dropdown-icon" />
-                      <span className="dropdown-text">Workspace Settings</span>
+                      <span className="dropdown-text">Workspace Management</span>
                     </button>
                     
                     {/* Add Admin Dashboard item */}
                     {userRole === 'Admin' && (
                       <button 
-                      className="dropdown-item admin-dashboard-item"
-                      onClick={() => handleSettingsMenuItemClick('adminDashboard')}
-                    >
-                      <i className="fas fa-tachometer-alt dropdown-icon" />
-                      <span className="dropdown-text">Admin Dashboard</span>
-                    </button>
+                        className="dropdown-item admin-dashboard-item"
+                        onClick={() => handleSettingsMenuItemClick('adminDashboard')}
+                      >
+                        <i className="fas fa-tachometer-alt dropdown-icon" />
+                        <span className="dropdown-text">Admin Dashboard</span>
+                      </button>
                     )}
                     
                   </div>
                 )}
+              </div>
+            )}
+            
+            {/* Job Management Submenu (Desktop) */}
+            {showJobSubmenu && !isMobile && (
+              <div 
+                ref={submenuRef}
+                className="job-submenu desktop-job-submenu"
+                style={{
+                  position: 'fixed',
+                  top: `${submenuPosition.top}px`,
+                  left: `${submenuPosition.left}px`,
+                  zIndex: 1005
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="submenu-header">
+                  <i className="fas fa-tasks submenu-header-icon" />
+                  <span>Job Management</span>
+                </div>
+                
+                <div className="submenu-divider"></div>
+                
+                <button 
+                  className="submenu-item"
+                  onClick={() => handleSubmenuItemClick('jobManagement')}
+                >
+                  <i className="fas fa-tasks submenu-icon" />
+                  <span className="submenu-text">Add/Edit Job</span>
+                </button>
+                
+                <button 
+                  className="submenu-item"
+                  onClick={() => handleSubmenuItemClick('jobPermissions')}
+                >
+                  <i className="fas fa-user-shield submenu-icon" />
+                  <span className="submenu-text">Job Permissions</span>
+                </button>
+                
+                <button 
+                  className="submenu-item"
+                  onClick={() => handleSubmenuItemClick('jobStatus')}
+                >
+                  <i className="fas fa-sync-alt submenu-icon" />
+                  <span className="submenu-text">Job Status Update</span>
+                </button>
               </div>
             )}
             
@@ -888,6 +1016,7 @@ const DashboardMenu = ({
                   setShowUserMenu(!showUserMenu);
                   setShowSettingsMenu(false);
                   setShowNotifications(false);
+                  setShowJobSubmenu(false);
                 }}
                 className="user-avatar"
                 title={user.name}
@@ -1042,3 +1171,4 @@ const DashboardMenu = ({
 }
 
 export default DashboardMenu;
+

@@ -57,7 +57,7 @@ const NotesTab = ({
   const lastCardRef = useRef(null);
   const containerRef = useRef(null);
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
-  
+    
   const pageSize = 15;
   const initialPageNumber = 1;
 

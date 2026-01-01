@@ -1003,20 +1003,21 @@
 
 .user-dropdown {
   position: absolute;
-  top: 50px;
+  top: 80px;
   right: 0;
-  width: 280px;
+  width: 250px;
   background-color: white;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   z-index: 1002; /* Higher than avatar */
   overflow: visible; /* Changed from hidden */
   animation: slideDown 0.2s ease-out;
+  margin-top: 15px;
 }
 
 /* Position to the left */
 .user-dropdown {
-  left: -200px;
+  left: -250px;
   right: auto;
 }
 
@@ -1795,11 +1796,12 @@
   background: white;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  min-width: 220px;
-  z-index: 1000;
-  margin-top: 8px;
+  min-width: 250px;
+  z-index: 1005;
+  margin-top: 15px;
   animation: fadeIn 0.2s ease;
   border: 1px solid #e1e4e8;
+
 }
 
 .settings-dropdown-header {
@@ -1850,7 +1852,7 @@
 
 .dropdown-text {
   flex: 1;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 /* Dropdown Divider */
@@ -1934,7 +1936,7 @@
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   min-width: 200px;
-  z-index: 1001;
+  z-index: 1005;
   margin-top: 8px;
   animation: fadeIn 0.2s ease;
   border: 1px solid #e1e4e8;
@@ -1991,15 +1993,15 @@
 
 /* Ensure proper z-index for dropdowns */
 .settings-dropdown {
-  z-index: 1001;
+  z-index: 1005;
 }
 
 .user-dropdown {
-  z-index: 1000;
+  z-index: 1004;
 }
 
 .notifications-dropdown {
-  z-index: 1002;
+  z-index: 1003;
 }
 
 /* Mobile view for menu-right */
@@ -2018,7 +2020,7 @@
   background-color: white;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  z-index: 1002;
+  z-index: 1005;
   overflow: visible;
   animation: slideDown 0.2s ease-out;
 }
@@ -2033,7 +2035,7 @@
   background-color: white;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  z-index: 1002;
+  z-index: 1005;
   overflow: visible;
   animation: slideDown 0.2s ease-out;
 }
@@ -2045,4 +2047,248 @@
     left: -150px !important;
     width: 250px;
   }
+}
+/* Submenu styles - Desktop */
+.dropdown-item.has-submenu {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  cursor: pointer;
+}
+
+.submenu-arrow {
+  font-size: 10px;
+  margin-left: 8px;
+  transition: transform 0.2s ease;
+  color: #6c757d;
+}
+
+.dropdown-item.has-submenu:hover .submenu-arrow {
+  transform: translateX(2px);
+}
+
+/* Desktop job submenu */
+.desktop-job-submenu {
+  position: fixed;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  min-width: 200px;
+  padding: 6px 0;
+  border: 1px solid #e0e0e0;
+  animation: fadeInLeft 0.2s ease;
+  z-index: 1005;
+}
+
+@keyframes fadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Mobile job submenu */
+.mobile-job-submenu {
+  position: fixed !important;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+  min-width: 180px;
+  padding: 6px 0;
+  border: 1px solid #e0e0e0;
+  animation: fadeInDownMobile 0.2s ease;
+  z-index: 1006 !important; /* Higher than settings dropdown */
+  transform-origin: top center;
+}
+
+@keyframes fadeInDownMobile {
+  from {
+    opacity: 0;
+    transform: translateY(-5px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.submenu-header {
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  color: #2c3e50;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 14px;
+}
+
+.submenu-header-icon {
+  margin-right: 8px;
+  color: #1976d2;
+  font-size: 13px;
+}
+
+.submenu-divider {
+  height: 1px;
+  background: #f0f0f0;
+  margin: 4px 0;
+  border: none;
+}
+
+.submenu-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  color: #5a6c7d;
+  transition: all 0.2s ease;
+  font-size: 13px;
+}
+
+.submenu-item:hover {
+  background: #f8f9fa;
+  color: #1976d2;
+}
+
+.submenu-icon {
+  margin-right: 10px;
+  width: 14px;
+  text-align: center;
+  font-size: 13px;
+  color: #6c757d;
+}
+
+.submenu-text {
+  flex: 1;
+  font-size: 14px;
+}
+
+/* Mobile specific adjustments */
+@media (max-width: 768px) {
+  /* Settings dropdown styling */
+  .settings-dropdown.mobile-settings-dropdown {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 8px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    min-width: 200px;
+    padding: 6px 0;
+    border: 1px solid #e0e0e0;
+    z-index: 1005;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+  
+  /* Ensure mobile submenu appears above settings dropdown */
+  .mobile-job-submenu {
+    z-index: 1006 !important; /* Higher than settings dropdown */
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  }
+  
+  /* Adjust job management item for mobile */
+  .dropdown-item.has-submenu {
+    font-size: 13px;
+  }
+  
+  /* Fix arrow positioning on mobile */
+  .dropdown-item.has-submenu .submenu-arrow {
+    font-size: 10px;
+    margin-left: auto;
+  }
+  
+  /* Prevent settings dropdown from clipping */
+  .settings-menu-container {
+    overflow: visible !important;
+  }
+  
+  .mobile-settings-dropdown {
+    overflow: visible !important;
+  }
+  
+  /* Adjust submenu positioning to ensure it's visible */
+  .mobile-job-submenu {
+    max-width: calc(100vw - 60px);
+    min-width: 160px;
+  }
+  
+  /* Show settings button and user avatar on mobile */
+  .mobile-settings-button {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 4px;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .mobile-settings-button:hover {
+    background: #f5f5f5;
+    border-color: #1976d2;
+  }
+  
+  .mobile-settings-button i {
+    font-size: 16px;
+  }
+  
+  .mobile-user-avatar {
+    display: flex !important;
+    width: 36px;
+    height: 36px;
+  }
+  
+  /* Hide desktop buttons on mobile */
+  .notifications-button,
+  .settings-button,
+  .user-avatar:not(.mobile-user-avatar) {
+    display: none !important;
+  }
+}
+
+/* Ensure the submenu is clickable and properly layered */
+.mobile-job-submenu * {
+  pointer-events: auto;
+}
+
+/* Prevent body scroll when dropdowns are open */
+body.dropdown-open {
+  overflow: hidden;
+}
+
+/* Ensure all dropdowns have proper z-index */
+.settings-dropdown {
+  z-index: 1005;
+}
+
+.user-dropdown {
+  z-index: 1004;
+}
+
+.notifications-dropdown {
+  z-index: 1003;
+}
+
+/* Job submenu should be highest */
+.mobile-job-submenu {
+  z-index: 1006 !important;
+}
+
+.desktop-job-submenu {
+  z-index: 1005 !important;
 }
