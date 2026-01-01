@@ -20,7 +20,9 @@ const ViewNoteModal = ({
   const [currentLightboxImages, setCurrentLightboxImages] = useState([]);
 
   const [loading, setLoading] = useState(true);
-  const [priority, setPriority] = useState(0);
+  const [jobDetails, setJobDetails] = useState(null);
+  const [showJobInfo, setShowJobInfo] = useState(false);
+  const [managerInfo, setManagerInfo] = useState(null);
 
   const noteRefs = useRef({});
   const chatContainerRef = useRef(null);
@@ -87,6 +89,14 @@ const ViewNoteModal = ({
         timeStamp: noteData.timeStamp || "",
       };
       setCurrentNote(note);
+
+      if (jobId) {
+        // Fetch job details
+        const jobRes = await fetch(`${apiUrl}/Job/GetJobById/${jobId}`);
+        if (!jobRes.ok) throw new Error("Failed to fetch job details");
+        const jobData = await jobRes.json();
+        setJobDetails(jobData.job || jobData);
+      }
 
       if (!jobId) {
         const notes = [note];
@@ -235,6 +245,28 @@ const ViewNoteModal = ({
     fetchNoteAndRelated();
   }, [noteId, jobId, userid]);
 
+  // Fetch manager details when jobDetails.managerId changes
+  useEffect(() => {
+    const fetchManager = async (id) => {
+      if (!id) {
+        setManagerInfo(null);
+        return;
+      }
+      try {
+        const res = await fetch(`${apiUrl}/UserManagement/GetUserById/${id}`);
+        if (!res.ok) throw new Error('Failed to fetch manager');
+        const data = await res.json();
+        // API may return { message, user }
+        setManagerInfo(data.user || data);
+      } catch (err) {
+        console.error('Failed to fetch manager info', err);
+        setManagerInfo(null);
+      }
+    };
+
+    if (jobDetails?.managerId) fetchManager(jobDetails.managerId);
+  }, [jobDetails]);
+
   useEffect(() => {
     if (!loading && relatedNotes.length) scrollToCurrentNote();
   }, [loading, relatedNotes, scrollToNoteId, noteId]);
@@ -365,9 +397,85 @@ const ViewNoteModal = ({
                 <div className="contact-status">
                   Job: {currentNote.siteNote.job}
                 </div>
+                
               </div>
             </div>
             <div className="header-right">
+              <button
+                className="more-info-button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowJobInfo((s) => !s);
+                }}
+                title="More job info"
+              >
+                <i className="fas fa-info-circle" />
+              </button>
+
+              {showJobInfo && (
+                <div className="job-attributes">
+                  {jobDetails?.type && (
+                    <div className="attr">
+                      <span className="attr-key">Type:</span>
+                      <span className="attr-value">{jobDetails.type}</span>
+                    </div>
+                  )}
+
+                  
+
+                  {jobDetails?.priorityName && (
+                    <div className="attr">
+                      <span className="attr-key">Priority:</span>
+                      <span className="attr-value">{jobDetails.priorityName}</span>
+                    </div>
+                  )}
+
+                  {jobDetails?.startDate && (
+                    <div className="attr">
+                      <span className="attr-key">Start:</span>
+                      <span className="attr-value">{formatDate(jobDetails.startDate)}</span>
+                    </div>
+                  )}
+
+                  {jobDetails?.endDate && (
+                    <div className="attr">
+                      <span className="attr-key">End:</span>
+                      <span className="attr-value">{formatDate(jobDetails.endDate)}</span>
+                    </div>
+                  )}
+
+                  {jobDetails?.actualEndDate && (
+                    <div className="attr">
+                      <span className="attr-key">Actual End:</span>
+                      <span className="attr-value">{formatDate(jobDetails.actualEndDate)}</span>
+                    </div>
+                  )}
+
+                  {jobDetails?.managerId != null && (
+                    <div className="attr manager-info">
+                      <span className="attr-key">Manager:</span>
+                      <div className="attr-value">
+                        <div className="manager-name">
+                          {managerInfo
+                            ? `${managerInfo.fname || managerInfo.firstName || ''} ${managerInfo.lname || managerInfo.lastName || ''}`.trim()
+                            : `ID: ${jobDetails.managerId}`}
+                        </div>
+                        {managerInfo?.email && (
+                          <div className="manager-email">{managerInfo.email}</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {jobDetails?.createdDate && (
+                    <div className="attr">
+                      <span className="attr-key">Created:</span>
+                      <span className="attr-value">{formatDate(jobDetails.createdDate)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <button className="header-button">
                 <i className="fas fa-ellipsis-v" />
               </button>
@@ -504,4 +612,3 @@ const ViewNoteModal = ({
 };
 
 export default ViewNoteModal;
-
