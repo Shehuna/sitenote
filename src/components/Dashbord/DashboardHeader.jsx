@@ -17,13 +17,14 @@ const DashboardHeader = ({
   getActiveFilterCount,
   removeFilter,
   getFilterDisplayValue,
-  filterRef
+  filterRef,
+  loadingFilterOptions
 }) => {
   const hasActiveFilters = getActiveFilterCount() > 0;
 
-  // Helper function to render dropdown content without outer scroll
-  const renderDropdownContent = (filterType, options, emptyMessage = null) => {
-    const shouldShowEmptyMessage = emptyMessage && options.length === 0;
+  // Helper function to render dropdown content with loading state
+  const renderDropdownContent = (filterType, options, isLoading = false, emptyMessage = null) => {
+    const shouldShowEmptyMessage = emptyMessage && options.length === 0 && !isLoading;
     
     return (
       <div className="dropdown-content">
@@ -34,10 +35,16 @@ const DashboardHeader = ({
             value={filterSearchTerm}
             onChange={(e) => setFilterSearchTerm(e.target.value)}
             className="dropdown-search-input"
+            disabled={isLoading}
           />
         </div>
         <div className="dropdown-list">
-          {shouldShowEmptyMessage ? (
+          {isLoading ? (
+            <div className="loading-message">
+              <i className="fas fa-spinner fa-spin" />
+              Loading options...
+            </div>
+          ) : shouldShowEmptyMessage ? (
             <div className="empty-filter-message">{emptyMessage}</div>
           ) : (
             options.map((option) => (
@@ -47,7 +54,8 @@ const DashboardHeader = ({
                 onClick={() =>
                   handleFilterCheckboxChange(
                     filterType,
-                    option.id || option.text
+                    option.id || option.text,
+                    option
                   )
                 }
               >
@@ -69,8 +77,8 @@ const DashboardHeader = ({
   };
 
   // Helper function to render mobile dropdown content
-  const renderMobileDropdownContent = (filterType, options, emptyMessage = null) => {
-    const shouldShowEmptyMessage = emptyMessage && options.length === 0;
+  const renderMobileDropdownContent = (filterType, options, isLoading = false, emptyMessage = null) => {
+    const shouldShowEmptyMessage = emptyMessage && options.length === 0 && !isLoading;
     
     return (
       <div className="mobile-dropdown-content">
@@ -81,10 +89,16 @@ const DashboardHeader = ({
             value={filterSearchTerm}
             onChange={(e) => setFilterSearchTerm(e.target.value)}
             className="dropdown-search-input"
+            disabled={isLoading}
           />
         </div>
         <div className="dropdown-list">
-          {shouldShowEmptyMessage ? (
+          {isLoading ? (
+            <div className="loading-message">
+              <i className="fas fa-spinner fa-spin" />
+              Loading options...
+            </div>
+          ) : shouldShowEmptyMessage ? (
             <div className="empty-filter-message">{emptyMessage}</div>
           ) : (
             options.map((option) => (
@@ -94,7 +108,8 @@ const DashboardHeader = ({
                 onClick={() =>
                   handleFilterCheckboxChange(
                     filterType,
-                    option.id || option.text
+                    option.id || option.text,
+                    option
                   )
                 }
               >
@@ -113,6 +128,24 @@ const DashboardHeader = ({
         </div>
       </div>
     );
+  };
+
+  // Function to get appropriate empty message based on filter type
+  const getEmptyMessage = (filterType) => {
+    switch (filterType) {
+      case 'project':
+        return "No projects available for the current filter combination";
+      case 'job':
+        return "No jobs available for the current filter combination";
+      case 'date':
+        return "No dates available for the current filter combination";
+      case 'workspace':
+        return "No workspaces available";
+      case 'userName':
+        return "No users available for the current filter combination";
+      default:
+        return "No options available";
+    }
   };
 
   return (
@@ -138,7 +171,9 @@ const DashboardHeader = ({
                 </button>
                 {filterDropdownOpen === "date" && renderDropdownContent(
                   "date", 
-                  getFilterOptions("date")
+                  getFilterOptions("date"),
+                  loadingFilterOptions["date"],
+                  getEmptyMessage("date")
                 )}
               </div>
 
@@ -157,7 +192,9 @@ const DashboardHeader = ({
                 </button>
                 {filterDropdownOpen === "workspace" && renderDropdownContent(
                   "workspace", 
-                  getFilterOptions("workspace")
+                  getFilterOptions("workspace"),
+                  loadingFilterOptions["workspace"],
+                  getEmptyMessage("workspace")
                 )}
               </div>
 
@@ -178,9 +215,8 @@ const DashboardHeader = ({
                 {filterDropdownOpen === "project" && renderDropdownContent(
                   "project", 
                   getFilterOptions("project"),
-                  selectedFilters.workspace && selectedFilters.workspace.length > 0
-                    ? "No projects found for the selected workspace(s)"
-                    : "No projects available"
+                  loadingFilterOptions["project"],
+                  getEmptyMessage("project")
                 )}
               </div>
 
@@ -201,11 +237,8 @@ const DashboardHeader = ({
                 {filterDropdownOpen === "job" && renderDropdownContent(
                   "job", 
                   getFilterOptions("job"),
-                  selectedFilters.project && selectedFilters.project.length > 0
-                    ? "No jobs found for the selected project(s)"
-                    : selectedFilters.workspace && selectedFilters.workspace.length > 0
-                    ? "No jobs found for the selected workspace(s)"
-                    : "No jobs available"
+                  loadingFilterOptions["job"],
+                  getEmptyMessage("job")
                 )}
               </div>
 
@@ -224,7 +257,9 @@ const DashboardHeader = ({
                 </button>
                 {filterDropdownOpen === "userName" && renderDropdownContent(
                   "userName", 
-                  getFilterOptions("userName")
+                  getFilterOptions("userName"),
+                  loadingFilterOptions["userName"],
+                  getEmptyMessage("userName")
                 )}
               </div>
             </div>
@@ -317,7 +352,9 @@ const DashboardHeader = ({
                 </div>
                 {filterDropdownOpen === "date" && renderMobileDropdownContent(
                   "date",
-                  getFilterOptions("date")
+                  getFilterOptions("date"),
+                  loadingFilterOptions["date"],
+                  getEmptyMessage("date")
                 )}
               </div>
               
@@ -336,7 +373,9 @@ const DashboardHeader = ({
                 </div>
                 {filterDropdownOpen === "workspace" && renderMobileDropdownContent(
                   "workspace",
-                  getFilterOptions("workspace")
+                  getFilterOptions("workspace"),
+                  loadingFilterOptions["workspace"],
+                  getEmptyMessage("workspace")
                 )}
               </div>
               
@@ -356,9 +395,8 @@ const DashboardHeader = ({
                 {filterDropdownOpen === "project" && renderMobileDropdownContent(
                   "project",
                   getFilterOptions("project"),
-                  selectedFilters.workspace && selectedFilters.workspace.length > 0
-                    ? "No projects found for the selected workspace(s)"
-                    : "No projects available"
+                  loadingFilterOptions["project"],
+                  getEmptyMessage("project")
                 )}
               </div>
               
@@ -378,11 +416,8 @@ const DashboardHeader = ({
                 {filterDropdownOpen === "job" && renderMobileDropdownContent(
                   "job",
                   getFilterOptions("job"),
-                  selectedFilters.project && selectedFilters.project.length > 0
-                    ? "No jobs found for the selected project(s)"
-                    : selectedFilters.workspace && selectedFilters.workspace.length > 0
-                    ? "No jobs found for the selected workspace(s)"
-                    : "No jobs available"
+                  loadingFilterOptions["job"],
+                  getEmptyMessage("job")
                 )}
               </div>
               
@@ -401,7 +436,9 @@ const DashboardHeader = ({
                 </div>
                 {filterDropdownOpen === "userName" && renderMobileDropdownContent(
                   "userName",
-                  getFilterOptions("userName")
+                  getFilterOptions("userName"),
+                  loadingFilterOptions["userName"],
+                  getEmptyMessage("userName")
                 )}
               </div>
             </div>

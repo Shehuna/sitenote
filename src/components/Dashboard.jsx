@@ -25,7 +25,7 @@ const Dashboard = ({
   addSiteNote,
   updateNote,
   projects,
-  jobs, 
+  jobs,
   onUploadDocument,
   onDeleteDocument,
   onLogout,
@@ -35,9 +35,7 @@ const Dashboard = ({
   onUpdateDefaultWorkspace,
   fetchProjectAndJobs,
   fetchNotes,
-  
 }) => {
-
   const [searchTerm, setSearchTerm] = useState(() => {
     const saved = localStorage.getItem("dashboardSearchTerm");
     return saved || "";
@@ -75,18 +73,12 @@ const Dashboard = ({
   const [searchLoading, setSearchLoading] = useState(false);
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(null);
   const [filterSearchTerm, setFilterSearchTerm] = useState("");
-  const [uniqueProjects, setUniqueProjects] = useState([]);
-  const [uniqueJobs, setUniqueJobs] = useState([]);
-  const [uniqueWorkspaces, setUniqueWorkspaces] = useState([]);
-  const [uniqueDates, setUniqueDates] = useState([]);
-  const [uniqueUsernames, setUniqueUsernames] = useState([]);
   const [loadingFiltered, setLoadingFiltered] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [priorities, setPriorities] = useState([]);
   const [role, setRole] = useState(null);
   const [isRoleLoading, setIsRoleLoading] = useState(false);
-  const [loadingUniques, setLoadingUniques] = useState(true);
   const [userWorkspaces, setUserWorkspaces] = useState();
   const [userWorkspace, setUserWorkspace] = useState();
   const [focusedRow, setFocusedRow] = useState(null);
@@ -114,61 +106,480 @@ const Dashboard = ({
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [selectedImageNote, setSelectedImageNote] = useState(null);
-  const [stackedJobs, setStackedJobs] = useState([]); 
-  const [loadingStackedJobs, setLoadingStackedJobs] = useState(false); 
+  const [stackedJobs, setStackedJobs] = useState([]);
+  const [loadingStackedJobs, setLoadingStackedJobs] = useState(false);
   const newNoteModalRef = useRef();
   const filterRef = useRef();
   const [isMobile, setIsMobile] = useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
 
+  // New state for Excel-like filter logic
+  const [filterOptions, setFilterOptions] = useState({
+    date: [],
+    workspace: [],
+    project: [],
+    job: [],
+    userName: [],
+  });
+
+  const [loadingFilterOptions, setLoadingFilterOptions] = useState({
+    date: false,
+    workspace: false,
+    project: false,
+    job: false,
+    userName: false,
+  });
+
+  const [filterOptionsLoaded, setFilterOptionsLoaded] = useState({
+    date: false,
+    workspace: false,
+    project: false,
+    job: false,
+    userName: false,
+  });
+
   const fetchWorkspaceRole = useCallback(async () => {
-  if (!userid || !defaultUserWorkspaceID) {
-    setDefaultWorkspaceRole(null);
-    return;
-  }
-
-  setLoadingWorkspaceRole(true);
-  try {
-    const response = await fetch(
-      `${apiUrl}/Workspace/GetWorkspacesByUserId/${userid}`
-    );
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch workspaces: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    console.log(data)
-    const workspaces = data.workspaces || [];
-    
-    // Find the workspace with matching ID
-    const defaultWorkspace = workspaces.find(
-      (workspace) => 
-        (workspace.id || workspace.workspaceId)?.toString() === defaultUserWorkspaceID?.toString()
-    );
-    
-    if (defaultWorkspace) {
-      // Set the role (should be 3 for the example you provided)
-      setDefaultWorkspaceRole(defaultWorkspace.role || null);
-    } else {
-      console.warn(`Default workspace with ID ${defaultUserWorkspaceID} not found in user's workspaces`);
+    if (!userid || !defaultUserWorkspaceID) {
       setDefaultWorkspaceRole(null);
+      return;
     }
-  } catch (error) {
-    console.error("Error fetching workspace role:", error);
-    setDefaultWorkspaceRole(null);
-  } finally {
-    setLoadingWorkspaceRole(false);
-  }
-}, [apiUrl, userid, defaultUserWorkspaceID]);
 
-  // Fetch inline images only when thumbnail is clicked
+    setLoadingWorkspaceRole(true);
+    try {
+      const response = await fetch(
+        `${apiUrl}/Workspace/GetWorkspacesByUserId/${userid}`
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch workspaces: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const workspaces = data.workspaces || [];
+
+      const defaultWorkspace = workspaces.find(
+        (workspace) =>
+          (workspace.id || workspace.workspaceId)?.toString() ===
+          defaultUserWorkspaceID?.toString()
+      );
+
+      if (defaultWorkspace) {
+        setDefaultWorkspaceRole(defaultWorkspace.role || null);
+      } else {
+        console.warn(
+          `Default workspace with ID ${defaultUserWorkspaceID} not found in user's workspaces`
+        );
+        setDefaultWorkspaceRole(null);
+      }
+    } catch (error) {
+      console.error("Error fetching workspace role:", error);
+      setDefaultWorkspaceRole(null);
+    } finally {
+      setLoadingWorkspaceRole(false);
+    }
+  }, [apiUrl, userid, defaultUserWorkspaceID]);
+
+  // Helper function to generate all filter combinations for OR logic
+  const generateFilterCombinations = useCallback((filters) => {
+    const combinations = [];
+
+    // For OR logic, we need to handle multiple values in each filter
+    // Example: If workspace has [1, 2] and project has [10], we need:
+    // Combination 1: { workspace: 1, project: 10 }
+    // Combination 2: { workspace: 2, project: 10 }
+
+    // Get all possible values for each filter
+    const workspaceValues =
+      filters.workspace.length > 0 ? filters.workspace : [null];
+    const projectValues = filters.project.length > 0 ? filters.project : [null];
+    const jobValues = filters.job.length > 0 ? filters.job : [null];
+    const dateValues = filters.date.length > 0 ? filters.date : [null];
+    const userValues = filters.userName.length > 0 ? filters.userName : [null];
+
+    // Generate all combinations
+    for (const workspace of workspaceValues) {
+      for (const project of projectValues) {
+        for (const job of jobValues) {
+          for (const date of dateValues) {
+            for (const user of userValues) {
+              const combination = {};
+              if (workspace !== null) combination.workspace = workspace;
+              if (project !== null) combination.project = project;
+              if (job !== null) combination.job = job;
+              if (date !== null) combination.date = date;
+              if (user !== null) combination.userName = user;
+
+              // Only add combination if it has at least one filter
+              if (Object.keys(combination).length > 0) {
+                combinations.push(combination);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // If no combinations (all filters are null), return empty array
+    // This means we should make a simple call without filters
+    return combinations.length > 0 ? combinations : [];
+  }, []);
+
+  // Helper function to fetch simple options (no filters)
+  const fetchSimpleOptions = useCallback(
+    async (filterType) => {
+      let endpoint = "";
+      let responseField = "jobs";
+
+      switch (filterType) {
+        case "date":
+          endpoint = `${apiUrl}/Filters/GetFilteredSiteNoteDate/${userid}`;
+          break;
+        case "workspace":
+          endpoint = `${apiUrl}/Filters/GetFilteredWorkspace/${userid}`;
+          break;
+        case "project":
+          endpoint = `${apiUrl}/Filters/GetFilteredProject/${userid}`;
+          break;
+        case "job":
+          endpoint = `${apiUrl}/Filters/GetFilteredJob/${userid}`;
+          break;
+        case "userName":
+          endpoint = `${apiUrl}/Filters/GetFilteredSiteNoteUser/${userid}`;
+          break;
+        default:
+          return [];
+      }
+
+      const response = await fetch(endpoint);
+      if (!response.ok)
+        throw new Error(
+          `Failed to fetch ${filterType} options: ${response.status}`
+        );
+      const data = await response.json();
+      return data[responseField] || [];
+    },
+    [apiUrl, userid]
+  );
+
+  // Helper function to fetch filtered options with specific combination
+  // Update in the fetchFilteredOptions helper function:
+  const fetchFilteredOptions = useCallback(
+    async (filterType, combination) => {
+      let endpoint = "";
+      let responseField = "jobs";
+
+      switch (filterType) {
+        case "date":
+          endpoint = `${apiUrl}/Filters/GetFilteredSiteNoteDate/${userid}`;
+          break;
+        case "workspace":
+          endpoint = `${apiUrl}/Filters/GetFilteredWorkspace/${userid}`;
+          break;
+        case "project":
+          endpoint = `${apiUrl}/Filters/GetFilteredProject/${userid}`;
+          break;
+        case "job":
+          endpoint = `${apiUrl}/Filters/GetFilteredJob/${userid}`;
+          break;
+        case "userName":
+          endpoint = `${apiUrl}/Filters/GetFilteredSiteNoteUser/${userid}`;
+          break;
+        default:
+          return [];
+      }
+
+      // Build query parameters from combination
+      const queryParams = new URLSearchParams();
+
+      if (combination.workspace) {
+        queryParams.append("WorkspaceId", combination.workspace);
+      }
+      if (combination.project) {
+        queryParams.append("ProjectId", combination.project);
+      }
+      if (combination.job) {
+        queryParams.append("JobId", combination.job);
+      }
+      if (combination.date) {
+        queryParams.append("NoteDate", combination.date);
+      }
+      if (combination.userName) {
+        // This should be the user ID, not the name
+        queryParams.append("UserId", combination.userName);
+      }
+
+      // Make the API call
+      const fullUrl = queryParams.toString()
+        ? `${endpoint}?${queryParams.toString()}`
+        : endpoint;
+      console.log(`Fetching ${filterType} with combination: ${fullUrl}`);
+
+      const response = await fetch(fullUrl);
+      if (!response.ok) {
+        console.error(
+          `Failed to fetch ${filterType} options for combination ${fullUrl}:`,
+          response.status
+        );
+        return []; // Return empty array instead of throwing to continue with other combinations
+      }
+
+      const data = await response.json();
+      return data[responseField] || [];
+    },
+    [apiUrl, userid]
+  );
+
+  // Helper function to remove duplicates from combined results
+  const removeDuplicates = useCallback((items, filterType) => {
+    const seen = new Set();
+    const uniqueItems = [];
+
+    for (const item of items) {
+      let id;
+
+      switch (filterType) {
+        case "date":
+          const dateStr = item.siteNoteDate;
+          try {
+            const date = new Date(dateStr);
+            if (!isNaN(date.getTime())) {
+              const year = date.getFullYear();
+              const month = String(date.getMonth() + 1).padStart(2, "0");
+              const day = String(date.getDate()).padStart(2, "0");
+              id = `${year}-${month}-${day}`;
+            } else {
+              id = dateStr.split("T")[0];
+            }
+          } catch (e) {
+            id = dateStr.split("T")[0];
+          }
+          break;
+        case "workspace":
+          id = item.workspaceId;
+          break;
+        case "project":
+          id = item.projectId;
+          break;
+        case "job":
+          id = item.jobId;
+          break;
+        case "userName":
+          id = item.siteNoteUserId;
+          break;
+        default:
+          id = JSON.stringify(item);
+      }
+
+      if (!seen.has(id)) {
+        seen.add(id);
+        uniqueItems.push(item);
+      }
+    }
+
+    return uniqueItems;
+  }, []);
+
+  // Helper function to transform items to options
+  const transformOptions = useCallback((filterType, items) => {
+    switch (filterType) {
+      case "date":
+        return items.map((item) => {
+          const dateStr = item.siteNoteDate;
+          try {
+            const date = new Date(dateStr);
+            if (!isNaN(date.getTime())) {
+              const year = date.getFullYear();
+              const month = String(date.getMonth() + 1).padStart(2, "0");
+              const day = String(date.getDate()).padStart(2, "0");
+              const value = `${year}-${month}-${day}`;
+              return {
+                id: value,
+                text: date.toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                }),
+                displayText: date.toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                }),
+                rawValue: dateStr,
+              };
+            }
+          } catch (e) {
+            console.error("Error parsing date:", e);
+          }
+          return {
+            id: dateStr.split("T")[0],
+            text: dateStr.split("T")[0],
+            displayText: dateStr.split("T")[0],
+            rawValue: dateStr,
+          };
+        });
+
+      case "workspace":
+        return items.map((item) => ({
+          id: item.workspaceId,
+          text: item.workspaceName,
+          displayText: item.workspaceName,
+          rawValue: item,
+        }));
+
+      case "project":
+        return items.map((item) => ({
+          id: item.projectId,
+          text: item.projectName,
+          displayText: item.projectName,
+          rawValue: item,
+        }));
+
+      case "job":
+        return items.map((item) => ({
+          id: item.jobId,
+          text: item.jobName,
+          displayText: item.jobName,
+          rawValue: item,
+        }));
+
+      case "userName":
+        return items.map((item) => ({
+          id: item.siteNoteUserId, // This should be the user ID
+          text: item.siteNoteUserName,
+          displayText: item.siteNoteUserName,
+          rawValue: item,
+        }));
+
+      default:
+        return [];
+    }
+  }, []);
+
+  // CORRECTED fetchFilterOptions with true OR logic for multiple values
+  const fetchFilterOptions = useCallback(
+    async (filterType) => {
+      if (loadingFilterOptions[filterType] || !userid) {
+        return;
+      }
+
+      setLoadingFilterOptions((prev) => ({ ...prev, [filterType]: true }));
+
+      try {
+        // Get filters from OTHER dropdowns (not the current one)
+        const otherFilters = {
+          workspace:
+            filterType !== "workspace" ? selectedFilters.workspace : [],
+          project: filterType !== "project" ? selectedFilters.project : [],
+          job: filterType !== "job" ? selectedFilters.job : [],
+          date: filterType !== "date" ? selectedFilters.date : [],
+          userName: filterType !== "userName" ? selectedFilters.userName : [],
+        };
+
+        // Check if we have ANY filters to apply
+        const hasFilters = Object.values(otherFilters).some(
+          (arr) => arr.length > 0
+        );
+
+        let allItems = [];
+
+        if (!hasFilters) {
+          // No filters, make a simple call
+          const items = await fetchSimpleOptions(filterType);
+          allItems = items;
+        } else {
+          // We have filters, need to handle OR logic
+          // For each combination of filter values, we need to make API calls
+
+          // Generate all combinations for OR logic
+          const combinations = generateFilterCombinations(otherFilters);
+
+          console.log(
+            `Fetching ${filterType} with ${combinations.length} combinations:`,
+            combinations
+          );
+
+          // Make API calls for each combination
+          const promises = combinations.map((combination) =>
+            fetchFilteredOptions(filterType, combination)
+          );
+
+          const results = await Promise.all(promises);
+
+          // Combine all results (OR logic)
+          results.forEach((items) => {
+            allItems.push(...items);
+          });
+
+          // Remove duplicates
+          allItems = removeDuplicates(allItems, filterType);
+        }
+
+        // Transform the data based on filter type
+        let transformedOptions = transformOptions(filterType, allItems);
+
+        // Remove duplicates and sort
+        const uniqueOptions = Array.from(
+          new Map(transformedOptions.map((item) => [item.id, item])).values()
+        ).sort((a, b) => {
+          if (typeof a.text === "string" && typeof b.text === "string") {
+            return a.text.localeCompare(b.text);
+          }
+          return 0;
+        });
+
+        setFilterOptions((prev) => ({
+          ...prev,
+          [filterType]: uniqueOptions,
+        }));
+
+        setFilterOptionsLoaded((prev) => ({
+          ...prev,
+          [filterType]: true,
+        }));
+
+        return uniqueOptions;
+      } catch (error) {
+        console.error(`Error fetching ${filterType} options:`, error);
+        toast.error(`Failed to load ${filterType} options`);
+        return [];
+      } finally {
+        setLoadingFilterOptions((prev) => ({ ...prev, [filterType]: false }));
+      }
+    },
+    [
+      apiUrl,
+      userid,
+      loadingFilterOptions,
+      selectedFilters,
+      fetchSimpleOptions,
+      fetchFilteredOptions,
+      generateFilterCombinations,
+      removeDuplicates,
+      transformOptions,
+    ]
+  );
+
+  // Function to reload all filters based on current selections
+  const reloadAllFilters = useCallback(async () => {
+    // Fetch all filter types
+    const filterTypes = ["date", "workspace", "project", "job", "userName"];
+
+    const promises = filterTypes.map((filterType) =>
+      fetchFilterOptions(filterType)
+    );
+
+    try {
+      await Promise.all(promises);
+    } catch (error) {
+      console.error("Error reloading filters:", error);
+    }
+  }, [fetchFilterOptions]);
+
   const fetchInlineImages = useCallback(
     async (noteId) => {
-      // Don't fetch if already loading
       if (!noteId || loadingImages[noteId]) return;
-      
+
       setLoadingImages((prev) => ({ ...prev, [noteId]: true }));
       try {
         const response = await fetch(
@@ -181,9 +592,12 @@ const Dashboard = ({
             ...prev,
             [noteId]: images,
           }));
-          return images; // Return images for immediate use
+          return images;
         } else {
-          console.error(`Failed to fetch images for note ${noteId}:`, response.status);
+          console.error(
+            `Failed to fetch images for note ${noteId}:`,
+            response.status
+          );
           setInlineImagesMap((prev) => ({
             ...prev,
             [noteId]: [],
@@ -191,7 +605,10 @@ const Dashboard = ({
           return [];
         }
       } catch (error) {
-        console.error(`Error fetching inline images for note ${noteId}:`, error);
+        console.error(
+          `Error fetching inline images for note ${noteId}:`,
+          error
+        );
         setInlineImagesMap((prev) => ({
           ...prev,
           [noteId]: [],
@@ -204,116 +621,136 @@ const Dashboard = ({
     [apiUrl, loadingImages]
   );
 
-  const fetchNotesWithFilters = useCallback(
-    async (filters) => {
-      const storedUser = (() => {
-        try {
-          return JSON.parse(localStorage.getItem("user") || "{}");
-        } catch {
-          return {};
-        }
-      })();
-      const usernameParam =
-        (filters?.userName && filters.userName[0]) ||
-        storedUser?.userName ||
-        storedUser?.username ||
-        storedUser?.name ||
-        "";
-      const userIdParam = storedUser?.id || userid;
-      if (!usernameParam) {
-        toast.error("Username is required to filter notes.");
-        return;
-      }
+  // UPDATED: fetchNotesWithFilters with proper OR logic for multiple selections
 
-      const usernameList =
-        (filters?.userName && filters.userName.length > 0
-          ? filters.userName
-          : [usernameParam]).filter(Boolean);
-
-      const makeRequest = async (username, workspaceId, projectId, jobId, dateVal) => {
-        const params = new URLSearchParams({
-          pageNumber: "1",
-          pageSize: "10",
-          username,
-          userId: userIdParam ?? "",
-        });
-        if (dateVal) params.append("date", dateVal);
-        if (workspaceId) params.append("workspaceId", workspaceId);
-        if (projectId) params.append("projectId", projectId);
-        if (jobId) params.append("jobId", jobId);
-
-        const response = await fetch(
-          `${apiUrl}/SiteNote/GetSiteNotesWithFilters?${params.toString()}`
-        );
-        const raw = await response.text();
-        if (!response.ok) {
-          throw new Error(raw || "Failed to fetch filtered notes");
-        }
-        const data = raw ? JSON.parse(raw) : {};
-        return (data.siteNotes || []).map((n) => ({
-          ...n,
-          userName: n.userName || n.UserName,
-          documentCount: n.documentCount ?? n.DocumentCount ?? 0,
-        }));
-      };
-
-      const dateVals = filters.date?.length ? filters.date : [undefined];
-      const workspaceVals = filters.workspace?.length ? filters.workspace : [undefined];
-      const projectVals = filters.project?.length ? filters.project : [undefined];
-      const jobVals = filters.job?.length ? filters.job : [undefined];
-
-      setLoadingFiltered(true);
+const fetchNotesWithFilters = useCallback(
+  async (filters) => {
+    const storedUser = (() => {
       try {
-        const allNotes = [];
-        for (const u of usernameList) {
-          for (const d of dateVals) {
-            for (const w of workspaceVals) {
-              for (const p of projectVals) {
-                for (const j of jobVals) {
-                  const chunk = await makeRequest(u, w, p, j, d);
-                  allNotes.push(...chunk);
-                }
+        return JSON.parse(localStorage.getItem("user") || "{}");
+      } catch {
+        return {};
+      }
+    })();
+
+    // Get the current logged-in user ID
+    const loggedInUserId = storedUser?.id || userid || "";
+    
+    // Get siteNoteUser IDs from filters (these are the IDs of users who created the notes)
+    // Note: userName filter values are actually user IDs (not names)
+    const siteNoteUserIds = filters?.userName?.length > 0 
+      ? filters.userName 
+      : [];
+
+    // Create OR logic for each filter type
+    const dateVals = filters.date?.length ? filters.date : [undefined];
+    const workspaceVals = filters.workspace?.length ? filters.workspace : [undefined];
+    const projectVals = filters.project?.length ? filters.project : [undefined];
+    const jobVals = filters.job?.length ? filters.job : [undefined];
+    
+    // Handle siteNoteUser values - if empty, use [undefined] to indicate no user filter
+    const siteNoteUserVals = siteNoteUserIds.length > 0 
+      ? siteNoteUserIds 
+      : [undefined];
+
+    const makeRequest = async (siteNoteUserId, workspaceId, projectId, jobId, dateVal) => {
+      const params = new URLSearchParams({
+        pageNumber: "1",
+        pageSize: "50", // Increased page size to get more notes at once
+        // Always pass the logged-in user ID
+        userId: loggedInUserId,
+      });
+      
+      // Only add siteNoteUserId if it's defined (not undefined)
+      if (siteNoteUserId) {
+        params.append("siteNoteUserId", siteNoteUserId);
+      }
+      
+      if (dateVal) params.append("date", dateVal);
+      if (workspaceId) params.append("workspaceId", workspaceId);
+      if (projectId) params.append("projectId", projectId);
+      if (jobId) params.append("jobId", jobId);
+
+      const response = await fetch(
+        `${apiUrl}/SiteNote/GetSiteNotesWithFilters?${params.toString()}`
+      );
+      const raw = await response.text();
+      if (!response.ok) {
+        throw new Error(raw || "Failed to fetch filtered notes");
+      }
+      const data = raw ? JSON.parse(raw) : {};
+      return (data.siteNotes || []).map((n) => ({
+        ...n,
+        userName: n.userName || n.UserName,
+        documentCount: n.documentCount ?? n.DocumentCount ?? 0,
+      }));
+    };
+
+    setLoadingFiltered(true);
+    try {
+      const allNotes = [];
+      const seenIds = new Set(); // Track seen IDs across ALL requests
+      
+      // This nested loop creates OR logic within each dropdown
+      // AND logic between dropdowns
+      for (const siteNoteUserId of siteNoteUserVals) {
+        for (const d of dateVals) {
+          for (const w of workspaceVals) {
+            for (const p of projectVals) {
+              for (const j of jobVals) {
+                const chunk = await makeRequest(siteNoteUserId, w, p, j, d);
+                
+                // Filter out duplicates within this chunk and across previous chunks
+                const uniqueChunk = chunk.filter(note => {
+                  if (!note.id) return false; // Skip notes without ID
+                  if (seenIds.has(note.id)) {
+                    return false; // Skip duplicate
+                  }
+                  seenIds.add(note.id); // Mark as seen
+                  return true;
+                });
+                
+                allNotes.push(...uniqueChunk);
               }
             }
           }
         }
-        const dedup = [];
-        const seen = new Set();
-        allNotes.forEach((n) => {
-          const id = n.id;
-          if (!seen.has(id)) {
-            seen.add(id);
-            dedup.push(n);
-          }
-        });
-        setFilteredNotesFromApi(dedup);
-      } catch (error) {
-        console.error("Filter fetch error:", error);
-        toast.error("Failed to fetch filtered notes");
-        setFilteredNotesFromApi([]);
-      } finally {
-        setLoadingFiltered(false);
       }
-    },
-    [apiUrl, userid]
-  );
-
+      
+      // Final sort by ID descending (newest first)
+      const sortedNotes = allNotes.sort((a, b) => b.id - a.id);
+      setFilteredNotesFromApi(sortedNotes);
+    } catch (error) {
+      console.error("Filter fetch error:", error);
+      toast.error("Failed to fetch filtered notes");
+      setFilteredNotesFromApi([]);
+    } finally {
+      setLoadingFiltered(false);
+    }
+  },
+  [apiUrl, userid]
+);
   const hasActiveFilters = useMemo(
     () => Object.values(selectedFilters).some((arr) => arr?.length > 0),
     [selectedFilters]
   );
 
-const displayNotes = useMemo(() => {
-  if (searchTerm.trim()) {
-    return searchResults;
-  }
-  if (hasActiveFilters) {
-    return filteredNotesFromApi;
-  }
-  // Return notes from App.js (these are the initial notes)
-  return notes || [];
-}, [searchTerm, searchResults, hasActiveFilters, filteredNotesFromApi, notes]);
-  
+  const displayNotes = useMemo(() => {
+    if (searchTerm.trim()) {
+      return searchResults;
+    }
+    if (hasActiveFilters) {
+      return filteredNotesFromApi;
+    }
+    return notes || [];
+  }, [
+    searchTerm,
+    searchResults,
+    hasActiveFilters,
+    filteredNotesFromApi,
+    notes,
+  ]);
+
   const finalDisplayNotes = useMemo(() => {
     if (!displayNotes || !Array.isArray(displayNotes)) {
       return [];
@@ -328,50 +765,47 @@ const displayNotes = useMemo(() => {
       .sort((a, b) => b.id - a.id);
   }, [displayNotes, jobs]);
 
-  // Handle image thumbnail click - fetch images on demand
-  const handleImageThumbnailClick = useCallback(async (note, imageIndex = 0) => {
-    // Check if note has inline images using inlineImageCount
-    if (!note.inlineImageCount || note.inlineImageCount <= 0) {
-      return;
-    }
-    
-    // Check if images are already loaded
-    const existingImages = inlineImagesMap[note.id] || [];
-    let images = existingImages;
-    
-    // If no images loaded yet, fetch them
-    if (existingImages.length === 0) {
-      setLoadingImages((prev) => ({ ...prev, [note.id]: true }));
-      try {
-        const fetchedImages = await fetchInlineImages(note.id);
-        images = fetchedImages;
-        
-        if (images.length > 0) {
-          setSelectedImageNote(note);
-          setSelectedImage({
-            image: images[imageIndex],
-            index: imageIndex,
-            total: images.length,
-          });
-          setShowImageViewer(true);
-        }
-      } catch (error) {
-        console.error("Error loading images:", error);
-        toast.error("Failed to load images");
+  const handleImageThumbnailClick = useCallback(
+    async (note, imageIndex = 0) => {
+      if (!note.inlineImageCount || note.inlineImageCount <= 0) {
+        return;
       }
-    } else {
-      // Images already loaded, show them
-      setSelectedImageNote(note);
-      setSelectedImage({
-        image: images[imageIndex],
-        index: imageIndex,
-        total: images.length,
-      });
-      setShowImageViewer(true);
-    }
-  }, [inlineImagesMap, fetchInlineImages]);
 
-  // Navigate through images
+      const existingImages = inlineImagesMap[note.id] || [];
+      let images = existingImages;
+
+      if (existingImages.length === 0) {
+        setLoadingImages((prev) => ({ ...prev, [note.id]: true }));
+        try {
+          const fetchedImages = await fetchInlineImages(note.id);
+          images = fetchedImages;
+
+          if (images.length > 0) {
+            setSelectedImageNote(note);
+            setSelectedImage({
+              image: images[imageIndex],
+              index: imageIndex,
+              total: images.length,
+            });
+            setShowImageViewer(true);
+          }
+        } catch (error) {
+          console.error("Error loading images:", error);
+          toast.error("Failed to load images");
+        }
+      } else {
+        setSelectedImageNote(note);
+        setSelectedImage({
+          image: images[imageIndex],
+          index: imageIndex,
+          total: images.length,
+        });
+        setShowImageViewer(true);
+      }
+    },
+    [inlineImagesMap, fetchInlineImages]
+  );
+
   const handleNextImage = useCallback(() => {
     if (selectedImage && selectedImageNote) {
       const images = inlineImagesMap[selectedImageNote.id] || [];
@@ -400,6 +834,351 @@ const displayNotes = useMemo(() => {
       }
     }
   }, [selectedImage, selectedImageNote, inlineImagesMap]);
+
+  // Excel-like filter functions
+  const getFilterOptions = useCallback(
+    (filterType) => {
+      const options = filterOptions[filterType] || [];
+
+      if (filterSearchTerm) {
+        return options.filter(
+          (option) =>
+            option.displayText &&
+            option.displayText
+              .toLowerCase()
+              .includes(filterSearchTerm.toLowerCase())
+        );
+      }
+
+      return options;
+    },
+    [filterOptions, filterSearchTerm]
+  );
+
+  const getFilterDisplayValue = useCallback(
+    (filterType, value) => {
+      const options = filterOptions[filterType] || [];
+      const option = options.find(
+        (opt) => opt.id.toString() === value.toString() || opt.text === value
+      );
+
+      if (option) {
+        return option.displayText || option.text || value;
+      }
+
+      if (filterType === "date") {
+        try {
+          const date = new Date(value);
+          if (!isNaN(date.getTime())) {
+            return date.toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+            });
+          }
+        } catch (e) {}
+      }
+
+      return value;
+    },
+    [filterOptions]
+  );
+
+  // UPDATED: handleFilterCheckboxChange with proper OR logic reloading
+  const handleFilterCheckboxChange = useCallback(
+    async (filterType, value, rawValue = null) => {
+      const currentValues = selectedFilters[filterType] || [];
+      let newValues;
+
+      // For MULTIPLE selection behavior (OR logic within dropdown)
+      if (currentValues.includes(value)) {
+        // If already selected, remove it (deselect)
+        newValues = currentValues.filter((v) => v !== value);
+      } else {
+        // Add new value to selections
+        newValues = [...currentValues, value];
+      }
+
+      // Update selected filters
+      const newFilters = {
+        ...selectedFilters,
+        [filterType]: newValues,
+      };
+
+      setSelectedFilters(newFilters);
+
+      // IMPORTANT: Reload ALL other filter dropdowns with OR logic
+      // This means if multiple workspaces are selected, other dropdowns should show options
+      // that exist in ANY of the selected workspaces
+
+      // Get all filter types except the one that was just changed
+      const otherFilterTypes = [
+        "date",
+        "workspace",
+        "project",
+        "job",
+        "userName",
+      ].filter((type) => type !== filterType);
+
+      // Reload all other filter dropdowns with the new filter state
+      try {
+        const promises = otherFilterTypes.map((filterType) =>
+          fetchFilterOptions(filterType)
+        );
+        await Promise.all(promises);
+      } catch (error) {
+        console.error("Error reloading other filters:", error);
+      }
+
+      // Also reload the current filter dropdown
+      await fetchFilterOptions(filterType);
+
+      // Trigger API call if there are active filters
+      const hasActive = Object.values(newFilters).some((arr) => arr.length > 0);
+      if (hasActive) {
+        fetchNotesWithFilters(newFilters);
+      } else {
+        setFilteredNotesFromApi(notes || []);
+      }
+    },
+    [selectedFilters, notes, fetchNotesWithFilters, fetchFilterOptions]
+  );
+
+  // Update the removeFilter function
+  const removeFilter = useCallback(
+    async (filterType, value) => {
+      const currentValues = selectedFilters[filterType] || [];
+      const newValues = currentValues.filter((v) => v !== value);
+
+      const newFilters = {
+        ...selectedFilters,
+        [filterType]: newValues,
+      };
+
+      setSelectedFilters(newFilters);
+
+      // IMPORTANT: Reload all other filters when removing a filter
+      const otherFilterTypes = [
+        "date",
+        "workspace",
+        "project",
+        "job",
+        "userName",
+      ].filter((type) => type !== filterType);
+
+      try {
+        const promises = otherFilterTypes.map((filterType) =>
+          fetchFilterOptions(filterType)
+        );
+        await Promise.all(promises);
+      } catch (error) {
+        console.error("Error reloading other filters:", error);
+      }
+
+      // Also reload the current filter
+      await fetchFilterOptions(filterType);
+
+      // Trigger API call if there are active filters
+      const hasActive = Object.values(newFilters).some((arr) => arr.length > 0);
+      if (hasActive) {
+        fetchNotesWithFilters(newFilters);
+      } else {
+        setFilteredNotesFromApi(notes || []);
+      }
+    },
+    [selectedFilters, notes, fetchNotesWithFilters, fetchFilterOptions]
+  );
+
+  // Enhanced clearAllFilters function
+  const clearAllFilters = useCallback(async () => {
+    const emptyFilters = {
+      date: [],
+      workspace: [],
+      project: [],
+      job: [],
+      userName: [],
+    };
+    setSelectedFilters(emptyFilters);
+    setFilteredNotesFromApi(notes || []);
+
+    // Reload all filters without any parameters
+    await reloadAllFilters();
+  }, [notes, reloadAllFilters]);
+
+  // Enhanced toggleFilterDropdown function
+  const toggleFilterDropdown = useCallback(
+    async (filterType) => {
+      // Always refresh the dropdown options when opening (to get latest filtered data)
+      if (filterDropdownOpen !== filterType) {
+        await fetchFilterOptions(filterType);
+      }
+
+      if (filterDropdownOpen === filterType) {
+        setFilterDropdownOpen(null);
+        setFilterSearchTerm("");
+      } else {
+        setFilterDropdownOpen(filterType);
+        setFilterSearchTerm("");
+      }
+    },
+    [filterDropdownOpen, fetchFilterOptions]
+  );
+
+  // Update getFilterButtonLabel to show count of multiple selections
+  const getFilterButtonLabel = (filterType) => {
+    const count = selectedFilters[filterType]?.length || 0;
+    const isLoading = loadingFilterOptions[filterType];
+    const isLoaded = filterOptionsLoaded[filterType];
+
+    const baseLabels = {
+      date: "Date",
+      workspace: "Workspace",
+      project: "Project",
+      job: "Job",
+      userName: "User",
+    };
+
+    const iconMap = {
+      date: "calendar",
+      workspace: "building",
+      project: "project-diagram",
+      job: "tasks",
+      userName: "user",
+    };
+
+    // Check if other filters are active (this affects current dropdown)
+    const hasOtherFilters = Object.entries(selectedFilters).some(
+      ([key, values]) => key !== filterType && values.length > 0
+    );
+
+    return (
+      <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        {isLoading ? (
+          <i
+            className="fas fa-spinner fa-spin"
+            style={{ fontSize: "14px", color: "#3498db" }}
+          />
+        ) : (
+          <i
+            className={`fas fa-${iconMap[filterType]}`}
+            style={{
+              fontSize: "14px",
+              color: hasOtherFilters ? "#17a2b8" : "#3498db",
+            }}
+          />
+        )}
+        {isLoading
+          ? `Loading ${baseLabels[filterType]}...`
+          : baseLabels[filterType]}
+        {count > 0 && ` (${count})`}
+        {hasOtherFilters && !isLoading && (
+          <span
+            title="Filtered by other selections"
+            style={{ marginLeft: "4px", fontSize: "10px" }}
+          >
+            <i className="fas fa-filter" style={{ color: "#17a2b8" }} />
+          </span>
+        )}
+        {!isLoading && !isLoaded && filterDropdownOpen !== filterType && (
+          <span
+            title="Click to load options"
+            style={{ marginLeft: "4px", fontSize: "10px" }}
+          ></span>
+        )}
+      </span>
+    );
+  };
+
+  const getActiveFilterCount = () => {
+    return Object.values(selectedFilters).reduce(
+      (total, arr) => total + arr.length,
+      0
+    );
+  };
+
+  // Render active filters for display
+  const renderActiveFilters = () => {
+    const activeFilters = [];
+
+    Object.entries(selectedFilters).forEach(([filterType, values]) => {
+      if (values.length > 0) {
+        values.forEach((value) => {
+          const displayValue = getFilterDisplayValue(filterType, value);
+          activeFilters.push({ filterType, value, displayValue });
+        });
+      }
+    });
+
+    if (activeFilters.length === 0) {
+      return null;
+    }
+
+    return (
+      <div style={styles.activeFiltersContainer}>
+        <div style={styles.activeFiltersTitle}>
+          <i
+            className="fas fa-filter"
+            style={{ fontSize: "14px", color: "#495057" }}
+          />
+          Active Filters ({getActiveFilterCount()}):
+        </div>
+        <div style={styles.activeFiltersContent}>
+          {activeFilters.map((filter, index) => (
+            <div
+              key={`${filter.filterType}-${filter.value}-${index}`}
+              style={styles.filterTag}
+            >
+              <span style={{ fontWeight: "500", color: "#1976d2" }}>
+                {filter.filterType === "date"
+                  ? "Date"
+                  : filter.filterType === "workspace"
+                  ? "Workspace"
+                  : filter.filterType === "project"
+                  ? "Project"
+                  : filter.filterType === "job"
+                  ? "Job"
+                  : "User"}
+                : {filter.displayValue}
+              </span>
+              <button
+                onClick={() => removeFilter(filter.filterType, filter.value)}
+                style={styles.filterTagRemove}
+                onMouseEnter={(e) =>
+                  (e.target.style.color = styles.filterTagRemoveHover.color)
+                }
+                onMouseLeave={(e) =>
+                  (e.target.style.color = styles.filterTagRemove.color)
+                }
+                title="Remove filter"
+              >
+                <i className="fas fa-times" />
+              </button>
+            </div>
+          ))}
+          {activeFilters.length > 0 && (
+            <button
+              onClick={clearAllFilters}
+              style={styles.clearAllButton}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor =
+                  styles.clearAllButtonHover.backgroundColor;
+                e.target.style.borderColor =
+                  styles.clearAllButtonHover.borderColor;
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor =
+                  styles.clearAllButton.backgroundColor;
+                e.target.style.borderColor = styles.clearAllButton.borderColor;
+              }}
+            >
+              <i className="fas fa-times-circle" />
+              Clear All
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   useEffect(() => {
     localStorage.setItem("dashboardSearchTerm", searchTerm);
@@ -438,11 +1217,861 @@ const displayNotes = useMemo(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth <= 768);
     };
-    
+
     checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
+
+  const toggleStackExpansion = (jobName) => {
+    setExpandedStacks((prev) => ({ ...prev, [jobName]: !prev[jobName] }));
+    if (!expandedStacks[jobName]) {
+      setExpandedCardLimit((prev) => ({ ...prev, [jobName]: 50 }));
+    } else {
+      setExpandedCardLimit((prev) => {
+        const newState = { ...prev };
+        delete newState[jobName];
+        return newState;
+      });
+    }
+  };
+
+  const loadMoreCards = (jobName) => {
+    setExpandedCardLimit((prev) => {
+      const currentLimit = prev[jobName] ?? 50;
+      return {
+        ...prev,
+        [jobName]: currentLimit + 10,
+      };
+    });
+  };
+
+  const handleViewAttachments = useCallback((note) => {
+    setSelectedFileNote(note);
+    setShowAttachedFileModal(true);
+  }, []);
+
+  const handleRequestWorkspace = () => {
+    setShowRequestWorkspaceModal(true);
+    toast.success("Workspace request feature coming soon!");
+  };
+
+  const handleRowDoubleClick = useCallback(
+    (note) => {
+      let job = jobs.find((j) => j.name && note.job && j.name === note.job);
+      if (!job && note.jobId) {
+        job = jobs.find(
+          (j) => (j.id || j.jobId)?.toString() === note.jobId.toString()
+        );
+      }
+      setViewNote({
+        id: note.id,
+        jobId: job?.id ?? null,
+      });
+      setShowViewModal(true);
+    },
+    [jobs]
+  );
+
+  const fetchStackedJobs = useCallback(async () => {
+    if (!userid) return;
+
+    setLoadingStackedJobs(true);
+    try {
+      const jobResponse = await fetch(
+        `${apiUrl}/SiteNote/GetStackedJobs?userId=${userid}&pageNumber=1&pageSize=50`
+      );
+
+      if (!jobResponse.ok) {
+        throw new Error(`Failed to fetch stacked jobs: ${jobResponse.status}`);
+      }
+
+      const jobData = await jobResponse.json();
+
+      if (
+        !jobData.jobs ||
+        !Array.isArray(jobData.jobs) ||
+        jobData.jobs.length === 0
+      ) {
+        setStackedJobs([]);
+        return;
+      }
+
+      const jobsWithNotes = await Promise.all(
+        jobData.jobs.map(async (job) => {
+          try {
+            const notesResponse = await fetch(
+              `${apiUrl}/SiteNote/GetSiteNotesByJobId?` +
+                `jobId=${job.jobId}&userId=${userid}&pageNumber=1&pageSize=100`
+            );
+
+            if (!notesResponse.ok) {
+              console.error(
+                `Failed to fetch notes for job ${job.jobId}:`,
+                notesResponse.status
+              );
+              return {
+                jobId: job.jobId,
+                jobName: job.jobName,
+                jobDescription: job.jobDescription || "",
+                noteCount: job.totalSiteNotes || 0,
+                latestTimeStamp: job.latestTimeStamp,
+                notes: [],
+              };
+            }
+
+            const notesData = await notesResponse.json();
+
+            const transformedNotes = (notesData.siteNotes || []).map(
+              (note) => ({
+                ...note,
+                id: note.id,
+                userName: note.userName || note.UserName || "Unknown User",
+                documentCount: note.documentCount || note.DocumentCount || 0,
+                timeStamp: note.timeStamp || note.date || note.createdDate,
+                date: note.date || note.createdDate || new Date().toISOString(),
+                workspace: note.workspace || note.workspaceName || "",
+                project: note.project || note.projectName || "",
+                job: note.job || job.jobName,
+                note: note.note || note.content || "",
+                jobId: note.jobId || job.jobId,
+              })
+            );
+
+            return {
+              jobId: job.jobId,
+              jobName: job.jobName,
+              jobDescription: job.jobDescription || "",
+              noteCount: job.totalSiteNotes || transformedNotes.length,
+              latestTimeStamp: job.latestTimeStamp,
+              notes: transformedNotes.sort(
+                (a, b) =>
+                  new Date(b.timeStamp || b.date) -
+                  new Date(a.timeStamp || a.date)
+              ),
+            };
+          } catch (error) {
+            console.error(`Error fetching notes for job ${job.jobId}:`, error);
+            return {
+              jobId: job.jobId,
+              jobName: job.jobName,
+              jobDescription: job.jobDescription || "",
+              noteCount: job.totalSiteNotes || 0,
+              latestTimeStamp: job.latestTimeStamp,
+              notes: [],
+            };
+          }
+        })
+      );
+
+      const jobsWithActualNotes = jobsWithNotes.filter(
+        (job) => job.notes.length > 0
+      );
+      setStackedJobs(jobsWithActualNotes);
+    } catch (error) {
+      console.error("Error in fetchStackedJobs:", error);
+      toast.error("Failed to load stacked jobs");
+      setStackedJobs([]);
+    } finally {
+      setLoadingStackedJobs(false);
+    }
+  }, [apiUrl, userid]);
+
+  const getHash = (str) => {
+    if (!str) return 0;
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return Math.abs(hash);
+  };
+
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await fetch(
+          `${apiUrl}/UserManagement/GetUserById/${userid}`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentUser(data.user);
+        }
+      } catch (error) {
+        console.error("Error fetching user:", error);
+      }
+    };
+    if (userid) {
+      fetchCurrentUser();
+    }
+  }, [userid, apiUrl]);
+
+  const formatRelativeTime = (dateString) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMs = now - date;
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+    if (diffInMinutes < 1) {
+      return "Just now";
+    } else if (diffInMinutes < 60) {
+      return `${diffInMinutes} min ago`;
+    } else if (diffInHours < 24) {
+      return `${diffInHours} hour${diffInHours > 1 ? "s" : ""} ago`;
+    } else if (diffInDays === 1) {
+      return "Yesterday";
+    } else if (diffInDays < 7) {
+      return `${diffInDays} day${diffInDays > 1 ? "s" : ""} ago`;
+    } else {
+      return date.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (isDataLoaded && notes && notes.length > 0) {
+      setLoadingFiltered(false);
+    }
+  }, [selectedFilters, notes, isDataLoaded]);
+
+  useEffect(() => {
+    if (!hasActiveFilters) {
+      setFilteredNotesFromApi(notes || []);
+    }
+  }, [notes, hasActiveFilters]);
+
+  useEffect(() => {
+    if (hasActiveFilters) {
+      fetchNotesWithFilters(selectedFilters);
+    }
+  }, [hasActiveFilters, fetchNotesWithFilters, selectedFilters]);
+
+  useEffect(() => {
+    if (userid && defaultUserWorkspaceID) {
+      fetchWorkspaceRole();
+      fetchWorkspacesByUserId();
+    }
+  }, [userid, defaultUserWorkspaceID, fetchWorkspaceRole]);
+
+  useEffect(() => {
+    if (notes !== undefined) {
+      setIsDataLoaded(true);
+      setInitialLoading(false);
+    }
+  }, [notes]);
+
+  useEffect(() => {
+    if (userid && viewMode === "stacked") {
+      fetchStackedJobs();
+    }
+  }, [userid, viewMode, fetchStackedJobs]);
+
+  const handlePriorityUpdate = () => {
+    fetchPriorities();
+  };
+
+  const handlePriorityChange = async (priorityValue) => {
+    if (!selectedNoteForPriority) return;
+    try {
+      const user = JSON.parse(localStorage.getItem("user"));
+      const existingPriority = priorities.find(
+        (p) => p.noteID == selectedNoteForPriority.id
+      );
+      let response;
+      if (existingPriority && existingPriority.id) {
+        const updateUrl = `${process.env.REACT_APP_API_BASE_URL}/api/Priority/UpdatePriority/${existingPriority.id}`;
+        response = await fetch(updateUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            priorityValue: priorityValue,
+          }),
+        });
+      } else {
+        const createUrl = `${process.env.REACT_APP_API_BASE_URL}/api/Priority/AddPriority`;
+        response = await fetch(createUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            noteID: selectedNoteForPriority.id,
+            priorityValue: priorityValue,
+            userId: user.id,
+          }),
+        });
+      }
+      if (response.ok) {
+        toast.success("Priority updated successfully");
+        handlePriorityUpdate();
+        await refreshNotes();
+      } else {
+        const errorText = await response.text();
+        console.error("API Error response:", errorText);
+        throw new Error(
+          `Failed to update priority: ${response.status} ${response.statusText}`
+        );
+      }
+    } catch (error) {
+      console.error("Error updating priority:", error);
+      toast.error("Failed to update priority. Please try again.");
+    } finally {
+      setShowPriorityDropdown(false);
+      setSelectedNoteForPriority(null);
+    }
+  };
+
+  const handleRowClick = useCallback((note, event) => {
+    setFocusedRow(note.id);
+    setSelectedRow(note.id);
+  }, []);
+
+  const handleKeyDown = useCallback(
+    (event) => {
+      if (!focusedRow) return;
+      const currentIndex = finalDisplayNotes.findIndex(
+        (note) => note.id === focusedRow
+      );
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        const nextIndex = Math.min(
+          currentIndex + 1,
+          finalDisplayNotes.length - 1
+        );
+        if (nextIndex !== currentIndex) {
+          setFocusedRow(finalDisplayNotes[nextIndex].id);
+          setSelectedRow(finalDisplayNotes[nextIndex].id);
+        }
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        const prevIndex = Math.max(currentIndex - 1, 0);
+        if (prevIndex !== currentIndex) {
+          setFocusedRow(finalDisplayNotes[prevIndex].id);
+          setSelectedRow(finalDisplayNotes[prevIndex].id);
+        }
+      } else if (event.ctrlKey && event.key === "a" && focusedRow) {
+        event.preventDefault();
+        const selectedNote = finalDisplayNotes.find(
+          (note) => note.id === focusedRow
+        );
+        if (selectedNote) {
+          const today = new Date();
+          const year = today.getFullYear();
+          const month = String(today.getMonth() + 1).padStart(2, "0");
+          const day = String(today.getDate()).padStart(2, "0");
+          const currentDateFormatted = `${year}-${month}-${day}`;
+          setPrefilledData({
+            date: currentDateFormatted,
+            project: selectedNote.project,
+            projectId: selectedNote.projectId,
+            job: selectedNote.job,
+            jobId: selectedNote.jobId,
+            workspace: selectedNote.workspace,
+          });
+          setModalSource("grid");
+          setShowNewModal(true);
+        }
+      }
+    },
+    [focusedRow, finalDisplayNotes]
+  );
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [handleKeyDown]);
+
+  const handleRefresh = async () => {
+    setInitialLoading(true);
+    try {
+      await refreshNotes();
+      // Reset filter options so they reload on next click
+      setFilterOptionsLoaded({
+        date: false,
+        workspace: false,
+        project: false,
+        job: false,
+        userName: false,
+      });
+      if (viewMode === "stacked") {
+        await fetchStackedJobs();
+      }
+    } catch {
+      toast.error("Refresh error");
+    } finally {
+      setInitialLoading(false);
+    }
+  };
+
+  const handleAddFromRow = (note) => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, "0");
+    const day = String(today.getDate()).padStart(2, "0");
+    const currentDateFormatted = `${year}-${month}-${day}`;
+    setPrefilledData({
+      date: currentDateFormatted,
+      project: note.project,
+      projectId: note.projectId,
+      job: note.job,
+      jobId: note.jobId,
+      workspace: note.workspace,
+      userId: note.userId,
+    });
+    setModalSource("grid");
+    setShowNewModal(true);
+  };
+
+  const handleNewNoteClick = () => {
+    setPrefilledData(null);
+    setModalSource("dashboard");
+    setShowNewModal(true);
+  };
+
+  useEffect(() => {
+    if (showNewModal && modalSource === "grid" && newNoteModalRef.current) {
+      const timer = setTimeout(() => {
+        if (newNoteModalRef.current) {
+          newNoteModalRef.current.focusTextarea();
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [showNewModal, modalSource]);
+
+  const handleEdit = (note) => {
+    setSelectedNote(note);
+    setShowEditModal(true);
+  };
+
+  const handleDelete = (note) => {
+    const currentUser = JSON.parse(localStorage.getItem("user"));
+    if (note.userId && Number(note.userId) !== Number(currentUser.id)) {
+      toast.error("You can only delete notes that you created.");
+      return;
+    }
+    const hrs = (Date.now() - new Date(note.timeStamp)) / 36e5;
+    if (hrs > 24) {
+      toast.error("Cannot delete notes older than 24 hours");
+    } else {
+      setNoteToDelete(note);
+      setShowDeleteConfirm(true);
+    }
+  };
+
+  const deleteInlineImages = async (noteId) => {
+    try {
+      const imagesResponse = await fetch(
+        `${apiUrl}/InlineImages/GetInlineImagesBySiteNote?siteNoteId=${noteId}`
+      );
+      if (imagesResponse.ok) {
+        const imagesData = await imagesResponse.json();
+        const images = imagesData.images || [];
+        for (const image of images) {
+          const deleteImageResponse = await fetch(
+            `${apiUrl}/InlineImages/DeleteInlineImage/${image.id}`,
+            {
+              method: "DELETE",
+            }
+          );
+          if (!deleteImageResponse.ok) {
+            console.error(`Failed to delete image ${image.id}`);
+          }
+        }
+        console.log(
+          `Deleted ${images.length} inline images for note ${noteId}`
+        );
+        return true;
+      } else {
+        console.error(`Failed to fetch images for note ${noteId}`);
+        return false;
+      }
+    } catch (error) {
+      console.error("Error deleting inline images:", error);
+      return false;
+    }
+  };
+
+  const deleteAttachedDocuments = async (noteId) => {
+    try {
+      const docsResponse = await fetch(
+        `${apiUrl}/Documents/GetDocumentMetadataByReference?siteNoteId=${noteId}`
+      );
+      if (docsResponse.ok) {
+        const docsData = await docsResponse.json();
+        const documents = docsData.documents || [];
+        for (const document of documents) {
+          const deleteDocResponse = await fetch(
+            `${apiUrl}/Documents/DeleteDocument/${document.id}`,
+            {
+              method: "DELETE",
+            }
+          );
+          if (!deleteDocResponse.ok) {
+            console.error(`Failed to delete document ${document.id}`);
+          }
+        }
+        console.log(`Deleted ${documents.length} documents for note ${noteId}`);
+        return true;
+      } else {
+        console.error(`Failed to fetch documents for note ${noteId}`);
+        return false;
+      }
+    } catch (error) {
+      console.error("Error deleting documents:", error);
+      return false;
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!noteToDelete) return;
+    setIsDeleting(true);
+    try {
+      const imagesDeleted = await deleteInlineImages(noteToDelete.id);
+      if (!imagesDeleted) {
+        toast.error("Failed to delete inline images. Please try again.");
+        setIsDeleting(false);
+        return;
+      }
+      const documentsDeleted = await deleteAttachedDocuments(noteToDelete.id);
+      if (!documentsDeleted) {
+        toast.error("Failed to delete attached documents. Please try again.");
+        setIsDeleting(false);
+        return;
+      }
+      const url = new URL(
+        `${apiUrl}/SiteNote/DeleteSiteNote/${noteToDelete.id}`
+      );
+      url.searchParams.append("userId", userid);
+      const response = await fetch(url.toString(), {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Delete failed");
+      }
+      toast.success("Note and associated files deleted successfully");
+      await refreshNotes();
+    } catch (error) {
+      console.error("Delete error:", error);
+      toast.error(
+        error.message || "Failed to delete note and associated files"
+      );
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+      setNoteToDelete(null);
+    }
+  };
+
+  useEffect(() => {
+    const run = async () => {
+      const t = searchTerm.trim();
+      if (!t || !userid) {
+        setSearchResults([]);
+        setSearchLoading(false);
+        return;
+      }
+      setSearchLoading(true);
+      try {
+        const r = await fetch(
+          `${apiUrl}/SiteNote/SearchSiteNotes?searchTerm=${encodeURIComponent(
+            t
+          )}&pageNumber=1&pageSize=50&userId=${userid}`
+        );
+        if (!r.ok) throw new Error();
+        const d = await r.json();
+        setSearchResults(
+          (d.siteNotes || []).map((n) => ({
+            ...n,
+            userName: n.UserName || n.userName,
+            documentCount: n.DocumentCount || n.documentCount || 0,
+          }))
+        );
+      } catch {
+        toast.error("Search failed");
+        setSearchResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    };
+    run();
+  }, [searchTerm, userid, apiUrl]);
+
+  const fetchWorkspacesByUserId = async () => {
+    try {
+      const response = await fetch(
+        `${apiUrl}/Workspace/GetActiveWorkspacesNameByUserId/${userid}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+          },
+        }
+      );
+      if (response.ok) {
+        const data = await response.json();
+        const userWorkspaces = data.workspaces || data || [];
+        setUserWorkspace(userWorkspaces);
+      } else {
+        console.error("API response not OK:", response.status);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      setRole(null);
+    } finally {
+      setIsRoleLoading(false);
+    }
+  };
+
+  const fetchPriorities = async () => {
+    try {
+      const response = await fetch(`${apiUrl}/Priority/GetPriorities`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+        },
+      });
+      if (response.ok) {
+        const result = await response.json();
+        setPriorities(result.priorities || []);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const renderStackedImageIcon = (note) => {
+    const imageCount = note.inlineImageCount || 0;
+    const isLoading = loadingImages[note.id];
+    const hasImages = imageCount > 0;
+
+    if (!hasImages) {
+      return null;
+    }
+
+    if (isLoading) {
+      return (
+        <button
+          className="image-icon-btn"
+          style={{ opacity: 0.5, marginRight: "4px" }}
+          title="Loading images..."
+        >
+          <i className="fas fa-spinner fa-spin" />
+        </button>
+      );
+    }
+
+    return (
+      <div
+        className="inline-image-icon"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          marginRight: "4px",
+          position: "relative",
+          cursor: "pointer",
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleImageThumbnailClick(note);
+        }}
+        title={`${imageCount} inline image${
+          imageCount !== 1 ? "s" : ""
+        } - Click to view`}
+      >
+        <div
+          style={{
+            position: "relative",
+            display: "flex",
+            alignItems: "center",
+          }}
+        >
+          <i
+            className="fas fa-image"
+            style={{
+              fontSize: "18px",
+              color: "#3498db",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.transform = "scale(1.2)";
+              e.target.style.color = "#2980b9";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.transform = "scale(1)";
+              e.target.style.color = "#3498db";
+            }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              top: "-5px",
+              right: "-5px",
+              backgroundColor: "#e74c3c",
+              color: "white",
+              fontSize: "9px",
+              fontWeight: "bold",
+              minWidth: "16px",
+              height: "16px",
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "2px solid white",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+              padding: "0 2px",
+            }}
+          >
+            {imageCount}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderTableImageIcon = (note) => {
+    const imageCount = note.inlineImageCount || 0;
+    const isLoading = loadingImages[note.id];
+    const hasImages = imageCount > 0;
+
+    if (!hasImages) {
+      return null;
+    }
+
+    if (isLoading) {
+      return (
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            marginLeft: "6px",
+          }}
+        >
+          <i
+            className="fas fa-spinner fa-spin"
+            style={{ fontSize: "12px", color: "#666" }}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div
+        className="inline-image-icon"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          marginLeft: "6px",
+          cursor: "pointer",
+          position: "relative",
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleImageThumbnailClick(note);
+        }}
+        title={`${imageCount} inline image${
+          imageCount !== 1 ? "s" : ""
+        } - Click to view`}
+      >
+        <div style={{ position: "relative" }}>
+          <i
+            className="fas fa-image"
+            style={{
+              fontSize: "16px",
+              color: "#3498db",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.transform = "scale(1.2)";
+              e.target.style.color = "#2980b9";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.transform = "scale(1)";
+              e.target.style.color = "#3498db";
+            }}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  const renderCardImageIcon = (note) => {
+    const imageCount = note.inlineImageCount || 0;
+    const isLoading = loadingImages[note.id];
+    const hasImages = imageCount > 0;
+
+    if (!hasImages) {
+      return null;
+    }
+
+    if (isLoading) {
+      return (
+        <button
+          className="image-icon-btn"
+          style={{ opacity: 0.5 }}
+          title="Loading images..."
+        >
+          <i className="fas fa-spinner fa-spin" />
+        </button>
+      );
+    }
+
+    return (
+      <div
+        className="inline-image-icon"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          marginRight: "4px",
+          position: "relative",
+          cursor: "pointer",
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleImageThumbnailClick(note);
+        }}
+        title={`${imageCount} inline image${
+          imageCount !== 1 ? "s" : ""
+        } - Click to view`}
+      >
+        <div
+          style={{
+            position: "relative",
+            display: "flex",
+            alignItems: "center",
+          }}
+        >
+          <i
+            className="fas fa-image"
+            style={{
+              fontSize: "18px",
+              color: "#3498db",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.transform = "scale(1.2)";
+              e.target.style.color = "#2980b9";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.transform = "scale(1)";
+              e.target.style.color = "#3498db";
+            }}
+          />
+        </div>
+      </div>
+    );
+  };
 
   const styles = {
     searchBox: {
@@ -480,7 +2109,7 @@ const displayNotes = useMemo(() => {
     clearGroupBtnHover: {
       color: "#333",
     },
-    
+
     filterContainer: {
       display: "flex",
       flexWrap: "wrap",
@@ -516,7 +2145,7 @@ const displayNotes = useMemo(() => {
     },
     filterButtonHover: {
       borderColor: "#3498db",
-      boxShadow: "0 0 0 2px rgba(52, 152, 219, 0.2)", 
+      boxShadow: "0 0 0 2px rgba(52, 152, 219, 0.2)",
     },
     filterButtonInfo: {
       borderColor: "#17a2b8",
@@ -669,1388 +2298,71 @@ const displayNotes = useMemo(() => {
       marginLeft: "6px",
       cursor: "help",
     },
-    
+
     mobileFilterButton: {
-      display: 'none',
-      '@media (max-width: 768px)': {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '8px',
-        padding: '10px 16px',
-        backgroundColor: '#3498db',
-        color: 'white',
-        border: 'none',
-        borderRadius: '4px',
-        cursor: 'pointer',
-        fontSize: '14px',
-        fontWeight: '500',
-        margin: '10px 0',
-        width: '100%',
-      }
+      display: "none",
+      "@media (max-width: 768px)": {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "8px",
+        padding: "10px 16px",
+        backgroundColor: "#3498db",
+        color: "white",
+        border: "none",
+        borderRadius: "4px",
+        cursor: "pointer",
+        fontSize: "14px",
+        fontWeight: "500",
+        margin: "10px 0",
+        width: "100%",
+      },
     },
-    
+
     mobileFiltersContainer: {
-      position: 'fixed',
-      top: '0',
-      left: '0',
-      right: '0',
-      bottom: '0',
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      position: "fixed",
+      top: "0",
+      left: "0",
+      right: "0",
+      bottom: "0",
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
       zIndex: 1000,
-      display: 'flex',
-      justifyContent: 'flex-end',
+      display: "flex",
+      justifyContent: "flex-end",
     },
-    
+
     mobileFiltersPanel: {
-      width: '85%',
-      maxWidth: '400px',
-      height: '100%',
-      backgroundColor: 'white',
-      overflowY: 'auto',
-      padding: '20px',
-      boxShadow: '-2px 0 10px rgba(0, 0, 0, 0.1)',
+      width: "85%",
+      maxWidth: "400px",
+      height: "100%",
+      backgroundColor: "white",
+      overflowY: "auto",
+      padding: "20px",
+      boxShadow: "-2px 0 10px rgba(0, 0, 0, 0.1)",
     },
-    
+
     mobileFiltersHeader: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: '20px',
-      paddingBottom: '15px',
-      borderBottom: '1px solid #eee',
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: "20px",
+      paddingBottom: "15px",
+      borderBottom: "1px solid #eee",
     },
-    
+
     closeButton: {
-      background: 'none',
-      border: 'none',
-      fontSize: '20px',
-      cursor: 'pointer',
-      color: '#666',
+      background: "none",
+      border: "none",
+      fontSize: "20px",
+      cursor: "pointer",
+      color: "#666",
     },
-  };
-
-  const toggleStackExpansion = (jobName) => {
-    setExpandedStacks((prev) => ({ ...prev, [jobName]: !prev[jobName] }));
-    if (!expandedStacks[jobName]) {
-      setExpandedCardLimit((prev) => ({ ...prev, [jobName]: 50 }));
-    } else {
-      setExpandedCardLimit((prev) => {
-        const newState = { ...prev };
-        delete newState[jobName];
-        return newState;
-      });
-    }
-  };
-
-  const loadMoreCards = (jobName) => {
-    setExpandedCardLimit((prev) => {
-      const currentLimit = prev[jobName] ?? 50;
-      return {
-        ...prev,
-        [jobName]: currentLimit + 10,
-      };
-    });
-  };
-
-  const handleViewAttachments = useCallback((note) => {
-    setSelectedFileNote(note);
-    setShowAttachedFileModal(true);
-  }, []);
-
-  const handleRequestWorkspace = () => {
-    setShowRequestWorkspaceModal(true);
-    toast.success("Workspace request feature coming soon!");
-  };
-
-  const handleRowDoubleClick = useCallback(
-    (note) => {
-      let job = jobs.find((j) => j.name && note.job && j.name === note.job);
-      if (!job && note.jobId) {
-        job = jobs.find((j) => (j.id || j.jobId)?.toString() === note.jobId.toString());
-      }
-      setViewNote({
-        id: note.id,
-        jobId: job?.id ?? null,
-      });
-      setShowViewModal(true);
-    },
-    [jobs]
-  );
-
-  const fetchUniqueProjects = async () => {
-    try {
-      const r = await fetch(
-        `${apiUrl}/SiteNote/GetUniqueProjects?userId=${userid}`
-      );
-      if (r.ok) setUniqueProjects((await r.json()).projects || []);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const fetchProjectsByWorkspaces = useCallback(
-    async (workspaceIds) => {
-      if (!workspaceIds || workspaceIds.length === 0) return;
-      const results = [];
-      for (const wid of workspaceIds) {
-        try {
-          const r = await fetch(
-            `${apiUrl}/Project/GetProjectsByUserJobPermission/${userid}/${wid}`
-          );
-          if (r.ok) {
-            const data = await r.json();
-            if (Array.isArray(data.projects)) {
-              results.push(...data.projects);
-            }
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      }
-      const dedup = [];
-      const seen = new Set();
-      results.forEach((p) => {
-        const id = p.id ?? p.projectId ?? p.value;
-        if (id && !seen.has(id)) {
-          seen.add(id);
-          dedup.push(p);
-        }
-      });
-      setUniqueProjects(dedup);
-    },
-    [apiUrl, userid]
-  );
-
-  const fetchUniqueJobs = async () => {
-    try {
-      const r = await fetch(
-        `${apiUrl}/SiteNote/GetUniqueJobs?userId=${userid}`
-      );
-      if (r.ok) setUniqueJobs((await r.json()).jobs || []);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const fetchJobsByProjects = useCallback(
-    async (projectIds) => {
-      if (!projectIds || projectIds.length === 0) return;
-      const results = [];
-      for (const pid of projectIds) {
-        try {
-          const r = await fetch(
-            `${apiUrl}/UserJobAuth/GetJobsByUserAndProject/${userid}/${pid}`
-          );
-          if (r.ok) {
-            const data = await r.json();
-            if (Array.isArray(data.jobs)) {
-              results.push(...data.jobs);
-            }
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      }
-      const dedup = [];
-      const seen = new Set();
-      results.forEach((j) => {
-        const id = j.jobId ?? j.id ?? j.value;
-        if (id && !seen.has(id)) {
-          seen.add(id);
-          dedup.push(j);
-        }
-      });
-      setUniqueJobs(dedup);
-    },
-    [apiUrl, userid]
-  );
-
-  const fetchUniqueWorkspaces = async () => {
-    try {
-      const r = await fetch(
-        `${apiUrl}/SiteNote/GetUniqueWorkspaces?userId=${userid}`
-      );
-      if (r.ok) setUniqueWorkspaces((await r.json()).workspaces || []);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const fetchUniqueDates = async () => {
-    try {
-      const r = await fetch(
-        `${apiUrl}/SiteNote/GetUniqueDates?userId=${userid}`
-      );
-      if (r.ok) setUniqueDates((await r.json()).dates || []);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const fetchUniqueUsernames = async () => {
-    try {
-      const r = await fetch(
-        `${apiUrl}/SiteNote/GetUniqueUsernames?userId=${userid}`
-      );
-      if (r.ok) setUniqueUsernames((await r.json()).usernames || []);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const fetchStackedJobs = useCallback(async () => {
-    if (!userid) return;
-    
-    setLoadingStackedJobs(true);
-    try {
-      const jobResponse = await fetch(
-        `${apiUrl}/SiteNote/GetStackedJobs?userId=${userid}&pageNumber=1&pageSize=50`
-      );
-      
-      if (!jobResponse.ok) {
-        throw new Error(`Failed to fetch stacked jobs: ${jobResponse.status}`);
-      }
-      
-      const jobData = await jobResponse.json();
-      
-      if (!jobData.jobs || !Array.isArray(jobData.jobs) || jobData.jobs.length === 0) {
-        setStackedJobs([]);
-        return;
-      }
-      
-      const jobsWithNotes = await Promise.all(
-        jobData.jobs.map(async (job) => {
-          try {
-            const notesResponse = await fetch(
-              `${apiUrl}/SiteNote/GetSiteNotesByJobId?` + 
-              `jobId=${job.jobId}&userId=${userid}&pageNumber=1&pageSize=100`
-            );
-            
-            if (!notesResponse.ok) {
-              console.error(`Failed to fetch notes for job ${job.jobId}:`, notesResponse.status);
-              return {
-                jobId: job.jobId,
-                jobName: job.jobName,
-                jobDescription: job.jobDescription || '',
-                noteCount: job.totalSiteNotes || 0,
-                latestTimeStamp: job.latestTimeStamp,
-                notes: []
-              };
-            }
-            
-            const notesData = await notesResponse.json();
-            
-            const transformedNotes = (notesData.siteNotes || []).map(note => ({
-              ...note,
-              id: note.id,
-              userName: note.userName || note.UserName || 'Unknown User',
-              documentCount: note.documentCount || note.DocumentCount || 0,
-              timeStamp: note.timeStamp || note.date || note.createdDate,
-              date: note.date || note.createdDate || new Date().toISOString(),
-              workspace: note.workspace || note.workspaceName || '',
-              project: note.project || note.projectName || '',
-              job: note.job || job.jobName,
-              note: note.note || note.content || '',
-              jobId: note.jobId || job.jobId
-            }));
-            
-            return {
-              jobId: job.jobId,
-              jobName: job.jobName,
-              jobDescription: job.jobDescription || '',
-              noteCount: job.totalSiteNotes || transformedNotes.length,
-              latestTimeStamp: job.latestTimeStamp,
-              notes: transformedNotes.sort((a, b) => 
-                new Date(b.timeStamp || b.date) - new Date(a.timeStamp || a.date)
-              )
-            };
-            
-          } catch (error) {
-            console.error(`Error fetching notes for job ${job.jobId}:`, error);
-            return {
-              jobId: job.jobId,
-              jobName: job.jobName,
-              jobDescription: job.jobDescription || '',
-              noteCount: job.totalSiteNotes || 0,
-              latestTimeStamp: job.latestTimeStamp,
-              notes: []
-            };
-          }
-        })
-      );
-      
-      const jobsWithActualNotes = jobsWithNotes.filter(job => job.notes.length > 0);
-      setStackedJobs(jobsWithActualNotes);
-      
-    } catch (error) {
-      console.error('Error in fetchStackedJobs:', error);
-      toast.error('Failed to load stacked jobs');
-      setStackedJobs([]);
-    } finally {
-      setLoadingStackedJobs(false);
-    }
-  }, [apiUrl, userid]);
-
-  const getHash = (str) => {
-    if (!str) return 0;
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return Math.abs(hash);
-  };
-
-  useEffect(() => {
-    const fetchCurrentUser = async () => {
-      try {
-        const response = await fetch(
-          `${apiUrl}/UserManagement/GetUserById/${userid}`
-        );
-        if (response.ok) {
-          const data = await response.json();
-          setCurrentUser(data.user);
-        }
-      } catch (error) {
-        console.error("Error fetching user:", error);
-      }
-    };
-    if (userid) {
-      fetchCurrentUser();
-    }
-  }, [userid, apiUrl]);
-
-  const formatRelativeTime = (dateString) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInMs = now - date;
-    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
-    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
-    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
-    if (diffInMinutes < 1) {
-      return "Just now";
-    } else if (diffInMinutes < 60) {
-      return `${diffInMinutes} min ago`;
-    } else if (diffInHours < 24) {
-      return `${diffInHours} hour${diffInHours > 1 ? "s" : ""} ago`;
-    } else if (diffInDays === 1) {
-      return "Yesterday";
-    } else if (diffInDays < 7) {
-      return `${diffInDays} day${diffInDays > 1 ? "s" : ""} ago`;
-    } else {
-      return date.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
-    }
-  };
-
-  // Apply filters when selectedFilters changes
-  useEffect(() => {
-    if (isDataLoaded && notes && notes.length > 0) {
-      setLoadingFiltered(false);
-    }
-  }, [selectedFilters, notes, isDataLoaded]);
-
-  useEffect(() => {
-    if (!hasActiveFilters) {
-      setFilteredNotesFromApi(notes || []);
-    }
-  }, [notes, hasActiveFilters]);
-
-  useEffect(() => {
-    if (hasActiveFilters) {
-      fetchNotesWithFilters(selectedFilters);
-    }
-  }, [hasActiveFilters, fetchNotesWithFilters, selectedFilters]);
-
-  useEffect(() => {
-    if (userid && defaultUserWorkspaceID) {
-      fetchWorkspaceRole();
-      fetchWorkspacesByUserId();
-      //fetchPriorities();
-    }
-  }, [userid, defaultUserWorkspaceID, fetchWorkspaceRole]);
-
-  useEffect(() => {
-    const fetchAllUniques = async () => {
-      if (userid) {
-        await Promise.all([
-          fetchUniqueProjects(),
-          fetchUniqueJobs(),
-          fetchUniqueWorkspaces(),
-          fetchUniqueDates(),
-          fetchUniqueUsernames(),
-        ]);
-        setLoadingUniques(false);
-      }
-    };
-    fetchAllUniques();
-  }, [userid]);
-
-  useEffect(() => {
-    if (notes !== undefined) {
-      setIsDataLoaded(true);
-      setInitialLoading(false);
-    }
-  }, [notes]);
-
-  useEffect(() => {
-    if (userid && viewMode === 'stacked') {
-      fetchStackedJobs();
-    }
-  }, [userid, viewMode, fetchStackedJobs]);
-
-  const handlePriorityUpdate = () => {
-    fetchPriorities();
-  };
-
-  const handlePriorityChange = async (priorityValue) => {
-    if (!selectedNoteForPriority) return;
-    try {
-      const user = JSON.parse(localStorage.getItem("user"));
-      const existingPriority = priorities.find(
-        (p) => p.noteID == selectedNoteForPriority.id
-      );
-      let response;
-      if (existingPriority && existingPriority.id) {
-        const updateUrl = `${process.env.REACT_APP_API_BASE_URL}/api/Priority/UpdatePriority/${existingPriority.id}`;
-        response = await fetch(updateUrl, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            priorityValue: priorityValue,
-          }),
-        });
-      } else {
-        const createUrl = `${process.env.REACT_APP_API_BASE_URL}/api/Priority/AddPriority`;
-        response = await fetch(createUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            noteID: selectedNoteForPriority.id,
-            priorityValue: priorityValue,
-            userId: user.id,
-          }),
-        });
-      }
-      if (response.ok) {
-        toast.success("Priority updated successfully");
-        handlePriorityUpdate();
-        await refreshNotes();
-      } else {
-        const errorText = await response.text();
-        console.error("API Error response:", errorText);
-        throw new Error(
-          `Failed to update priority: ${response.status} ${response.statusText}`
-        );
-      }
-    } catch (error) {
-      console.error("Error updating priority:", error);
-      toast.error("Failed to update priority. Please try again.");
-    } finally {
-      setShowPriorityDropdown(false);
-      setSelectedNoteForPriority(null);
-    }
-  };
-
-  const handleRowClick = useCallback((note, event) => {
-    setFocusedRow(note.id);
-    setSelectedRow(note.id);
-  }, []);
-
-  const handleKeyDown = useCallback(
-    (event) => {
-      if (!focusedRow) return;
-      const currentIndex = finalDisplayNotes.findIndex(
-        (note) => note.id === focusedRow
-      );
-      if (event.key === "ArrowDown") {
-        event.preventDefault();
-        const nextIndex = Math.min(
-          currentIndex + 1,
-          finalDisplayNotes.length - 1
-        );
-        if (nextIndex !== currentIndex) {
-          setFocusedRow(finalDisplayNotes[nextIndex].id);
-          setSelectedRow(finalDisplayNotes[nextIndex].id);
-        }
-      } else if (event.key === "ArrowUp") {
-        event.preventDefault();
-        const prevIndex = Math.max(currentIndex - 1, 0);
-        if (prevIndex !== currentIndex) {
-          setFocusedRow(finalDisplayNotes[prevIndex].id);
-          setSelectedRow(finalDisplayNotes[prevIndex].id);
-        }
-      } else if (event.ctrlKey && event.key === "a" && focusedRow) {
-        event.preventDefault();
-        const selectedNote = finalDisplayNotes.find(
-          (note) => note.id === focusedRow
-        );
-        if (selectedNote) {
-          const today = new Date();
-          const year = today.getFullYear();
-          const month = String(today.getMonth() + 1).padStart(2, "0");
-          const day = String(today.getDate()).padStart(2, "0");
-          const currentDateFormatted = `${year}-${month}-${day}`;
-          setPrefilledData({
-            date: currentDateFormatted,
-            project: selectedNote.project,
-            projectId: selectedNote.projectId,
-            job: selectedNote.job,
-            jobId: selectedNote.jobId,
-            workspace: selectedNote.workspace,
-
-          });
-          setModalSource("grid");
-          setShowNewModal(true);
-        }
-      }
-    },
-    [focusedRow, finalDisplayNotes]
-  );
-
-  useEffect(() => {
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [handleKeyDown]);
-
-  const handleRefresh = async () => {
-    setInitialLoading(true);
-    try {
-      await refreshNotes();
-      await Promise.all([
-        fetchUniqueProjects(),
-        fetchUniqueJobs(),
-        fetchUniqueWorkspaces(),
-        fetchUniqueDates(),
-        fetchUniqueUsernames(),
-      ]);
-      if (viewMode === 'stacked') {
-        await fetchStackedJobs();
-      }
-    } catch {
-      toast.error("Refresh error");
-    } finally {
-      setInitialLoading(false);
-    }
-  };
-
-  const handleAddFromRow = (note) => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, "0");
-    const day = String(today.getDate()).padStart(2, "0");
-    const currentDateFormatted = `${year}-${month}-${day}`;
-    setPrefilledData({
-      date: currentDateFormatted,
-      project: note.project,
-      projectId: note.projectId,
-      job: note.job,
-      jobId: note.jobId,
-      workspace: note.workspace,
-      userId: note.userId,
-    });
-    setModalSource("grid");
-    setShowNewModal(true);
-  };
-
-  const handleNewNoteClick = () => {
-    setPrefilledData(null);
-    setModalSource("dashboard");
-    setShowNewModal(true);
-  };
-
-  useEffect(() => {
-    if (showNewModal && modalSource === "grid" && newNoteModalRef.current) {
-      const timer = setTimeout(() => {
-        if (newNoteModalRef.current) {
-          newNoteModalRef.current.focusTextarea();
-        }
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [showNewModal, modalSource]);
-
-  const handleEdit = (note) => {
-    setSelectedNote(note);
-    setShowEditModal(true);
-  };
-
-  const handleDelete = (note) => {
-    // Check if current user is the note creator
-    const currentUser = JSON.parse(localStorage.getItem("user"));
-    if (note.userId && Number(note.userId) !== Number(currentUser.id)) {
-      toast.error("You can only delete notes that you created.");
-      return;
-    }
-    const hrs = (Date.now() - new Date(note.timeStamp)) / 36e5;
-    if (hrs > 24) {
-      toast.error("Cannot delete notes older than 24 hours");
-    } else {
-      setNoteToDelete(note);
-      setShowDeleteConfirm(true);
-    }
-  };
-
-  // Function to delete inline images associated with a note
-  const deleteInlineImages = async (noteId) => {
-    try {
-      // Get inline images for the note
-      const imagesResponse = await fetch(
-        `${apiUrl}/InlineImages/GetInlineImagesBySiteNote?siteNoteId=${noteId}`
-      );
-      if (imagesResponse.ok) {
-        const imagesData = await imagesResponse.json();
-        const images = imagesData.images || [];
-        // Delete each image
-        for (const image of images) {
-          const deleteImageResponse = await fetch(
-            `${apiUrl}/InlineImages/DeleteInlineImage/${image.id}`,
-            {
-              method: "DELETE",
-            }
-          );
-          if (!deleteImageResponse.ok) {
-            console.error(`Failed to delete image ${image.id}`);
-            // Continue with other deletions even if one fails
-          }
-        }
-        console.log(
-          `Deleted ${images.length} inline images for note ${noteId}`
-        );
-        return true;
-      } else {
-        console.error(`Failed to fetch images for note ${noteId}`);
-        return false;
-      }
-    } catch (error) {
-      console.error("Error deleting inline images:", error);
-      return false;
-    }
-  };
-
-  // Function to delete attached documents associated with a note
-  const deleteAttachedDocuments = async (noteId) => {
-    try {
-      // Get documents for the note
-      const docsResponse = await fetch(
-        `${apiUrl}/Documents/GetDocumentMetadataByReference?siteNoteId=${noteId}`
-      );
-      if (docsResponse.ok) {
-        const docsData = await docsResponse.json();
-        const documents = docsData.documents || [];
-        // Delete each document
-        for (const document of documents) {
-          const deleteDocResponse = await fetch(
-            `${apiUrl}/Documents/DeleteDocument/${document.id}`,
-            {
-              method: "DELETE",
-            }
-          );
-          if (!deleteDocResponse.ok) {
-            console.error(`Failed to delete document ${document.id}`);
-            // Continue with other deletions even if one fails
-          }
-        }
-        console.log(`Deleted ${documents.length} documents for note ${noteId}`);
-        return true;
-      } else {
-        console.error(`Failed to fetch documents for note ${noteId}`);
-        return false;
-      }
-    } catch (error) {
-      console.error("Error deleting documents:", error);
-      return false;
-    }
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!noteToDelete) return;
-    setIsDeleting(true);
-    try {
-      // 1. First delete inline images
-      const imagesDeleted = await deleteInlineImages(noteToDelete.id);
-      if (!imagesDeleted) {
-        toast.error("Failed to delete inline images. Please try again.");
-        setIsDeleting(false);
-        return;
-      }
-      // 2. Then delete attached documents
-      const documentsDeleted = await deleteAttachedDocuments(noteToDelete.id);
-      if (!documentsDeleted) {
-        toast.error("Failed to delete attached documents. Please try again.");
-        setIsDeleting(false);
-        return;
-      }
-      // 3. Finally delete the note itself
-      const url = new URL(
-        `${apiUrl}/SiteNote/DeleteSiteNote/${noteToDelete.id}`
-      );
-      url.searchParams.append("userId", userid);
-      const response = await fetch(url.toString(), {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || "Delete failed");
-      }
-      toast.success("Note and associated files deleted successfully");
-      await refreshNotes();
-    } catch (error) {
-      console.error("Delete error:", error);
-      toast.error(
-        error.message || "Failed to delete note and associated files"
-      );
-    } finally {
-      setIsDeleting(false);
-      setShowDeleteConfirm(false);
-      setNoteToDelete(null);
-    }
-  };
-
-  useEffect(() => {
-    const run = async () => {
-      const t = searchTerm.trim();
-      if (!t || !userid) {
-        setSearchResults([]);
-        setSearchLoading(false);
-        return;
-      }
-      setSearchLoading(true);
-      try {
-        const r = await fetch(
-          `${apiUrl}/SiteNote/SearchSiteNotes?searchTerm=${encodeURIComponent(
-            t
-          )}&pageNumber=1&pageSize=50&userId=${userid}`
-        );
-        if (!r.ok) throw new Error();
-        const d = await r.json();
-        setSearchResults(
-          (d.siteNotes || []).map((n) => ({
-            ...n,
-            userName: n.UserName || n.userName,
-            documentCount: n.DocumentCount || n.documentCount || 0,
-          }))
-        );
-      } catch {
-        toast.error("Search failed");
-        setSearchResults([]);
-      } finally {
-        setSearchLoading(false);
-      }
-    };
-    run();
-  }, [searchTerm, userid, apiUrl]);
-
-  const fetchWorkspacesByUserId = async () => {
-    try {
-      const response = await fetch(
-        `${apiUrl}/Workspace/GetActiveWorkspacesNameByUserId/${userid}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json; charset=utf-8",
-          },
-        }
-      );
-      if (response.ok) {
-        const data = await response.json();
-        const userWorkspaces = data.workspaces || data || [];
-        setUserWorkspace(userWorkspaces);
-      } else {
-        console.error("API response not OK:", response.status);
-      }
-    } catch (error) {
-      console.error("Error:", error);
-      setRole(null);
-    } finally {
-      setIsRoleLoading(false);
-    }
-  };
-
-  const fetchPriorities = async () => {
-    try {
-      const response = await fetch(`${apiUrl}/Priority/GetPriorities`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json; charset=utf-8",
-        },
-      });
-      if (response.ok) {
-        const result = await response.json();
-        setPriorities(result.priorities || []);
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const getFilterOptions = (filterType) => {
-    if (filterType === "workspace") {
-      let options = (uniqueWorkspaces || []).map((w) => ({
-        id:
-          w.id ??
-          w.workspaceId ??
-          w.workspaceID ??
-          w.value ??
-          w.name ??
-          w.text,
-        text: w.name ?? w.text ?? String(w.id ?? w.workspaceId ?? w.value ?? w),
-        displayText: w.name ?? w.text ?? String(w.id ?? w.workspaceId ?? w.value ?? w),
-      }));
-      if (filterSearchTerm) {
-        options = options.filter(
-          (o) =>
-            o.displayText &&
-            o.displayText.toLowerCase().includes(filterSearchTerm.toLowerCase())
-        );
-      }
-      return options;
-    }
-    if (filterType === "project") {
-      let options = (uniqueProjects || []).map((p) => {
-        const id = p.value ?? p.id ?? p.projectId ?? p.projectID;
-        const label =
-          p.name ?? p.projectName ?? p.text ?? String(id ?? p);
-        return {
-          id,
-          text: label,
-          displayText: label,
-        };
-      });
-      if (filterSearchTerm) {
-        options = options.filter(o =>
-            o.displayText && o.displayText.toLowerCase().includes(filterSearchTerm.toLowerCase())
-        );
-      }
-      return options;
-    }
-    if (filterType === "job") {
-      let options = (uniqueJobs || []).map((j) => {
-        const id = j.jobId ?? j.id ?? j.value ?? j.jobID;
-        const label =
-          j.jobName ?? j.name ?? j.text ?? String(id ?? j);
-        return {
-          id,
-          text: label,
-          displayText: label,
-        };
-      });
-      if (filterSearchTerm) {
-        options = options.filter(o =>
-            o.displayText && o.displayText.toLowerCase().includes(filterSearchTerm.toLowerCase())
-        );
-      }
-      return options;
-    }
-    let options = [];
-    if (!notes || !Array.isArray(notes) || notes.length === 0) {
-      return options;
-    }
-    const uniqueValues = new Set();
-    notes.forEach((note) => {
-      let value;
-      let include = true;
-      switch (filterType) {
-        case "date":
-          if (note.date) {
-            const dateObj = new Date(note.date);
-            if (!isNaN(dateObj.getTime())) {
-              const year = dateObj.getFullYear();
-              const month = String(dateObj.getMonth() + 1).padStart(2, "0");
-              const day = String(dateObj.getDate()).padStart(2, "0");
-              value = `${year}-${month}-${day}`;
-            } else {
-              value = note.date.toString().split("T")[0];
-            }
-          }
-          break;
-        case "workspace":
-          value = note.workspace;
-          break;
-        case "project":
-          // Only filter by workspace if workspace filter is active
-          if (
-            selectedFilters.workspace &&
-            selectedFilters.workspace.length > 0
-          ) {
-            const noteWorkspace = note.workspace
-              ? note.workspace.toString()
-              : "";
-            if (selectedFilters.workspace.includes(noteWorkspace)) {
-              value = note.project;
-            } else {
-              include = false;
-            }
-          } else {
-            value = note.project;
-          }
-          break;
-        case "job":
-          // Filter by project if project filter is active
-          if (selectedFilters.project && selectedFilters.project.length > 0) {
-            const noteProject = note.project ? note.project.toString() : "";
-            if (selectedFilters.project.includes(noteProject)) {
-              value = note.job;
-            } else {
-              include = false;
-            }
-          }
-          // If no project filter but workspace filter is active, filter by workspace
-          else if (
-            selectedFilters.workspace &&
-            selectedFilters.workspace.length > 0
-          ) {
-            const noteWorkspace = note.workspace
-              ? note.workspace.toString()
-              : "";
-            if (selectedFilters.workspace.includes(noteWorkspace)) {
-              value = note.job;
-            } else {
-              include = false;
-            }
-          } else {
-            value = note.job;
-          }
-          break;
-        case "userName":
-          value = note.userName;
-          break;
-        default:
-          value = null;
-      }
-      if (value && include) {
-        uniqueValues.add(value.toString());
-      }
-    });
-    options = Array.from(uniqueValues)
-      .sort()
-      .map((value) => ({
-        id: value,
-        text: value,
-        displayText:
-          filterType === "date"
-            ? (() => {
-                try {
-                  const date = new Date(value);
-                  if (!isNaN(date.getTime())) {
-                    return date.toLocaleDateString("en-US", {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    });
-                  }
-                } catch (e) {}
-                return value;
-              })()
-            : value,
-      }));
-    // Filter by search term
-    if (filterSearchTerm) {
-      options = options.filter(
-        (option) =>
-          option.displayText &&
-          option.displayText
-            .toLowerCase()
-            .includes(filterSearchTerm.toLowerCase())
-      );
-    }
-    return options;
-  };
-
-  const getFilterDisplayValue = (filterType, value) => {
-    if (filterType === "date") {
-      try {
-        const date = new Date(value);
-        if (!isNaN(date.getTime())) {
-          return date.toLocaleDateString("en-US", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-          });
-        }
-      } catch (e) {}
-    }
-    if (filterType === "workspace") {
-      const hit = (uniqueWorkspaces || []).find(
-        (w) =>
-          (w.id ?? w.workspaceId ?? w.workspaceID ?? w.value)?.toString() ===
-          value?.toString()
-      );
-      if (hit) return hit.name ?? hit.text ?? value;
-    }
-    if (filterType === "project") {
-      const hit = (uniqueProjects || []).find(
-        (p) =>
-          (p.id ?? p.projectId ?? p.projectID ?? p.value)?.toString() === value?.toString()
-      );
-      if (hit) return hit.name ?? hit.projectName ?? hit.text ?? value;
-    }
-    if (filterType === "job") {
-      const hit = (uniqueJobs || []).find(
-        (j) => (j.jobId ?? j.jobID ?? j.id ?? j.value)?.toString() === value?.toString()
-      );
-      if (hit) return hit.jobName ?? hit.name ?? hit.text ?? value;
-    }
-    return value;
-  };
-
-  const getActiveFilterCount = () => {
-    return Object.values(selectedFilters).reduce(
-      (total, arr) => total + arr.length,
-      0
-    );
-  };
-
-  const handleFilterCheckboxChange = useCallback(
-    async (filterType, value) => {
-      const currentValues = selectedFilters[filterType] || [];
-      const newValues = currentValues.includes(value)
-        ? currentValues.filter((v) => v !== value)
-        : [...currentValues, value];
-      let newFilters = {
-        ...selectedFilters,
-        [filterType]: newValues,
-      };
-
-      if (filterType === "workspace") {
-        newFilters = {
-          ...newFilters,
-          project: [],
-          job: [],
-        };
-        setUniqueProjects([]);
-        setUniqueJobs([]);
-        if (newValues.length === 0) {
-          await fetchUniqueProjects();
-          await fetchUniqueJobs();
-        } else {
-          await fetchProjectsByWorkspaces(newValues);
-        }
-      }
-
-      // Cascading: project change clears job and refreshes job options
-      if (filterType === "project") {
-        newFilters = {
-          ...newFilters,
-          job: [],
-        };
-        setUniqueJobs([]);
-        if (newValues.length === 0) {
-          await fetchUniqueJobs();
-        } else {
-          await fetchJobsByProjects(newValues);
-        }
-      }
-
-      setSelectedFilters(newFilters);
-
-      const active = Object.values(newFilters).some(
-        (arr) => Array.isArray(arr) && arr.length > 0
-      );
-      if (active) {
-        fetchNotesWithFilters(newFilters);
-      } else {
-        setFilteredNotesFromApi(notes || []);
-      }
-    },
-    [
-      selectedFilters,
-      fetchNotesWithFilters,
-      fetchProjectsByWorkspaces,
-      fetchJobsByProjects,
-      fetchUniqueProjects,
-      fetchUniqueJobs,
-      notes,
-    ]
-  );
-
-  const removeFilter = useCallback(
-    (filterType, value) => {
-      const currentValues = selectedFilters[filterType] || [];
-      const newValues = currentValues.filter((v) => v !== value);
-      const newFilters = {
-        ...selectedFilters,
-        [filterType]: newValues,
-      };
-      setSelectedFilters(newFilters);
-      const active = Object.values(newFilters).some(
-        (arr) => Array.isArray(arr) && arr.length > 0
-      );
-      if (active) {
-        fetchNotesWithFilters(newFilters);
-      } else {
-        setFilteredNotesFromApi(notes || []);
-      }
-    },
-    [selectedFilters, notes, fetchNotesWithFilters]
-  );
-
-  const clearAllFilters = useCallback(() => {
-    const emptyFilters = {
-      date: [],
-      workspace: [],
-      project: [],
-      job: [],
-      userName: [],
-    };
-    setSelectedFilters(emptyFilters);
-    setFilteredNotesFromApi(notes || []);
-    setLoadingFiltered(false);
-  }, [notes]);
-
-  const toggleFilterDropdown = (filterType) => {
-    if (filterDropdownOpen === filterType) {
-      setFilterDropdownOpen(null);
-      setFilterSearchTerm("");
-    } else {
-      setFilterDropdownOpen(filterType);
-      setFilterSearchTerm("");
-    }
-  };
-
-  // Function to render inline image icon for stacked view
-  const renderStackedImageIcon = (note) => {
-    const imageCount = note.inlineImageCount || 0;
-    const isLoading = loadingImages[note.id];
-    const hasImages = imageCount > 0;
-    
-    if (!hasImages) {
-      return null;
-    }
-    
-    if (isLoading) {
-      return (
-        <button
-          className="image-icon-btn"
-          style={{ opacity: 0.5, marginRight: "4px" }}
-          title="Loading images..."
-        >
-          <i className="fas fa-spinner fa-spin" />
-        </button>
-      );
-    }
-    
-    return (
-      <div
-        className="inline-image-icon"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          marginRight: "4px",
-          position: "relative",
-          cursor: "pointer",
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          handleImageThumbnailClick(note);
-        }}
-        title={`${imageCount} inline image${imageCount !== 1 ? "s" : ""} - Click to view`}
-      >
-        <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-          <i
-            className="fas fa-image"
-            style={{
-              fontSize: "18px",
-              color: "#3498db",
-              transition: "all 0.2s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.transform = "scale(1.2)";
-              e.target.style.color = "#2980b9";
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = "scale(1)";
-              e.target.style.color = "#3498db";
-            }}
-          />
-          {/* Image count badge - using inlineImageCount from note */}
-          <div
-            style={{
-              position: "absolute",
-              top: "-5px",
-              right: "-5px",
-              backgroundColor: "#e74c3c",
-              color: "white",
-              fontSize: "9px",
-              fontWeight: "bold",
-              minWidth: "16px",
-              height: "16px",
-              borderRadius: "50%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              border: "2px solid white",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-              padding: "0 2px",
-            }}
-          >
-            {imageCount}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // Function to render inline image icon for table view
-  const renderTableImageIcon = (note) => {
-    const imageCount = note.inlineImageCount || 0;
-    const isLoading = loadingImages[note.id];
-    const hasImages = imageCount > 0;
-    
-    if (!hasImages) {
-      return null;
-    }
-    
-    if (isLoading) {
-      return (
-        <div style={{ display: "inline-flex", alignItems: "center", marginLeft: "6px" }}>
-          <i className="fas fa-spinner fa-spin" style={{ fontSize: "12px", color: "#666" }} />
-        </div>
-      );
-    }
-    
-    return (
-      <div
-        className="inline-image-icon"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          marginLeft: "6px",
-          cursor: "pointer",
-          position: "relative",
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          handleImageThumbnailClick(note);
-        }}
-        title={`${imageCount} inline image${imageCount !== 1 ? "s" : ""} - Click to view`}
-      >
-        <div style={{ position: "relative" }}>
-          <i
-            className="fas fa-image"
-            style={{
-              fontSize: "16px",
-              color: "#3498db",
-              transition: "all 0.2s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.transform = "scale(1.2)";
-              e.target.style.color = "#2980b9";
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = "scale(1)";
-              e.target.style.color = "#3498db";
-            }}
-          />
-          {/* Image count badge - using inlineImageCount from note */}
-         
-        </div>
-      </div>
-    );
-  };
-
-  // Function to render inline image icon for card view
-  const renderCardImageIcon = (note) => {
-    const imageCount = note.inlineImageCount || 0;
-    const isLoading = loadingImages[note.id];
-    const hasImages = imageCount > 0;
-    
-    if (!hasImages) {
-      return null;
-    }
-    
-    if (isLoading) {
-      return (
-        <button className="image-icon-btn" style={{ opacity: 0.5 }} title="Loading images...">
-          <i className="fas fa-spinner fa-spin" />
-        </button>
-      );
-    }
-    
-    return (
-      <div
-        className="inline-image-icon"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          marginRight: "4px",
-          position: "relative",
-          cursor: "pointer",
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          handleImageThumbnailClick(note);
-        }}
-        title={`${imageCount} inline image${imageCount !== 1 ? "s" : ""} - Click to view`}
-      >
-        <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-          <i
-            className="fas fa-image"
-            style={{
-              fontSize: "18px",
-              color: "#3498db",
-              transition: "all 0.2s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.transform = "scale(1.2)";
-              e.target.style.color = "#2980b9";
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = "scale(1)";
-              e.target.style.color = "#3498db";
-            }}
-          />
-          {/* Image count badge - using inlineImageCount from note */}
-          
-        </div>
-      </div>
-    );
-  };
-
-  // Check if filter button should show info style
-  const getFilterButtonLabel = (filterType) => {
-    const count = selectedFilters[filterType]?.length || 0;
-    const baseLabels = {
-      date: "Date",
-      workspace: "Workspace",
-      project: "Project",
-      job: "Job",
-      userName: "User",
-    };
-    const iconMap = {
-      date: "calendar",
-      workspace: "building",
-      project: "project-diagram",
-      job: "tasks",
-      userName: "user",
-    };
-    return (
-      <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-        <i
-          className={`fas fa-${iconMap[filterType]}`}
-          style={{ fontSize: "14px", color: "#3498db" }}
-        />
-        {baseLabels[filterType]} {count > 0 && `(${count})`}
-      </span>
-    );
   };
 
   return (
     <div className="main-content">
       <div className="dashboard">
-        <DashboardMenu 
+        <DashboardMenu
           defaultUserWorkspaceID={defaultUserWorkspaceID}
           defaultUserWorkspaceName={defaultUserWorkspaceName}
           fetchProjectAndJobs={fetchProjectAndJobs}
@@ -2098,6 +2410,8 @@ const displayNotes = useMemo(() => {
           getFilterDisplayValue={getFilterDisplayValue}
           filterRef={filterRef}
           styles={styles}
+          loadingFilterOptions={loadingFilterOptions}
+          renderActiveFilters={renderActiveFilters}
         />
 
         <NotesTab
@@ -2107,7 +2421,6 @@ const displayNotes = useMemo(() => {
           initialLoading={initialLoading}
           searchLoading={searchLoading}
           loadingFiltered={loadingFiltered}
-          loadingUniques={loadingUniques}
           searchTerm={searchTerm}
           getActiveFilterCount={getActiveFilterCount}
           handleRowClick={handleRowClick}
@@ -2141,15 +2454,15 @@ const displayNotes = useMemo(() => {
           setShowViewModal={setShowViewModal}
           stackedJobs={stackedJobs}
           loadingStackedJobs={loadingStackedJobs}
-          fetchStackedJobs={fetchStackedJobs} 
-            fetchNotes={fetchNotes} // Pass fetchNotes function from App.js
-          userId={userid} // Pass userid
+          fetchStackedJobs={fetchStackedJobs}
+          fetchNotes={fetchNotes}
+          userId={userid}
           hasActiveFilters={hasActiveFilters}
           filteredNotesFromApi={filteredNotesFromApi}
           searchResults={searchResults}
         />
       </div>
-      
+
       {showDeleteConfirm && (
         <div
           className="modal-overlay"
@@ -2196,7 +2509,7 @@ const displayNotes = useMemo(() => {
           </div>
         </div>
       )}
-      
+
       {showPriorityDropdown && selectedNoteForPriority && (
         <div
           className="priority-dropdown-overlay"
@@ -2242,7 +2555,7 @@ const displayNotes = useMemo(() => {
           </div>
         </div>
       )}
-      
+
       {showViewModal && viewNote && (
         <ViewNoteModal
           noteId={viewNote.id}
@@ -2261,7 +2574,7 @@ const displayNotes = useMemo(() => {
           scrollToNoteId={viewNote.id}
         />
       )}
-      
+
       {showNewModal && (
         <NewNoteModal
           ref={newNoteModalRef}
@@ -2273,8 +2586,6 @@ const displayNotes = useMemo(() => {
           refreshNotes={refreshNotes}
           refreshFilteredNotes={() => {}}
           addSiteNote={addSiteNote}
-          /* projects={projects}
-          jobs={jobs} */
           onUploadDocument={onUploadDocument}
           onDeleteDocument={onDeleteDocument}
           defWorkSpaceId={defaultUserWorkspaceID}
@@ -2284,7 +2595,7 @@ const displayNotes = useMemo(() => {
           defaultWorkspaceRole={defaultWorkspaceRole}
         />
       )}
-      
+
       {showEditModal && selectedNote && (
         <EditNoteModal
           note={selectedNote}
@@ -2305,7 +2616,7 @@ const displayNotes = useMemo(() => {
           openToPriorityTab={true}
         />
       )}
-      
+
       {showAttachedFileModal && selectedFileNote && (
         <AttachedFileModal
           note={selectedFileNote}
@@ -2321,7 +2632,7 @@ const displayNotes = useMemo(() => {
           onDeleteDocument={onDeleteDocument}
         />
       )}
-      
+
       {showImageViewer && selectedImage && selectedImageNote && (
         <InlineImageViewer
           image={selectedImage.image}
@@ -2359,6 +2670,6 @@ Dashboard.propTypes = {
   fetchProjectAndJobs: PropTypes.func.isRequired,
 };
 
-Dashboard.defaultProps = { projects: [], jobs: [], fetchNotes: () => {},};
+Dashboard.defaultProps = { projects: [], jobs: [], fetchNotes: () => {} };
 
 export default Dashboard;

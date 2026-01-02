@@ -745,7 +745,7 @@ const DashboardMenu = ({
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="submenu-header">
-                  <i className="fas fa-tasks submenu-header-icon" />
+                  
                   <span>Job Management</span>
                 </div>
                 
@@ -977,7 +977,7 @@ const DashboardMenu = ({
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="submenu-header">
-                  <i className="fas fa-tasks submenu-header-icon" />
+                  
                   <span>Job Management</span>
                 </div>
                 
@@ -987,7 +987,7 @@ const DashboardMenu = ({
                   className="submenu-item"
                   onClick={() => handleSubmenuItemClick('jobManagement')}
                 >
-                  <i className="fas fa-tasks submenu-icon" />
+                  <i className="fas fa-edit submenu-icon" />
                   <span className="submenu-text">Add/Edit Job</span>
                 </button>
                 

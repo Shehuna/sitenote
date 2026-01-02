@@ -63,6 +63,23 @@ const NotesTab = ({
 
   // Determine which notes to display based on filters/search
   const displayNotes = useMemo(() => {
+
+    if (searchTerm.trim() || hasActiveFilters) {
+    const sourceNotes = searchTerm.trim() ? (searchResults || []) : (filteredNotesFromApi || []);
+    
+    // Deduplicate by ID
+    const seen = new Map();
+    const deduplicated = [];
+    
+    for (const note of sourceNotes) {
+      if (note.id && !seen.has(note.id)) {
+        seen.set(note.id, note);
+        deduplicated.push(note);
+      }
+    }
+    
+    return deduplicated.sort((a, b) => b.id - a.id);
+  }
     // If we have active filters or search term, use those results from parent
     if (searchTerm.trim() || hasActiveFilters) {
       return searchTerm.trim() ? (searchResults || []) : (filteredNotesFromApi || []);
@@ -495,12 +512,13 @@ const NotesTab = ({
   };
 
   // Render note row for table view
-  const renderTableRow = (note, isLast = false) => {
+  const renderTableRow = (note, index, isLast = false) => {
     const notePriority = priorities.find(p => Number(p.noteID) === Number(note.id));
+    const uniqueKey = `${note.id}-${index}`;
     
     return (
       <tr
-        key={note.id}
+        key={uniqueKey}
         onClick={() => handleRowClick(note)}
         onDoubleClick={() => {
           handleRowDoubleClick(note);
@@ -635,13 +653,14 @@ const NotesTab = ({
   };
 
   // Render note card for card view
-  const renderNoteCard = (note, isLast = false) => {
+  const renderNoteCard = (note,index, isLast = false) => {
     const notePriority = priorities.find(p => p.noteID === note.id);
     const isInactive = userStatusMap[note.userId] && !userStatusMap[note.userId].active;
+    const uniqueKey = `${note.id}-${index}`;
     
     return (
       <div
-        key={note.id}
+        key={uniqueKey}
         className={`note-card ${selectedRow === note.id ? "selected" : ""}`}
         onClick={() => handleRowClick(note)}
         onDoubleClick={() => handleRowDoubleClick(note)}
@@ -868,7 +887,7 @@ const NotesTab = ({
               ) : (
                 <>
                   {displayNotes.map((note, index) => 
-                    renderTableRow(note, index === displayNotes.length - 1)
+                    renderTableRow(note, index, index === displayNotes.length - 1)
                   )}
                   {loadingMore && (
                     <tr>
@@ -1470,7 +1489,7 @@ const NotesTab = ({
           ) : (
             <>
               {displayNotes.map((note, index) => 
-                renderNoteCard(note, index === displayNotes.length - 1)
+                renderNoteCard(note, index, index === displayNotes.length - 1)
               )}
               {loadingMore && (
                 <div className="loading-more-cards">
