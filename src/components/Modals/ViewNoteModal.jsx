@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./ViewNoteModal.css";
 import toast from "react-hot-toast";
+import jsPDF from 'jspdf';
 
 const ViewNoteModal = ({
   noteId,
@@ -13,8 +14,8 @@ const ViewNoteModal = ({
 }) => {
   const [currentNote, setCurrentNote] = useState(null);
   const [relatedNotes, setRelatedNotes] = useState([]);
-  const [noteImages, setNoteImages] = useState({}); // Store images by noteId
-  const [loadingImages, setLoadingImages] = useState({}); // Track image loading state per note
+  const [noteImages, setNoteImages] = useState({}); 
+  const [loadingImages, setLoadingImages] = useState({}); 
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentLightboxImage, setCurrentLightboxImage] = useState(null);
   const [currentLightboxImages, setCurrentLightboxImages] = useState([]);
@@ -23,6 +24,9 @@ const ViewNoteModal = ({
   const [jobDetails, setJobDetails] = useState(null);
   const [showJobInfo, setShowJobInfo] = useState(false);
   const [managerInfo, setManagerInfo] = useState(null);
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [pdfGenerating, setPdfGenerating] = useState(false);
+  const [maxNotes, setMaxNotes] = useState('10');
 
   const noteRefs = useRef({});
   const chatContainerRef = useRef(null);
@@ -320,6 +324,172 @@ const ViewNoteModal = ({
     });
   };
 
+  const stripHtml = (html) => {
+    return html ? html.replace(/<[^>]+>/g, '') : '';
+  };
+
+  const getBase64 = (url) => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.onload = function () {
+        const reader = new FileReader();
+        reader.onloadend = function () {
+          resolve(reader.result);
+        };
+        reader.readAsDataURL(xhr.response);
+      };
+      xhr.onerror = reject;
+      xhr.open('GET', url);
+      xhr.responseType = 'blob';
+      xhr.send();
+    });
+  };
+
+  const generatePDF = async () => {
+    if (isNaN(parseInt(maxNotes)) || parseInt(maxNotes) <= 0) {
+      toast.error("Invalid number of notes.");
+      return;
+    }
+
+    setPdfGenerating(true);
+
+    try {
+      const notesToPrint = relatedNotes.slice(-parseInt(maxNotes));
+
+      const pdf = new jsPDF();
+      pdf.setFontSize(16);
+      pdf.text('Job Notes', 10, 10);
+
+      let headerY = 20;
+
+      if (currentNote?.siteNote?.workspace) {
+        pdf.setFontSize(12);
+        pdf.text(`Workspace: ${currentNote.siteNote.workspace}`, 10, headerY);
+        headerY += 6;
+      }
+
+      if (currentNote?.siteNote?.project) {
+        pdf.setFontSize(12);
+        pdf.text(`Project: ${currentNote.siteNote.project}`, 10, headerY);
+        headerY += 6;
+      }
+
+      if (currentNote?.siteNote?.job) {
+        pdf.setFontSize(12);
+        pdf.text(`Job: ${currentNote.siteNote.job}`, 10, headerY);
+        headerY += 6;
+      }
+
+      if (jobDetails) {
+        if (jobDetails.type) {
+          pdf.setFontSize(12);
+          pdf.text(`Type: ${jobDetails.type}`, 10, headerY);
+          headerY += 6;
+        }
+
+        if (jobDetails.priorityName && jobDetails.priorityName !== "Unknown") {
+          pdf.text(`Priority: ${jobDetails.priorityName}`, 10, headerY);
+          headerY += 6;
+        }
+
+        if (jobDetails.startDate) {
+          pdf.text(`Start: ${formatDate(jobDetails.startDate)}`, 10, headerY);
+          headerY += 6;
+        }
+
+        if (jobDetails.endDate) {
+          pdf.text(`End: ${formatDate(jobDetails.endDate)}`, 10, headerY);
+          headerY += 6;
+        }
+
+        if (jobDetails.actualEndDate) {
+          pdf.text(`Actual End: ${formatDate(jobDetails.actualEndDate)}`, 10, headerY);
+          headerY += 6;
+        }
+
+        if (jobDetails.managerId != null) {
+          let managerText = managerInfo
+            ? `${managerInfo.fname || managerInfo.firstName || ''} ${managerInfo.lname || managerInfo.lastName || ''}`.trim()
+            : `ID: ${jobDetails.managerId}`;
+          if (managerInfo?.email) {
+            managerText += ` (${managerInfo.email})`;
+          }
+          pdf.text(`Manager: ${managerText}`, 10, headerY);
+          headerY += 6;
+        }
+
+        if (jobDetails.createdDate) {
+          pdf.text(`Created: ${formatDate(jobDetails.createdDate)}`, 10, headerY);
+          headerY += 6;
+        }
+      }
+
+      let y = headerY + 10;
+      let lastDate = null;
+
+      for (const note of notesToPrint) {
+        const currentDate = formatDate(note.date);
+
+        if (currentDate !== lastDate) {
+          pdf.setFontSize(10);
+          pdf.setTextColor(100, 100, 100);
+          pdf.text(currentDate, 105, y, { align: 'center' });
+          y += 8;
+          lastDate = currentDate;
+        }
+
+        pdf.setFontSize(12);
+        pdf.setTextColor(0, 0, 0);
+        pdf.text(`${note.userName} - ${formatRelativeTime(note.timeStamp)}`, 10, y);
+        y += 6;
+
+        pdf.setFontSize(10);
+        const text = stripHtml(note.note);
+        const lines = pdf.splitTextToSize(text, 180);
+        pdf.text(lines, 10, y);
+        y += lines.length * 5;
+
+        if (note.documentCount > 0) {
+          pdf.setFontSize(8);
+          pdf.text(`Attachments: ${note.documentCount}`, 10, y);
+          y += 6;
+        }
+
+        const images = noteImages[note.id] || [];
+        for (const img of images) {
+          try {
+            const url = `${apiUrl}/InlineImages/GetInlineImage/${img.id}`;
+            const base64 = await getBase64(url);
+            pdf.addImage(base64, 'JPEG', 10, y, 60, 40);
+            y += 42;
+          } catch (error) {
+            pdf.text(`[Image: ${img.fileName}]`, 10, y);
+            y += 6;
+          }
+          if (y > 270) {
+            pdf.addPage();
+            y = 10;
+          }
+        }
+
+        y += 8;
+
+        if (y > 270) {
+          pdf.addPage();
+          y = 10;
+        }
+      }
+
+      pdf.save(`notes_${jobId || noteId}.pdf`);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Failed to generate PDF");
+    } finally {
+      setPdfGenerating(false);
+      setShowPrintDialog(false);
+    }
+  };
+
   // Function to render images for a note
   const renderNoteImages = (noteId) => {
     const images = noteImages[noteId] || [];
@@ -421,9 +591,7 @@ const ViewNoteModal = ({
                     </div>
                   )}
 
-                  
-
-                  {jobDetails?.priorityName && (
+                  {jobDetails?.priorityName && jobDetails.priorityName !== "Unknown" && (
                     <div className="attr">
                       <span className="attr-key">Priority:</span>
                       <span className="attr-value">{jobDetails.priorityName}</span>
@@ -475,6 +643,10 @@ const ViewNoteModal = ({
                   )}
                 </div>
               )}
+
+              <button className="header-button" onClick={() => setShowPrintDialog(true)}>
+                <i className="fas fa-print" />
+              </button>
 
               <button className="header-button">
                 <i className="fas fa-ellipsis-v" />
@@ -552,6 +724,35 @@ const ViewNoteModal = ({
           </div>
         </div>
       </div>
+
+      {showPrintDialog && (
+        <div className="print-dialog-overlay" onClick={() => setShowPrintDialog(false)}>
+          <div className="print-dialog" onClick={(e) => e.stopPropagation()}>
+            <h3>Print Notes to PDF</h3>
+            {pdfGenerating ? (
+              <div className="pdf-generating">
+                <i className="fas fa-spinner fa-spin" /> Generating PDF...
+              </div>
+            ) : (
+              <>
+                <label>
+                  Maximum number of recent notes:
+                  <input 
+                    type="number" 
+                    value={maxNotes} 
+                    onChange={(e) => setMaxNotes(e.target.value)} 
+                    min="1"
+                  />
+                </label>
+                <div className="buttons">
+                  <button onClick={generatePDF}>Generate PDF</button>
+                  <button onClick={() => setShowPrintDialog(false)}>Cancel</button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Full Screen Lightbox */}
       {lightboxOpen && currentLightboxImage && (

@@ -1312,4 +1312,61 @@
 
 .message-text a:hover {
   text-decoration: underline;
+}/* Print Dialog Styles */
+.print-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.print-dialog {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  width: 300px;
+  text-align: center;
+}
+
+.print-dialog h3 {
+  margin-bottom: 15px;
+}
+
+.print-dialog label {
+  display: block;
+  margin-bottom: 15px;
+}
+
+.print-dialog input {
+  width: 100%;
+  padding: 8px;
+  margin-top: 5px;
+  box-sizing: border-box;
+}
+
+.print-dialog .buttons {
+  display: flex;
+  justify-content: space-around;
+}
+
+.print-dialog button {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.print-dialog button:first-child {
+  background: #3498db;
+  color: white;
+}
+
+.print-dialog button:last-child {
+  background: #eee;
 }
