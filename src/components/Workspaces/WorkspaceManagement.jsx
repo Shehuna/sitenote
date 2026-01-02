@@ -378,20 +378,20 @@ const WorkspaceManagement = ({onUpdateDefaultWorkspace, userRole, workspaceRole}
                 >
                     Approve/Reject Workspace
                 </button>
-                <button
+                {/* <button
                     className="btn-secondary"
                     onClick={() => setIsUserWorkspaceOpen(true)}
                     disabled={!((userRole === "Admin" || workspaceRole == 1) && selectedWorkspace)}
                 >
                     Add User to Workspace
-                </button>
-                <button
+                </button> */}
+                {/* <button
                     className="btn-secondary"
                     onClick={() => setIsManageUsersOpen(true)}
                     disabled={!selectedWorkspace || (userRole !== "Admin" && workspaceRole !== 1)}
                 >
                     Manage Users
-                </button>
+                </button> */}
             </div>
             <div className="settings-lookup-list">
                 <h4>Workspace</h4>

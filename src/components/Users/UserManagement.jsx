@@ -1,217 +1,91 @@
 import React, { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import Modal from '../Modals/Modal';
-import { useNavigate } from 'react-router-dom';
-import logo from '../../assets/images/avatar.png';
-
-const useQuery = () => new URLSearchParams(window.location.search);
 
 const UserManagement = ({ workspaceId }) => {
-    const navigate = useNavigate();
-    const query = useQuery();
-    const initialAddUserState = query.get('action') === 'create';
-
-    const [isAddUserOpen, setIsAddUserOpen] = useState(false);
-    const [isEditUserOpen, setIsEditUserOpen] = useState(false);
-    const [isChangeUserPassOpen, setIsChangeUserPassOpen] = useState(false);
-    const [isChangeUserStatusOpen, setIsChangeUserStatusOpen] = useState(false);
-    const [isDeleteUserConfirmOpen, setIsDeleteUserConfirmOpen] = useState(false);
-    const [selectedUser, setSelectedUser] = useState('');
-    const [users, setUsers] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const [users, setUsers] = useState([]); // All users in system
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [userId, setUserId] = useState(null);
+    const [userRole, setUserRole] = useState(null);
+    const [userWorkspaces, setUserWorkspaces] = useState([]);
 
-    const [formData, setFormData] = useState({
-        Fname: '',
-        Lname: '',
-        UserName: '',
-        Email: '',
-        Password: '',
-        Status: 'Active',
-        profilePictureBase64: null
-    });
-
-    const [errors, setErrors] = useState({});
-    const [newPass, setNewPass] = useState('');
-    const [confirmNewPass, setConfirmNewPass] = useState('');
+    // States for integrated user management feature
+    const [activeTab, setActiveTab] = useState('all');
+    const [workspaceMembers, setWorkspaceMembers] = useState([]);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [memberToDelete, setMemberToDelete] = useState(null);
+    const [updatingRoleId, setUpdatingRoleId] = useState(null);
+    const [addingUserId, setAddingUserId] = useState(null);
+    const [removingUserId, setRemovingUserId] = useState(null);
+    const [updatingStatusId, setUpdatingStatusId] = useState(null);
 
     const API_URL = process.env.REACT_APP_API_BASE_URL;
-    const isSignUpFlow = initialAddUserState;
 
-    const fetchUsers = async () => {
-        if (!workspaceId) {
-            setLoading(false);
-            return;
-        }
-        setLoading(true);
+    const fetchAllUsers = async () => {
         try {
-            const response = await fetch(`${API_URL}/api/UserWorkspace/GetUsersByWorkspaceId/${workspaceId}`);
-            if (!response.ok) throw new Error('Failed to fetch users');
+            const response = await fetch(`${API_URL}/api/UserManagement/GetUsers`);
+            if (!response.ok) {
+                throw new Error('Error fetching users data!');
+            }
             const data = await response.json();
             setUsers(data.users || []);
         } catch (err) {
             setError(err.message);
-        } finally {
-            setLoading(false);
+            console.error('Error fetching users:', err);
         }
     };
 
-    useEffect(() => {
-        if (!isSignUpFlow && workspaceId) fetchUsers();
-    }, [isSignUpFlow, workspaceId]);
-
-    useEffect(() => {
-        if (initialAddUserState) setIsAddUserOpen(true);
-    }, [initialAddUserState]);
-
-    useEffect(() => {
-        if ((isEditUserOpen || isChangeUserStatusOpen) && selectedUser && users.length > 0) {
-            const user = users.find(u => u.userId === parseInt(selectedUser));
-            if (user) {
-                setFormData({
-                    Fname: user.fname || '',
-                    Lname: user.lname || '',
-                    UserName: user.userName || '',
-                    Email: user.email || '',
-                    Password: '',
-                    Status: user.status === 1 ? 'Active' : 'Inactive',
-                    profilePictureBase64: user.profilePicturePath || null
-                });
-            }
-        } else if (!isEditUserOpen && !isChangeUserStatusOpen) {
-            setFormData({
-                Fname: '', Lname: '', UserName: '', Email: '', Password: '',
-                Status: 'Active', profilePictureBase64: null
-            });
-            setErrors({});
-        }
-    }, [isEditUserOpen, isChangeUserStatusOpen, selectedUser, users]);
-
-    const validateField = (name, value) => {
-        let error = '';
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-        if (name !== 'profilePictureBase64' && !value && isAddUserOpen) {
-            error = 'This field is mandatory.';
-        } else if (name === 'Fname' || name === 'Lname') {
-            if (value.length < 2) error = 'Must be at least 2 characters long.';
-            else if (value.length > 50) error = 'Cannot exceed 50 characters.';
-        } else if (name === 'UserName') {
-            if (value.length < 3) error = 'Must be at least 3 characters long.';
-            else if (value.length > 30) error = 'Cannot exceed 30 characters.';
-        } else if (name === 'Email') {
-            if (!emailRegex.test(value)) error = 'Invalid email format.';
-        } else if (name === 'Password' && isAddUserOpen) {
-            if (value.length < 6) error = 'Password must be at least 6 characters long.';
-        }
-
-        setErrors(prev => ({ ...prev, [name]: error }));
-        return error;
-    };
-
-    const validateForm = () => {
-        let valid = true;
-        const fields = ['Fname', 'Lname', 'UserName', 'Email'];
-        if (isAddUserOpen) fields.push('Password');
-        fields.forEach(field => {
-            if (validateField(field, formData[field])) valid = false;
-        });
-        return valid;
-    };
-
-    const handleInputChange = (e) => {
-        const { name, value, files } = e.target;
-        const newValue = files ? files[0] : value;
-        setFormData(prev => ({ ...prev, [name]: newValue }));
-        if (!isChangeUserStatusOpen) validateField(name, newValue);
-    };
-
-    const handleCreateUser = async () => {
-        if (!validateForm()) {
-            toast.error('Please fix the errors');
-            return;
-        }
-
-        const formDataObj = new FormData();
-        Object.keys(formData).forEach(key => {
-            if (formData[key] !== null && formData[key] !== undefined) {
-                formDataObj.append(key, formData[key]);
-            }
-        });
-
+    const fetchWorkspaceMembers = async () => {
+        if (!workspaceId) return;
         try {
-            const response = await fetch(`${API_URL}/api/UserManagement/CreateUser`, {
-                method: 'POST',
-                body: formDataObj
-            });
-
-            if (!response.ok) throw new Error('Failed to create user');
-
-            toast.success('User created successfully!');
-            setIsAddUserOpen(false);
-
-            if (isSignUpFlow) {
-                const loginRes = await fetch(`${API_URL}/api/UserManagement/Login`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: formData.UserName, password: formData.Password })
-                });
-                if (loginRes.ok) {
-                    const data = await loginRes.json();
-                    localStorage.setItem('user', JSON.stringify(data.user));
-                    toast.success(`Welcome, ${formData.Fname}!`);
-                    setTimeout(() => window.location.href = '/dashboard', 1000);
-                } else {
-                    toast.success('Account created! Please log in.');
-                    setTimeout(() => navigate('/login'), 1500);
-                }
-            } else {
-                fetchUsers();
-            }
+            const res = await fetch(`${API_URL}/api/UserWorkspace/GetUsersByWorkspaceId/${workspaceId}`);
+            if (!res.ok) throw new Error('Failed to fetch workspace members');
+            const data = await res.json();
+            setWorkspaceMembers(data.users || []);
         } catch (err) {
-            toast.error('Failed to create user');
+            setError(err.message);
+            toast.error('Failed to load workspace members');
         }
     };
 
-    const handleEditUser = async () => {
-        if (!validateForm()) {
-            toast.error('Please fix the errors');
-            return;
-        }
-
-        const formDataObj = new FormData();
-        Object.keys(formData).forEach(key => {
-            if (formData[key] !== null && formData[key] !== undefined) {
-                formDataObj.append(key, formData[key]);
-            }
-        });
-
+    const fetchUserWorkspaces = async (uid) => {
         try {
-            const response = await fetch(`${API_URL}/api/UserManagement/UpdateUser/${selectedUser}`, {
-                method: 'PUT',
-                body: formDataObj
-            });
-            if (!response.ok) throw new Error('Failed to update user');
-            toast.success('User updated successfully!');
-            setIsEditUserOpen(false);
-            fetchUsers();
+            const res = await fetch(`${API_URL}/api/UserWorkspace/GetWorkspacesByUserId/${uid}`);
+            if (!res.ok) throw new Error('Failed to fetch user workspaces');
+            const data = await res.json();
+            setUserWorkspaces(data.userWorkspaces || []);
         } catch (err) {
-            toast.error('Failed to update user');
+            setError(err.message);
+            console.error('Error fetching user workspaces:', err);
         }
     };
 
-    const handleChangeStatus = async () => {
-        if (!selectedUser) {
-            toast.error("No user selected");
-            return;
-        }
+    useEffect(() => {
+        const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+        const uid = storedUser.id;
+        const urole = storedUser.role;
+        setUserId(uid);
+        setUserRole(urole);
 
+        if (workspaceId && uid) {
+            setLoading(true);
+            Promise.all([
+                fetchAllUsers(),
+                fetchWorkspaceMembers(),
+                fetchUserWorkspaces(uid)
+            ]).finally(() => setLoading(false));
+        }
+    }, [workspaceId]);
+
+    const handleChangeStatus = async (userId, newStatus) => {
+        setUpdatingStatusId(userId);
         try {
-            const response = await fetch(`${API_URL}/api/UserManagement/ChangeStatus/${selectedUser}`, {
+            const response = await fetch(`${API_URL}/api/UserManagement/ChangeStatus/${userId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    newStatus: formData.Status === "Active" ? 1 : 0
+                    newStatus: newStatus
                 })
             });
 
@@ -221,212 +95,357 @@ const UserManagement = ({ workspaceId }) => {
             }
 
             toast.success("Status updated successfully!");
-            setIsChangeUserStatusOpen(false);
-            fetchUsers();
+            fetchAllUsers();
+            fetchWorkspaceMembers();
         } catch (err) {
             toast.error(err.message || "Failed to update status");
+        } finally {
+            setUpdatingStatusId(null);
         }
     };
 
-    const handleDelete = async () => {
+    // Functions for integrated feature
+    const updateUserRole = async (userWorkspaceID, userId, newRole) => {
+        setUpdatingRoleId(userWorkspaceID);
         try {
-            const response = await fetch(`${API_URL}/api/UserManagement/DeleteUser/${selectedUser}`, {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            if (!response.ok) throw new Error('Failed to delete user');
-            toast.success("User deleted permanently");
-            setIsDeleteUserConfirmOpen(false);
-            setSelectedUser('');
-            fetchUsers();
-        } catch (err) {
-            toast.error("Failed to delete user");
-        }
-    };
-
-    const handlePasswordChange = async (e) => {
-        e.preventDefault();
-        if (newPass.length < 6) return toast.error("Password must be at least 6 characters");
-        if (newPass !== confirmNewPass) return toast.error("Passwords do not match");
-
-        try {
-            const response = await fetch(`${API_URL}/api/UserManagement/ChangePassword/${selectedUser}`, {
+            const res = await fetch(`${API_URL}/api/UserWorkspace/UpdateUserWorkspace/${userWorkspaceID}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ newPassword: newPass })
+                body: JSON.stringify({
+                    userID: parseInt(userId),
+                    workspaceID: parseInt(workspaceId),
+                    role: newRole,
+                    status: 1,
+                }),
             });
-            if (!response.ok) throw new Error('Failed to change password');
-            toast.success("Password changed successfully");
-            setIsChangeUserPassOpen(false);
-            setNewPass('');
-            setConfirmNewPass('');
+            if (!res.ok) {
+                const errorData = await res.json();
+                toast.error(errorData.message);
+                return;
+            }
+            toast.success('Role updated successfully');
+            fetchWorkspaceMembers();
         } catch (err) {
-            toast.error("Failed to change password");
+            toast.error(err.message || 'Failed to update role');
+        } finally {
+            setUpdatingRoleId(null);
         }
     };
 
-    const closeAddUserModal = () => {
-        setIsAddUserOpen(false);
-        setErrors({});
-        if (query.get('action') === 'create') {
-            window.history.replaceState(null, '', window.location.pathname);
-            if (isSignUpFlow) navigate('/login');
+    const removeUserFromWorkspace = async () => {
+        if (!memberToDelete) return;
+        setRemovingUserId(memberToDelete.userWorkspaceID);
+        try {
+            const res = await fetch(`${API_URL}/api/UserWorkspace/DeleteUserWorkspace/${memberToDelete.userWorkspaceID}`, {
+                method: 'DELETE',
+            });
+            if (!res.ok) {
+                const errorData = await res.json();
+                toast.error(errorData.message);
+                return;
+            }
+            toast.success('User removed from workspace');
+            fetchWorkspaceMembers();
+            setMemberToDelete(null);
+        } catch (err) {
+            toast.error('Failed to remove user');
+        } finally {
+            setRemovingUserId(null);
         }
     };
 
-    if (loading) return <div>Loading...</div>;
+    const addUserToWorkspace = async (userId) => {
+        setAddingUserId(userId);
+        try {
+            const res = await fetch(`${API_URL}/api/UserWorkspace/AddUserWorkspace`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userID: userId,
+                    workspaceID: parseInt(workspaceId),
+                    role: 2, // Editor by default
+                    status: 1,
+                }),
+            });
+            if (!res.ok) throw new Error();
+            toast.success('User added successfully');
+            fetchWorkspaceMembers();
+        } catch (err) {
+            toast.error('Failed to add user');
+        } finally {
+            setAddingUserId(null);
+        }
+    };
+
+    const filteredUsers = users.filter(
+        (user) =>
+            !workspaceMembers.some((m) => m.userId === user.id) &&
+            (user.userName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                `${user.fname || ''} ${user.lname || ''}`.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+    const isSystemAdmin = userRole?.toLowerCase() === 'admin';
+    const workspaceRole = userWorkspaces.find(w => w.workspaceID === parseInt(workspaceId))?.role;
+    const isWorkspaceAdmin = workspaceRole === 1;
+    const hasPermission = isSystemAdmin || isWorkspaceAdmin;
+
+    const showAllUsers = isSystemAdmin;
+    const showMembers = hasPermission;
+    const showAddUsers = hasPermission;
+
+    useEffect(() => {
+        if (!showAllUsers && activeTab === 'all') {
+            setActiveTab('members');
+        }
+    }, [showAllUsers, activeTab]);
+
     if (error) return <div>Error: {error}</div>;
 
     return (
-        <div className="settings-content">
-
-            {!isSignUpFlow && (
-                <>
-                    <div className="settings-action-buttons">
-                        <button className="btn-secondary" onClick={() => setIsChangeUserStatusOpen(true)} disabled={!selectedUser}>
-                            Change Status
-                        </button>
-                        {/* <button className="btn-danger" onClick={() => setIsDeleteUserConfirmOpen(true)} disabled={!selectedUser}>
-                            Delete
-                        </button> */}
+        <div className="settings-content" style={{ position: 'relative', minHeight: '400px' }}>
+            <style jsx>{`
+                @keyframes spin { to { transform: rotate(360deg); } }
+                .full-overlay {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(255,255,255,0.97);
+                    backdrop-filter: blur(10px);
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: flex-start;
+                    z-index: 9999;
+                    border-radius: 12px;
+                    text-align: center;
+                    padding: 0;
+                    box-sizing: border-box;
+                    padding-top: 80px;
+                }
+                .spinner {
+                    width: 60px;
+                    height: 60px;
+                    border: 6px solid #f3f3f3;
+                    border-top: 6px solid #007bff;
+                    border-radius: 50%;
+                    animation: spin 1s linear infinite;
+                    margin: 0 auto 16px;
+                    display: block;
+                }
+                .manage-users-container { padding: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+                .modern-tabs { display: flex; border-bottom: 1px solid #e5e7eb; margin-bottom: 16px; gap: 4px; }
+                .tab-btn { padding: 10px 20px; background: none; border: none; font-size: 14px; font-weight: 600; cursor: pointer; border-radius: 8px 8px 0 0; transition: all 0.2s; }
+                .tab-btn.active { background: #2563eb; color: white; }
+                .table-container { max-height: 65vh; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; }
+                .modern-table { width: 100%; border-collapse: collapse; }
+                .modern-table th { background: #f8fafc; padding: 12px; text-align: left; font-size: 13px; font-weight: 600; color: #374151; position: sticky; top: 0; z-index: 10; }
+                .modern-table td { padding: 12px; font-size: 14px; border-bottom: 1px solid #f3f4f6; }
+                .user-name-display { max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+                .user-username { font-size: 12px; color: #6b7280; }
+                .role-select { padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; }
+                .btn-remove, .btn-add-right { width: 90px; height: 40px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+                .btn-remove { background: #ef4444; color: white; }
+                .btn-add-right { background: #2563eb; color: white; }
+                .btn-remove:disabled, .btn-add-right:disabled { opacity: 0.7; cursor: not-allowed; }
+                .search-input { width: 100%; padding: 12px 16px; border: 1px solid #d1d5db; border-radius: 10px; font-size: 15px; margin-bottom: 16px; outline: none; }
+                .users-list-scroll { max-height: 55vh; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 10px; margin-bottom: 16px; }
+                .user-row-right { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #f3f4f6; transition: background 0.2s; }
+                .user-row-right:hover { background: #f8fafc; }
+                .user-info-right strong { font-size: 14.5px; display: block; }
+                .user-info-right small { color: #555; font-size: 13px; }
+                .empty-text { text-align: center; color: #6b7280; padding: 40px; font-size: 15px; }
+                .modal-footer { margin-top: 20px; padding-top: 16px; border-top: 1px solid #e5e7eb; text-align: right; }
+                .btn-close-modal { background: #6b7280; color: white; border: none; padding: 10px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+                .badge.inactive { background: #ef4444; color: white; padding: 2px 6px; border-radius: 4px; font-size: 12px; margin-left: 8px; }
+                .permission-denied { text-align: center; padding: 40px; font-size: 18px; color: #ef4444; }
+            `}</style>
+            {loading && (
+                <div className="full-overlay">
+                    <div className="spinner" />
+                    <p style={{fontSize:'1.2rem',fontWeight:'600',margin:0}}>Loading...</p>
+                </div>
+            )}
+            {!loading && !hasPermission && (
+                <div className="permission-denied">
+                    You don't have permission to access this page.
+                </div>
+            )}
+            {!loading && hasPermission && (
+                <div className="manage-users-container">
+                    <div className="modern-tabs">
+                        {showAllUsers && (
+                            <button className={`tab-btn ${activeTab === 'all' ? 'active' : ''}`} onClick={() => setActiveTab('all')}>
+                                All Users ({users.length})
+                            </button>
+                        )}
+                        {showMembers && (
+                            <button className={`tab-btn ${activeTab === 'members' ? 'active' : ''}`} onClick={() => setActiveTab('members')}>
+                                Members ({workspaceMembers.length})
+                            </button>
+                        )}
+                        {showAddUsers && (
+                            <button className={`tab-btn ${activeTab === 'add' ? 'active' : ''}`} onClick={() => setActiveTab('add')}>
+                                Add Users
+                            </button>
+                        )}
                     </div>
-
-                    <div className="settings-lookup-list">
-                        
-                        <select size="5" className="lookup-select" value={selectedUser} onChange={(e) => setSelectedUser(e.target.value)}>
-                            <option value="">Select a User</option>
-                            {users.map(user => (
-                                <option key={user.userId} value={user.userId}>
-                                    {user.userName} ({user.status === 1 ? 'Active' : 'Inactive'})
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                </>
+                    {activeTab === 'all' && showAllUsers && (
+                        <div className="table-container">
+                            {users.length === 0 ? (
+                                <p className="empty-text">No users</p>
+                            ) : (
+                                <table className="modern-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Email</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {users.map((user) => (
+                                            <tr key={user.id}>
+                                                <td>
+                                                    <div className="user-name-display" title={`${user.fname} ${user.lname}`}>
+                                                        {user.fname} {user.lname} {user.status === 0 && <span className="badge inactive">Inactive</span>}
+                                                    </div>
+                                                    <div className="user-username">@{user.userName}</div>
+                                                </td>
+                                                <td>{user.email}</td>
+                                                <td>
+                                                    <select
+                                                        className="role-select"
+                                                        value={user.status}
+                                                        onChange={(e) => handleChangeStatus(user.id, parseInt(e.target.value))}
+                                                        disabled={updatingStatusId === user.id}
+                                                    >
+                                                        <option value={1}>Active</option>
+                                                        <option value={0}>Inactive</option>
+                                                    </select>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                    )}
+                    {activeTab === 'members' && showMembers && (
+                        <div className="table-container">
+                            {workspaceMembers.length === 0 ? (
+                                <p className="empty-text">No members yet</p>
+                            ) : (
+                                <table className="modern-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Email</th>
+                                            <th>Role</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {workspaceMembers.map((m) => (
+                                            <tr key={m.userWorkspaceID}>
+                                                <td>
+                                                    <div className="user-name-display" title={`${m.fname} ${m.lname}`}>
+                                                        {m.fname} {m.lname}
+                                                    </div>
+                                                    <div className="user-username">@{m.userName}</div>
+                                                </td>
+                                                <td>{m.email}</td>
+                                                <td>
+                                                    <select
+                                                        className="role-select"
+                                                        value={m.roleInWorkspace}
+                                                        onChange={(e) => updateUserRole(m.userWorkspaceID, m.userId, parseInt(e.target.value))}
+                                                        disabled={updatingRoleId === m.userWorkspaceID}
+                                                    >
+                                                        <option value={1}>Admin</option>
+                                                        <option value={2}>Editor</option>
+                                                        <option value={3}>Viewer</option>
+                                                    </select>
+                                                </td>
+                                                <td>
+                                                    <button
+                                                        className="btn-remove"
+                                                        onClick={() => setMemberToDelete(m)}
+                                                        disabled={removingUserId === m.userWorkspaceID}
+                                                    >
+                                                        {removingUserId === m.userWorkspaceID ? 'Removing...' : 'Remove'}
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
+                    )}
+                    {activeTab === 'add' && showAddUsers && (
+                        <div>
+                            <input
+                                type="text"
+                                placeholder="Search by name, username, or email..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="search-input"
+                                autoFocus
+                            />
+                            <div className="users-list-scroll">
+                                {filteredUsers.length === 0 ? (
+                                    <p className="empty-text">
+                                        {searchTerm ? 'No users found' : 'All users are already members'}
+                                    </p>
+                                ) : (
+                                    filteredUsers.map((user) => (
+                                        <div key={user.id} className="user-row-right">
+                                            <div className="user-info-right">
+                                                <strong>{user.fname} {user.lname}</strong>
+                                                <small>@{user.userName} • {user.email}</small>
+                                            </div>
+                                            <button
+                                                className="btn-add-right"
+                                                onClick={() => addUserToWorkspace(user.id)}
+                                                disabled={addingUserId === user.id}
+                                            >
+                                                {addingUserId === user.id ? 'Adding...' : 'Add'}
+                                            </button>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
             )}
 
-            <Modal isOpen={isAddUserOpen} onClose={closeAddUserModal} title="Add User">
-                <div className="settings-form user-form-grid">
-                    <div className="form-group">
-                        <label>First Name: *</label>
-                        <input type="text" name="Fname" value={formData.Fname} onChange={handleInputChange} />
-                        {errors.Fname && <p style={{ color: 'red', fontSize: '12px' }}>{errors.Fname}</p>}
-                    </div>
-                    <div className="form-group">
-                        <label>Last Name: *</label>
-                        <input type="text" name="Lname" value={formData.Lname} onChange={handleInputChange} />
-                        {errors.Lname && <p style={{ color: 'red', fontSize: '12px' }}>{errors.Lname}</p>}
-                    </div>
-                    <div className="form-group">
-                        <label>Username: *</label>
-                        <input type="text" name="UserName" value={formData.UserName} onChange={handleInputChange} />
-                        {errors.UserName && <p style={{ color: 'red', fontSize: '12px' }}>{errors.UserName}</p>}
-                    </div>
-                    <div className="form-group">
-                        <label>Email: *</label>
-                        <input type="email" name="Email" value={formData.Email} onChange={handleInputChange} />
-                        {errors.Email && <p style={{ color: 'red', fontSize: '12px' }}>{errors.Email}</p>}
-                    </div>
-                    <div className="form-group">
-                        <label>Password: *</label>
-                        <input type="password" name="Password" value={formData.Password} onChange={handleInputChange} />
-                        {errors.Password && <p style={{ color: 'red', fontSize: '12px' }}>{errors.Password}</p>}
-                    </div>
-                    <div className="form-group">
-                        <label>Profile Picture:</label>
-                        <input type="file" name="profilePictureBase64" onChange={handleInputChange} />
-                    </div>
-                </div>
-                <div className="settings-action-buttons">
-                    <button className="btn-primary" onClick={handleCreateUser}>
-                        {isSignUpFlow ? "Create Account" : "Create User"}
-                    </button>
-                </div>
-            </Modal>
-
-            <Modal isOpen={isEditUserOpen} onClose={() => { setIsEditUserOpen(false); setErrors({}); }} title="Edit User">
-                <div className="settings-content">
-                    <div className="settings-form user-form-grid">
-                        <div className="form-group" style={{ textAlign: 'center' }}>
-                            <img
-                                style={{ width: '70px', height: '70px', borderRadius: '50%', objectFit: 'cover' }}
-                                src={formData.profilePictureBase64 ? `data:image/png;base64,${formData.profilePictureBase64}` : logo}
-                                alt="Profile"
-                            />
-                            <label>Profile Picture:</label>
-                            <input type="file" name="profilePictureBase64" onChange={handleInputChange} />
-                        </div>
-                        <div className="form-group">
-                            <label>First Name: *</label>
-                            <input type="text" name="Fname" value={formData.Fname} onChange={handleInputChange} />
-                            {errors.Fname && <p style={{ color: 'red', fontSize: '12px' }}>{errors.Fname}</p>}
-                        </div>
-                        <div className="form-group">
-                            <label>Last Name: *</label>
-                            <input type="text" name="Lname" value={formData.Lname} onChange={handleInputChange} />
-                            {errors.Lname && <p style={{ color: 'red', fontSize: '12px' }}>{errors.Lname}</p>}
-                        </div>
-                        <div className="form-group">
-                            <label>Username: *</label>
-                            <input type="text" name="UserName" value={formData.UserName} onChange={handleInputChange} />
-                            {errors.UserName && <p style={{ color: 'red', fontSize: '12px' }}>{errors.UserName}</p>}
-                        </div>
-                        <div className="form-group">
-                            <label>Email: *</label>
-                            <input type="email" name="Email" value={formData.Email} onChange={handleInputChange} />
-                            {errors.Email && <p style={{ color: 'red', fontSize: '12px' }}>{errors.Email}</p>}
-                        </div>
-                    </div>
-                    <div className="settings-action-buttons">
-                        <button className="btn-primary" onClick={handleEditUser}>Update User</button>
-                    </div>
-                </div>
-            </Modal>
-
-            <Modal isOpen={isChangeUserStatusOpen} onClose={() => setIsChangeUserStatusOpen(false)} title="Change User Status">
-                <div className="settings-form">
-                    <div className="form-group">
-                        <label>User Name:</label>
-                        <input type="text" value={formData.UserName || ''} disabled style={{ backgroundColor: '#f9f9f9' }} />
-                    </div>
-                    <div className="form-group">
-                        <label>Status:</label>
-                        <select name="Status" value={formData.Status} onChange={handleInputChange}>
-                            <option value="Active">Active</option>
-                            <option value="Inactive">Inactive</option>
-                        </select>
-                    </div>
+            {/* Confirmation Dialog for Removal */}
+            {memberToDelete && (
+                <Modal isOpen={!!memberToDelete} onClose={() => setMemberToDelete(null)} title="Remove User?">
+                    <p>
+                        Remove <strong>{memberToDelete.userName}</strong> from this workspace?
+                    </p>
                     <div className="modal-footer">
-                        <button className="btn-primary" onClick={handleChangeStatus}>Save Status</button>
-                        <button className="btn-close" onClick={() => setIsChangeUserStatusOpen(false)}>Cancel</button>
+                        <button
+                            className="btn-danger"
+                            onClick={removeUserFromWorkspace}
+                            disabled={removingUserId !== null}
+                        >
+                            {removingUserId ? 'Removing...' : 'Yes, Remove'}
+                        </button>
+                        <button
+                            className="btn-close"
+                            onClick={() => setMemberToDelete(null)}
+                        >
+                            Cancel
+                        </button>
                     </div>
-                </div>
-            </Modal>
-
-            <Modal isOpen={isChangeUserPassOpen} onClose={() => setIsChangeUserPassOpen(false)} title="Change Password">
-                <form onSubmit={handlePasswordChange}>
-                    <div className="form-group">
-                        <label>New Password: *</label>
-                        <input type="password" value={newPass} onChange={(e) => setNewPass(e.target.value)} required />
-                    </div>
-                    <div className="form-group">
-                        <label>Confirm Password: *</label>
-                        <input type="password" value={confirmNewPass} onChange={(e) => setConfirmNewPass(e.target.value)} required />
-                    </div>
-                    <div className="modal-footer">
-                        <button type="submit" className="btn-primary">OK</button>
-                        <button type="button" className="btn-close" onClick={() => setIsChangeUserPassOpen(false)}>Cancel</button>
-                    </div>
-                </form>
-            </Modal>
-
-            <Modal isOpen={isDeleteUserConfirmOpen} onClose={() => setIsDeleteUserConfirmOpen(false)} title="Confirm Delete">
-                <p style={{ textAlign: 'center', fontSize: '14px' }}>Are you sure you want to delete this user?</p>
-                <div className="modal-footer">
-                    <button className="btn-danger" onClick={handleDelete}>Delete</button>
-                    <button className="btn-secondary" onClick={() => setIsDeleteUserConfirmOpen(false)}>Cancel</button>
-                </div>
-            </Modal>
+                </Modal>
+            )}
         </div>
     );
 };
