@@ -26,7 +26,7 @@ const ViewNoteModal = ({
   const [managerInfo, setManagerInfo] = useState(null);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [pdfGenerating, setPdfGenerating] = useState(false);
-  const [maxNotes, setMaxNotes] = useState('10');
+  const [maxNotes, setMaxNotes] = useState('10000');
 
   const noteRefs = useRef({});
   const chatContainerRef = useRef(null);
@@ -324,10 +324,6 @@ const ViewNoteModal = ({
     });
   };
 
-  const stripHtml = (html) => {
-    return html ? html.replace(/<[^>]+>/g, '') : '';
-  };
-
   const getBase64 = (url) => {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -345,6 +341,137 @@ const ViewNoteModal = ({
     });
   };
 
+  const fetchFontBase64 = async (url) => {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+      reader.onloadend = () => resolve(reader.result.split(',')[1]);
+    });
+  };
+
+  const isEthiopic = (char) => {
+    const code = char.charCodeAt(0);
+    return (
+      (code >= 0x1200 && code <= 0x139F) || // Ethiopic and Supplement
+      (code >= 0x2D80 && code <= 0x2DDF) || // Extended
+      (code >= 0xAB00 && code <= 0xAB2F)    // Extended-A
+    );
+  };
+
+  const renderMixedText = (pdf, text, startX, startY, style = 'normal') => {
+    let currentX = startX;
+    let run = '';
+    let currentFont = 'helvetica';
+    pdf.setFont('helvetica', style);
+    for (let char of text) {
+      const isEth = isEthiopic(char);
+      const newFont = isEth ? 'NotoEthiopic' : 'helvetica';
+
+      if (newFont !== currentFont) {
+        if (run) {
+          pdf.setFont(currentFont, style);
+          pdf.text(run, currentX, startY);
+          currentX += pdf.getTextWidth(run);
+        }
+        currentFont = newFont;
+        run = char;
+      } else {
+        run += char;
+      }
+    }
+
+    // Draw last run
+    if (run) {
+      pdf.setFont(currentFont, style);
+      pdf.text(run, currentX, startY);
+    }
+  };
+
+  const renderFormattedText = (pdf, html, startX, startY) => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html || '', 'text/html');
+    const body = doc.body;
+
+    return renderElement(pdf, body, startX, startY, {
+      bold: false,
+      italic: false,
+      underline: false,
+      fontSize: 10,
+      lineHeight: 5,
+      indent: 0
+    });
+  };
+
+  const renderElement = (pdf, element, x, y, styles) => {
+    let currentY = y;
+    const pageHeight = 270;
+    const children = Array.from(element.childNodes);
+
+    for (let child of children) {
+      if (child.nodeType === 3) { // Text node
+        const text = child.textContent.trim();
+        if (!text) continue;
+
+        pdf.setFontSize(styles.fontSize);
+
+        const maxWidth = 180;
+        const lines = pdf.splitTextToSize(text, maxWidth);
+
+        for (let line of lines) {
+          if (currentY + styles.lineHeight > pageHeight) {
+            pdf.addPage();
+            currentY = 10;
+          }
+
+          const style = styles.bold ? 'bold' : 'normal';
+
+          renderMixedText(pdf, line, x + styles.indent, currentY, style);
+
+          if (styles.underline) {
+            const textWidth = pdf.getTextWidth(line);
+            pdf.line(x + styles.indent, currentY + 1, x + styles.indent + textWidth, currentY + 1);
+          }
+
+          currentY += styles.lineHeight;
+        }
+      } else if (child.nodeType === 1) { // Element node
+        let newStyles = { ...styles };
+        const tag = child.tagName.toUpperCase();
+
+        if (tag === 'B' || tag === 'STRONG') newStyles.bold = true;
+        if (tag === 'I' || tag === 'EM') newStyles.italic = true; // Note: no italic font, but placeholder
+        if (tag === 'U') newStyles.underline = true;
+        if (tag === 'H1') newStyles.fontSize = 16;
+        if (tag === 'H2') newStyles.fontSize = 14;
+        if (tag === 'H3') newStyles.fontSize = 12;
+
+        if (tag === 'BR') {
+          currentY += styles.lineHeight;
+        } else if (tag === 'P') {
+          currentY += styles.lineHeight / 2; // Margin top
+          currentY = renderElement(pdf, child, x, currentY, newStyles);
+          currentY += styles.lineHeight / 2; // Margin bottom
+        } else if (tag === 'UL' || tag === 'OL') {
+          newStyles.indent += 10;
+          currentY = renderElement(pdf, child, x, currentY, newStyles);
+          newStyles.indent -= 10;
+        } else if (tag === 'LI') {
+          pdf.setFontSize(styles.fontSize);
+          renderMixedText(pdf, '• ', x + styles.indent - 5, currentY);
+          currentY = renderElement(pdf, child, x, currentY, newStyles);
+          currentY += styles.lineHeight / 2; // Space between list items
+        } else {
+          // Recurse for other elements
+          currentY = renderElement(pdf, child, x, currentY, newStyles);
+        }
+      }
+    }
+
+    return currentY;
+  };
+
   const generatePDF = async () => {
     if (isNaN(parseInt(maxNotes)) || parseInt(maxNotes) <= 0) {
       toast.error("Invalid number of notes.");
@@ -354,56 +481,73 @@ const ViewNoteModal = ({
     setPdfGenerating(true);
 
     try {
+      // Fetch Amharic fonts
+      const regularFontUrl = 'https://raw.githubusercontent.com/openmaptiles/fonts/master/noto-sans/NotoSansEthiopic-Regular.ttf';
+      const boldFontUrl = 'https://raw.githubusercontent.com/twardoch/toto-fonts/master/ttf/sans-bol/_Ethi_/NotoSans-Ethiopic-Bold.ttf';
+
+      const [regularBase64, boldBase64] = await Promise.all([
+        fetchFontBase64(regularFontUrl),
+        fetchFontBase64(boldFontUrl)
+      ]);
+
       const notesToPrint = relatedNotes.slice(-parseInt(maxNotes));
 
       const pdf = new jsPDF();
+
+      // Add fonts
+      pdf.addFileToVFS('NotoSansEthiopic-Regular.ttf', regularBase64);
+      pdf.addFont('NotoSansEthiopic-Regular.ttf', 'NotoEthiopic', 'normal');
+
+      pdf.addFileToVFS('NotoSansEthiopic-Bold.ttf', boldBase64);
+      pdf.addFont('NotoSansEthiopic-Bold.ttf', 'NotoEthiopic', 'bold');
+
+      // Set default font
+      pdf.setFont('helvetica', 'normal');
+
       pdf.setFontSize(16);
       pdf.text('Job Notes', 10, 10);
 
       let headerY = 20;
 
+      pdf.setFontSize(12);
       if (currentNote?.siteNote?.workspace) {
-        pdf.setFontSize(12);
-        pdf.text(`Workspace: ${currentNote.siteNote.workspace}`, 10, headerY);
+        renderMixedText(pdf, `Workspace: ${currentNote.siteNote.workspace}`, 10, headerY);
         headerY += 6;
       }
 
       if (currentNote?.siteNote?.project) {
-        pdf.setFontSize(12);
-        pdf.text(`Project: ${currentNote.siteNote.project}`, 10, headerY);
+        renderMixedText(pdf, `Project: ${currentNote.siteNote.project}`, 10, headerY);
         headerY += 6;
       }
 
       if (currentNote?.siteNote?.job) {
-        pdf.setFontSize(12);
-        pdf.text(`Job: ${currentNote.siteNote.job}`, 10, headerY);
+        renderMixedText(pdf, `Job: ${currentNote.siteNote.job}`, 10, headerY);
         headerY += 6;
       }
 
       if (jobDetails) {
         if (jobDetails.type) {
-          pdf.setFontSize(12);
-          pdf.text(`Type: ${jobDetails.type}`, 10, headerY);
+          renderMixedText(pdf, `Type: ${jobDetails.type}`, 10, headerY);
           headerY += 6;
         }
 
         if (jobDetails.priorityName && jobDetails.priorityName !== "Unknown") {
-          pdf.text(`Priority: ${jobDetails.priorityName}`, 10, headerY);
+          renderMixedText(pdf, `Priority: ${jobDetails.priorityName}`, 10, headerY);
           headerY += 6;
         }
 
         if (jobDetails.startDate) {
-          pdf.text(`Start: ${formatDate(jobDetails.startDate)}`, 10, headerY);
+          renderMixedText(pdf, `Start: ${formatDate(jobDetails.startDate)}`, 10, headerY);
           headerY += 6;
         }
 
         if (jobDetails.endDate) {
-          pdf.text(`End: ${formatDate(jobDetails.endDate)}`, 10, headerY);
+          renderMixedText(pdf, `End: ${formatDate(jobDetails.endDate)}`, 10, headerY);
           headerY += 6;
         }
 
         if (jobDetails.actualEndDate) {
-          pdf.text(`Actual End: ${formatDate(jobDetails.actualEndDate)}`, 10, headerY);
+          renderMixedText(pdf, `Actual End: ${formatDate(jobDetails.actualEndDate)}`, 10, headerY);
           headerY += 6;
         }
 
@@ -414,12 +558,12 @@ const ViewNoteModal = ({
           if (managerInfo?.email) {
             managerText += ` (${managerInfo.email})`;
           }
-          pdf.text(`Manager: ${managerText}`, 10, headerY);
+          renderMixedText(pdf, `Manager: ${managerText}`, 10, headerY);
           headerY += 6;
         }
 
         if (jobDetails.createdDate) {
-          pdf.text(`Created: ${formatDate(jobDetails.createdDate)}`, 10, headerY);
+          renderMixedText(pdf, `Created: ${formatDate(jobDetails.createdDate)}`, 10, headerY);
           headerY += 6;
         }
       }
@@ -440,14 +584,11 @@ const ViewNoteModal = ({
 
         pdf.setFontSize(12);
         pdf.setTextColor(0, 0, 0);
-        pdf.text(`${note.userName} - ${formatRelativeTime(note.timeStamp)}`, 10, y);
+        renderMixedText(pdf, `${note.userName} - ${formatRelativeTime(note.timeStamp)}`, 10, y);
         y += 6;
 
-        pdf.setFontSize(10);
-        const text = stripHtml(note.note);
-        const lines = pdf.splitTextToSize(text, 180);
-        pdf.text(lines, 10, y);
-        y += lines.length * 5;
+        // Render formatted note text
+        y = renderFormattedText(pdf, note.note, 10, y);
 
         if (note.documentCount > 0) {
           pdf.setFontSize(8);
@@ -460,15 +601,19 @@ const ViewNoteModal = ({
           try {
             const url = `${apiUrl}/InlineImages/GetInlineImage/${img.id}`;
             const base64 = await getBase64(url);
+            if (y + 42 > 270) {
+              pdf.addPage();
+              y = 10;
+            }
             pdf.addImage(base64, 'JPEG', 10, y, 60, 40);
             y += 42;
           } catch (error) {
+            if (y + 6 > 270) {
+              pdf.addPage();
+              y = 10;
+            }
             pdf.text(`[Image: ${img.fileName}]`, 10, y);
             y += 6;
-          }
-          if (y > 270) {
-            pdf.addPage();
-            y = 10;
           }
         }
 
