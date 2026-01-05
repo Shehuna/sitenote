@@ -26,7 +26,7 @@ const ViewNoteModal = ({
   const [managerInfo, setManagerInfo] = useState(null);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
   const [pdfGenerating, setPdfGenerating] = useState(false);
-  const [maxNotes, setMaxNotes] = useState('10000');
+  const [maxNotes, setMaxNotes] = useState('All');
 
   const noteRefs = useRef({});
   const chatContainerRef = useRef(null);
@@ -473,7 +473,13 @@ const ViewNoteModal = ({
   };
 
   const generatePDF = async () => {
-    if (isNaN(parseInt(maxNotes)) || parseInt(maxNotes) <= 0) {
+    let max = maxNotes;
+    if (typeof max === 'string') {
+      const t = max.trim().toLowerCase();
+      if (t === '' || t === 'all') max = '10000';
+    }
+
+    if (isNaN(parseInt(max)) || parseInt(max) <= 0) {
       toast.error("Invalid number of notes.");
       return;
     }
@@ -490,7 +496,7 @@ const ViewNoteModal = ({
         fetchFontBase64(boldFontUrl)
       ]);
 
-      const notesToPrint = relatedNotes.slice(-parseInt(maxNotes));
+      const notesToPrint = relatedNotes.slice(-parseInt(max));
 
       const pdf = new jsPDF();
 
@@ -882,11 +888,11 @@ const ViewNoteModal = ({
               <>
                 <label>
                   Maximum number of recent notes:
-                  <input 
-                    type="number" 
-                    value={maxNotes} 
-                    onChange={(e) => setMaxNotes(e.target.value)} 
-                    min="1"
+                  <input
+                    type="text"
+                    value={maxNotes}
+                    onChange={(e) => setMaxNotes(e.target.value)}
+                    placeholder="All"
                   />
                 </label>
                 <div className="buttons">
