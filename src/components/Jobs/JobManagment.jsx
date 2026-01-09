@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import Modal from '../Modals/Modal';
 import toast from 'react-hot-toast';
 import '../Modals/SettingsModal.css'
-const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
+const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) => {
     const [selectedJob, setSelectedJob] = useState('');
     const [newJobName, setNewJobName] = useState('');
     const [user, setUser] = useState('');
@@ -52,14 +52,20 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
     const editModalContentRef = useRef(null);
     const editTopRef = useRef(null);
     const addTopRef = useRef(null);
+    
+    // Add state for workspace name
+    const [workspaceName, setWorkspaceName] = useState(defaultworkspace);
+    
     useEffect(() => {
         const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
         setUser(storedUser?.id || '');
         setUserRole((storedUser?.role || '').toLowerCase());
     }, []);
+    
     useEffect(() => {
         fetchInitialData();
     }, []);
+    
     useEffect(() => {
         if (isAddJobOpen) {
             setProjectsLoading(true);
@@ -70,6 +76,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
             setErrorMessages([]);
         }
     }, [isAddJobOpen]);
+    
     useEffect(() => {
         if (isEditJobOpen) {
             setUsersLoading(true);
@@ -77,12 +84,14 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
             setEditErrorMessages([]);
         }
     }, [isEditJobOpen]);
+    
     useEffect(() => {
         if (isEditJobOpen && selectedJob) {
             setEditLoading(true);
             fetchJobData();
         }
     }, [isEditJobOpen, selectedJob]);
+    
     useEffect(() => {
         if (singleDebounceRef.current) {
             clearTimeout(singleDebounceRef.current);
@@ -99,6 +108,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
             }
         };
     }, [singleProjectSearchTerm]);
+    
     useEffect(() => {
         if (bulkDebounceRef.current) {
             clearTimeout(bulkDebounceRef.current);
@@ -115,6 +125,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
             }
         };
     }, [bulkProjectSearchTerm]);
+    
     useEffect(() => {
         if (activeTab === 'single') {
             setSelectedProject(singleSelectedProject);
@@ -122,16 +133,19 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
             setSelectedProject(bulkSelectedProject);
         }
     }, [activeTab, singleSelectedProject, bulkSelectedProject]);
+    
     useEffect(() => {
         if (errorMessages.length > 0 && errorRef.current) {
             errorRef.current.scrollIntoView({ behavior: 'auto' });
         }
     }, [errorMessages]);
+    
     useEffect(() => {
         if (editErrorMessages.length > 0 && editErrorRef.current) {
             editErrorRef.current.scrollIntoView({ behavior: 'auto' });
         }
     }, [editErrorMessages]);
+    
     useEffect(() => {
         if (isAdding && modalContentRef.current) {
             try { modalContentRef.current.scrollTop = 0; } catch (e) { }
@@ -141,6 +155,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
             } catch (e) { }
         }
     }, [isAdding]);
+    
     useEffect(() => {
         if (isEditing && editModalContentRef.current) {
             try { editModalContentRef.current.scrollTop = 0; } catch (e) { }
@@ -150,6 +165,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
             } catch (e) { }
         }
     }, [isEditing]);
+    
     useEffect(() => {
         if (isAddJobOpen && modalContentRef.current) {
             try { modalContentRef.current.scrollTop = 0; } catch (e) { }
@@ -159,6 +175,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
             } catch (e) { }
         }
     }, [isAddJobOpen]);
+    
     useEffect(() => {
         if (isEditJobOpen && editModalContentRef.current) {
             try { editModalContentRef.current.scrollTop = 0; } catch (e) { }
@@ -168,6 +185,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
             } catch (e) { }
         }
     }, [isEditJobOpen]);
+    
     const resetFormStates = () => {
         setNewJobName('');
         setNewJobDescription('');
@@ -190,6 +208,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
         setBulkProjectSearchTerm('');
         setBulkSearchedProjects([]);
     };
+    
     const scrollToTopImmediate = () => {
         try {
             if (typeof window !== 'undefined' && window.scrollTo) {
@@ -199,6 +218,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
         try { if (document && document.documentElement) document.documentElement.scrollTop = 0; } catch (e) { }
         try { if (document && document.body) document.body.scrollTop = 0; } catch (e) { }
     };
+    
     const fetchInitialData = async () => {
         setPageLoading(true);
         try {
@@ -211,12 +231,21 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
             const jobsData = (await jobsRes.json()).jobs || [];
             setAllProjects(projectsData);
             setJobs(jobsData);
+            
+            // If you want to fetch actual workspace name, you could add:
+            // const workspaceRes = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Workspace/GetWorkspaceById/${defWorkId}`);
+            // if (workspaceRes.ok) {
+            //     const workspaceData = await workspaceRes.json();
+            //     setWorkspaceName(workspaceData.name || 'defaultWorkspace');
+            // }
+            
         } catch {
             toast.error('Failed to load data');
         } finally {
             setPageLoading(false);
         }
     };
+    
     const loadAllProjects = async () => {
         setModalProjectError(false);
         try {
@@ -234,6 +263,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
             setProjectsLoading(false);
         }
     };
+    
     const loadWorkspaceUsers = async () => {
         try {
             const res = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/UserWorkspace/GetUsersByWorkspaceId/${defWorkId}`);
@@ -249,6 +279,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
             setUsersLoading(false);
         }
     };
+    
     const fetchJobData = async () => {
         setEditLoading(true);
         try {
@@ -272,6 +303,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
             setEditLoading(false);
         }
     };
+    
     const loadSearchedProjects = async (search = '', setSearched, setLoading) => {
         if (!search.trim()) {
             setSearched([]);
@@ -308,6 +340,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
             setLoading(false);
         }
     };
+    
     const handleAddJob = async () => {
         if (!isAdding) {
             setIsAdding(true);
@@ -377,6 +410,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
             setIsAdding(false);
         }
     };
+    
     const handleEditJob = async () => {
         if (!isEditing) {
             setIsEditing(true);
@@ -451,6 +485,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
             setIsEditing(false);
         }
     };
+    
     const grantJobPermission = async (jobid) => {
         try {
             await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/UserJobAuth/AddUserJob`, {
@@ -460,6 +495,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
             });
         } catch { }
     };
+    
     const handleAddBulkJobs = async () => {
         if (!isAdding) {
             setIsAdding(true);
@@ -512,7 +548,9 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
             setIsAdding(false);
         }
     };
+    
     const handlePasteChange = (e) => setPasteContent(e.target.value);
+    
     const handleReview = () => {
         const lines = pasteContent.trim().split('\n');
         const newParsed = lines
@@ -525,14 +563,17 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
         setParsedJobs(newParsed);
         setIsReviewMode(true);
     };
+    
     const handleEditParsedJob = (index, field, value) => {
         const updated = [...parsedJobs];
         updated[index][field] = value;
         setParsedJobs(updated);
     };
+    
     const handleDeleteRow = (index) => {
         setParsedJobs(parsedJobs.filter((_, i) => i !== index));
     };
+    
     const handleAddNewRow = () => {
         setParsedJobs([...parsedJobs, { name: '', description: '' }]);
         setTimeout(() => {
@@ -541,11 +582,13 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
             }
         }, 0);
     };
+    
     const handleClearPaste = () => {
         setPasteContent('');
         setParsedJobs([]);
         setIsReviewMode(false);
     };
+    
     const closeAddModal = () => {
         setIsAddJobOpen(false);
         resetFormStates();
@@ -554,35 +597,54 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
         setSingleProjectLoading(false);
         setBulkProjectLoading(false);
     };
+    
     const closeEditModal = () => {
         setIsEditJobOpen(false);
         resetFormStates();
         setEditErrorMessages([]);
     };
+    
     const handleSingleSearchChange = (e) => {
         const newTerm = e.target.value;
         setSingleSearchedProjects([]);
         setSingleProjectLoading(!!newTerm.trim());
         setSingleProjectSearchTerm(newTerm);
     };
+    
     const handleBulkSearchChange = (e) => {
         const newTerm = e.target.value;
         setBulkSearchedProjects([]);
         setBulkProjectLoading(!!newTerm.trim());
         setBulkProjectSearchTerm(newTerm);
     };
+    
     const isAdmin = userRole === 'admin';
+    
     const activeProjects = useMemo(() => {
         return allProjects.filter(p => p.workspaceId === defWorkId && p.status === 1);
     }, [allProjects, defWorkId]);
+    
+    // Modified filteredJobs to include project info
     const filteredJobs = useMemo(() => {
         const searchLower = jobSearchTerm.toLowerCase().trim();
-        return jobs.filter(job => {
-            const project = allProjects.find(p => p.id === job.projectId);
-            if (!project || job.status === 3 || project.status === 3 || project.workspaceId !== defWorkId) return false;
-            return job.name.toLowerCase().includes(searchLower) || project.name.toLowerCase().includes(searchLower);
-        });
-    }, [jobs, allProjects, jobSearchTerm, defWorkId]);
+        return jobs
+            .filter(job => {
+                const project = allProjects.find(p => p.id === job.projectId);
+                if (!project || job.status === 3 || project.status === 3 || project.workspaceId !== defWorkId) return false;
+                return job.name.toLowerCase().includes(searchLower) || 
+                       project.name.toLowerCase().includes(searchLower) ||
+                       workspaceName.toLowerCase().includes(searchLower);
+            })
+            .map(job => {
+                const project = allProjects.find(p => p.id === job.projectId);
+                return {
+                    ...job,
+                    projectName: project?.name || 'Unknown Project',
+                    workspaceName: workspaceName // Use the workspace name
+                };
+            });
+    }, [jobs, allProjects, jobSearchTerm, defWorkId, workspaceName]);
+    
     return (
         <div className="settings-content" style={{ position: 'relative', minHeight: '400px' }}>
             <style jsx>{`
@@ -645,6 +707,9 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
                     padding: 10px 15px;
                     cursor: pointer;
                     transition: background 0.2s ease;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
                 }
                 .project-search-list li:hover {
                     background: #f5f5f5;
@@ -710,6 +775,47 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
                     min-height: 100px;
                     resize: vertical;
                 }
+                
+                /* New styles for hierarchical display */
+                .job-path {
+                    display: flex;
+                    align-items: center;
+                    font-size: 0.95rem;
+                    flex: 1;
+                }
+                .path-separator {
+                    margin: 0 6px;
+                    color: #999;
+                }
+                .workspace-name, .project-name {
+                    color: #666;
+                    font-style: normal;
+                }
+                .job-name {
+                    font-size: 14px;
+                    font-weight: 900;
+                    color: #282828ff;
+                    font-style: normal;
+                }
+                .job-status-badge {
+                    font-size: 0.8rem;
+                    padding: 2px 6px;
+                    border-radius: 10px;
+                    margin-left: 8px;
+                }
+                .status-active {
+                    background-color: #e8f5e9;
+                    color: #2e7d32;
+                }
+                .status-inactive {
+                    background-color: #fff3e0;
+                    color: #f57c00;
+                }
+                .status-archive {
+                    background-color: #ffebee;
+                    color: #c62828;
+                }
+                
                 @media (max-width: 600px) {
                     .modal-md {
                         width: 90vw;
@@ -734,6 +840,17 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
                     }
                     .tab-container {
                         flex-direction: column;
+                    }
+                    .job-path {
+                        flex-direction: column;
+                        align-items: flex-start;
+                    }
+                    .path-separator {
+                        display: none;
+                    }
+                    .workspace-name, .project-name {
+                        font-size: 0.85rem;
+                        color: #888;
                     }
                 }
             `}</style>
@@ -765,7 +882,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
                                     type="text"
                                     value={jobSearchTerm}
                                     onChange={(e) => setJobSearchTerm(e.target.value)}
-                                    placeholder="Search jobs..."
+                                    placeholder="Search by workspace, project, or job name..."
                                     style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
                                 />
                                 {jobSearchTerm.trim() && filteredJobs.length === 0 && (
@@ -781,7 +898,6 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
                                 {filteredJobs.length > 0 && (
                                     <ul className="project-search-list">
                                         {filteredJobs.map(job => {
-                                            const projectName = allProjects.find(p => p.id === job.projectId)?.name || 'Unknown';
                                             const isInactive = job.status !== 1;
                                             return (
                                                 <li
@@ -789,7 +905,25 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
                                                     className={selectedJob === job.id ? 'selected' : ''}
                                                     onClick={() => setSelectedJob(job.id)}
                                                 >
-                                                    {job.name} (Project: {projectName}) {isInactive ? '(Inactive)' : ''}
+                                                    <div className="job-path">
+                                                        <span className="workspace-name">{job.workspaceName}</span>
+                                                        <span className="path-separator">→</span>
+                                                        <span className="workspace-name">{job.projectName}</span>
+                                                        <span className="path-separator">→</span>
+                                                        <span className="job-name">{job.name}</span>
+                                                    </div>
+                                                    {isInactive && (
+                                                        <span className={`job-status-badge ${
+                                                            job.status === 2 ? 'status-inactive' : 'status-archive'
+                                                        }`}>
+                                                            {job.status === 2 ? 'Inactive' : 'Archived'}
+                                                        </span>
+                                                    )}
+                                                    {!isInactive && job.status === 1 && (
+                                                        <span className="job-status-badge status-active">
+                                                            Active
+                                                        </span>
+                                                    )}
                                                 </li>
                                             );
                                         })}
@@ -800,6 +934,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs }) => {
                     </div>
                 </>
             )}
+            {/* All modal code remains EXACTLY the same */}
             <Modal isOpen={isAddJobOpen} onClose={closeAddModal} title="Add Job" customClass="modal-md">
                 <div ref={modalContentRef} style={{ padding: '20px', position: 'relative' }}>
                     <div ref={addTopRef}></div>

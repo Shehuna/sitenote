@@ -70,6 +70,7 @@ const DashboardMenu = ({
 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
   const navigate = useNavigate();
+  console.log(defWorkName)
   
   useEffect(() => {
     const checkMobile = () => {
@@ -316,6 +317,7 @@ const DashboardMenu = ({
       case 'jobManagement':
         component = <JobManagment 
           defWorkId={defaultUserWorkspaceID}
+          defaultworkspace={defWorkName}
         />;
         title = 'Job Management';
         break;
