@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react'
+import React, { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom';
 import UserProfile from '../UserProfile/UserProfile';
 import ChangeWorkspaceModal from '../Workspaces/ChangeWorkspaceModal';
@@ -83,41 +83,61 @@ const DashboardMenu = ({
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Custom hook for detecting clicks outside
+  const useClickOutside = (ref, handler) => {
+    useEffect(() => {
+      const listener = (event) => {
+        if (!ref.current || ref.current.contains(event.target)) {
+          return;
+        }
+        handler(event);
+      };
+      
+      document.addEventListener('mousedown', listener);
+      return () => {
+        document.removeEventListener('mousedown', listener);
+      };
+    }, [ref, handler]);
+  };
+
+  // Handle click outside settings menu
+  const handleClickOutsideSettings = useCallback((event) => {
+    const isClickOnSettingsButton = 
+      (settingsButtonRef.current && settingsButtonRef.current.contains(event.target)) ||
+      (mobileSettingsButtonRef.current && mobileSettingsButtonRef.current.contains(event.target));
+    
+    if (!isClickOnSettingsButton && showSettingsMenu) {
+      setShowSettingsMenu(false);
+    }
+  }, [showSettingsMenu]);
+
+  // Handle click outside user menu
+  const handleClickOutsideUserMenu = useCallback((event) => {
+    const isClickOnUserAvatar = 
+      userAvatarRef.current && userAvatarRef.current.contains(event.target);
+    
+    if (!isClickOnUserAvatar && showUserMenu) {
+      setShowUserMenu(false);
+    }
+  }, [showUserMenu]);
+
+  // Handle click outside job submenu
+  const handleClickOutsideJobSubmenu = useCallback((event) => {
+    const isClickOnJobMenuButton = 
+      jobMenuButtonRef.current && jobMenuButtonRef.current.contains(event.target);
+    
+    if (!isClickOnJobMenuButton && showJobSubmenu) {
+      setShowJobSubmenu(false);
+    }
+  }, [showJobSubmenu]);
+
+  // Apply click outside handlers
+  useClickOutside(settingsMenuRef, handleClickOutsideSettings);
+  useClickOutside(userMenuRef, handleClickOutsideUserMenu);
+  useClickOutside(submenuRef, handleClickOutsideJobSubmenu);
+
   useEffect(() => {
     const handleClickOutside = (event) => {
-      // Close job submenu when clicking outside (both desktop and mobile)
-      if (
-        showJobSubmenu &&
-        submenuRef.current && 
-        !submenuRef.current.contains(event.target) &&
-        jobMenuButtonRef.current && 
-        !jobMenuButtonRef.current.contains(event.target)
-      ) {
-        setShowJobSubmenu(false);
-      }
-      
-      // Close user menu when clicking outside
-      if (
-        userMenuRef.current && 
-        !userMenuRef.current.contains(event.target) &&
-        userAvatarRef.current && 
-        !userAvatarRef.current.contains(event.target)
-      ) {
-        setShowUserMenu(false);
-      }
-      
-      // Close settings menu when clicking outside
-      if (
-        settingsMenuRef.current && 
-        !settingsMenuRef.current.contains(event.target) &&
-        settingsButtonRef.current && 
-        !settingsButtonRef.current.contains(event.target) &&
-        mobileSettingsButtonRef.current && 
-        !mobileSettingsButtonRef.current.contains(event.target)
-      ) {
-        setShowSettingsMenu(false);
-      }
-      
       // Close view options when clicking outside
       if (
         viewOptionsRef.current && 
@@ -146,13 +166,30 @@ const DashboardMenu = ({
       ) {
         setShowSearch(false);
       }
+      
+      // Close notifications when clicking outside
+      if (
+        showNotifications && 
+        !event.target.closest('.notifications-button') &&
+        !event.target.closest('.notifications-dropdown')
+      ) {
+        setShowNotifications(false);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isMobile, showSearch, showJobSubmenu, showSettingsMenu]);
+  }, [isMobile, showSearch, showNotifications]);
+
+  // Close settings menu when a settings modal is opened
+  useEffect(() => {
+    if (showSettingsModal) {
+      setShowSettingsMenu(false);
+      setShowJobSubmenu(false);
+    }
+  }, [showSettingsModal]);
 
   const getUserDetails = () => {
     const user = JSON.parse(localStorage.getItem("user"));
@@ -174,6 +211,7 @@ const DashboardMenu = ({
     if (showUserMenu) {
       setShowNotifications(false);
       setShowSettingsMenu(false);
+      setShowJobSubmenu(false);
     }
     if (showSettingsMenu) {
       setShowUserMenu(false);
@@ -182,6 +220,7 @@ const DashboardMenu = ({
     if (showNotifications) {
       setShowUserMenu(false);
       setShowSettingsMenu(false);
+      setShowJobSubmenu(false);
     }
   }, [showUserMenu, showSettingsMenu, showNotifications]);
 
@@ -244,6 +283,7 @@ const DashboardMenu = ({
     setShowUserMenu(false);
     setShowMobileMenu(false);
     setShowSettingsMenu(false);
+    setShowJobSubmenu(false);
   };
 
   const handleSwitchWorkspaceClick = () => {
@@ -251,6 +291,7 @@ const DashboardMenu = ({
     setShowUserMenu(false);
     setShowMobileMenu(false);
     setShowSettingsMenu(false);
+    setShowJobSubmenu(false);
   };
 
   const handleRequestWorkspaceClick = () => {
@@ -258,6 +299,7 @@ const DashboardMenu = ({
     setShowUserMenu(false);
     setShowMobileMenu(false);
     setShowSettingsMenu(false);
+    setShowJobSubmenu(false);
   };
 
   const handleOtpVerificationSuccess = (email) => {
@@ -298,6 +340,7 @@ const DashboardMenu = ({
     // Close settings menu
     setShowSettingsMenu(false);
     setShowUserMenu(false);
+    setShowJobSubmenu(false);
     // Navigate to admin dashboard
     navigate('/admin-dashboard');
   };
@@ -407,10 +450,7 @@ const DashboardMenu = ({
     setShowSettingsMenu(newShowSettingsMenu);
     setShowUserMenu(false);
     setShowNotifications(false);
-    // Close submenu when closing settings menu
-    if (!newShowSettingsMenu) {
-      setShowJobSubmenu(false);
-    }
+    setShowJobSubmenu(false);
   };
 
   // Function to close settings modal and reset component
@@ -431,26 +471,21 @@ const DashboardMenu = ({
     setShowSettingsModal(true);
     setShowUserMenu(false);
     setShowSettingsMenu(false);
+    setShowJobSubmenu(false);
   };
 
   const handleMobileNotifications = () => {
     setShowNotifications(!showNotifications);
     setShowUserMenu(false);
     setShowSettingsMenu(false);
+    setShowJobSubmenu(false);
   };
 
   const handleMobileRequestWorkspace = () => {
     setShowRequestWorkspaceOtpModal(true);
     setShowUserMenu(false);
     setShowSettingsMenu(false);
-  };
-  
-  // Toggle mobile settings menu
-  const toggleMobileSettingsMenu = () => {
-    setShowSettingsMenu(!showSettingsMenu);
-    setShowUserMenu(false);
-    setShowNotifications(false);
-    setShowJobSubmenu(false); // Close any open submenu
+    setShowJobSubmenu(false);
   };
   
   // Handle submenu item click
@@ -659,7 +694,7 @@ const DashboardMenu = ({
               <div className="mobile-settings-container" style={{ position: 'relative' }}>
                 <button
                   ref={mobileSettingsButtonRef}
-                  onClick={toggleMobileSettingsMenu}
+                  onClick={toggleSettingsMenu}
                   className="mobile-settings-button"
                   title="Settings"
                 >
@@ -671,6 +706,7 @@ const DashboardMenu = ({
                   <div 
                     ref={settingsMenuRef}
                     className="settings-dropdown mobile-settings-dropdown"
+                    onClick={(e) => e.stopPropagation()}
                   >
                     <div className="settings-dropdown-header">
                       <span>Settings</span>
@@ -747,7 +783,6 @@ const DashboardMenu = ({
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="submenu-header">
-                  
                   <span>Job Management</span>
                 </div>
                 
@@ -787,6 +822,7 @@ const DashboardMenu = ({
                   setShowUserMenu(!showUserMenu);
                   setShowSettingsMenu(false);
                   setShowNotifications(false);
+                  setShowJobSubmenu(false);
                 }}
                 className="user-avatar mobile-user-avatar"
                 title={user.name}
@@ -799,6 +835,7 @@ const DashboardMenu = ({
                 <div 
                   ref={userMenuRef}
                   className="user-dropdown mobile-user-dropdown"
+                  onClick={(e) => e.stopPropagation()}
                 >
                   <div className="user-info-section">
                     <div className="user-avatar-large">
@@ -881,6 +918,7 @@ const DashboardMenu = ({
                 setShowNotifications(!showNotifications);
                 setShowUserMenu(false);
                 setShowSettingsMenu(false);
+                setShowJobSubmenu(false);
               }}
               title="Notifications"
             >
@@ -903,6 +941,7 @@ const DashboardMenu = ({
                   <div 
                     ref={settingsMenuRef}
                     className="settings-dropdown"
+                    onClick={(e) => e.stopPropagation()}
                   >
                     <div className="settings-dropdown-header">
                       <span>Settings</span>
@@ -979,7 +1018,6 @@ const DashboardMenu = ({
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="submenu-header">
-                  
                   <span>Job Management</span>
                 </div>
                 
@@ -1030,6 +1068,7 @@ const DashboardMenu = ({
                 <div 
                   ref={userMenuRef}
                   className="user-dropdown"
+                  onClick={(e) => e.stopPropagation()}
                 >
                   <div className="user-info-section">
                     <div className="user-avatar-large">
@@ -1149,7 +1188,7 @@ const DashboardMenu = ({
       )}
       
       {showNotifications && (
-        <div className="notifications-dropdown">
+        <div className="notifications-dropdown" onClick={(e) => e.stopPropagation()}>
           <div className="notifications-header">
             <h3>Notifications</h3>
             <button 
@@ -1173,4 +1212,3 @@ const DashboardMenu = ({
 }
 
 export default DashboardMenu;
-
