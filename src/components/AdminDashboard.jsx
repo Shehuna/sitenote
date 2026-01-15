@@ -1,92 +1,177 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './AdminDashboard.css';
 
 const AdminDashboard = () => {
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [dashboardData, setDashboardData] = useState(null);
   const navigate = useNavigate();
 
-  const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: 'fas fa-tachometer-alt' },
-    { id: 'workspaces', label: 'Workspaces', icon: 'fas fa-building' },
-    { id: 'users', label: 'Users', icon: 'fas fa-users' },
-    { id: 'projects', label: 'Projects', icon: 'fas fa-project-diagram' },
-    { id: 'jobs', label: 'Jobs', icon: 'fas fa-tasks' },
-    { id: 'resources', label: 'Resources', icon: 'fas fa-boxes' },
-    { id: 'settings', label: 'Settings', icon: 'fas fa-cog' },
+const formatFileSize = (bytes) => {
+  console.log('formatFileSize called with:', bytes); 
+  
+  if (bytes === null || bytes === undefined || bytes === 0) return '0 Bytes';
+  
+  try {
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    const result = parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    console.log('formatFileSize result:', result); 
+    return result;
+  } catch (error) {
+    console.error('Error formatting file size:', error);
+    return bytes + ' Bytes';
+  }
+};
+
+  const calculateStoragePercentage = (storageUsed) => {
+    if (!storageUsed) return 0;
+    const maxStorage = 10 * 1024 * 1024 * 1024; // 10GB
+    return Math.min(Math.round((storageUsed / maxStorage) * 100), 100);
+  };
+
+  const fetchDashboardMetrics = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'https://localhost:7204';
+      
+      const response = await fetch(`${apiBaseUrl}/api/Dashboard/GetDashboardMetrics`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.metrics) {
+        setDashboardData(result.metrics);
+      } else {
+        setDashboardData(result);
+      }
+      
+    } catch (err) {
+      console.error('Error fetching dashboard metrics:', err);
+      setError('Failed to load dashboard data. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardMetrics();
+  }, []);
+
+  const stats = dashboardData ? [
+    { 
+      label: 'Total Workspaces', 
+      value: dashboardData.workspaceOverview?.totalWorkspaces?.toString() || '0', 
+      change: '+12%', 
+      icon: 'fas fa-building', 
+      color: '#3B82F6' 
+    },
+    { 
+      label: 'Active Users', 
+      value: dashboardData.userStatistics?.activeUsers?.toString() || '0', 
+      change: '+8%', 
+      icon: 'fas fa-users', 
+      color: '#10B981' 
+    },
+    { 
+      label: 'Total Notes', 
+      value: dashboardData.notesStatistics?.totalNotes?.toString() || '0', 
+      change: '+23%', 
+      icon: 'fas fa-sticky-note', 
+      color: '#8B5CF6' 
+    },
+    { 
+      label: 'Total Users', 
+      value: dashboardData.userStatistics?.totalUsers?.toString() || '0', 
+      change: '+15%', 
+      icon: 'fas fa-user-plus', 
+      color: '#F59E0B' 
+    },
+    { 
+      label: 'Total Attachments', 
+      value: dashboardData.attachments?.totalAttachments?.toString() || '0', 
+      change: '+18%', 
+      icon: 'fas fa-paperclip', 
+      color: '#EF4444' 
+    },
+    { 
+      label: 'Storage Used', 
+      value: `${calculateStoragePercentage(dashboardData.storageUsage?.totalStorageUsed)}%`, 
+      change: '+4%', 
+      icon: 'fas fa-database', 
+      color: '#6366F1' 
+    },
+  ] : [
+    { label: 'Total Workspaces', value: '0', change: '+0%', icon: 'fas fa-building', color: '#3B82F6' },
+    { label: 'Active Users', value: '0', change: '+0%', icon: 'fas fa-users', color: '#10B981' },
+    { label: 'Total Notes', value: '0', change: '+0%', icon: 'fas fa-sticky-note', color: '#8B5CF6' },
+    { label: 'Total Users', value: '0', change: '+0%', icon: 'fas fa-user-plus', color: '#F59E0B' },
+    { label: 'Total Attachments', value: '0', change: '+0%', icon: 'fas fa-paperclip', color: '#EF4444' },
+    { label: 'Storage Used', value: '0%', change: '+0%', icon: 'fas fa-database', color: '#6366F1' },
+  ];
+  
+
+
+  const workspaceData = dashboardData?.workspaceOverview?.allWorkspacesWithUsers?.map((workspace, index) => {
+    const topWorkspace = dashboardData?.workspaceOverview?.top10Workspaces?.find(w => w.name === workspace.name);
+    return {
+      name: workspace.name,
+      users: workspace.usersCount || 0,
+      projects: topWorkspace?.notesCount || 0,
+      status: 'active'
+    };
+  }) || [
+    { name: 'Loading...', users: 0, projects: 0, status: 'active' },
   ];
 
-  const stats = [
-    { label: 'Total Workspaces', value: '24', change: '+12%', icon: 'fas fa-building', color: '#3B82F6' },
-    { label: 'Active Users', value: '1,248', change: '+8%', icon: 'fas fa-users', color: '#10B981' },
-    { label: 'Projects', value: '156', change: '+23%', icon: 'fas fa-project-diagram', color: '#8B5CF6' },
-    { label: 'Active Jobs', value: '89', change: '-5%', icon: 'fas fa-tasks', color: '#F59E0B' },
-    { label: 'Resources', value: '342', change: '+15%', icon: 'fas fa-boxes', color: '#EF4444' },
-    { label: 'Storage Used', value: '78%', change: '+4%', icon: 'fas fa-database', color: '#6366F1' },
-  ];
-
-  const recentActivities = [
-    { user: 'John Doe', action: 'created a new project', time: '5 min ago', icon: 'fas fa-plus-circle', color: '#10B981' },
-    { user: 'Jane Smith', action: 'updated workspace settings', time: '12 min ago', icon: 'fas fa-cog', color: '#3B82F6' },
-    { user: 'Mike Johnson', action: 'completed job #245', time: '25 min ago', icon: 'fas fa-check-circle', color: '#8B5CF6' },
-    { user: 'Sarah Williams', action: 'added new resource', time: '1 hour ago', icon: 'fas fa-box', color: '#F59E0B' },
-    { user: 'Admin', action: 'updated system settings', time: '2 hours ago', icon: 'fas fa-shield-alt', color: '#EF4444' },
-  ];
-
-  const workspaceData = [
-    { name: 'Development', users: 24, projects: 15, status: 'active' },
-    { name: 'Design', users: 18, projects: 8, status: 'active' },
-    { name: 'Marketing', users: 32, projects: 12, status: 'active' },
-    { name: 'Finance', users: 14, projects: 6, status: 'active' },
-    { name: 'Testing', users: 8, projects: 4, status: 'inactive' },
-  ];
-
-  return (
-    <div className="admin-dashboard-container">
-      {/* Sidebar */}
-      <div className={`admin-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
-        <div className="admin-sidebar-header">
-          <h3>{sidebarCollapsed ? 'AD' : 'Admin Panel'}</h3>
-          <button 
-            className="admin-sidebar-toggle" 
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            title={sidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-          >
-            <i className={`fas fa-chevron-${sidebarCollapsed ? 'right' : 'left'}`} />
-          </button>
+  if (loading) {
+    return (
+      <div className="admin-dashboard-container">
+        <div className="admin-dashboard-loading">
+          <i className="fas fa-spinner fa-spin fa-3x"></i>
+          <p>Loading dashboard data...</p>
         </div>
-        
-        <div className="admin-sidebar-menu">
-          {menuItems.map((item) => (
-            <button
-              key={item.id}
-              className={`admin-menu-item ${activeMenu === item.id ? 'active' : ''}`}
-              onClick={() => setActiveMenu(item.id)}
-              title={sidebarCollapsed ? item.label : ''}
-            >
-              <i className={item.icon} />
-              {!sidebarCollapsed && <span>{item.label}</span>}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="admin-dashboard-container">
+        <div className="admin-dashboard-error">
+          <div className="error-message">
+            <i className="fas fa-exclamation-triangle fa-3x"></i>
+            <h3>Error Loading Dashboard</h3>
+            <p>{error}</p>
+            <button className="admin-btn-primary" onClick={() => window.location.reload()}>
+              <i className="fas fa-redo"></i> Reload Page
             </button>
-          ))}
-        </div>
-        
-        <div className="admin-sidebar-footer">
-          <div className="admin-user-info">
-            <div className="admin-user-avatar">AD</div>
-            {!sidebarCollapsed && (
-              <div className="admin-user-details">
-                <div className="admin-user-name">Admin User</div>
-                <div className="admin-user-role">Administrator</div>
-              </div>
-            )}
           </div>
         </div>
       </div>
+    );
+  }
 
-      {/* Main Content */}
+  return (
+    <div className="admin-dashboard-container">
+      
+
       <div className={`admin-main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        {/* Navbar */}
         <nav className="admin-navbar">
           <div className="admin-navbar-left">
             <h1>Admin Dashboard</h1>
@@ -123,9 +208,7 @@ const AdminDashboard = () => {
           </div>
         </nav>
 
-        {/* Main Dashboard Content */}
         <div className="admin-dashboard-content">
-          {/* Welcome Banner */}
           <div className="admin-welcome-banner">
             <div className="admin-welcome-text">
               <h2>Welcome back, Admin!</h2>
@@ -141,7 +224,6 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          {/* Stats Cards */}
           <div className="admin-stats-grid">
             {stats.map((stat, index) => (
               <div className="admin-stat-card" key={index}>
@@ -159,34 +241,9 @@ const AdminDashboard = () => {
             ))}
           </div>
 
-          {/* Charts and Tables */}
           <div className="admin-content-grid">
-            {/* Recent Activity */}
-            <div className="admin-content-card">
-              <div className="admin-card-header">
-                <h3><i className="fas fa-history" /> Recent Activity</h3>
-                <button className="admin-btn-text">View All</button>
-              </div>
-              <div className="admin-card-body">
-                <div className="admin-activity-list">
-                  {recentActivities.map((activity, index) => (
-                    <div className="admin-activity-item" key={index}>
-                      <div className="admin-activity-icon" style={{ color: activity.color }}>
-                        <i className={activity.icon} />
-                      </div>
-                      <div className="admin-activity-details">
-                        <div className="admin-activity-text">
-                          <strong>{activity.user}</strong> {activity.action}
-                        </div>
-                        <div className="admin-activity-time">{activity.time}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            
 
-            {/* Workspace Overview */}
             <div className="admin-content-card">
               <div className="admin-card-header">
                 <h3><i className="fas fa-building" /> Workspace Overview</h3>
@@ -199,7 +256,7 @@ const AdminDashboard = () => {
                       <tr>
                         <th>Workspace Name</th>
                         <th>Users</th>
-                        <th>Projects</th>
+                        <th>Notes</th>
                         <th>Status</th>
                         <th>Actions</th>
                       </tr>
@@ -236,7 +293,6 @@ const AdminDashboard = () => {
               </div>
             </div>
 
-            {/* Quick Stats Chart */}
             <div className="admin-content-card">
               <div className="admin-card-header">
                 <h3><i className="fas fa-chart-line" /> Platform Growth</h3>
@@ -278,7 +334,6 @@ const AdminDashboard = () => {
               </div>
             </div>
 
-            {/* System Status */}
             <div className="admin-content-card">
               <div className="admin-card-header">
                 <h3><i className="fas fa-server" /> System Status</h3>
@@ -311,11 +366,13 @@ const AdminDashboard = () => {
                   <div className="admin-status-item">
                     <div className="admin-status-info">
                       <div className="admin-status-name">Storage</div>
-                      <div className="admin-status-desc">S3 Bucket</div>
+                      <div className="admin-status-desc">
+                         Total: {formatFileSize(dashboardData?.storageUsage?.totalStorageUsed)}
+                      </div>
                     </div>
                     <div className="admin-status-indicator warning">
                       <div className="admin-status-dot" />
-                      <span>78% Used</span>
+                      <span>{calculateStoragePercentage(dashboardData?.storageUsage?.totalStorageUsed)}% Used</span>
                     </div>
                   </div>
                   

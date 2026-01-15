@@ -1,6 +1,4 @@
-/* AdminDashboard.css - With unique prefixes to prevent conflicts */
 
-/* Main container - unique prefix */
 .admin-dashboard-container {
   display: flex;
   min-height: 100vh;
@@ -8,7 +6,6 @@
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
-/* Admin Sidebar - unique prefix */
 .admin-sidebar {
   width: 250px;
   background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
@@ -17,11 +14,11 @@
   flex-direction: column;
   transition: width 0.3s ease;
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
-  position: fixed; /* Changed to fixed */
+  position: fixed;
   left: 0;
   top: 0;
   bottom: 0;
-  z-index: 50; /* Lower z-index than DashboardMenu */
+  z-index: 50; 
 }
 
 .admin-sidebar.collapsed {
@@ -140,21 +137,14 @@
   color: rgba(255, 255, 255, 0.6);
 }
 
-/* Admin Main Content */
 .admin-main-content {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  margin-left: 250px; /* Account for sidebar width */
   transition: margin-left 0.3s ease;
 }
 
-.admin-main-content.sidebar-collapsed {
-  margin-left: 70px;
-}
-
-/* Admin Navbar - unique prefix */
 .admin-navbar {
   height: 70px;
   background: white;
@@ -166,7 +156,7 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   position: sticky;
   top: 0;
-  z-index: 40; /* Lower than DashboardMenu */
+  z-index: 40; 
 }
 
 .admin-navbar-left h1 {
@@ -275,14 +265,12 @@
   color: white;
 }
 
-/* Admin Dashboard Content */
 .admin-dashboard-content {
   flex: 1;
   padding: 30px;
   overflow-y: auto;
 }
 
-/* Admin Welcome Banner */
 .admin-welcome-banner {
   background: linear-gradient(90deg, #3B82F6 0%, #6366F1 100%);
   border-radius: 16px;
@@ -370,7 +358,6 @@
   color: #2563EB;
 }
 
-/* Admin Stats Grid */
 .admin-stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -434,7 +421,6 @@
   color: #EF4444;
 }
 
-/* Admin Content Grid */
 .admin-content-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
@@ -466,7 +452,6 @@
   gap: 8px;
 }
 
-/* Admin Activity List */
 .admin-activity-list {
   display: flex;
   flex-direction: column;
@@ -505,7 +490,6 @@
   color: #9ca3af;
 }
 
-/* Admin Workspace Table */
 .admin-workspace-table {
   overflow-x: auto;
 }
@@ -580,7 +564,6 @@
   color: #374151;
 }
 
-/* Admin Chart Placeholder */
 .admin-chart-placeholder {
   padding: 20px 0;
 }
@@ -636,7 +619,6 @@
   border-radius: 3px;
 }
 
-/* Admin Time Filter */
 .admin-time-filter {
   display: flex;
   gap: 4px;
@@ -666,7 +648,6 @@
   color: #374151;
 }
 
-/* Admin System Status */
 .admin-system-status {
   display: flex;
   flex-direction: column;
@@ -730,7 +711,6 @@
   border-top: 1px solid #e5e7eb;
 }
 
-/* Responsive Design */
 @media (max-width: 1200px) {
   .admin-content-grid {
     grid-template-columns: 1fr;
@@ -741,7 +721,7 @@
   .admin-sidebar {
     position: fixed;
     left: -250px;
-    z-index: 60; /* Higher z-index on mobile */
+    z-index: 60;
   }
   
   .admin-sidebar.collapsed {
@@ -781,12 +761,10 @@
   }
 }
 
-/* Ensure AdminDashboard doesn't interfere with DashboardMenu */
 .admin-dashboard-container * {
   box-sizing: border-box;
 }
 
-/* Reset any DashboardMenu styles that might affect AdminDashboard */
 .admin-dashboard-container .user-dropdown,
 .admin-dashboard-container .settings-dropdown,
 .admin-dashboard-container .notifications-dropdown {
