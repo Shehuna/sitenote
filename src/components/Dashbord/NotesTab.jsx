@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import PropTypes from "prop-types";
 import "./NotesTab.css";
+//import ReplyModal from '../Modals/ReplyModal';
 
 const NotesTab = ({
   viewMode,
@@ -39,6 +40,7 @@ const NotesTab = ({
   fetchStackedJobs,
   fetchNotes,
   userId,
+  projects,
   hasActiveFilters,
   filteredNotesFromApi,
   searchResults,
@@ -56,7 +58,20 @@ const NotesTab = ({
   const lastRowRef = useRef(null);
   const lastCardRef = useRef(null);
   const containerRef = useRef(null);
+   const [showReplyModal, setShowReplyModal] = useState(false);
+    const [selectedNoteForReply, setSelectedNoteForReply] = useState(null);
+  const replyButtonRefs = useRef({});
+  const [activeReplyButtonRef, setActiveReplyButtonRef] = useState(null);
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
+  const [hoveredOriginalNote, setHoveredOriginalNote] = useState(null);
+const [originalNoteContent, setOriginalNoteContent] = useState({});
+const [loadingOriginalNote, setLoadingOriginalNote] = useState({});
+const hoverTimeoutRef = useRef(null);
+const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
+const [hoveredLinkedNote, setHoveredLinkedNote] = useState(null);
+const [linkedNoteContent, setLinkedNoteContent] = useState({});
+const [loadingLinkedNote, setLoadingLinkedNote] = useState({});
+const linkHoverTimeoutRef = useRef(null);
     
   const pageSize = 15;
   const initialPageNumber = 1;
@@ -110,6 +125,97 @@ const NotesTab = ({
     localNotes,
     finalDisplayNotes
   ]);
+
+const HighlightText = ({ text, highlight }) => {
+  if (!highlight || !text || typeof text !== 'string') {
+    return <span>{text}</span>;
+  }
+
+  try {
+    const escapedHighlight = highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escapedHighlight})`, 'gi');
+    const parts = text.split(regex);
+    
+    return (
+      <span>
+        {parts.map((part, index) => {
+          const match = part.toLowerCase() === highlight.toLowerCase();
+          
+          return match ? (
+            <mark 
+              key={index} 
+              className="search-highlight"
+              style={{
+                backgroundColor: '#ffeb3b',
+                padding: '0 2px',
+                borderRadius: '2px',
+                fontWeight: 'bold',
+                color: '#000'
+              }}
+            >
+              {part}
+            </mark>
+          ) : (
+            <span key={index}>{part}</span>
+          );
+        })}
+      </span>
+    );
+  } catch (error) {
+    console.error('Error highlighting text:', error);
+    return <span>{text}</span>;
+  }
+};
+
+const highlightHtmlContent = (html, highlight) => {
+  if (!highlight || !html || typeof html !== 'string') {
+    return html;
+  }
+
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    
+    const escapedHighlight = highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escapedHighlight})`, 'gi');
+    
+    const highlightNode = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent;
+        if (regex.test(text)) {
+          const span = document.createElement('span');
+          const parts = text.split(regex);
+          
+          parts.forEach((part) => {
+            if (regex.test(part)) {
+              const mark = document.createElement('mark');
+              mark.className = 'search-highlight';
+              mark.style.cssText = 'background-color: #ffeb3b; padding: 0 2px; border-radius: 2px; font-weight: bold; color: #000;';
+              mark.textContent = part;
+              span.appendChild(mark);
+            } else {
+              span.appendChild(document.createTextNode(part));
+            }
+          });
+          
+          node.parentNode.replaceChild(span, node);
+        }
+      } else if (node.nodeType === Node.ELEMENT_NODE && 
+                 node.nodeName !== 'SCRIPT' && 
+                 node.nodeName !== 'STYLE' &&
+                 !node.classList.contains('search-highlight')) {
+        Array.from(node.childNodes).forEach(child => highlightNode(child));
+      }
+    };
+    
+    highlightNode(doc.body);
+    
+    return doc.body.innerHTML;
+  } catch (error) {
+    console.error('Error highlighting HTML:', error);
+    return html;
+  }
+};
 
   // Determine which jobs to display in stacked view
   const jobsToDisplay = useMemo(() => {
@@ -242,8 +348,220 @@ const NotesTab = ({
       setLoadingMore(false);
     }
   }, [fetchNotes, page, hasMore, hasActiveFilters, searchTerm]);
+  const handleReplyToNote = (note, e) => {
+  console.log('Reply button clicked!', { noteId: note.id, event: e });
+  
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
+    
+    // Store the clicked button's ref
+    const buttonIndex = Object.keys(replyButtonRefs.current).find(key => 
+      replyButtonRefs.current[key] === e.currentTarget
+    );
+    
+    if (buttonIndex) {
+      setActiveReplyButtonRef(replyButtonRefs.current[buttonIndex]);
+    }
+  }
+  
+  console.log('Setting selected note and showing modal');
+  setSelectedNoteForReply(note);
+  setShowReplyModal(true);
+};
+const handleLinkedNoteClick = (note, e) => {
+  console.log('Linked note button clicked!', { 
+    noteId: note.id, 
+    linkedToNoteId: note.repliedSiteNoteId 
+  });
+  
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+  
+  if (note.repliedSiteNoteId) {
+    const originalNote = displayNotes.find(n => n.id === note.repliedSiteNoteId);
+    
+    if (originalNote) {
+      handleRowClick(originalNote);
+      
+      setTimeout(() => {
+        const originalNoteElement = document.querySelector(`[data-note-id="${originalNote.id}"]`);
+        if (originalNoteElement) {
+          originalNoteElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          
+          originalNoteElement.style.backgroundColor = '#fff3cd';
+          originalNoteElement.style.boxShadow = '0 0 0 3px #ffc107';
+          
+          setTimeout(() => {
+            if (originalNoteElement) {
+              originalNoteElement.style.backgroundColor = '';
+              originalNoteElement.style.boxShadow = '';
+            }
+          }, 2000);
+        }
+      }, 100);
+    } else {
+      alert(`Original note (ID: ${note.repliedSiteNoteId}) not found in current view.`);
+    }
+  }
+};
+const fetchLinkedNoteContent = async (noteId) => {
+  if (!noteId || linkedNoteContent[noteId]) return;
+  
+  try {
+    setLoadingLinkedNote(prev => ({ ...prev, [noteId]: true }));
+    const response = await fetch(`${apiUrl}/SiteNote/GetNoteById/${noteId}`);
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.note) {
+        setLinkedNoteContent(prev => ({
+          ...prev,
+          [noteId]: {
+            content: data.note.note || "No content",
+            userName: data.note.userName || "Unknown",
+            date: data.note.timeStamp || data.note.date,
+            workspace: data.note.workspace || '',
+            project: data.note.project || '',
+            job: data.note.job || ''
+          }
+        }));
+      }
+    }
+  } catch (error) {
+    console.error(`Error fetching linked note ${noteId}:`, error);
+  } finally {
+    setLoadingLinkedNote(prev => ({ ...prev, [noteId]: false }));
+  }
+};
+const handleLinkedNoteMouseEnter = (note, e) => {
+  if (e) {
+    const button = e.currentTarget;
+    button.style.backgroundColor = '#3498db';
+    button.style.color = 'white';
+    button.style.transition = 'all 0.2s ease';
+    
+    const rect = button.getBoundingClientRect();
+    setTooltipPosition({ x: rect.right + 10, y: rect.top });
+  }
+  
+  linkHoverTimeoutRef.current = setTimeout(() => {
+    setHoveredLinkedNote(note.id);
+    
+    if (note.repliedSiteNoteId && !linkedNoteContent[note.repliedSiteNoteId]) {
+      fetchLinkedNoteContent(note.repliedSiteNoteId);
+    }
+  }, 500);
+};
 
-  // Initialize notes on mount if parent doesn't provide them
+const handleLinkedNoteMouseLeave = (e) => {
+  if (e) {
+    const button = e.currentTarget;
+    button.style.backgroundColor = '';
+    button.style.color = '#3498db';
+  }
+  
+  if (linkHoverTimeoutRef.current) {
+    clearTimeout(linkHoverTimeoutRef.current);
+  }
+  setHoveredLinkedNote(null);
+};
+
+useEffect(() => {
+  return () => {
+    if (linkHoverTimeoutRef.current) {
+      clearTimeout(linkHoverTimeoutRef.current);
+    }
+  };
+}, []);
+const handleViewOriginalNote = (note, e) => {
+  console.log('View original button clicked!', { 
+    noteId: note.id, 
+    repliedToNoteId: note.repliedSiteNoteId 
+  });
+  
+  if (e) {
+    e.stopPropagation();
+    e.preventDefault();
+  }
+  
+  if (note.repliedSiteNoteId) {
+    const originalNote = displayNotes.find(n => n.id === note.repliedSiteNoteId);
+    
+    if (originalNote) {
+      handleRowClick(originalNote);
+      
+      setTimeout(() => {
+        const originalNoteElement = document.querySelector(`[data-note-id="${originalNote.id}"]`);
+        if (originalNoteElement) {
+          originalNoteElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          originalNoteElement.classList.add('highlight-original-note');
+          setTimeout(() => {
+            originalNoteElement.classList.remove('highlight-original-note');
+          }, 2000);
+        }
+      }, 100);
+    } else {
+      alert(`Original note (ID: ${note.repliedSiteNoteId}) not found in current view.`);
+    }
+  }
+};
+
+const fetchOriginalNoteContent = async (noteId) => {
+  if (!noteId || originalNoteContent[noteId]) return;
+  
+  try {
+    setLoadingOriginalNote(prev => ({ ...prev, [noteId]: true }));
+    const response = await fetch(`${apiUrl}/Notes/GetNoteById/${noteId}`);
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.note) {
+        setOriginalNoteContent(prev => ({
+          ...prev,
+          [noteId]: {
+            content: data.note.note || "No content",
+            userName: data.note.userName || "Unknown",
+            date: data.note.timeStamp || data.note.date
+          }
+        }));
+      }
+    }
+  } catch (error) {
+    console.error(`Error fetching original note ${noteId}:`, error);
+  } finally {
+    setLoadingOriginalNote(prev => ({ ...prev, [noteId]: false }));
+  }
+};
+
+const handleOriginalNoteMouseEnter = (note, e) => {
+  if (e) {
+    setTooltipPosition({ x: e.clientX, y: e.clientY });
+  }
+  
+  hoverTimeoutRef.current = setTimeout(() => {
+    setHoveredOriginalNote(note.id);
+    
+    if (note.repliedSiteNoteId && !originalNoteContent[note.repliedSiteNoteId]) {
+      fetchOriginalNoteContent(note.repliedSiteNoteId);
+    }
+  }, 500);
+};
+
+const handleOriginalNoteMouseLeave = () => {
+  if (hoverTimeoutRef.current) {
+    clearTimeout(hoverTimeoutRef.current);
+  }
+  setHoveredOriginalNote(null);
+};
+useEffect(() => {
+  return () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+  };
+}, []);
+
   useEffect(() => {
     if (isDataLoaded && !hasActiveFilters && !searchTerm.trim() && isInitialLoad) {
       if (!finalDisplayNotes || finalDisplayNotes.length === 0) {
@@ -254,7 +572,6 @@ const NotesTab = ({
     }
   }, [isDataLoaded, hasActiveFilters, searchTerm, isInitialLoad, loadInitialNotes, finalDisplayNotes]);
 
-  // Setup intersection observer for infinite scroll
   const setupObserver = useCallback(() => {
     if (observerRef.current) {
       observerRef.current.disconnect();
@@ -290,7 +607,6 @@ const NotesTab = ({
     observerRef.current = observer;
   }, [viewMode, hasMore, loadingMore, hasActiveFilters, searchTerm, loadMoreNotes]);
 
-  // Update observer when dependencies change
   useEffect(() => {
     setupObserver();
     
@@ -301,7 +617,6 @@ const NotesTab = ({
     };
   }, [setupObserver]);
 
-  // Re-setup observer when displayNotes changes
   useEffect(() => {
     const timer = setTimeout(() => {
       setupObserver();
@@ -310,23 +625,21 @@ const NotesTab = ({
     return () => clearTimeout(timer);
   }, [displayNotes, setupObserver]);
 
-  // Fetch user statuses when displayNotes changes
   useEffect(() => {
-    if (displayNotes && displayNotes.length > 0) {
-      const uniqueUserIds = [...new Set(displayNotes
-        .filter(note => note.userId)
-        .map(note => note.userId)
-      )];
+  if (displayNotes && displayNotes.length > 0) {
+    const uniqueUserIds = [...new Set(displayNotes
+      .filter(note => note.userId)
+      .map(note => note.userId)
+    )];
 
-      uniqueUserIds.forEach(userId => {
-        if (!userStatusMap[userId] && !loadingUsers[userId]) {
-          fetchUserStatus(userId);
-        }
-      });
-    }
-  }, [displayNotes]);
+    uniqueUserIds.forEach(userId => {
+      if (!userStatusMap[userId] && !loadingUsers[userId]) {
+        fetchUserStatus(userId);
+      }
+    });
+  }
+}, [displayNotes, fetchUserStatus, loadingUsers, userStatusMap]);
 
-  // Helper function to get user status style
   const getUserStatusStyle = (userId) => {
     if (userId && userStatusMap[userId] && !userStatusMap[userId].active) {
       return { 
@@ -350,7 +663,6 @@ const NotesTab = ({
     return null;
   };
 
-  // New function to render user name with hover tooltip for inactive users
   const renderUserNameWithStatus = (note) => {
     const isInactive = userStatusMap[note.userId] && !userStatusMap[note.userId].active;
     
@@ -383,6 +695,7 @@ const NotesTab = ({
     
     return <span>{note.userName || "Unknown"}</span>;
   };
+  
 
   const formatRelativeTime = (dateString) => {
     if (!dateString) return "Unknown date";
@@ -415,7 +728,6 @@ const NotesTab = ({
     }
   };
 
-  // Render loading skeleton for table view
   const renderTableSkeleton = () => {
     return [...Array(5)].map((_, i) => (
       <tr key={`skeleton-${i}`}>
@@ -435,7 +747,6 @@ const NotesTab = ({
     ));
   };
 
-  // Render loading skeleton for card view
   const renderCardSkeleton = () => {
     return [...Array(8)].map((_, i) => (
       <div key={`card-skeleton-${i}`} className="note-card skeleton">
@@ -453,7 +764,6 @@ const NotesTab = ({
     ));
   };
 
-  // Render empty state for table
   const renderTableEmptyState = () => {
     return (
       <tr>
@@ -550,11 +860,18 @@ const NotesTab = ({
           <div className="note-cell-container" style={{ display: "flex", alignItems: "flex-start", position: "relative", maxWidth: "100%" }}>
             <span
               style={{ flex: 1, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", display: "block", maxWidth: "100%" }}
-              dangerouslySetInnerHTML={{ __html: note.note && note.note.length > 69 ? note.note.substring(0, 69) + "..." : note.note || "" }}
+              dangerouslySetInnerHTML={{ 
+        __html: note.note && note.note.length > 69 
+          ? highlightHtmlContent(note.note.substring(0, 69) + "...", searchTerm)
+          : highlightHtmlContent(note.note || "", searchTerm)
+      }}
             />
-            {note.note && note.note.length > 69 && (
-              <div className="note-hover-popup" dangerouslySetInnerHTML={{ __html: note.note }} />
-            )}
+            <div 
+                className="note-hover-popup" 
+                dangerouslySetInnerHTML={{ 
+                  __html: highlightHtmlContent(note.note, searchTerm) 
+                }} 
+              />
             {renderPriorityDot(priorityValue, note)}
           </div>
         </td>
@@ -563,12 +880,15 @@ const NotesTab = ({
           {renderUserStatusIndicator(note.userId, note.userName)}
         </td>
         <td className="file-cell" onClick={(e) => { e.stopPropagation(); handleViewAttachments(note); }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-            <i className="fas fa-paperclip" style={{ opacity: note.documentCount > 0 ? 1 : 0.3 }} />
-            <span>({note.documentCount || 0})</span>
-            {renderTableImageIcon(note)}
-          </span>
-        </td>
+  <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+    <i className="fas fa-paperclip" style={{ opacity: note.documentCount > 0 ? 1 : 0.3 }} />
+    <span>({note.documentCount || 0})</span>
+    
+    
+      
+    {renderTableImageIcon(note)}
+  </span>
+</td>
         <td className="table-actions">
           <a
             onClick={(e) => {
@@ -725,16 +1045,17 @@ const NotesTab = ({
             </div>
           </div>
           <div className="note-context">
-            <div className="context-item job" title={note.job}>{note.job || "—"}</div>
+            <div className="context-item job" title={note.job}><HighlightText text={note.job || "—"} highlight={searchTerm}/></div>
             <div className="context-item workspace-project">
-              <span title={note.workspace}>{note.workspace || "—"}</span>/
-              <span title={note.project}>{note.project || "—"}</span>
+              <span title={note.workspace}><HighlightText text={note.workspace || "—"} highlight={searchTerm} /></span>/
+              <span title={note.project}><HighlightText text={note.project || "—"} highlight={searchTerm} /></span>
             </div>
           </div>
         </div>
         <div className="note-content">
           <div className="note-card-content-container" style={{ position: "relative" }}>
-            <div className="note-text" dangerouslySetInnerHTML={{ __html: note.note || "" }} />
+            <div className="note-text" dangerouslySetInnerHTML={{ __html: highlightHtmlContent(note.note || "", searchTerm) 
+  }} />
             {note.note && note.note.length > 150 && (
               <div className="note-card-popup" dangerouslySetInnerHTML={{ __html: note.note }} />
             )}
@@ -1274,15 +1595,15 @@ const renderCollapsedStack = (job) => {
                                 className="context-item job"
                                 title={note.job}
                               >
-                                {note.job}
+                                 <HighlightText text={note.job || "—"} highlight={searchTerm} />
                               </div>
                               <div className="context-item workspace-project">
                                 <span title={note.workspace}>
-                                  {note.workspace}
+                                  <HighlightText text={note.workspace || "—"} highlight={searchTerm} />
                                 </span>
                                 /
                                 <span title={note.project}>
-                                  {note.project}
+                                  <HighlightText text={note.project || "—"} highlight={searchTerm} />
                                 </span>
                               </div>
                             </div>
@@ -1331,7 +1652,7 @@ const renderCollapsedStack = (job) => {
                                 <span>
                                   ({note.documentCount || 0})
                                 </span>
-                              </button>
+                              </button>                          
                             </div>
                             <div className="note-actions">
                               {priorityValue > 1 ? (
