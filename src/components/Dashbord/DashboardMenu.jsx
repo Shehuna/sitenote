@@ -13,6 +13,7 @@ import UserManagement from '../Users/UserManagement';
 import JobPermissionManagement from '../JobPermission/JobPermissionManagement';
 import JobStatusManagement from '../JobStatus/JobStatusManagement';
 import WorkspaceManagement from '../Workspaces/WorkspaceManagement';
+import ProjectPermissionManagement from '../ProjectPermission/ProjectPermissionManagement';
 
 const DashboardMenu = ({
     defaultUserWorkspaceID,
@@ -356,6 +357,13 @@ const DashboardMenu = ({
           workspaceId={defaultUserWorkspaceID}
         />;
         title = 'Project Management';
+        break;
+      case 'projectPermission':
+        component = <ProjectPermissionManagement 
+          defId={defaultUserWorkspaceID}
+          userId={userid}
+        />;
+        title = 'Project Permissions';
         break;
       case 'jobManagement':
         component = <JobManagment 
@@ -721,6 +729,13 @@ const DashboardMenu = ({
                       <i className="fas fa-project-diagram dropdown-icon" />
                       <span className="dropdown-text">Project Management</span>
                     </button>
+                    <button 
+                      className="dropdown-item"
+                      onClick={() => handleSettingsMenuItemClick('projectPermission')}
+                    >
+                      <i className="fas fa-user-shield dropdown-icon" />
+                      <span className="dropdown-text">Project Permission</span>
+                    </button>
                     
                     {/* Job Management with submenu trigger for mobile */}
                     <div 
@@ -955,6 +970,13 @@ const DashboardMenu = ({
                     >
                       <i className="fas fa-project-diagram dropdown-icon" />
                       <span className="dropdown-text">Project Management</span>
+                    </button>
+                    <button 
+                      className="dropdown-item"
+                      onClick={() => handleSettingsMenuItemClick('projectPermission')}
+                    >
+                      <i className="fas fa-user-shield dropdown-icon" />
+                      <span className="dropdown-text">Project Permission</span>
                     </button>
                     
                     {/* Job Management with submenu trigger */}
