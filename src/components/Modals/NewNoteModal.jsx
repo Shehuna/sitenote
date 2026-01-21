@@ -1248,6 +1248,22 @@ const handleImageUpload = useCallback((e) => {
             throw error;
         }
     };
+    const handlePriorityClick = () => {
+    if (isReadOnly) return;
+    
+    // Cycle through priority levels: 1 → 3 → 4 → 1
+    let nextPriority;
+    if (selectedPriority === '1') {
+        nextPriority = '3'; // Medium
+    } else if (selectedPriority === '3') {
+        nextPriority = '4'; // High
+    } else {
+        nextPriority = '1'; // No priority
+    }
+    
+    setSelectedPriority(nextPriority);
+    toast.success(`Priority set to ${nextPriority === '4' ? 'High' : nextPriority === '3' ? 'Medium' : 'No Priority'}`);
+};
 
     // Search component
     const renderSearchSection = () => (
@@ -1361,6 +1377,43 @@ const handleImageUpload = useCallback((e) => {
                             style={{ display: 'none' }}
                         />
                     </label>
+                </div>
+            <div className="documents-button-wrapper" style={{ position: 'relative' }}>
+                <button 
+                    onClick={() => setActiveTab('documents')} 
+                    title={`${documents.length} document${documents.length !== 1 ? 's' : ''} attached`}
+                    className={`documents-button ${activeTab === 'documents' ? 'active' : ''} ${isReadOnly ? 'disabled' : ''}`}
+                    disabled={isReadOnly}
+                >
+                    <i className="fas fa-paperclip"></i>
+                    {documents.length > 0 && (
+                        <span className="documents-badge">
+                            {documents.length}
+                        </span>
+                    )}
+                </button>
+            </div>
+            
+                <div className="priority-flag-container">
+                    <button 
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handlePriorityClick();
+                        }}
+                        title={`${selectedPriority === '1' ? 'No Priority - Click to set' : 
+                                selectedPriority === '3' ? 'Medium Priority - Click to change' : 
+                                'High Priority - Click to change'}`}
+                        className={`priority-flag-button priority-${selectedPriority} ${selectedPriority > 1 ? 'has-priority' : ''} ${isReadOnly ? 'disabled' : ''}`}
+                        disabled={isReadOnly}
+                    >
+                        <i className="fas fa-flag"></i>
+                        
+                        {selectedPriority > 1 && (
+                            <div
+                                className={`priority-flag-dot priority-${selectedPriority}`}
+                            />
+                        )}
+                    </button>
                 </div>
                 
                 <button 
@@ -1581,26 +1634,62 @@ const handleImageUpload = useCallback((e) => {
     );
 
     const renderPriorityTab = () => (
-        <div className="journal-section">
-            <div className="form-group">
-                <label>Priority {errors.priority && <span className="error-message-inline">{errors.priority}</span>}</label>
-                <select
-                    value={selectedPriority}
-                    onChange={(e) => {
-                        setSelectedPriority(e.target.value);
-                        setErrors(prev => ({ ...prev, priority: undefined }));
-                    }}
-                    className={`priority-select ${selectedPriority ? `priority-${selectedPriority}` : ''} ${errors.priority ? 'error' : ''}`}
-                    disabled={isReadOnly}
+    <div className="journal-section">
+        <div className="form-group">
+            <label>Priority {errors.priority && <span className="error-message-inline">{errors.priority}</span>}</label>
+            
+            <div className="priority-visual-selector">
+                <div 
+                    className={`priority-option ${selectedPriority === '4' ? 'selected' : ''} priority-high`}
+                    onClick={() => !isReadOnly && setSelectedPriority('4')}
+                    title="High Priority"
+                    style={{ cursor: isReadOnly ? 'not-allowed' : 'pointer' }}
                 >
-                    <option value="">Select Priority</option>
-                    <option value="4" className="priority-option-4">High</option>
-                    <option value="3" className="priority-option-3">Medium</option>
-                    <option value="1" className="priority-option-1">No Priority</option>
-                </select>
+                    <div className="priority-dot"></div>
+                    <span>High</span>
+                </div>
+                
+                <div 
+                    className={`priority-option ${selectedPriority === '3' ? 'selected' : ''} priority-medium`}
+                    onClick={() => !isReadOnly && setSelectedPriority('3')}
+                    title="Medium Priority"
+                    style={{ cursor: isReadOnly ? 'not-allowed' : 'pointer' }}
+                >
+                    <div className="priority-dot"></div>
+                    <span>Medium</span>
+                </div>
+                
+                <div 
+                    className={`priority-option ${selectedPriority === '1' ? 'selected' : ''} priority-none`}
+                    onClick={() => !isReadOnly && setSelectedPriority('1')}
+                    title="No Priority"
+                    style={{ cursor: isReadOnly ? 'not-allowed' : 'pointer' }}
+                >
+                    <div className="priority-dot"></div>
+                    <span>No Priority</span>
+                </div>
+            </div>
+            
+            <div className="priority-description">
+                {selectedPriority === '4' && (
+                    <span style={{ color: '#dc3545' }}>
+                        <i className="fas fa-exclamation-circle"></i> High priority - Needs immediate attention
+                    </span>
+                )}
+                {selectedPriority === '3' && (
+                    <span style={{ color: '#ffc107' }}>
+                        <i className="fas fa-exclamation-triangle"></i> Medium priority - Important but not urgent
+                    </span>
+                )}
+                {selectedPriority === '1' && (
+                    <span style={{ color: '#6c757d' }}>
+                        <i className="fas fa-info-circle"></i> No priority - Standard note
+                    </span>
+                )}
             </div>
         </div>
-    );
+    </div>
+);
 
     const renderTabContent = () => {
         switch (activeTab) {
@@ -1657,20 +1746,8 @@ const handleImageUpload = useCallback((e) => {
                     >
                         Journal
                     </button>
-                    <button 
-                        className={`tab-button ${activeTab === 'documents' ? 'active' : ''} ${isReadOnly ? 'read-only-tab' : ''}`} 
-                        onClick={() => setActiveTab('documents')}
-                        disabled={isReadOnly}
-                    >
-                        Documents ({documents.length})
-                    </button>
-                    <button 
-                        className={`tab-button ${activeTab === 'priority' ? 'active' : ''} ${isReadOnly ? 'read-only-tab' : ''}`} 
-                        onClick={() => setActiveTab('priority')}
-                        disabled={isReadOnly}
-                    >
-                        Priority
-                    </button>
+                    
+                    
                 </div>
 
                 <div className="tab-content">

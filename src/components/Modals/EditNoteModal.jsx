@@ -1255,6 +1255,19 @@ const EditNoteModal = ({
       setIsSubmitting(false);
     }, 1000);
   };
+  const handlePriorityClick = () => {
+    let nextPriority;
+    if (selectedPriority === '1') {
+        nextPriority = '3'; 
+    } else if (selectedPriority === '3') {
+        nextPriority = '4'; 
+    } else {
+        nextPriority = '1'; 
+    }
+    
+    setSelectedPriority(nextPriority);
+    toast.success(`Priority set to ${nextPriority === '4' ? 'High' : nextPriority === '3' ? 'Medium' : 'No Priority'}`);
+};
 
   // Editor toolbar component with disabled clear button
   const renderEditorToolbar = () => (
@@ -1314,6 +1327,42 @@ const EditNoteModal = ({
             />
           </label>
         </div>
+         <div className="documents-button-wrapper" style={{ position: 'relative' }}>
+                <button 
+                    onClick={() => setActiveTab('documents')} 
+                    title={`${documents.length} document${documents.length !== 1 ? 's' : ''} attached`}
+                    className={`documents-button ${activeTab === 'documents' ? 'active' : ''} ''}`}
+                    
+                >
+                    <i className="fas fa-paperclip"></i>
+                    {documents.length > 0 && (
+                        <span className="documents-badge">
+                            {documents.length}
+                        </span>
+                    )}
+                </button>
+            </div>
+            
+            <div className="priority-flag-container">
+                <button 
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        handlePriorityClick();
+                    }}
+                    title={`${selectedPriority === '1' ? 'No Priority - Click to set' : 
+                            selectedPriority === '3' ? 'Medium Priority - Click to change' : 
+                            'High Priority - Click to change'}`}
+                    className={`priority-flag-button priority-${selectedPriority} ${selectedPriority > 1 ? 'has-priority' : ''}`}
+                >
+                    <i className="fas fa-flag"></i>
+                    
+                    {selectedPriority > 1 && (
+                        <div
+                            className={`priority-flag-dot priority-${selectedPriority}`}
+                        />
+                    )}
+                </button>
+            </div>
         
         <button 
           onClick={clearEditor} 
@@ -1507,18 +1556,7 @@ const EditNoteModal = ({
           >
             Journal
           </button>
-          <button
-            className={`tab-button ${activeTab === "documents" ? "active" : ""}`}
-            onClick={() => setActiveTab("documents")}
-          >
-            Documents {documents.length > 0 && `(${documents.length})`}
-          </button>
-          <button
-            className={`tab-button ${activeTab === "priority" ? "active" : ""}`}
-            onClick={() => setActiveTab("priority")}
-          >
-            Priority {priorityId && "✓"}
-          </button>
+          
         </div>
 
         <div className="tab-content">
