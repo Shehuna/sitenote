@@ -1,5 +1,14 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
+
+// Move these helper functions outside the component
+const getJobDisplayName = (job) => {
+    return job.name || job.text || job.jobName || `Job ${job.id}`;
+};
+
+const getJobId = (job) => {
+    return job.id || job.jobId;
+};
 
 const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
     const [selectedUsers, setSelectedUsers] = useState([]); 
@@ -9,6 +18,17 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
     const [showDropdown, setShowDropdown] = useState(false);
     const [jobs, setJobs] = useState([]);
     const [loadingJobs, setLoadingJobs] = useState(false);
+    
+    // New states for searchable dropdowns
+    const [projectSearch, setProjectSearch] = useState('');
+    const [jobSearch, setJobSearch] = useState('');
+    const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+    const [showJobDropdown, setShowJobDropdown] = useState(false);
+    
+    // Refs for click outside detection
+    const projectRef = useRef(null);
+    const jobRef = useRef(null);
+    const userSearchRef = useRef(null);
 
     const user = JSON.parse(localStorage.getItem('user'));
     const API_URL = process.env.REACT_APP_API_BASE_URL;
@@ -19,6 +39,7 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
             if (!selectedProject) {
                 setJobs([]);
                 setSelectedJob('');
+                setJobSearch('');
                 return;
             }
 
@@ -80,14 +101,58 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
         fetchJobs();
     }, [selectedProject, user?.id, API_URL]);
 
+    // Filtered projects based on search
+    const filteredProjects = useMemo(() => {
+        if (!projectSearch.trim()) return projects;
+        return projects.filter(project => 
+            project.name.toLowerCase().includes(projectSearch.toLowerCase()) ||
+            (project.id && project.id.toString().toLowerCase().includes(projectSearch.toLowerCase()))
+        );
+    }, [projects, projectSearch]);
+
+    // Filtered jobs based on search
+    const filteredJobs = useMemo(() => {
+        if (!jobSearch.trim()) return jobs.filter(job => job.status == 1 || job.status === undefined);
+        return jobs.filter(job => {
+            if (!(job.status == 1 || job.status === undefined)) return false;
+            
+            const jobName = getJobDisplayName(job).toLowerCase();
+            const jobId = getJobId(job).toString().toLowerCase();
+            const search = jobSearch.toLowerCase();
+            
+            return jobName.includes(search) || jobId.includes(search);
+        });
+    }, [jobs, jobSearch]);
+
+    // Filter users for user search
     const searchResults = useMemo(() => {
         if (!searchTerm.trim()) return [];
         
         return filteredUsers.filter(user => 
             user.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
             user.email?.toLowerCase().includes(searchTerm.toLowerCase())
-        ).filter(user => !selectedUsers.some(selected => selected.userId === user.userId)); // FIXED: Changed selected.id to selected.userId
+        ).filter(user => !selectedUsers.some(selected => selected.userId === user.userId));
     }, [searchTerm, filteredUsers, selectedUsers]);
+
+    // Handle click outside for dropdowns
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (projectRef.current && !projectRef.current.contains(event.target)) {
+                setShowProjectDropdown(false);
+            }
+            if (jobRef.current && !jobRef.current.contains(event.target)) {
+                setShowJobDropdown(false);
+            }
+            if (userSearchRef.current && !userSearchRef.current.contains(event.target)) {
+                setShowDropdown(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
 
     const handleGrantPermission = async () => {
         if (selectedUsers.length === 0) {
@@ -212,7 +277,7 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
             for (const selectedUser of selectedUsers) {
                 try {
                     const userJobsResponse = await fetch(
-                        `${API_URL}/api/UserJobAuth/GetUserJobsByUserId/${selectedUser.userId}`, // FIXED: Changed selectedUser.id to selectedUser.userId
+                        `${API_URL}/api/UserJobAuth/GetUserJobsByUserId/${selectedUser.userId}`,
                         {
                             method: 'GET',
                             headers: { 'Content-Type': 'application/json' }
@@ -275,10 +340,14 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
         setSearchTerm('');
         setShowDropdown(false);
         setJobs([]);
+        setProjectSearch('');
+        setJobSearch('');
+        setShowProjectDropdown(false);
+        setShowJobDropdown(false);
     };
 
     const handleSelectUser = (user) => {
-        if (!selectedUsers.some(selected => selected.userId === user.userId)) { // FIXED: Changed selected.id to selected.userId
+        if (!selectedUsers.some(selected => selected.userId === user.userId)) {
             setSelectedUsers(prev => [...prev, user]);
         }
         setSearchTerm('');
@@ -286,7 +355,7 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
     };
 
     const handleRemoveUser = (userId) => {
-        setSelectedUsers(prev => prev.filter(user => user.userId !== userId)); // FIXED: Changed user.id to user.userId
+        setSelectedUsers(prev => prev.filter(user => user.userId !== userId));
     };
 
     const handleSearchChange = (e) => {
@@ -299,33 +368,86 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
         if (e.key === 'Enter' && searchTerm.trim() && searchResults.length > 0) {
             handleSelectUser(searchResults[0]);
         } else if (e.key === 'Backspace' && searchTerm === '' && selectedUsers.length > 0) {
-            handleRemoveUser(selectedUsers[selectedUsers.length - 1].userId); // FIXED: Changed .id to .userId
+            handleRemoveUser(selectedUsers[selectedUsers.length - 1].userId);
         }
     };
 
-    const handleProjectChange = (e) => {
-        const projectId = e.target.value;
-        setSelectedProject(projectId);
-        setSelectedJob(''); // Reset job when project changes
+    const handleProjectSelect = (project) => {
+        setSelectedProject(project.id);
+        setSelectedJob('');
+        setJobSearch('');
+        setShowProjectDropdown(false);
+        setProjectSearch(project.name);
     };
 
-    // Safe job display name function
-    const getJobDisplayName = (job) => {
-        return job.name || job.text || job.jobName || `Job ${job.id}`;
+    const handleJobSelect = (job) => {
+        setSelectedJob(getJobId(job));
+        setShowJobDropdown(false);
+        setJobSearch(getJobDisplayName(job));
     };
 
-    // Safe job ID function
-    const getJobId = (job) => {
-        return job.id || job.jobId;
+    const handleProjectSearchChange = (e) => {
+        setProjectSearch(e.target.value);
+        setShowProjectDropdown(true);
+        if (!e.target.value) {
+            setSelectedProject('');
+            setSelectedJob('');
+            setJobSearch('');
+        }
+    };
+
+    const handleJobSearchChange = (e) => {
+        setJobSearch(e.target.value);
+        setShowJobDropdown(true);
+        if (!e.target.value) {
+            setSelectedJob('');
+        }
+    };
+
+    const handleProjectFocus = () => {
+        setShowProjectDropdown(true);
+    };
+
+    const handleJobFocus = () => {
+        if (selectedProject) {
+            setShowJobDropdown(true);
+        }
+    };
+
+    // Get selected project name for display
+    const getSelectedProjectName = () => {
+        if (!selectedProject) return '';
+        const project = projects.find(p => p.id === selectedProject);
+        return project ? project.name : '';
+    };
+
+    // Get selected job name for display
+    const getSelectedJobName = () => {
+        if (!selectedJob) return '';
+        const job = jobs.find(j => getJobId(j) == selectedJob);
+        return job ? getJobDisplayName(job) : '';
     };
 
     return (
-        <div className="tab-content" style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '400px' }}>
-            <div className="settings-form" style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div className="tab-content" style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            height: '100%', 
+            maxHeight: '400px',
+            overflow: 'visible' // Changed from hidden
+        }}>
+            <div className="settings-form" style={{ 
+                flex: 1, 
+                overflow: 'visible', // Changed from hidden
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: '12px',
+                position: 'relative' // Added for dropdown positioning
+            }}>
                 {/* User Selection - Compact */}
                 <div className="form-group" style={{ marginBottom: '0' }}>
-                    <label style={{ fontSize: '12px', marginBottom: '4px', fontWeight: '500' }}>Select Users:</label>
-                    <div className="user-selection-container">
+                    <label style={{ fontSize: '14px', marginBottom: '6px', fontWeight: '500' }}>Select Users:</label>
+                    <div className="user-selection-container" ref={userSearchRef}>
                         <div className="search-input-container" style={{ position: 'relative' }}>
                             <input
                                 type="text"
@@ -336,11 +458,11 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
                                 onFocus={() => setShowDropdown(searchTerm.length > 0)}
                                 style={{
                                     width: '100%',
-                                    padding: '6px 8px',
-                                    fontSize: '12px',
+                                    padding: '8px 10px',
+                                    fontSize: '14px',
                                     border: '1px solid #ddd',
                                     borderRadius: '4px',
-                                    height: '32px'
+                                    height: '36px'
                                 }}
                             />
                             
@@ -353,27 +475,30 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
                                     background: 'white',
                                     border: '1px solid #ddd',
                                     borderRadius: '4px',
-                                    maxHeight: '120px',
+                                    maxHeight: '150px',
                                     overflowY: 'auto',
-                                    zIndex: 10,
-                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                    zIndex: 100, // Increased z-index
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
                                     marginTop: '2px'
                                 }}>
                                     {searchResults.map(user => (
                                         <div
-                                            key={user.userId} // FIXED: Changed user.id to user.userId
+                                            key={user.userId}
                                             style={{
-                                                padding: '6px 8px',
+                                                padding: '8px 10px',
                                                 cursor: 'pointer',
                                                 borderBottom: '1px solid #f5f5f5',
-                                                fontSize: '11px'
+                                                fontSize: '13px',
+                                                transition: 'background-color 0.2s'
                                             }}
                                             onClick={() => handleSelectUser(user)}
+                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f0f7ff'}
+                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
                                         >
                                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                                                 <span style={{ fontWeight: '500' }}>{user.userName}</span>
                                                 {user.email && (
-                                                    <span style={{ fontSize: '10px', color: '#666' }}>{user.email}</span>
+                                                    <span style={{ fontSize: '12px', color: '#666' }}>{user.email}</span>
                                                 )}
                                             </div>
                                         </div>
@@ -385,44 +510,48 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
                         <div style={{
                             display: 'flex',
                             flexWrap: 'wrap',
-                            gap: '4px',
-                            marginBottom: '4px',
-                            minHeight: '28px',
-                            maxHeight: '56px',
+                            gap: '6px',
+                            marginBottom: '6px',
+                            minHeight: '32px',
+                            maxHeight: '80px',
                             overflowY: 'auto',
-                            padding: '2px'
+                            padding: '4px',
+                            marginTop: '6px'
                         }}>
                             {selectedUsers.map(user => (
-                                <div key={user.userId} style={{ // FIXED: Changed user.id to user.userId
+                                <div key={user.userId} style={{
                                     display: 'flex',
                                     alignItems: 'center',
                                     backgroundColor: '#e3f2fd',
                                     border: '1px solid #bbdefb',
-                                    borderRadius: '12px',
-                                    padding: '2px 6px',
-                                    fontSize: '11px'
+                                    borderRadius: '16px',
+                                    padding: '4px 8px',
+                                    fontSize: '13px'
                                 }}>
-                                    <span style={{ color: '#1976d2', marginRight: '4px' }}>
+                                    <span style={{ color: '#1976d2', marginRight: '6px' }}>
                                         {user.userName}
                                     </span>
                                     <button
                                         type="button"
-                                        onClick={() => handleRemoveUser(user.userId)} // FIXED: Changed user.id to user.userId
+                                        onClick={() => handleRemoveUser(user.userId)}
                                         style={{
                                             background: 'none',
                                             border: 'none',
                                             color: '#1976d2',
                                             cursor: 'pointer',
-                                            fontSize: '12px',
+                                            fontSize: '14px',
                                             fontWeight: 'bold',
                                             padding: '0',
-                                            width: '12px',
-                                            height: '12px',
+                                            width: '14px',
+                                            height: '14px',
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            borderRadius: '50%'
+                                            borderRadius: '50%',
+                                            transition: 'background-color 0.2s'
                                         }}
+                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(25, 118, 210, 0.1)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                                     >
                                         ×
                                     </button>
@@ -430,7 +559,7 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
                             ))}
                         </div>
 
-                        <div style={{ fontSize: '11px', color: '#666' }}>
+                        <div style={{ fontSize: '13px', color: '#666', marginTop: '4px' }}>
                             {selectedUsers.length === 0 ? (
                                 <span>No users selected</span>
                             ) : (
@@ -442,60 +571,183 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
                     </div>
                 </div>
 
-                {/* Project Selection - Compact */}
-                <div className="form-group" style={{ marginBottom: '0' }}>
-                    <label style={{ fontSize: '12px', marginBottom: '4px', fontWeight: '500' }}>Project:</label>
-                    <select
-                        value={selectedProject}
-                        onChange={handleProjectChange}
-                        style={{
-                            width: '100%',
-                            padding: '6px 8px',
-                            fontSize: '12px',
-                            border: '1px solid #ddd',
-                            borderRadius: '4px',
-                            height: '32px'
-                        }}
-                    >
-                        <option value="">Select Project</option>
-                        {projects.map(project => (
-                            <option key={project.id} value={project.id}>{project.name}</option>
-                        ))}
-                    </select>
+                {/* Project Selection - Searchable Dropdown */}
+                <div className="form-group" style={{ marginBottom: '0' }} ref={projectRef}>
+                    <label style={{ fontSize: '14px', marginBottom: '6px', fontWeight: '500' }}>Project:</label>
+                    <div style={{ position: 'relative' }}>
+                        <input
+                            type="text"
+                            placeholder="Search and select project..."
+                            value={projectSearch}
+                            onChange={handleProjectSearchChange}
+                            onFocus={handleProjectFocus}
+                            style={{
+                                width: '100%',
+                                padding: '8px 10px',
+                                fontSize: '14px',
+                                border: '1px solid #ddd',
+                                borderRadius: '4px',
+                                height: '36px',
+                                cursor: 'pointer',
+                                backgroundColor: 'white'
+                            }}
+                        />
+                        
+                        {showProjectDropdown && (
+                            <div style={{
+                                position: 'absolute',
+                                top: '100%',
+                                left: 0,
+                                right: 0,
+                                background: 'white',
+                                border: '1px solid #ddd',
+                                borderRadius: '4px',
+                                maxHeight: '200px',
+                                overflowY: 'auto',
+                                zIndex: 101, // Increased z-index
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                                marginTop: '2px'
+                            }}>
+                                {filteredProjects.length > 0 ? (
+                                    filteredProjects.map(project => (
+                                        <div
+                                            key={project.id}
+                                            style={{
+                                                padding: '10px 12px',
+                                                cursor: 'pointer',
+                                                borderBottom: '1px solid #f5f5f5',
+                                                fontSize: '14px',
+                                                transition: 'background-color 0.2s',
+                                                backgroundColor: selectedProject === project.id ? '#e3f2fd' : 'white'
+                                            }}
+                                            onClick={() => handleProjectSelect(project)}
+                                            onMouseEnter={(e) => {
+                                                if (selectedProject !== project.id) {
+                                                    e.currentTarget.style.backgroundColor = '#f0f7ff';
+                                                }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                if (selectedProject !== project.id) {
+                                                    e.currentTarget.style.backgroundColor = 'white';
+                                                }
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <span style={{ fontWeight: '500' }}>{project.name}</span>
+                                                
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div style={{
+                                        padding: '10px 12px',
+                                        fontSize: '14px',
+                                        color: '#666',
+                                        textAlign: 'center'
+                                    }}>
+                                        No projects found
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
-                {/* Job Selection - Compact */}
-                <div className="form-group" style={{ marginBottom: '0' }}>
-                    <label style={{ fontSize: '12px', marginBottom: '4px', fontWeight: '500' }}>Job:</label>
-                    <select
-                        value={selectedJob}
-                        onChange={(e) => setSelectedJob(e.target.value)}
-                        disabled={!selectedProject || loadingJobs}
-                        style={{
-                            width: '100%',
-                            padding: '6px 8px',
-                            fontSize: '12px',
-                            border: '1px solid #ddd',
-                            borderRadius: '4px',
-                            height: '32px'
-                        }}
-                    >
-                        <option value="">Select Job</option>
-                        {loadingJobs ? (
-                            <option value="" disabled>Loading jobs...</option>
-                        ) : (
-                            jobs
-                                .filter(job => job.status == 1 || job.status === undefined)
-                                .map(job => (
-                                    <option key={getJobId(job)} value={getJobId(job)}>
-                                        {getJobDisplayName(job)}
-                                    </option>
-                                ))
+                {/* Job Selection - Searchable Dropdown */}
+                <div className="form-group" style={{ marginBottom: '0' }} ref={jobRef}>
+                    <label style={{ fontSize: '14px', marginBottom: '6px', fontWeight: '500' }}>Job:</label>
+                    <div style={{ position: 'relative' }}>
+                        <input
+                            type="text"
+                            placeholder={selectedProject ? "Search and select job..." : "Select a project first"}
+                            value={jobSearch}
+                            onChange={handleJobSearchChange}
+                            onFocus={handleJobFocus}
+                            disabled={!selectedProject || loadingJobs}
+                            style={{
+                                width: '100%',
+                                padding: '8px 10px',
+                                fontSize: '14px',
+                                border: '1px solid #ddd',
+                                borderRadius: '4px',
+                                height: '36px',
+                                cursor: selectedProject ? 'pointer' : 'not-allowed',
+                                backgroundColor: selectedProject ? 'white' : '#f5f5f5',
+                                color: selectedProject ? '#333' : '#999'
+                            }}
+                        />
+                        
+                        {showJobDropdown && selectedProject && !loadingJobs && (
+                            <div style={{
+                                position: 'absolute',
+                                top: '100%',
+                                left: 0,
+                                right: 0,
+                                background: 'white',
+                                border: '1px solid #ddd',
+                                borderRadius: '4px',
+                                maxHeight: '200px',
+                                overflowY: 'auto',
+                                zIndex: 101, // Increased z-index
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                                marginTop: '2px'
+                            }}>
+                                {filteredJobs.length > 0 ? (
+                                    filteredJobs.map(job => (
+                                        <div
+                                            key={getJobId(job)}
+                                            style={{
+                                                padding: '10px 12px',
+                                                cursor: 'pointer',
+                                                borderBottom: '1px solid #f5f5f5',
+                                                fontSize: '14px',
+                                                transition: 'background-color 0.2s',
+                                                backgroundColor: selectedJob == getJobId(job) ? '#e3f2fd' : 'white'
+                                            }}
+                                            onClick={() => handleJobSelect(job)}
+                                            onMouseEnter={(e) => {
+                                                if (selectedJob != getJobId(job)) {
+                                                    e.currentTarget.style.backgroundColor = '#f0f7ff';
+                                                }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                if (selectedJob != getJobId(job)) {
+                                                    e.currentTarget.style.backgroundColor = 'white';
+                                                }
+                                            }}
+                                        >
+                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <span style={{ fontWeight: '500' }}>{getJobDisplayName(job)}</span>
+                                                
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div style={{
+                                        padding: '10px 12px',
+                                        fontSize: '14px',
+                                        color: '#666',
+                                        textAlign: 'center'
+                                    }}>
+                                        {jobSearch ? 'No jobs found' : 'No jobs available'}
+                                    </div>
+                                )}
+                            </div>
                         )}
-                    </select>
-                    {loadingJobs && (
-                        <div style={{ fontSize: '11px', marginTop: '2px' }}>Loading jobs...</div>
-                    )}
+                        
+                        {loadingJobs && (
+                            <div style={{
+                                position: 'absolute',
+                                top: '50%',
+                                right: '10px',
+                                transform: 'translateY(-50%)',
+                                fontSize: '12px',
+                                color: '#666'
+                            }}>
+                                Loading...
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -513,16 +765,27 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
                     disabled={selectedUsers.length === 0 || !selectedProject || !selectedJob || loading || loadingJobs}
                     style={{
                         flex: 1,
-                        padding: '8px 12px',
+                        padding: '10px 12px',
                         backgroundColor: selectedUsers.length > 0 && selectedProject && selectedJob ? '#1976d2' : '#6c757d',
                         color: 'white',
                         border: 'none',
                         borderRadius: '4px',
                         cursor: (selectedUsers.length > 0 && selectedProject && selectedJob && !loading) ? 'pointer' : 'not-allowed',
-                        fontSize: '12px',
+                        fontSize: '14px',
                         fontWeight: '500',
-                        height: '32px',
-                        margin: '12px'
+                        height: '40px',
+                        margin: '12px',
+                        transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                        if (selectedUsers.length > 0 && selectedProject && selectedJob && !loading) {
+                            e.currentTarget.style.backgroundColor = '#1565c0';
+                        }
+                    }}
+                    onMouseLeave={(e) => {
+                        if (selectedUsers.length > 0 && selectedProject && selectedJob && !loading) {
+                            e.currentTarget.style.backgroundColor = '#1976d2';
+                        }
                     }}
                 >
                     {loading ? 'Granting...' : `Grant (${selectedUsers.length})`}
@@ -532,16 +795,27 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
                     disabled={selectedUsers.length === 0 || !selectedProject || !selectedJob || loading || loadingJobs}
                     style={{
                         flex: 1,
-                        padding: '8px 12px',
+                        padding: '10px 12px',
                         backgroundColor: selectedUsers.length > 0 && selectedProject && selectedJob ? '#dc3545' : '#6c757d',
                         color: 'white',
                         border: 'none',
                         borderRadius: '4px',
                         cursor: (selectedUsers.length > 0 && selectedProject && selectedJob && !loading) ? 'pointer' : 'not-allowed',
-                        fontSize: '12px',
+                        fontSize: '14px',
                         fontWeight: '500',
-                        height: '32px',
-                         margin: '12px'
+                        height: '40px',
+                        margin: '12px',
+                        transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                        if (selectedUsers.length > 0 && selectedProject && selectedJob && !loading) {
+                            e.currentTarget.style.backgroundColor = '#c82333';
+                        }
+                    }}
+                    onMouseLeave={(e) => {
+                        if (selectedUsers.length > 0 && selectedProject && selectedJob && !loading) {
+                            e.currentTarget.style.backgroundColor = '#dc3545';
+                        }
                     }}
                 >
                     {loading ? 'Denying...' : `Deny (${selectedUsers.length})`}
@@ -552,4 +826,3 @@ const GrantDenyJobs = ({ filteredUsers, projects, loading, setLoading }) => {
 };
 
 export default GrantDenyJobs;
-

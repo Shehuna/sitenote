@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import Modal from '../Modals/Modal';
 import toast from 'react-hot-toast';
 import '../Modals/SettingsModal.css'
@@ -18,11 +18,14 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
      const [loading, setLoading] = useState(true);
      const [error, setError] = useState(null);
      const [previousProjectName, setPreviousProjectName] = useState('');
+     const [searchQuery, setSearchQuery] = useState('');
+     const [workspaces, setWorkspaces] = useState([]); // Store all workspaces for reference
 
      const API_URL = process.env.REACT_APP_API_BASE_URL
 
       useEffect(() => {
             fetchWorkspacesById();
+            fetchWorkspaces(); // Fetch all workspaces
             fetchProjects();
             const user = JSON.parse(localStorage.getItem('user'));
             setUser(user.id)
@@ -36,17 +39,34 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
         });
         
         if (!response.ok) {
-            throw new Error('Error fetching users data!');
+            throw new Error('Error fetching workspace data!');
         }
         
         const data = await response.json();
         setWorkspaceName(data.workspace.name)
-        //setWorkspaces(data.workspaces || []);
         } catch (err) {
         setError(err.message);
-        console.error('Error fetching Workspaces:', err);
+        console.error('Error fetching Workspace by ID:', err);
         } finally {
         setLoading(false);
+        }
+    };
+
+    const fetchWorkspaces = async () => {
+        try {
+            const response = await fetch(`${API_URL}/api/Workspace/GetWorkspaces`, {
+                method: 'GET'
+            });
+            
+            if (!response.ok) {
+                throw new Error('Error fetching workspaces data!');
+            }
+            
+            const data = await response.json();
+            setWorkspaces(data.workspaces || []);
+        } catch (err) {
+            setError(err.message);
+            console.error('Error fetching workspaces:', err);
         }
     };
     
@@ -63,7 +83,7 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
             setNewProjectStatus(1);
             setNewProjectDescription('');
         }
-    }, [isEditProjectOpen, selectedProject, projects]);
+    }, [isEditProjectOpen, selectedProject, filteredProjects]);
 
     const fetchProjects = async () => {
         setLoading(true);
@@ -75,42 +95,55 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
         if (response.ok) {
             const data = await response.json();
             const result = data.projects
-            console.log(result)
             const filterResults = result.filter((res)=>{
                 return res.workspaceId == workspaceId 
             })
-            setFilteredProjects(filterResults|| []);
-            
+            setProjects(result || []);
+            setFilteredProjects(filterResults || []);
         }
         else{
-            throw new Error('Error fetching users data!');
+            throw new Error('Error fetching projects data!');
         }
-        /* if(response.data.success){
-          console.log(response.data.appeals)
-          const data = response.data.appeals
-          const searchResult = await data.filter((dat)=>{
-             return dat.teamLeaderComment !== '' && dat.appealStatus === 'returned'
-          })
-          setFilteredAppeals(searchResult)
-          setTeamLeaderComment(true)
-        } */
-        
-        
         } catch (err) {
         setError(err.message);
-        console.error('Error fetching Workspaces:', err);
+        console.error('Error fetching projects:', err);
         } finally {
         setLoading(false);
         }
     };
+
+    // Get workspace name by ID
+    const getWorkspaceNameById = (workspaceId) => {
+        const workspace = workspaces.find(w => w.id === parseInt(workspaceId));
+        return workspace ? workspace.name : `Workspace ${workspaceId}`;
+    };
+
+    // Filter projects based on search query
+    const searchedProjects = useMemo(() => {
+        if (!searchQuery.trim()) {
+            return filteredProjects;
+        }
+        
+        const query = searchQuery.toLowerCase().trim();
+        return filteredProjects.filter(project => {
+            const projectName = project.name?.toLowerCase() || '';
+            const projectDescription = project.description?.toLowerCase() || '';
+            const workspaceName = getWorkspaceNameById(project.workspaceId).toLowerCase();
+            
+            return projectName.includes(query) || 
+                   projectDescription.includes(query) ||
+                   workspaceName.includes(query);
+        });
+    }, [filteredProjects, searchQuery, workspaces]);
+
     useEffect(() => {
-    if (newProjectName && (!newProjectDescription || newProjectDescription === previousProjectName)) {
-        setNewProjectDescription(newProjectName);
-    }
+        if (newProjectName && (!newProjectDescription || newProjectDescription === previousProjectName)) {
+            setNewProjectDescription(newProjectName);
+        }
     }, [newProjectName]);
 
     useEffect(() => {
-    setPreviousProjectName(newProjectName);
+        setPreviousProjectName(newProjectName);
     }, [newProjectName]);
 
      const handleAddProject = async () => {
@@ -123,8 +156,7 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
                 },
                 body: JSON.stringify({ 
                     name: newProjectName, 
-                    //description: newProjectDescription,
-                    description:finalDescription, 
+                    description: finalDescription, 
                     workspaceId: workspaceId,
                     userId: user
                 })
@@ -145,34 +177,39 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
     };
 
     const handleEditProject = async () => {
-    try {
-        const finalDescription = newProjectDescription.trim() || newProjectName;
-        const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Project/UpdateProject/${selectedProject}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                id: selectedProject,
-                name: newProjectName,
-                //description: newProjectDescription,
-                description:finalDescription,
-                status: newProjectStatus
-            })
-        });
+        try {
+            const finalDescription = newProjectDescription.trim() || newProjectName;
+            const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Project/UpdateProject/${selectedProject}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    id: selectedProject,
+                    name: newProjectName,
+                    description: finalDescription,
+                    status: newProjectStatus
+                })
+            });
 
-        if (!response.ok) throw new Error('Failed to update project');
-        toast.success("Project Updated Successfully")
-        fetchProjects();
-        setNewProjectName('');
-        setNewProjectStatus(1);
-        setNewProjectDescription('');
-        setIsEditProjectOpen(false);
-        } catch (err) {
-            setError(err.message);
-            console.error('Error updating project:', err);
-        }
+            if (!response.ok) throw new Error('Failed to update project');
+            toast.success("Project Updated Successfully")
+            fetchProjects();
+            setNewProjectName('');
+            setNewProjectStatus(1);
+            setNewProjectDescription('');
+            setIsEditProjectOpen(false);
+            } catch (err) {
+                setError(err.message);
+                console.error('Error updating project:', err);
+            }
     };
+
+    // Clear search query
+    const handleClearSearch = () => {
+        setSearchQuery('');
+    };
+
   return (
     <div className="settings-content">
         <div className="settings-action-buttons">
@@ -182,13 +219,37 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
             <button className="btn-secondary" onClick={() => setIsEditProjectOpen(true)} disabled={!selectedProject}>
                 Edit Project
             </button>
-            {/* <button className="btn-danger" onClick={handleDeleteProject} disabled={!selectedProject}>
-                Delete Project
-            </button> */}
         </div>
 
         <div className="settings-lookup-list">
-            <h4>Project Lookups</h4>
+            
+            <div className="project-search-container">
+                <div className="search-input-wrapper">
+                    
+                    <input
+                        type="text"
+                        placeholder="Search projects..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="project-search-input"
+                    />
+                    {searchQuery && (
+                        <button 
+                            className="clear-search-btn" 
+                            onClick={handleClearSearch}
+                            title="Clear search"
+                        >
+                            <i className="fas fa-times"></i>
+                        </button>
+                    )}
+                </div>
+                {searchQuery && (
+                    <div className="search-results-info">
+                        Found {searchedProjects.length} project(s)
+                    </div>
+                )}
+            </div>
+
             <select
                 size="5"
                 className="lookup-select"
@@ -196,135 +257,134 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
                 onChange={(e) => setSelectedProject(e.target.value)}
             >
                <option value="">Select a Project</option>
-                {filteredProjects
-                .filter(project => project.status !== 3)
-                .map(project => (
-                    <option
-                    key={project.id}
-                    value={project.id}
-                    className={project.status !== 1 ? 'inactive-project' : ''}
-                    >
-                    {project.name} {project.status !== 1 ? '(Inactive)' : ''}
+                {searchedProjects.length > 0 ? (
+                    searchedProjects
+                    .filter(project => project.status !== 3)
+                    .map(project => (
+                        <option
+                        key={project.id}
+                        value={project.id}
+                        className={project.status !== 1 ? 'inactive-project' : ''}
+                        >
+                        {workspaceName} → {project.name} {project.status !== 1 ? '(Inactive)' : ''}
+                        </option>
+                    ))
+                ) : (
+                    <option value="" disabled>
+                        {searchQuery ? 'No projects found' : 'No projects available'}
                     </option>
-                ))}
+                )}
             </select>
         </div>
+
         <Modal
-                        isOpen={isAddProjectOpen}
-                        onClose={() => {
+            isOpen={isAddProjectOpen}
+            onClose={() => {
+                setNewProjectName('');
+                setNewProjectDescription('');
+                setSelectedWorkspace('');
+                setIsAddProjectOpen(false);
+            }}
+            title="Add Project"
+        >
+            <div className="settings-form">
+                <div className="form-group">
+                    <h4>Workspace: {workspaceName}</h4>
+                </div>
+                <div className="form-group">
+                    <label>Project Name:</label>
+                    <input
+                        type="text"
+                        value={newProjectName}
+                        onChange={(e) => setNewProjectName(e.target.value)}
+                        placeholder="Enter project name"
+                    />
+                </div>
+                <div className="form-group">
+                    <label>Project Description:</label>
+                    <textarea
+                        value={newProjectDescription}
+                        onChange={(e) => setNewProjectDescription(e.target.value)}
+                        placeholder="Enter project description"
+                    />
+                </div>
+                <div className="modal-footer">
+                    <button
+                        className="btn-primary"
+                        onClick={handleAddProject}
+                        disabled={!newProjectName }
+                    >
+                        OK
+                    </button>
+                    <button
+                        className="btn-close"
+                        onClick={() => {
                             setNewProjectName('');
                             setNewProjectDescription('');
                             setSelectedWorkspace('');
                             setIsAddProjectOpen(false);
                         }}
-                        title="Add Project"
                     >
-                        <div className="settings-form">
-                            <div className="form-group">
-                                
-                                <h4>Workspace: {workspaceName}</h4>
-                                {/* <select
-                                    value={workspaceId}
-                                    //onChange={(e) => setSelectedWorkspace(e.target.value)}
-                                    disabled
-                                >
-                                    <option value={workspaceId}>{workspaceName}</option>
-                                </select> */}
-                            </div>
-                            <div className="form-group">
-                                <label>Project Name:</label>
-                                <input
-                                    type="text"
-                                    value={newProjectName}
-                                    onChange={(e) => setNewProjectName(e.target.value)}
-                                    placeholder="Enter project name"
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>Project Description:</label>
-                                <textarea
-                                    value={newProjectDescription}
-                                    onChange={(e) => setNewProjectDescription(e.target.value)}
-                                    placeholder="Enter project description"
-                                />
-                            </div>
-                            <div className="modal-footer">
-                                <button
-                                    className="btn-primary"
-                                    onClick={handleAddProject}
-                                    disabled={!newProjectName }
-                                >
-                                    OK
-                                </button>
-                                <button
-                                    className="btn-close"
-                                    onClick={() => {
-                                        setNewProjectName('');
-                                        setNewProjectDescription('');
-                                        setSelectedWorkspace('');
-                                        setIsAddProjectOpen(false);
-                                    }}
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        </div>
-                    </Modal>
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </Modal>
         
-                    <Modal
-                        isOpen={isEditProjectOpen}
-                        onClose={() => {
-                            setNewProjectName('');
-                            setNewProjectDescription('');
-                            setNewProjectStatus(1);
-                            setIsEditProjectOpen(false);
-                        }}
-                        title="Edit Project"
+        <Modal
+            isOpen={isEditProjectOpen}
+            onClose={() => {
+                setNewProjectName('');
+                setNewProjectDescription('');
+                setNewProjectStatus(1);
+                setIsEditProjectOpen(false);
+            }}
+            title="Edit Project"
+        >
+            <div className="settings-form">
+                <div className="form-group">
+                    <label>Project Name:</label>
+                    <input
+                        type="text"
+                        value={newProjectName}
+                        onChange={(e) => setNewProjectName(e.target.value)}
+                        placeholder="Enter project name"
+                    />
+                </div>
+                <div className="form-group">
+                    <label>Status:</label>
+                    <select
+                        value={newProjectStatus}
+                        onChange={(e) => setNewProjectStatus(e.target.value)}
                     >
-                        <div className="settings-form">
-                            <div className="form-group">
-                                <label>Project Name:</label>
-                                <input
-                                    type="text"
-                                    value={newProjectName}
-                                    onChange={(e) => setNewProjectName(e.target.value)}
-                                    placeholder="Enter project name"
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>Status:</label>
-                                <select
-                                    value={newProjectStatus}
-                                    onChange={(e) => setNewProjectStatus(e.target.value)}
-                                >
-                                    <option value="1">Active</option>
-                                    <option value="2">Inactive</option>
-                                    <option value="3">Archive</option>
-                                </select>
-                            </div>
-                            <div className="form-group">
-                                <label>Project Description:</label>
-                                <textarea
-                                    value={newProjectDescription}
-                                    onChange={(e) => setNewProjectDescription(e.target.value)}
-                                    placeholder="Enter project description"
-                                />
-                            </div>
-                            <div className="modal-footer">
-                                <button className="btn-primary" onClick={handleEditProject} disabled={!newProjectName}>
-                                    OK
-                                </button>
-                                <button className="btn-close" onClick={() => {
-                                    setNewProjectName('');
-                                    setNewProjectDescription('');
-                                    setNewProjectStatus(1);
-                                    setIsEditProjectOpen(false);
-                                }}>
-                                    Cancel
-                                </button>
-                            </div>
-                        </div>
-                    </Modal>
+                        <option value="1">Active</option>
+                        <option value="2">Inactive</option>
+                        <option value="3">Archive</option>
+                    </select>
+                </div>
+                <div className="form-group">
+                    <label>Project Description:</label>
+                    <textarea
+                        value={newProjectDescription}
+                        onChange={(e) => setNewProjectDescription(e.target.value)}
+                        placeholder="Enter project description"
+                    />
+                </div>
+                <div className="modal-footer">
+                    <button className="btn-primary" onClick={handleEditProject} disabled={!newProjectName}>
+                        OK
+                    </button>
+                    <button className="btn-close" onClick={() => {
+                        setNewProjectName('');
+                        setNewProjectDescription('');
+                        setNewProjectStatus(1);
+                        setIsEditProjectOpen(false);
+                    }}>
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </Modal>
     </div>
   )
 }

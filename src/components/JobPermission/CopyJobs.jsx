@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 
 const CopyJobs = ({ filteredUsers, loading, setLoading, defWorkId }) => {
@@ -8,6 +8,7 @@ const CopyJobs = ({ filteredUsers, loading, setLoading, defWorkId }) => {
     const [showCopyDropdown, setShowCopyDropdown] = useState(false);
     const [sourceUserJobs, setSourceUserJobs] = useState([]);
     const [defaultWorkspaceJobs, setDefaultWorkspaceJobs] = useState([]);
+    const searchInputRef = useRef(null);
 
     const user = JSON.parse(localStorage.getItem('user'));
     const API_URL = process.env.REACT_APP_API_BASE_URL;
@@ -20,6 +21,20 @@ const CopyJobs = ({ filteredUsers, loading, setLoading, defWorkId }) => {
             user.email?.toLowerCase().includes(copySearchTerm.toLowerCase())
         ).filter(user => !targetUsers.some(selected => selected.userId === user.userId) && user.userId !== parseInt(sourceUser));
     }, [copySearchTerm, filteredUsers, targetUsers, sourceUser]);
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (searchInputRef.current && !searchInputRef.current.contains(event.target)) {
+                setShowCopyDropdown(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
 
     // Fetch source user's jobs when source user changes
     useEffect(() => {
@@ -229,6 +244,7 @@ const CopyJobs = ({ filteredUsers, loading, setLoading, defWorkId }) => {
     const handleCopyKeyDown = (e) => {
         if (e.key === 'Enter' && copySearchTerm.trim() && copySearchResults.length > 0) {
             handleSelectTargetUser(copySearchResults[0]);
+            e.preventDefault();
         } else if (e.key === 'Backspace' && copySearchTerm === '' && targetUsers.length > 0) {
             handleRemoveTargetUser(targetUsers[targetUsers.length - 1].userId);
         }
@@ -243,13 +259,23 @@ const CopyJobs = ({ filteredUsers, loading, setLoading, defWorkId }) => {
     };
 
     return (
-        <div className="tab-content">
-            <div className="settings-form">
-                <div className="form-group">
-                    <label>Source User:</label>
+        <div className="tab-content" style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '400px' }}>
+            <div className="settings-form" style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '12px', padding: '8px' }}>
+                {/* Source User Selection */}
+                <div className="form-group" style={{ marginBottom: '0', marginLeft: '12px', marginRight: '12px'}}>
+                    <label style={{ fontSize: '13px', marginBottom: '6px', fontWeight: '600', color: '#333' }}>Source User:</label>
                     <select
                         value={sourceUser}
                         onChange={handleSourceUserChange}
+                        style={{
+                            width: '100%',
+                            padding: '8px 10px',
+                            fontSize: '13px',
+                            border: '1px solid #ddd',
+                            borderRadius: '4px',
+                            height: '36px',
+                            backgroundColor: 'white'
+                        }}
                     >
                         <option value="">Select Source User</option>
                         {filteredUsers.map(user => (
@@ -258,47 +284,90 @@ const CopyJobs = ({ filteredUsers, loading, setLoading, defWorkId }) => {
                     </select>
                    
                     {sourceUser && (
-                        <div className="jobs-info">
-                            <small>
+                        <div style={{ 
+                            marginTop: '6px', 
+                            padding: '6px 8px', 
+                            fontSize: '12px', 
+                            color: '#555',
+                            backgroundColor: '#f8f9fa',
+                            borderRadius: '4px',
+                            borderLeft: '3px solid #1976d2'
+                        }}>
+                            <div style={{ fontWeight: '500' }}>
                                 Found {defaultWorkspaceJobs.length} job(s) in default workspace 
                                 {sourceUserJobs.length > 0 && 
                                     ` (out of ${sourceUserJobs.length} total jobs)`}
-                            </small>
+                            </div>
                             {defaultWorkspaceJobs.length > 0 && (
-                                <div className="job-list">
-                                    <small>Jobs available to copy: {defaultWorkspaceJobs.map(job => job.jobName).join(', ')}</small>
+                                <div style={{ 
+                                    marginTop: '4px', 
+                                    fontSize: '11px', 
+                                    color: '#666',
+                                    paddingTop: '4px',
+                                    borderTop: '1px solid #eee'
+                                }}>
+                                    <span style={{ fontWeight: '500' }}>Jobs available to copy:</span> {defaultWorkspaceJobs.map(job => job.jobName).join(', ')}
                                 </div>
                             )}
                         </div>
                     )}
                 </div>
 
-                <div className="form-group">
-                    <label>Target Users:</label>
+                {/* Target Users Selection */}
+                <div className="form-group" style={{ marginBottom: '0', marginLeft: '12px', marginRight: '12px' }}>
+                    <label style={{ fontSize: '13px', marginBottom: '6px', fontWeight: '600', color: '#333' }}>Target Users:</label>
                     <div className="user-selection-container">
-                        <div className="search-input-container">
+                        <div className="search-input-container" style={{ position: 'relative' }} ref={searchInputRef}>
                             <input
                                 type="text"
                                 placeholder="Search target users by name or email..."
                                 value={copySearchTerm}
                                 onChange={handleCopySearchChange}
                                 onKeyDown={handleCopyKeyDown}
-                                onFocus={() => setShowCopyDropdown(copySearchTerm.length > 0)}
-                                className="user-search-input"
+                                onFocus={() => setShowCopyDropdown(true)}
+                                style={{
+                                    width: '100%',
+                                    padding: '8px 10px',
+                                    fontSize: '13px',
+                                    border: '1px solid #ddd',
+                                    borderRadius: '4px',
+                                    height: '36px'
+                                }}
                             />
                             
                             {showCopyDropdown && copySearchResults.length > 0 && (
-                                <div className="user-dropdown">
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '100%',
+                                    left: 0,
+                                    right: 0,
+                                    background: 'white',
+                                    border: '1px solid #ddd',
+                                    borderRadius: '4px',
+                                    maxHeight: '140px',
+                                    overflowY: 'auto',
+                                    zIndex: 10,
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                                    marginTop: '2px'
+                                }}>
                                     {copySearchResults.map(user => (
                                         <div
                                             key={user.userId}
-                                            className="dropdown-item"
+                                            style={{
+                                                padding: '8px 10px',
+                                                cursor: 'pointer',
+                                                borderBottom: '1px solid #f5f5f5',
+                                                fontSize: '12px',
+                                                transition: 'background-color 0.2s'
+                                            }}
                                             onClick={() => handleSelectTargetUser(user)}
+                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
                                         >
-                                            <div className="user-info">
-                                                <span className="user-name">{user.userName}</span>
+                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <span style={{ fontWeight: '500', fontSize: '12px' }}>{user.userName}</span>
                                                 {user.email && (
-                                                    <span className="user-email">{user.email}</span>
+                                                    <span style={{ fontSize: '11px', color: '#666', marginTop: '2px' }}>{user.email}</span>
                                                 )}
                                             </div>
                                         </div>
@@ -307,17 +376,59 @@ const CopyJobs = ({ filteredUsers, loading, setLoading, defWorkId }) => {
                             )}
                         </div>
 
-                        <div className="selected-users-container">
+                        <div style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: '6px',
+                            margin: '8px 0',
+                            minHeight: '32px',
+                            maxHeight: '64px',
+                            overflowY: 'auto',
+                            padding: '6px',
+                            backgroundColor: '#f8f9fa',
+                            borderRadius: '4px',
+                            border: '1px solid #e9ecef'
+                        }}>
                             {targetUsers.map(user => (
-                                <div key={user.userId} className="user-tag">
-                                    <span className="user-tag-name">
+                                <div key={user.userId} style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    backgroundColor: '#e3f2fd',
+                                    border: '1px solid #bbdefb',
+                                    borderRadius: '14px',
+                                    padding: '4px 8px',
+                                    fontSize: '12px',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                }}>
+                                    <span style={{ 
+                                        color: '#1976d2', 
+                                        marginRight: '6px',
+                                        fontWeight: '500',
+                                        fontSize: '12px'
+                                    }}>
                                         {user.userName}
                                     </span>
                                     <button
                                         type="button"
-                                        className="remove-user-btn"
                                         onClick={() => handleRemoveTargetUser(user.userId)}
-                                        title="Remove user"
+                                        style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            color: '#1976d2',
+                                            cursor: 'pointer',
+                                            fontSize: '14px',
+                                            fontWeight: 'bold',
+                                            padding: '0',
+                                            width: '14px',
+                                            height: '14px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            borderRadius: '50%',
+                                            transition: 'all 0.2s'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1976d2'}
+                                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                                     >
                                         ×
                                     </button>
@@ -325,11 +436,11 @@ const CopyJobs = ({ filteredUsers, loading, setLoading, defWorkId }) => {
                             ))}
                         </div>
 
-                        <div className="selection-info">
+                        <div style={{ fontSize: '12px', color: '#666', textAlign: 'center', padding: '4px' }}>
                             {targetUsers.length === 0 ? (
-                                <span className="info-text">No target users selected</span>
+                                <span style={{ fontStyle: 'italic' }}>No target users selected</span>
                             ) : (
-                                <span className="info-text">
+                                <span style={{ fontWeight: '500' }}>
                                     {targetUsers.length} target user{targetUsers.length !== 1 ? 's' : ''} selected
                                 </span>
                             )}
@@ -338,13 +449,57 @@ const CopyJobs = ({ filteredUsers, loading, setLoading, defWorkId }) => {
                 </div>
             </div>
 
-            <div className="settings-action-buttons">
-                <button 
+            {/* Action Button - Aligned left with margins */}
+            <div style={{
+                marginTop: '16px',
+                paddingTop: '16px',
+                borderTop: '1px solid #eee',
+                flexShrink: 0,
+                display: 'flex',
+                justifyContent: 'flex-start',
+                paddingLeft: '8px',
+                marginBottom: '8px'
+            }}>
+                <button
                     className="btn-primary" 
                     onClick={handleCopyJobs} 
                     disabled={!sourceUser || targetUsers.length === 0 || defaultWorkspaceJobs.length === 0 || loading}
+                    style={{
+                        padding: '10px 24px',
+                        backgroundColor: (!sourceUser || targetUsers.length === 0 || defaultWorkspaceJobs.length === 0 || loading) ? '#adb5bd' : '#1976d2',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: (!sourceUser || targetUsers.length === 0 || defaultWorkspaceJobs.length === 0 || loading) ? 'not-allowed' : 'pointer',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        height: '38px',
+                        minWidth: '180px',
+                        transition: 'all 0.2s',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }}
+                    onMouseEnter={(e) => {
+                        if (!e.currentTarget.disabled) {
+                            e.currentTarget.style.backgroundColor = '#1565c0';
+                            e.currentTarget.style.transform = 'translateY(-1px)';
+                            e.currentTarget.style.boxShadow = '0 4px 8px rgba(25, 118, 210, 0.2)';
+                        }
+                    }}
+                    onMouseLeave={(e) => {
+                        if (!e.currentTarget.disabled) {
+                            e.currentTarget.style.backgroundColor = '#1976d2';
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                        }
+                    }}
                 >
-                    {loading ? 'Copying...' : `Copy ${defaultWorkspaceJobs.length} Jobs to ${targetUsers.length} User${targetUsers.length !== 1 ? 's' : ''}`}
+                    {loading ? (
+                        <span>Copying...</span>
+                    ) : (
+                        <span>
+                            Copy {defaultWorkspaceJobs.length} Job{defaultWorkspaceJobs.length !== 1 ? 's' : ''} to {targetUsers.length} User{targetUsers.length !== 1 ? 's' : ''}
+                        </span>
+                    )}
                 </button>
             </div>
         </div>
@@ -352,4 +507,3 @@ const CopyJobs = ({ filteredUsers, loading, setLoading, defWorkId }) => {
 };
 
 export default CopyJobs;
-

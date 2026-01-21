@@ -357,4 +357,105 @@
     grid-template-columns: 1fr; 
   }
 }
+/* Project Search Styles */
+.project-search-container {
+    margin-bottom: 15px;
+}
 
+.search-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.search-icon {
+    position: absolute;
+    left: 12px;
+    color: #666;
+    font-size: 14px;
+}
+
+.project-search-input {
+    width: 100%;
+    padding: 10px 40px 10px 35px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.3s ease;
+    box-sizing: border-box;
+}
+
+.project-search-input:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.clear-search-btn {
+    position: absolute;
+    right: 10px;
+    background: white !important;
+    border: none;
+    color: #999 !important;
+    cursor: pointer;
+    padding: 4px; 
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.3s ease;
+}
+
+.clear-search-btn:hover {
+    color: #666;
+}
+
+.search-results-info {
+    font-size: 12px;
+    color: #666;
+    margin-top: 5px;
+    text-align: right;
+    font-style: italic;
+}
+
+/* Project list options styling */
+.lookup-select option {
+    padding: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.lookup-select option.inactive-project {
+    color: #999;
+    font-style: italic;
+}
+
+.lookup-select option[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    background: #333;
+    color: white;
+    padding: 8px;
+    border-radius: 4px;
+    z-index: 1000;
+    max-width: 300px;
+    white-space: normal;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .project-search-input {
+        padding: 8px 35px 8px 30px;
+        font-size: 13px;
+    }
+    
+    .search-icon {
+        font-size: 12px;
+        left: 10px;
+    }
+    
+    .clear-search-btn {
+        right: 8px;
+    }
+}

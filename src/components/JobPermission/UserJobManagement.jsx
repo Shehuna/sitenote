@@ -354,20 +354,7 @@ const UserJobManagement = ({ defWorkID, fetchedUsers }) => {
                         }}
                     />
                 </div>
-                <button 
-                    onClick={refreshData}
-                    className="refresh-btn"
-                    title="Refresh All Job Data"
-                    disabled={loading}
-                    style={{
-                        padding: isMobile ? '6px 10px' : '8px 12px',
-                        fontSize: isMobile ? '12px' : '13px',
-                        whiteSpace: 'nowrap'
-                    }}
-                >
-                    <i className="fas fa-sync-alt"></i>
-                    {isMobile ? '' : ' Refresh'}
-                </button>
+               
             </div>
 
             {/* Users List */}

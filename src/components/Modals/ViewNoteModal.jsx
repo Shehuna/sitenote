@@ -19,6 +19,8 @@ const ViewNoteModal = ({
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [currentLightboxImage, setCurrentLightboxImage] = useState(null);
   const [currentLightboxImages, setCurrentLightboxImages] = useState([]);
+  const [noteReplies, setNoteReplies] = useState({});
+  const [loadingReplies, setLoadingReplies] = useState({});
 
   const [loading, setLoading] = useState(true);
   const [jobDetails, setJobDetails] = useState(null);
@@ -33,6 +35,41 @@ const ViewNoteModal = ({
   const lightboxRef = useRef(null);
 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
+
+  // Fetch replies for a specific note
+  const fetchNoteReplies = async (siteNoteId) => {
+    if (!siteNoteId) return [];
+    
+    setLoadingReplies(prev => ({ ...prev, [siteNoteId]: true }));
+    
+    try {
+      const response = await fetch(
+        `${apiUrl}/SiteNote/GetRepliesBySiteNoteId?pageNumber=1&pageSize=10&siteNoteId=${siteNoteId}&userId=${userid}`
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch replies for note ${siteNoteId}`);
+      }
+      
+      const data = await response.json();
+      
+      const replies = (data.siteNotes || []).map(reply => ({
+        ...reply,
+        userName: reply.UserName || reply.userName,
+        documentCount: reply.DocumentCount || reply.documentCount || 0,
+        date: reply.date || "",
+        timeStamp: reply.timeStamp || reply.noteDate || "",
+        isReply: true
+      }));
+      
+      return replies;
+    } catch (error) {
+      console.error(`Error fetching replies for note ${siteNoteId}:`, error);
+      return [];
+    } finally {
+      setLoadingReplies(prev => ({ ...prev, [siteNoteId]: false }));
+    }
+  };
 
   // Fetch inline images for a specific note
   const fetchInlineImages = async (siteNoteId) => {
@@ -63,7 +100,6 @@ const ViewNoteModal = ({
   const fetchImagesForAllNotes = async (notes) => {
     const imagesMap = {};
     
-    // Fetch images for each note in parallel
     const promises = notes.map(async (note) => {
       if (note.id) {
         const images = await fetchInlineImages(note.id);
@@ -91,11 +127,11 @@ const ViewNoteModal = ({
         documentCount: noteData.DocumentCount || noteData.documentCount || 0,
         date: noteData.date || "",
         timeStamp: noteData.timeStamp || "",
+        isReply: false
       };
       setCurrentNote(note);
 
       if (jobId) {
-        // Fetch job details
         const jobRes = await fetch(`${apiUrl}/Job/GetJobById/${jobId}`);
         if (!jobRes.ok) throw new Error("Failed to fetch job details");
         const jobData = await jobRes.json();
@@ -105,14 +141,17 @@ const ViewNoteModal = ({
       if (!jobId) {
         const notes = [note];
         setRelatedNotes(notes);
-        // Fetch images for the single note
+        // Fetch replies for the single note
+        const replies = await fetchNoteReplies(noteId);
+        if (replies.length > 0) {
+          setNoteReplies({ [noteId]: replies });
+        }
         await fetchImagesForAllNotes(notes);
         setLoading(false);
         return;
       }
 
-      const url = `${apiUrl}/SiteNote/GetSiteNotesByJobId?pageNumber=1&pageSize=100&jobId=${jobId}&userId=${userid}`;
-      console.log("Fetching all notes for job ->", url);
+      const url = `${apiUrl}/SiteNote/GetSiteNotesByJobId?pageNumber=1&pageSize=25&jobId=${jobId}&userId=${userid}`;
       const relRes = await fetch(url);
       if (!relRes.ok) throw new Error("Failed to fetch related notes");
       const relData = await relRes.json();
@@ -124,6 +163,7 @@ const ViewNoteModal = ({
           documentCount: n.DocumentCount || n.documentCount || 0,
           date: n.date || "",
           timeStamp: n.timeStamp || "",
+          isReply: false
         }))
         .sort((a, b) => {
           const now = new Date();
@@ -143,8 +183,29 @@ const ViewNoteModal = ({
         });
 
       setRelatedNotes(related);
-      // Fetch images for all related notes
-      await fetchImagesForAllNotes(related);
+      
+      // Fetch replies for ALL notes
+      const fetchAllReplies = async () => {
+        const repliesMap = {};
+        
+        for (const noteItem of related) {
+          if (noteItem.id) {
+            const replies = await fetchNoteReplies(noteItem.id);
+            if (replies.length > 0) {
+              repliesMap[noteItem.id] = replies;
+            }
+          }
+        }
+        
+        setNoteReplies(repliesMap);
+      };
+      
+      // Fetch images and replies in parallel
+      await Promise.all([
+        fetchImagesForAllNotes(related),
+        fetchAllReplies()
+      ]);
+      
     } catch (err) {
       console.error("ViewNoteModal error:", err);
       toast.error("Failed to load note");
@@ -170,9 +231,7 @@ const ViewNoteModal = ({
     }
   };
 
-  // Open lightbox with specific image
   const openLightbox = (image, noteId) => {
-    // Get all images from the current note
     const images = noteImages[noteId] || [];
     const imageIndex = images.findIndex(img => img.id === image.id);
     
@@ -184,22 +243,16 @@ const ViewNoteModal = ({
     });
     setCurrentLightboxImages(images);
     setLightboxOpen(true);
-    
-    // Prevent body scroll when lightbox is open
     document.body.style.overflow = 'hidden';
   };
 
-  // Close lightbox
   const closeLightbox = () => {
     setLightboxOpen(false);
     setCurrentLightboxImage(null);
     setCurrentLightboxImages([]);
-    
-    // Restore body scroll
     document.body.style.overflow = 'auto';
   };
 
-  // Navigate to next/previous image
   const navigateLightbox = (direction) => {
     if (!currentLightboxImage || currentLightboxImages.length === 0) return;
     
@@ -221,7 +274,6 @@ const ViewNoteModal = ({
     });
   };
 
-  // Handle keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (!lightboxOpen) return;
@@ -249,7 +301,6 @@ const ViewNoteModal = ({
     fetchNoteAndRelated();
   }, [noteId, jobId, userid]);
 
-  // Fetch manager details when jobDetails.managerId changes
   useEffect(() => {
     const fetchManager = async (id) => {
       if (!id) {
@@ -260,7 +311,6 @@ const ViewNoteModal = ({
         const res = await fetch(`${apiUrl}/UserManagement/GetUserById/${id}`);
         if (!res.ok) throw new Error('Failed to fetch manager');
         const data = await res.json();
-        // API may return { message, user }
         setManagerInfo(data.user || data);
       } catch (err) {
         console.error('Failed to fetch manager info', err);
@@ -354,9 +404,9 @@ const ViewNoteModal = ({
   const isEthiopic = (char) => {
     const code = char.charCodeAt(0);
     return (
-      (code >= 0x1200 && code <= 0x139F) || // Ethiopic and Supplement
-      (code >= 0x2D80 && code <= 0x2DDF) || // Extended
-      (code >= 0xAB00 && code <= 0xAB2F)    // Extended-A
+      (code >= 0x1200 && code <= 0x139F) ||
+      (code >= 0x2D80 && code <= 0x2DDF) ||
+      (code >= 0xAB00 && code <= 0xAB2F)
     );
   };
 
@@ -382,7 +432,6 @@ const ViewNoteModal = ({
       }
     }
 
-    // Draw last run
     if (run) {
       pdf.setFont(currentFont, style);
       pdf.text(run, currentX, startY);
@@ -410,7 +459,7 @@ const ViewNoteModal = ({
     const children = Array.from(element.childNodes);
 
     for (let child of children) {
-      if (child.nodeType === 3) { // Text node
+      if (child.nodeType === 3) {
         const text = child.textContent.trim();
         if (!text) continue;
 
@@ -436,12 +485,12 @@ const ViewNoteModal = ({
 
           currentY += styles.lineHeight;
         }
-      } else if (child.nodeType === 1) { // Element node
+      } else if (child.nodeType === 1) {
         let newStyles = { ...styles };
         const tag = child.tagName.toUpperCase();
 
         if (tag === 'B' || tag === 'STRONG') newStyles.bold = true;
-        if (tag === 'I' || tag === 'EM') newStyles.italic = true; // Note: no italic font, but placeholder
+        if (tag === 'I' || tag === 'EM') newStyles.italic = true;
         if (tag === 'U') newStyles.underline = true;
         if (tag === 'H1') newStyles.fontSize = 16;
         if (tag === 'H2') newStyles.fontSize = 14;
@@ -450,9 +499,9 @@ const ViewNoteModal = ({
         if (tag === 'BR') {
           currentY += styles.lineHeight;
         } else if (tag === 'P') {
-          currentY += styles.lineHeight / 2; // Margin top
+          currentY += styles.lineHeight / 2;
           currentY = renderElement(pdf, child, x, currentY, newStyles);
-          currentY += styles.lineHeight / 2; // Margin bottom
+          currentY += styles.lineHeight / 2;
         } else if (tag === 'UL' || tag === 'OL') {
           newStyles.indent += 10;
           currentY = renderElement(pdf, child, x, currentY, newStyles);
@@ -461,9 +510,8 @@ const ViewNoteModal = ({
           pdf.setFontSize(styles.fontSize);
           renderMixedText(pdf, '• ', x + styles.indent - 5, currentY);
           currentY = renderElement(pdf, child, x, currentY, newStyles);
-          currentY += styles.lineHeight / 2; // Space between list items
+          currentY += styles.lineHeight / 2;
         } else {
-          // Recurse for other elements
           currentY = renderElement(pdf, child, x, currentY, newStyles);
         }
       }
@@ -487,7 +535,6 @@ const ViewNoteModal = ({
     setPdfGenerating(true);
 
     try {
-      // Fetch Amharic fonts
       const regularFontUrl = 'https://raw.githubusercontent.com/openmaptiles/fonts/master/noto-sans/NotoSansEthiopic-Regular.ttf';
       const boldFontUrl = 'https://raw.githubusercontent.com/twardoch/toto-fonts/master/ttf/sans-bol/_Ethi_/NotoSans-Ethiopic-Bold.ttf';
 
@@ -500,14 +547,12 @@ const ViewNoteModal = ({
 
       const pdf = new jsPDF();
 
-      // Add fonts
       pdf.addFileToVFS('NotoSansEthiopic-Regular.ttf', regularBase64);
       pdf.addFont('NotoSansEthiopic-Regular.ttf', 'NotoEthiopic', 'normal');
 
       pdf.addFileToVFS('NotoSansEthiopic-Bold.ttf', boldBase64);
       pdf.addFont('NotoSansEthiopic-Bold.ttf', 'NotoEthiopic', 'bold');
 
-      // Set default font
       pdf.setFont('helvetica', 'normal');
 
       pdf.setFontSize(16);
@@ -593,7 +638,6 @@ const ViewNoteModal = ({
         renderMixedText(pdf, `${note.userName} - ${formatRelativeTime(note.timeStamp)}`, 10, y);
         y += 6;
 
-        // Render formatted note text
         y = renderFormattedText(pdf, note.note, 10, y);
 
         if (note.documentCount > 0) {
@@ -623,6 +667,55 @@ const ViewNoteModal = ({
           }
         }
 
+        // Add replies to PDF (always include them since they're always expanded)
+        if (noteReplies[note.id]) {
+          const replies = noteReplies[note.id];
+          for (const reply of replies) {
+            if (y + 10 > 270) {
+              pdf.addPage();
+              y = 10;
+            }
+            
+            pdf.setFontSize(10);
+            pdf.setTextColor(100, 100, 100);
+            pdf.text(`↪ ${reply.userName} - ${formatRelativeTime(reply.timeStamp)}`, 15, y);
+            y += 5;
+            
+            pdf.setFontSize(9);
+            pdf.setTextColor(0, 0, 0);
+            y = renderFormattedText(pdf, reply.note, 15, y);
+            
+            if (reply.documentCount > 0) {
+              pdf.setFontSize(7);
+              pdf.text(`Attachments: ${reply.documentCount}`, 15, y);
+              y += 4;
+            }
+            
+            const replyImages = noteImages[reply.id] || [];
+            for (const img of replyImages) {
+              try {
+                const url = `${apiUrl}/InlineImages/GetInlineImage/${img.id}`;
+                const base64 = await getBase64(url);
+                if (y + 35 > 270) {
+                  pdf.addPage();
+                  y = 10;
+                }
+                pdf.addImage(base64, 'JPEG', 15, y, 50, 35);
+                y += 37;
+              } catch (error) {
+                if (y + 5 > 270) {
+                  pdf.addPage();
+                  y = 10;
+                }
+                pdf.text(`[Image: ${img.fileName}]`, 15, y);
+                y += 5;
+              }
+            }
+            
+            y += 6;
+          }
+        }
+
         y += 8;
 
         if (y > 270) {
@@ -641,7 +734,6 @@ const ViewNoteModal = ({
     }
   };
 
-  // Function to render images for a note
   const renderNoteImages = (noteId) => {
     const images = noteImages[noteId] || [];
     
@@ -675,6 +767,74 @@ const ViewNoteModal = ({
                   e.target.src = "https://via.placeholder.com/150x100?text=Image+Not+Found";
                 }}
               />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderNoteReplies = (noteId) => {
+    const replies = noteReplies[noteId] || [];
+    
+    if (loadingReplies[noteId]) {
+      return (
+        <div className="replies-loading">
+          <i className="fas fa-spinner fa-spin" /> Loading replies...
+        </div>
+      );
+    }
+
+    if (replies.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="note-replies-container">
+        <div className="replies-header">
+          <i className="fas fa-reply" /> {replies.length} {replies.length === 1 ? 'Reply' : 'Replies'}
+        </div>
+        <div className="replies-list">
+          {replies.map((reply) => (
+            <div key={reply.id} className="reply-message">
+              <div className="reply-content">
+                <div className="reply-header">
+                  <span className="reply-sender-name">
+                    <i className="fas fa-reply fa-flip-horizontal" style={{ fontSize: '0.8em', marginRight: '5px', opacity: 0.7 }} />
+                    {reply.userName}
+                  </span>
+                  <span
+                    className="reply-time"
+                    title={new Date(reply.timeStamp).toLocaleString()}
+                  >
+                    {formatRelativeTime(reply.timeStamp)}
+                  </span>
+                </div>
+                <div 
+                  className="reply-text" 
+                  dangerouslySetInnerHTML={{ __html: reply.note }} 
+                />
+                
+                {renderNoteImages(reply.id)}
+                
+                {reply.documentCount > 0 && (
+                  <div className="reply-attachments">
+                    <button
+                      className="reply-attachment-button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onViewAttachments(reply);
+                      }}
+                      title={`View ${reply.documentCount} attached file(s)`}
+                    >
+                      <span className="document-count-badge">
+                        ({reply.documentCount}){" "}
+                      </span>
+                      <i className="fas fa-paperclip" />
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -718,7 +878,6 @@ const ViewNoteModal = ({
                 <div className="contact-status">
                   Job: {currentNote.siteNote.job}
                 </div>
-                
               </div>
             </div>
             <div className="header-right">
@@ -798,10 +957,10 @@ const ViewNoteModal = ({
               <button className="header-button" onClick={() => setShowPrintDialog(true)}>
                 <i className="fas fa-print" />
               </button>
-
+{/* 
               <button className="header-button">
                 <i className="fas fa-ellipsis-v" />
-              </button>
+              </button> */}
             </div>
           </div>
 
@@ -842,8 +1001,10 @@ const ViewNoteModal = ({
                       dangerouslySetInnerHTML={{ __html: doc.note }} 
                     />
                     
-                    {/* Render images below the note text */}
                     {renderNoteImages(doc.id)}
+                    
+                    {/* Replies are always shown, no button needed */}
+                    {renderNoteReplies(doc.id)}
                   </div>
                 </div>
 
@@ -905,23 +1066,19 @@ const ViewNoteModal = ({
         </div>
       )}
 
-      {/* Full Screen Lightbox */}
       {lightboxOpen && currentLightboxImage && (
         <div className="fullscreen-lightbox">
           <div className="lightbox-background" onClick={closeLightbox}></div>
           
           <div className="lightbox-image-wrapper" ref={lightboxRef}>
-            {/* Close button */}
             <button className="lightbox-close" onClick={closeLightbox}>
               <i className="fas fa-times" />
             </button>
             
-            {/* Image counter */}
             <div className="lightbox-counter">
               {currentLightboxImage.index + 1} / {currentLightboxImage.total}
             </div>
             
-            {/* Main image */}
             <img
               src={`${apiUrl}/InlineImages/GetInlineImage/${currentLightboxImage.id}`}
               alt={currentLightboxImage.fileName}
@@ -932,7 +1089,6 @@ const ViewNoteModal = ({
               }}
             />
             
-            {/* Navigation buttons */}
             {currentLightboxImages.length > 1 && (
               <>
                 <button 

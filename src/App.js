@@ -29,7 +29,7 @@ function App() {
   const [stackedJobs, setStackedJobs] = useState([]);
   const [loadingStackedJobs, setLoadingStackedJobs] = useState(false);
   const [pageNumber, setPageNumber] = useState(1); */
-  const pageSize = 15;   
+  const pageSize = 25;   
   
   useEffect(() => {
     const checkAuthState = () => {

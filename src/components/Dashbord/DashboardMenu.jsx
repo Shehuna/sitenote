@@ -1210,7 +1210,9 @@ const DashboardMenu = ({
       )}
       
       {showNotifications && (
-        <div className="notifications-dropdown" onClick={(e) => e.stopPropagation()}>
+        <div className="notifications-dropdown" 
+        
+        onClick={(e) => e.stopPropagation()}>
           <div className="notifications-header">
             <h3>Notifications</h3>
             <button 

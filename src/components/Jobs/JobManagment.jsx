@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import Modal from '../Modals/Modal';
 import toast from 'react-hot-toast';
 import '../Modals/SettingsModal.css'
+
 const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) => {
     const [selectedJob, setSelectedJob] = useState('');
     const [newJobName, setNewJobName] = useState('');
@@ -43,6 +44,13 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
     const [projectsLoading, setProjectsLoading] = useState(false);
     const [usersLoading, setUsersLoading] = useState(false);
     const [editLoading, setEditLoading] = useState(false);
+    
+    // New states for project jobs dropdown
+    const [projectJobs, setProjectJobs] = useState([]);
+    const [showJobDropdown, setShowJobDropdown] = useState(false);
+    const [jobNameSearch, setJobNameSearch] = useState('');
+    const [loadingProjectJobs, setLoadingProjectJobs] = useState(false);
+    
     const errorRef = useRef(null);
     const editErrorRef = useRef(null);
     const tableRef = useRef(null);
@@ -186,6 +194,18 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
         }
     }, [isEditJobOpen]);
     
+    // Handle clicks outside job dropdown
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (showJobDropdown && !event.target.closest('.job-name-search-wrapper')) {
+                setShowJobDropdown(false);
+            }
+        };
+        
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
+    }, [showJobDropdown]);
+    
     const resetFormStates = () => {
         setNewJobName('');
         setNewJobDescription('');
@@ -207,6 +227,10 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
         setSingleSearchedProjects([]);
         setBulkProjectSearchTerm('');
         setBulkSearchedProjects([]);
+        setProjectJobs([]);
+        setShowJobDropdown(false);
+        setJobNameSearch('');
+        setLoadingProjectJobs(false);
     };
     
     const scrollToTopImmediate = () => {
@@ -231,14 +255,6 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
             const jobsData = (await jobsRes.json()).jobs || [];
             setAllProjects(projectsData);
             setJobs(jobsData);
-            
-            // If you want to fetch actual workspace name, you could add:
-            // const workspaceRes = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Workspace/GetWorkspaceById/${defWorkId}`);
-            // if (workspaceRes.ok) {
-            //     const workspaceData = await workspaceRes.json();
-            //     setWorkspaceName(workspaceData.name || 'defaultWorkspace');
-            // }
-            
         } catch {
             toast.error('Failed to load data');
         } finally {
@@ -341,6 +357,28 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
         }
     };
     
+    // Function to fetch jobs for selected project
+    const fetchProjectJobs = async (projectId) => {
+        if (!projectId || !user) return;
+        setLoadingProjectJobs(true);
+        try {
+            const response = await fetch(
+                `${process.env.REACT_APP_API_BASE_URL}/api/UserJobAuth/GetJobsByUserAndProject/${user}/${projectId}`
+            );
+            if (response.ok) {
+                const data = await response.json();
+                setProjectJobs(data.jobs || []);
+            } else {
+                setProjectJobs([]);
+            }
+        } catch {
+            setProjectJobs([]);
+            toast.error('Failed to load project jobs');
+        } finally {
+            setLoadingProjectJobs(false);
+        }
+    };
+    
     const handleAddJob = async () => {
         if (!isAdding) {
             setIsAdding(true);
@@ -397,7 +435,6 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
             toast.success('Job saved successfully');
             try {
                 await grantJobPermission(data.job.id);
-                // await updateProjectsAndJobs();
                 await fetchInitialData();
             } catch {
                 toast.error('Failed to refresh data');
@@ -472,7 +509,6 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
             }
             toast.success('Job updated');
             try {
-                // await updateProjectsAndJobs();
                 await fetchInitialData();
             } catch {
                 toast.error('Failed to refresh data');
@@ -535,7 +571,6 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
             try {
                 const grantPromises = data.jobs.map(job => grantJobPermission(job.id));
                 await Promise.all(grantPromises);
-                // await updateProjectsAndJobs();
                 await fetchInitialData();
             } catch {
                 toast.error('Failed to refresh data');
@@ -686,6 +721,9 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
                     font-size: 0.95rem;
                 }
                 .search-wrapper {
+                    position: relative;
+                }
+                .job-name-search-wrapper {
                     position: relative;
                 }
                 .project-search-list {
@@ -934,7 +972,8 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
                     </div>
                 </>
             )}
-            {/* All modal code remains EXACTLY the same */}
+            
+            {/* Add Job Modal */}
             <Modal isOpen={isAddJobOpen} onClose={closeAddModal} title="Add Job" customClass="modal-md">
                 <div ref={modalContentRef} style={{ padding: '20px', position: 'relative' }}>
                     <div ref={addTopRef}></div>
@@ -997,6 +1036,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
                                                             setSingleSelectedProject(p.id);
                                                             setSingleProjectSearchTerm('');
                                                             setSingleSearchedProjects([]);
+                                                            fetchProjectJobs(p.id);
                                                         }}
                                                     >
                                                         {p.fullPath}
@@ -1019,7 +1059,10 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
                                     ) : (
                                         <select
                                             value={singleSelectedProject}
-                                            onChange={(e) => setSingleSelectedProject(e.target.value)}
+                                            onChange={(e) => {
+                                                setSingleSelectedProject(e.target.value);
+                                                fetchProjectJobs(e.target.value);
+                                            }}
                                         >
                                             <option value="">Select Project</option>
                                             {activeProjects.map(p => (
@@ -1028,15 +1071,67 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
                                         </select>
                                     )}
                                 </div>
+                                
+                                {/* Modified Job Name Section with Dropdown */}
                                 <div className="form-group">
                                     <label>Job Name:</label>
-                                    <input
-                                        type="text"
-                                        value={newJobName}
-                                        onChange={(e) => setNewJobName(e.target.value)}
-                                        placeholder="Enter job name"
-                                    />
+                                    <div className="job-name-search-wrapper">
+                                        <input
+                                            type="text"
+                                            value={newJobName}
+                                            onChange={(e) => {
+                                                setNewJobName(e.target.value);
+                                                setJobNameSearch(e.target.value);
+                                                setShowJobDropdown(true);
+                                            }}
+                                            onFocus={() => setShowJobDropdown(true)}
+                                            placeholder="Enter job name or click to see existing jobs"
+                                            autoComplete="off"
+                                            style={{ width: '100%' }}
+                                        />
+                                        
+                                        {showJobDropdown && loadingProjectJobs && (
+                                            <div className="dropdown-message" style={{ marginTop: '2px' }}>
+                                                Loading jobs...
+                                            </div>
+                                        )}
+                                        
+                                        {showJobDropdown && !loadingProjectJobs && projectJobs.length > 0 && (
+                                            <ul className="project-search-list" style={{ marginTop: '2px', maxHeight: '150px', overflowY: 'auto' }}>
+                                                {projectJobs
+                                                    .filter(job => 
+                                                        job.jobName.toLowerCase().includes(jobNameSearch.toLowerCase())
+                                                    )
+                                                    .map(job => (
+                                                        <li
+                                                            key={job.jobId}
+                                                            onClick={() => {
+                                                                setNewJobName(job.jobName);
+                                                                setShowJobDropdown(false);
+                                                            }}
+                                                            style={{ 
+                                                                cursor: 'pointer', 
+                                                                padding: '8px 12px',
+                                                                transition: 'background-color 0.2s'
+                                                            }}
+                                                            onMouseEnter={(e) => e.target.style.backgroundColor = '#f5f5f5'}
+                                                            onMouseLeave={(e) => e.target.style.backgroundColor = ''}
+                                                        >
+                                                            {job.jobName}
+                                                        </li>
+                                                    ))
+                                                }
+                                            </ul>
+                                        )}
+                                        
+                                        {showJobDropdown && !loadingProjectJobs && projectJobs.length === 0 && singleSelectedProject && (
+                                            <div className="dropdown-message" style={{ marginTop: '2px' }}>
+                                                No existing jobs found for this project
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
+                                
                                 <div className="form-group">
                                     <label>Status:</label>
                                     <select value={newJobStatus} onChange={e => setNewJobStatus(parseInt(e.target.value))}>
@@ -1273,6 +1368,8 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
                     </div>
                 </div>
             </Modal>
+            
+            {/* Edit Job Modal */}
             <Modal isOpen={isEditJobOpen} onClose={closeEditModal} title="Edit Job" customClass="modal-sm">
                 <div ref={editModalContentRef} className="settings-form" style={{ position: 'relative' }}>
                     <div ref={editTopRef}></div>

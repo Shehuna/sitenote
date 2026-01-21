@@ -1370,3 +1370,217 @@
 .print-dialog button:last-child {
   background: #eee;
 }
+/* Add these styles to your ViewNoteModal.css file */
+
+/* Replies Section */
+.replies-section {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #ddd;
+}
+
+.view-replies-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 15px;
+  cursor: pointer;
+  font-size: 0.85em;
+  color: #666;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.view-replies-button:hover {
+  background: #e9e9e9;
+  border-color: #ccc;
+}
+
+.replies-text {
+  font-weight: 500;
+}
+
+.reply-count-badge {
+  background: #3498db;
+  color: white;
+  font-size: 0.75em;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: 4px;
+}
+
+/* Replies Container */
+.note-replies-container {
+  margin-top: 15px;
+  margin-left: 20px;
+  border-left: 2px solid #3498db;
+  padding-left: 15px;
+  padding-top: 5px;
+}
+
+.replies-header {
+  font-size: 0.9em;
+  color: #666;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.replies-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Reply Message */
+.reply-message {
+  background: #f9f9f9;
+  border-radius: 8px;
+  padding: 12px;
+  border: 1px solid #eee;
+  position: relative;
+}
+
+.reply-message::before {
+  content: '';
+  position: absolute;
+  left: -17px;
+  top: 15px;
+  width: 10px;
+  height: 2px;
+  background: #3498db;
+}
+
+.reply-content {
+  font-size: 0.9em;
+}
+
+.reply-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.reply-sender-name {
+  font-weight: 600;
+  color: #3498db;
+  font-size: 0.9em;
+  display: flex;
+  align-items: center;
+}
+
+.reply-time {
+  font-size: 0.8em;
+  color: #888;
+  white-space: nowrap;
+}
+
+.reply-text {
+  color: #333;
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+/* Reply attachments */
+.reply-attachments {
+  margin-top: 10px;
+}
+
+.reply-attachment-button {
+  background: none;
+  border: 1px solid #ddd;
+  padding: 4px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 0.8em;
+  color: #666;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: inherit;
+}
+
+.reply-attachment-button:hover {
+  background: #f0f0f0;
+}
+
+/* Loading states */
+.replies-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #666;
+  font-size: 0.9em;
+  padding: 15px;
+  justify-content: center;
+  background: #f9f9f9;
+  border-radius: 8px;
+  margin: 10px 0;
+}
+
+.replies-loading i {
+  font-size: 1.2em;
+}
+
+/* For PDF generation - make sure these styles don't interfere with PDF */
+@media print {
+  .note-replies-container,
+  .reply-message,
+  .replies-section {
+    break-inside: avoid;
+  }
+}
+
+/* Light theme specific */
+.theme-light .reply-message {
+  background: #f8f9fa;
+  border-color: #dee2e6;
+}
+
+.theme-light .view-replies-button {
+  background: #e9ecef;
+  border-color: #ced4da;
+}
+
+/* Dark theme specific */
+.theme-dark .reply-message {
+  background: #2c2c2c;
+  border-color: #444;
+}
+
+.theme-dark .reply-text {
+  color: #e0e0e0;
+}
+
+.theme-dark .view-replies-button {
+  background: #3a3a3a;
+  border-color: #555;
+  color: #ccc;
+}
+
+.theme-dark .view-replies-button:hover {
+  background: #444;
+}
+
+.theme-dark .replies-loading {
+  background: #2c2c2c;
+  color: #aaa;
+}
+
+.theme-dark .reply-sender-name {
+  color: #64b5f6;
+}
+
+.theme-dark .note-replies-container {
+  border-left-color: #64b5f6;
+}
+
+.theme-dark .reply-message::before {
+  background: #64b5f6;
+}
