@@ -51,6 +51,9 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
     const [jobNameSearch, setJobNameSearch] = useState('');
     const [loadingProjectJobs, setLoadingProjectJobs] = useState(false);
     
+    // State to store project-job mappings
+    const [projectJobMappings, setProjectJobMappings] = useState({});
+    
     const errorRef = useRef(null);
     const editErrorRef = useRef(null);
     const tableRef = useRef(null);
@@ -71,8 +74,10 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
     }, []);
     
     useEffect(() => {
-        fetchInitialData();
-    }, []);
+        if(defWorkId && user){
+            fetchInitialData();
+        }
+    }, [defWorkId, defaultworkspace, user]);
     
     useEffect(() => {
         if (isAddJobOpen) {
@@ -205,7 +210,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
         document.addEventListener('click', handleClickOutside);
         return () => document.removeEventListener('click', handleClickOutside);
     }, [showJobDropdown]);
-    
+  
     const resetFormStates = () => {
         setNewJobName('');
         setNewJobDescription('');
@@ -246,15 +251,65 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
     const fetchInitialData = async () => {
         setPageLoading(true);
         try {
-            const [projectsRes, jobsRes] = await Promise.all([
-                fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Project/GetProjects`),
-                fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Job/GetJobs`)
-            ]);
-            if (!projectsRes.ok || !jobsRes.ok) throw new Error();
-            const projectsData = (await projectsRes.json()).projects || [];
-            const jobsData = (await jobsRes.json()).jobs || [];
-            setAllProjects(projectsData);
-            setJobs(jobsData);
+            // Fetch projects that user has access to in this workspace
+            const projectsRes = await fetch(
+                `${process.env.REACT_APP_API_BASE_URL}/api/Project/GetProjectsByUserJobPermission/${user}/${defWorkId}`
+            );
+            
+            if (!projectsRes.ok) throw new Error('Failed to fetch projects');
+            
+            const projectsData = await projectsRes.json();
+            const projects = projectsData.projects || [];
+            setAllProjects(projects);
+            
+            // For each project, fetch jobs that user has access to
+            const jobsPromises = projects.map(async (project) => {
+                try {
+                    const jobsRes = await fetch(
+                        `${process.env.REACT_APP_API_BASE_URL}/api/UserJobAuth/GetJobsByUserAndProject/${user}/${project.id}`
+                    );
+                    
+                    if (jobsRes.ok) {
+                        const jobsData = await jobsRes.json();
+                        return {
+                            projectId: project.id,
+                            jobs: jobsData.jobs || []
+                        };
+                    }
+                    return {
+                        projectId: project.id,
+                        jobs: []
+                    };
+                } catch {
+                    return {
+                        projectId: project.id,
+                        jobs: []
+                    };
+                }
+            });
+            
+            const jobsResults = await Promise.all(jobsPromises);
+            
+            // Create a mapping of projectId to jobs
+            const projectJobMap = {};
+            const allJobs = [];
+            
+            jobsResults.forEach(result => {
+                const formattedJobs = result.jobs.map(job => ({
+                    id: job.jobId,
+                    name: job.jobName,
+                    projectId: result.projectId,
+                    // Add other properties if needed, default status to 1 (active)
+                    status: 1
+                }));
+                
+                projectJobMap[result.projectId] = formattedJobs;
+                allJobs.push(...formattedJobs);
+            });
+            
+            setProjectJobMappings(projectJobMap);
+            setJobs(allJobs);
+            
         } catch {
             toast.error('Failed to load data');
         } finally {
@@ -265,10 +320,12 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
     const loadAllProjects = async () => {
         setModalProjectError(false);
         try {
-            const res = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Project/GetProjects`);
+            const res = await fetch(
+                `${process.env.REACT_APP_API_BASE_URL}/api/Project/GetProjectsByUserJobPermission/${user}/${defWorkId}`
+            );
             if (res.ok) {
-                const data = (await res.json()).projects || [];
-                setAllProjects(data);
+                const data = await res.json();
+                setAllProjects(data.projects || []);
             } else {
                 throw new Error();
             }
@@ -435,7 +492,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
             toast.success('Job saved successfully');
             try {
                 await grantJobPermission(data.job.id);
-                await fetchInitialData();
+                await fetchInitialData(); // Refresh the data
             } catch {
                 toast.error('Failed to refresh data');
             }
@@ -509,7 +566,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
             }
             toast.success('Job updated');
             try {
-                await fetchInitialData();
+                await fetchInitialData(); // Refresh the data
             } catch {
                 toast.error('Failed to refresh data');
             }
@@ -571,7 +628,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
             try {
                 const grantPromises = data.jobs.map(job => grantJobPermission(job.id));
                 await Promise.all(grantPromises);
-                await fetchInitialData();
+                await fetchInitialData(); // Refresh the data
             } catch {
                 toast.error('Failed to refresh data');
             }
@@ -655,17 +712,22 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
     
     const isAdmin = userRole === 'admin';
     
+    // Updated: Now allProjects are already filtered by workspace and user permission
     const activeProjects = useMemo(() => {
-        return allProjects.filter(p => p.workspaceId === defWorkId && p.status === 1);
-    }, [allProjects, defWorkId]);
+        // Assuming all projects returned are active (since they come from permission-based endpoint)
+        return allProjects;
+    }, [allProjects]);
     
-    // Modified filteredJobs to include project info
+    // Modified filteredJobs to use the jobs we already fetched
     const filteredJobs = useMemo(() => {
         const searchLower = jobSearchTerm.toLowerCase().trim();
         return jobs
             .filter(job => {
+                // Find the project for this job
                 const project = allProjects.find(p => p.id === job.projectId);
-                if (!project || job.status === 3 || project.status === 3 || project.workspaceId !== defWorkId) return false;
+                if (!project) return false;
+                
+                // Check if job name or project name matches search
                 return job.name.toLowerCase().includes(searchLower) || 
                        project.name.toLowerCase().includes(searchLower) ||
                        workspaceName.toLowerCase().includes(searchLower);
@@ -675,10 +737,10 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
                 return {
                     ...job,
                     projectName: project?.name || 'Unknown Project',
-                    workspaceName: workspaceName // Use the workspace name
+                    workspaceName: workspaceName
                 };
             });
-    }, [jobs, allProjects, jobSearchTerm, defWorkId, workspaceName]);
+    }, [jobs, allProjects, jobSearchTerm, workspaceName]);
     
     return (
         <div className="settings-content" style={{ position: 'relative', minHeight: '400px' }}>
@@ -1054,7 +1116,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
                                         </div>
                                     ) : activeProjects.length === 0 ? (
                                         <div className="error-box">
-                                            No active projects
+                                            No projects available
                                         </div>
                                     ) : (
                                         <select
@@ -1254,7 +1316,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
                                                 </div>
                                             ) : activeProjects.length === 0 ? (
                                                 <div className="error-box">
-                                                    No active projects
+                                                    No projects available
                                                 </div>
                                             ) : (
                                                 <select

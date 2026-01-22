@@ -51,7 +51,7 @@ function App() {
     };
   }, []);
 
-  const fetchNotes = useCallback(async (page = 1, pageSize = 50) => {
+  const fetchNotes = useCallback(async (page = 1, pageSize) => {
     console.log("fetchNotes called - page:", page, "userId:", userId, "pageSize:", pageSize);
 
     try {

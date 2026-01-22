@@ -92,7 +92,7 @@ const [linkedNoteContent, setLinkedNoteContent] = useState({});
 const [loadingLinkedNote, setLoadingLinkedNote] = useState({}); */
 const linkHoverTimeoutRef = useRef(null); 
     
-  const pageSize = 50;
+  const pageSize = 25;
   const initialPageNumber = 1;
 
   // Function to fetch note replies from NEW API
@@ -353,7 +353,6 @@ const refreshNotesAfterReply = async () => {
     }
     
     console.log("✅ Refresh completed");
-    toast.success("Reply added successfully!");
     
   } catch (error) {
     console.error("❌ Error refreshing notes after reply:", error);

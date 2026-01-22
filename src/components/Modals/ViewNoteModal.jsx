@@ -62,7 +62,14 @@ const ViewNoteModal = ({
         isReply: true
       }));
       
-      return replies;
+      // Sort replies by timestamp ascending (oldest first)
+      const sortedReplies = replies.sort((a, b) => {
+        const timeA = new Date(a.timeStamp || a.date).getTime();
+        const timeB = new Date(b.timeStamp || b.date).getTime();
+        return timeA - timeB; // Ascending order
+      });
+      
+      return sortedReplies;
     } catch (error) {
       console.error(`Error fetching replies for note ${siteNoteId}:`, error);
       return [];
@@ -192,6 +199,7 @@ const ViewNoteModal = ({
           if (noteItem.id) {
             const replies = await fetchNoteReplies(noteItem.id);
             if (replies.length > 0) {
+              // Replies are already sorted in fetchNoteReplies function
               repliesMap[noteItem.id] = replies;
             }
           }
@@ -777,6 +785,13 @@ const ViewNoteModal = ({
   const renderNoteReplies = (noteId) => {
     const replies = noteReplies[noteId] || [];
     
+    // Sort replies by timestamp ascending (oldest first) to ensure correct order
+    const sortedReplies = [...replies].sort((a, b) => {
+      const timeA = new Date(a.timeStamp || a.date).getTime();
+      const timeB = new Date(b.timeStamp || b.date).getTime();
+      return timeA - timeB; // Ascending order (oldest first)
+    });
+    
     if (loadingReplies[noteId]) {
       return (
         <div className="replies-loading">
@@ -785,17 +800,17 @@ const ViewNoteModal = ({
       );
     }
 
-    if (replies.length === 0) {
+    if (sortedReplies.length === 0) {
       return null;
     }
 
     return (
       <div className="note-replies-container">
         <div className="replies-header">
-          <i className="fas fa-reply" /> {replies.length} {replies.length === 1 ? 'Reply' : 'Replies'}
+          <i className="fas fa-reply" /> {sortedReplies.length} {sortedReplies.length === 1 ? 'Reply' : 'Replies'}
         </div>
         <div className="replies-list">
-          {replies.map((reply) => (
+          {sortedReplies.map((reply) => (
             <div key={reply.id} className="reply-message">
               <div className="reply-content">
                 <div className="reply-header">

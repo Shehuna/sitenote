@@ -49,9 +49,11 @@ const DashboardMenu = ({
   const [settingsModalTitle, setSettingsModalTitle] = useState('Settings');
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   
-  // State for submenu
+  // State for submenus
   const [showJobSubmenu, setShowJobSubmenu] = useState(false);
-  const [submenuPosition, setSubmenuPosition] = useState({ top: 0, left: 0 });
+  const [showProjectSubmenu, setShowProjectSubmenu] = useState(false);
+  const [jobSubmenuPosition, setJobSubmenuPosition] = useState({ top: 0, left: 0 });
+  const [projectSubmenuPosition, setProjectSubmenuPosition] = useState({ top: 0, left: 0 });
   
   const [isMobile, setIsMobile] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -67,7 +69,9 @@ const DashboardMenu = ({
   const settingsButtonRef = useRef(null);
   const mobileSettingsButtonRef = useRef(null);
   const jobMenuButtonRef = useRef(null);
-  const submenuRef = useRef(null);
+  const projectMenuButtonRef = useRef(null);
+  const jobSubmenuRef = useRef(null);
+  const projectSubmenuRef = useRef(null);
 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
   const navigate = useNavigate();
@@ -132,10 +136,21 @@ const DashboardMenu = ({
     }
   }, [showJobSubmenu]);
 
+  // Handle click outside project submenu
+  const handleClickOutsideProjectSubmenu = useCallback((event) => {
+    const isClickOnProjectMenuButton = 
+      projectMenuButtonRef.current && projectMenuButtonRef.current.contains(event.target);
+    
+    if (!isClickOnProjectMenuButton && showProjectSubmenu) {
+      setShowProjectSubmenu(false);
+    }
+  }, [showProjectSubmenu]);
+
   // Apply click outside handlers
   useClickOutside(settingsMenuRef, handleClickOutsideSettings);
   useClickOutside(userMenuRef, handleClickOutsideUserMenu);
-  useClickOutside(submenuRef, handleClickOutsideJobSubmenu);
+  useClickOutside(jobSubmenuRef, handleClickOutsideJobSubmenu);
+  useClickOutside(projectSubmenuRef, handleClickOutsideProjectSubmenu);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -189,6 +204,7 @@ const DashboardMenu = ({
     if (showSettingsModal) {
       setShowSettingsMenu(false);
       setShowJobSubmenu(false);
+      setShowProjectSubmenu(false);
     }
   }, [showSettingsModal]);
 
@@ -213,15 +229,19 @@ const DashboardMenu = ({
       setShowNotifications(false);
       setShowSettingsMenu(false);
       setShowJobSubmenu(false);
+      setShowProjectSubmenu(false);
     }
     if (showSettingsMenu) {
       setShowUserMenu(false);
       setShowNotifications(false);
+      setShowJobSubmenu(false);
+      setShowProjectSubmenu(false);
     }
     if (showNotifications) {
       setShowUserMenu(false);
       setShowSettingsMenu(false);
       setShowJobSubmenu(false);
+      setShowProjectSubmenu(false);
     }
   }, [showUserMenu, showSettingsMenu, showNotifications]);
 
@@ -285,6 +305,7 @@ const DashboardMenu = ({
     setShowMobileMenu(false);
     setShowSettingsMenu(false);
     setShowJobSubmenu(false);
+    setShowProjectSubmenu(false);
   };
 
   const handleSwitchWorkspaceClick = () => {
@@ -293,6 +314,7 @@ const DashboardMenu = ({
     setShowMobileMenu(false);
     setShowSettingsMenu(false);
     setShowJobSubmenu(false);
+    setShowProjectSubmenu(false);
   };
 
   const handleRequestWorkspaceClick = () => {
@@ -301,6 +323,7 @@ const DashboardMenu = ({
     setShowMobileMenu(false);
     setShowSettingsMenu(false);
     setShowJobSubmenu(false);
+    setShowProjectSubmenu(false);
   };
 
   const handleOtpVerificationSuccess = (email) => {
@@ -342,6 +365,7 @@ const DashboardMenu = ({
     setShowSettingsMenu(false);
     setShowUserMenu(false);
     setShowJobSubmenu(false);
+    setShowProjectSubmenu(false);
     // Navigate to admin dashboard
     navigate('/admin-dashboard');
   };
@@ -417,6 +441,7 @@ const DashboardMenu = ({
       setShowSettingsModal(true);
       setShowSettingsMenu(false);
       setShowJobSubmenu(false);
+      setShowProjectSubmenu(false);
     }
   };
 
@@ -429,9 +454,12 @@ const DashboardMenu = ({
       const scrollY = window.scrollY || document.documentElement.scrollTop;
       const scrollX = window.scrollX || document.documentElement.scrollLeft;
       
+      // Close project submenu if open
+      setShowProjectSubmenu(false);
+      
       // For desktop: show submenu to the left
       if (!isMobile) {
-        setSubmenuPosition({
+        setJobSubmenuPosition({
           top: rect.top + scrollY,
           left: rect.left + scrollX - 210
         });
@@ -444,11 +472,47 @@ const DashboardMenu = ({
         // Center it horizontally relative to the button
         const submenuLeft = Math.max(10, rect.left + scrollX - 90);
         
-        setSubmenuPosition({
+        setJobSubmenuPosition({
           top: submenuTop,
           left: submenuLeft
         });
         setShowJobSubmenu(!showJobSubmenu);
+      }
+    }
+  };
+
+  // Handle project menu click - opens submenu
+  const handleProjectMenuClick = (e) => {
+    e.stopPropagation();
+    
+    if (projectMenuButtonRef.current) {
+      const rect = projectMenuButtonRef.current.getBoundingClientRect();
+      const scrollY = window.scrollY || document.documentElement.scrollTop;
+      const scrollX = window.scrollX || document.documentElement.scrollLeft;
+      
+      // Close job submenu if open
+      setShowJobSubmenu(false);
+      
+      // For desktop: show submenu to the left
+      if (!isMobile) {
+        setProjectSubmenuPosition({
+          top: rect.top + scrollY,
+          left: rect.left + scrollX - 210
+        });
+        setShowProjectSubmenu(!showProjectSubmenu);
+      }
+      // For mobile: position submenu below the project management button
+      else {
+        // Position it below the button with a small gap
+        const submenuTop = rect.bottom + scrollY + 5;
+        // Center it horizontally relative to the button
+        const submenuLeft = Math.max(10, rect.left + scrollX - 90);
+        
+        setProjectSubmenuPosition({
+          top: submenuTop,
+          left: submenuLeft
+        });
+        setShowProjectSubmenu(!showProjectSubmenu);
       }
     }
   };
@@ -459,6 +523,7 @@ const DashboardMenu = ({
     setShowUserMenu(false);
     setShowNotifications(false);
     setShowJobSubmenu(false);
+    setShowProjectSubmenu(false);
   };
 
   // Function to close settings modal and reset component
@@ -480,6 +545,7 @@ const DashboardMenu = ({
     setShowUserMenu(false);
     setShowSettingsMenu(false);
     setShowJobSubmenu(false);
+    setShowProjectSubmenu(false);
   };
 
   const handleMobileNotifications = () => {
@@ -487,6 +553,7 @@ const DashboardMenu = ({
     setShowUserMenu(false);
     setShowSettingsMenu(false);
     setShowJobSubmenu(false);
+    setShowProjectSubmenu(false);
   };
 
   const handleMobileRequestWorkspace = () => {
@@ -494,12 +561,14 @@ const DashboardMenu = ({
     setShowUserMenu(false);
     setShowSettingsMenu(false);
     setShowJobSubmenu(false);
+    setShowProjectSubmenu(false);
   };
   
   // Handle submenu item click
   const handleSubmenuItemClick = (menuId) => {
     handleSettingsMenuItemClick(menuId);
     setShowJobSubmenu(false);
+    setShowProjectSubmenu(false);
     setShowSettingsMenu(false);
   };
   
@@ -722,20 +791,16 @@ const DashboardMenu = ({
                     
                     <div className="dropdown-divider"></div>
                     
-                    <button 
-                      className="dropdown-item"
-                      onClick={() => handleSettingsMenuItemClick('projectManagement')}
+                    {/* Project Management with submenu trigger for mobile */}
+                    <div 
+                      className="dropdown-item has-submenu"
+                      ref={projectMenuButtonRef}
+                      onClick={handleProjectMenuClick}
                     >
                       <i className="fas fa-project-diagram dropdown-icon" />
                       <span className="dropdown-text">Project Management</span>
-                    </button>
-                    <button 
-                      className="dropdown-item"
-                      onClick={() => handleSettingsMenuItemClick('projectPermission')}
-                    >
-                      <i className="fas fa-user-shield dropdown-icon" />
-                      <span className="dropdown-text">Project Permission</span>
-                    </button>
+                      <i className={`fas ${showProjectSubmenu ? 'fa-chevron-up' : 'fa-chevron-down'} submenu-arrow`} />
+                    </div>
                     
                     {/* Job Management with submenu trigger for mobile */}
                     <div 
@@ -784,15 +849,52 @@ const DashboardMenu = ({
               </div>
             )}
             
-            {/* Mobile Job Management Submenu - Separate overlay */}
+            {/* Mobile Project Management Submenu */}
+            {isMobile && showProjectSubmenu && (
+              <div 
+                ref={projectSubmenuRef}
+                className="project-submenu mobile-project-submenu"
+                style={{
+                  position: 'fixed',
+                  top: `${projectSubmenuPosition.top}px`,
+                  left: `${Math.max(10, Math.min(projectSubmenuPosition.left, window.innerWidth - 210))}px`,
+                  zIndex: 1006
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="submenu-header">
+                  <span>Project Management</span>
+                </div>
+                
+                <div className="submenu-divider"></div>
+                
+                <button 
+                  className="submenu-item"
+                  onClick={() => handleSubmenuItemClick('projectManagement')}
+                >
+                  <i className="fas fa-edit submenu-icon" />
+                  <span className="submenu-text">Add/Edit Project</span>
+                </button>
+                
+                <button 
+                  className="submenu-item"
+                  onClick={() => handleSubmenuItemClick('projectPermission')}
+                >
+                  <i className="fas fa-user-shield submenu-icon" />
+                  <span className="submenu-text">Project Permissions</span>
+                </button>
+              </div>
+            )}
+            
+            {/* Mobile Job Management Submenu */}
             {isMobile && showJobSubmenu && (
               <div 
-                ref={submenuRef}
+                ref={jobSubmenuRef}
                 className="job-submenu mobile-job-submenu"
                 style={{
                   position: 'fixed',
-                  top: `${submenuPosition.top}px`,
-                  left: `${Math.max(10, Math.min(submenuPosition.left, window.innerWidth - 210))}px`,
+                  top: `${jobSubmenuPosition.top}px`,
+                  left: `${Math.max(10, Math.min(jobSubmenuPosition.left, window.innerWidth - 210))}px`,
                   zIndex: 1006
                 }}
                 onClick={(e) => e.stopPropagation()}
@@ -838,6 +940,7 @@ const DashboardMenu = ({
                   setShowSettingsMenu(false);
                   setShowNotifications(false);
                   setShowJobSubmenu(false);
+                  setShowProjectSubmenu(false);
                 }}
                 className="user-avatar mobile-user-avatar"
                 title={user.name}
@@ -934,6 +1037,7 @@ const DashboardMenu = ({
                 setShowUserMenu(false);
                 setShowSettingsMenu(false);
                 setShowJobSubmenu(false);
+                setShowProjectSubmenu(false);
               }}
               title="Notifications"
             >
@@ -964,20 +1068,16 @@ const DashboardMenu = ({
                     
                     <div className="dropdown-divider"></div>
                     
-                    <button 
-                      className="dropdown-item"
-                      onClick={() => handleSettingsMenuItemClick('projectManagement')}
+                    {/* Project Management with submenu trigger */}
+                    <div 
+                      className="dropdown-item has-submenu"
+                      ref={projectMenuButtonRef}
+                      onClick={handleProjectMenuClick}
                     >
                       <i className="fas fa-project-diagram dropdown-icon" />
                       <span className="dropdown-text">Project Management</span>
-                    </button>
-                    <button 
-                      className="dropdown-item"
-                      onClick={() => handleSettingsMenuItemClick('projectPermission')}
-                    >
-                      <i className="fas fa-user-shield dropdown-icon" />
-                      <span className="dropdown-text">Project Permission</span>
-                    </button>
+                      <i className={`fas ${showProjectSubmenu ? 'fa-chevron-left' : 'fa-chevron-right'} submenu-arrow`} />
+                    </div>
                     
                     {/* Job Management with submenu trigger */}
                     <div 
@@ -1026,15 +1126,52 @@ const DashboardMenu = ({
               </div>
             )}
             
+            {/* Project Management Submenu (Desktop) */}
+            {showProjectSubmenu && !isMobile && (
+              <div 
+                ref={projectSubmenuRef}
+                className="project-submenu desktop-project-submenu"
+                style={{
+                  position: 'fixed',
+                  top: `${projectSubmenuPosition.top}px`,
+                  left: `${projectSubmenuPosition.left}px`,
+                  zIndex: 1005
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="submenu-header">
+                  <span>Project Management</span>
+                </div>
+                
+                <div className="submenu-divider"></div>
+                
+                <button 
+                  className="submenu-item"
+                  onClick={() => handleSubmenuItemClick('projectManagement')}
+                >
+                  <i className="fas fa-edit submenu-icon" />
+                  <span className="submenu-text">Add/Edit Project</span>
+                </button>
+                
+                <button 
+                  className="submenu-item"
+                  onClick={() => handleSubmenuItemClick('projectPermission')}
+                >
+                  <i className="fas fa-user-shield submenu-icon" />
+                  <span className="submenu-text">Project Permissions</span>
+                </button>
+              </div>
+            )}
+            
             {/* Job Management Submenu (Desktop) */}
             {showJobSubmenu && !isMobile && (
               <div 
-                ref={submenuRef}
+                ref={jobSubmenuRef}
                 className="job-submenu desktop-job-submenu"
                 style={{
                   position: 'fixed',
-                  top: `${submenuPosition.top}px`,
-                  left: `${submenuPosition.left}px`,
+                  top: `${jobSubmenuPosition.top}px`,
+                  left: `${jobSubmenuPosition.left}px`,
                   zIndex: 1005
                 }}
                 onClick={(e) => e.stopPropagation()}
@@ -1079,6 +1216,7 @@ const DashboardMenu = ({
                   setShowSettingsMenu(false);
                   setShowNotifications(false);
                   setShowJobSubmenu(false);
+                  setShowProjectSubmenu(false);
                 }}
                 className="user-avatar"
                 title={user.name}

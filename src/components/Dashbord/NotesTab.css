@@ -350,6 +350,7 @@ tr.selected-row.priority-4 {
   flex-shrink: 0 !important;
   border: 2px solid white !important;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+  z-index: 100;
 }
 .user-avatar-wrapper {
   position: relative;

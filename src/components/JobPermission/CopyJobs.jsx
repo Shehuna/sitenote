@@ -294,21 +294,11 @@ const CopyJobs = ({ filteredUsers, loading, setLoading, defWorkId }) => {
                             borderLeft: '3px solid #1976d2'
                         }}>
                             <div style={{ fontWeight: '500' }}>
-                                Found {defaultWorkspaceJobs.length} job(s) in default workspace 
+                                Found {defaultWorkspaceJobs.length} job(s) in default workspace to copy
                                 {sourceUserJobs.length > 0 && 
                                     ` (out of ${sourceUserJobs.length} total jobs)`}
                             </div>
-                            {defaultWorkspaceJobs.length > 0 && (
-                                <div style={{ 
-                                    marginTop: '4px', 
-                                    fontSize: '11px', 
-                                    color: '#666',
-                                    paddingTop: '4px',
-                                    borderTop: '1px solid #eee'
-                                }}>
-                                    <span style={{ fontWeight: '500' }}>Jobs available to copy:</span> {defaultWorkspaceJobs.map(job => job.jobName).join(', ')}
-                                </div>
-                            )}
+                         
                         </div>
                     )}
                 </div>

@@ -2291,3 +2291,74 @@ body.dropdown-open {
 .desktop-job-submenu {
   z-index: 1005 !important;
 }
+/* Project Submenu Styles - similar to Job Submenu */
+.project-submenu {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+  min-width: 200px;
+  padding: 8px 0;
+  z-index: 1005;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.project-submenu .submenu-header {
+  padding: 12px 16px;
+  font-weight: 600;
+  color: #333;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 14px;
+}
+
+.project-submenu .submenu-divider {
+  height: 1px;
+  background-color: #f0f0f0;
+  margin: 4px 0;
+}
+
+.project-submenu .submenu-item {
+  width: 100%;
+  padding: 10px 16px;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  color: #555;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.project-submenu .submenu-item:hover {
+  background-color: #f5f5f5;
+  color: #333;
+}
+
+.project-submenu .submenu-item .submenu-icon {
+  margin-right: 12px;
+  width: 16px;
+  text-align: center;
+  color: #666;
+}
+
+.project-submenu .submenu-item:hover .submenu-icon {
+  color: #333;
+}
+
+/* Mobile specific styles for project submenu */
+.mobile-project-submenu {
+  position: fixed !important;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+  min-width: 200px;
+  padding: 8px 0;
+  z-index: 1006;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.desktop-project-submenu {
+  position: fixed !important;
+  z-index: 1005;
+}
