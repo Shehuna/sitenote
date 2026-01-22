@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useCallback } from 'react'
 import Modal from '../Modals/Modal';
 import toast from 'react-hot-toast';
 import '../Modals/SettingsModal.css'
@@ -22,6 +22,31 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
      const [workspaces, setWorkspaces] = useState([]); // Store all workspaces for reference
 
      const API_URL = process.env.REACT_APP_API_BASE_URL
+     const handleKeyDown = useCallback((event) => {
+         if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+             event.preventDefault(); 
+             if (isAddProjectOpen && newProjectName) {
+                 handleAddProject();
+             } else if (isEditProjectOpen && newProjectName) {
+                 handleEditProject();
+             }
+         }
+     }, [isAddProjectOpen, isEditProjectOpen, newProjectName]);
+
+     useEffect(() => {
+         document.addEventListener('keydown', handleKeyDown);
+         return () => {
+             document.removeEventListener('keydown', handleKeyDown);
+         };
+     }, [handleKeyDown]);
+
+     useEffect(() => {
+         document.addEventListener('keydown', handleKeyDown);
+         
+         return () => {
+             document.removeEventListener('keydown', handleKeyDown);
+         };
+     }, [isAddProjectOpen, isEditProjectOpen, handleKeyDown]);
 
       useEffect(() => {
             fetchWorkspacesById();
@@ -298,6 +323,7 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
                         value={newProjectName}
                         onChange={(e) => setNewProjectName(e.target.value)}
                         placeholder="Enter project name"
+                        autoFocus
                     />
                 </div>
                 <div className="form-group">
@@ -349,6 +375,7 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
                         value={newProjectName}
                         onChange={(e) => setNewProjectName(e.target.value)}
                         placeholder="Enter project name"
+                        autoFocus
                     />
                 </div>
                 <div className="form-group">

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import Modal from '../Modals/Modal';
 import toast from 'react-hot-toast';
 import '../Modals/SettingsModal.css'
@@ -66,6 +66,37 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
     
     // Add state for workspace name
     const [workspaceName, setWorkspaceName] = useState(defaultworkspace);
+     
+    const handleKeyDown = useCallback((event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+            event.preventDefault(); 
+            if (isAddJobOpen && !isAdding) {
+                if (activeTab === 'single' && singleSelectedProject && newJobName.trim()) {
+                    handleAddJob();
+                } else if (activeTab === 'bulk' && isReviewMode && bulkSelectedProject && parsedJobs.length > 0) {
+                    handleAddBulkJobs();
+                }
+            } else if (isEditJobOpen && !isEditing && newJobName.trim()) {
+                handleEditJob();
+            }
+        }
+    }, [isAddJobOpen, isEditJobOpen, activeTab, isAdding, isEditing, singleSelectedProject, newJobName, bulkSelectedProject, isReviewMode, parsedJobs.length]);
+    
+    useEffect(() => {
+        document.addEventListener('keydown', handleKeyDown);
+        
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [handleKeyDown]);
+    
+    useEffect(() => {
+        document.addEventListener('keydown', handleKeyDown);
+        
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isAddJobOpen, isEditJobOpen, handleKeyDown]);
     
     useEffect(() => {
         const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
