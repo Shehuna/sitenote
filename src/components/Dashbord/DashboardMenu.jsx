@@ -14,6 +14,7 @@ import JobPermissionManagement from '../JobPermission/JobPermissionManagement';
 import JobStatusManagement from '../JobStatus/JobStatusManagement';
 import WorkspaceManagement from '../Workspaces/WorkspaceManagement';
 import ProjectPermissionManagement from '../ProjectPermission/ProjectPermissionManagement';
+import WorkspacePermissionManagement from '../WorkspacePermission/WorkspacePermissionManagement';
 
 const DashboardMenu = ({
     defaultUserWorkspaceID,
@@ -52,8 +53,10 @@ const DashboardMenu = ({
   // State for submenus
   const [showJobSubmenu, setShowJobSubmenu] = useState(false);
   const [showProjectSubmenu, setShowProjectSubmenu] = useState(false);
+  const [showWorkspaceSubmenu, setShowWorkspaceSubmenu] = useState(false);
   const [jobSubmenuPosition, setJobSubmenuPosition] = useState({ top: 0, left: 0 });
   const [projectSubmenuPosition, setProjectSubmenuPosition] = useState({ top: 0, left: 0 });
+  const [workspaceSubmenuPosition, setWorkspaceSubmenuPosition] = useState({ top: 0, left: 0 });
   
   const [isMobile, setIsMobile] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
@@ -72,6 +75,8 @@ const DashboardMenu = ({
   const projectMenuButtonRef = useRef(null);
   const jobSubmenuRef = useRef(null);
   const projectSubmenuRef = useRef(null);
+  const workspaceMenuButtonRef = useRef(null);
+  const workspaceSubmenuRef = useRef(null);
 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
   const navigate = useNavigate();
@@ -146,11 +151,22 @@ const DashboardMenu = ({
     }
   }, [showProjectSubmenu]);
 
+  // Handle click outside workspace submenu
+  const handleClickOutsideWorkspaceSubmenu = useCallback((event) => {
+    const isClickOnWorkspaceMenuButton = 
+      workspaceMenuButtonRef.current && workspaceMenuButtonRef.current.contains(event.target);
+
+    if (!isClickOnWorkspaceMenuButton && showWorkspaceSubmenu) {
+      setShowWorkspaceSubmenu(false);
+    }
+  }, [showWorkspaceSubmenu]);
+
   // Apply click outside handlers
   useClickOutside(settingsMenuRef, handleClickOutsideSettings);
   useClickOutside(userMenuRef, handleClickOutsideUserMenu);
   useClickOutside(jobSubmenuRef, handleClickOutsideJobSubmenu);
   useClickOutside(projectSubmenuRef, handleClickOutsideProjectSubmenu);
+  useClickOutside(workspaceSubmenuRef, handleClickOutsideWorkspaceSubmenu);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -230,18 +246,21 @@ const DashboardMenu = ({
       setShowSettingsMenu(false);
       setShowJobSubmenu(false);
       setShowProjectSubmenu(false);
+      setShowWorkspaceSubmenu(false);
     }
     if (showSettingsMenu) {
       setShowUserMenu(false);
       setShowNotifications(false);
       setShowJobSubmenu(false);
       setShowProjectSubmenu(false);
+      setShowWorkspaceSubmenu(false);
     }
     if (showNotifications) {
       setShowUserMenu(false);
       setShowSettingsMenu(false);
       setShowJobSubmenu(false);
       setShowProjectSubmenu(false);
+      setShowWorkspaceSubmenu(false);
     }
   }, [showUserMenu, showSettingsMenu, showNotifications]);
 
@@ -306,6 +325,7 @@ const DashboardMenu = ({
     setShowSettingsMenu(false);
     setShowJobSubmenu(false);
     setShowProjectSubmenu(false);
+    setShowWorkspaceSubmenu(false);
   };
 
   const handleSwitchWorkspaceClick = () => {
@@ -315,6 +335,7 @@ const DashboardMenu = ({
     setShowSettingsMenu(false);
     setShowJobSubmenu(false);
     setShowProjectSubmenu(false);
+    setShowWorkspaceSubmenu(false);
   };
 
   const handleRequestWorkspaceClick = () => {
@@ -324,6 +345,7 @@ const DashboardMenu = ({
     setShowSettingsMenu(false);
     setShowJobSubmenu(false);
     setShowProjectSubmenu(false);
+    setShowWorkspaceSubmenu(false);
   };
 
   const handleOtpVerificationSuccess = (email) => {
@@ -366,6 +388,7 @@ const DashboardMenu = ({
     setShowUserMenu(false);
     setShowJobSubmenu(false);
     setShowProjectSubmenu(false);
+    setShowWorkspaceSubmenu(false);
     // Navigate to admin dashboard
     navigate('/admin-dashboard');
   };
@@ -417,6 +440,13 @@ const DashboardMenu = ({
         />;
         title = 'Job Status Update';
         break;
+      case 'workspacePermission':
+        component = <WorkspacePermissionManagement 
+          defId={defaultUserWorkspaceID}
+          userId={userid}
+        />;
+        title = 'Workspace Permissions';
+        break;
       case 'workspaceSettings':
         component = <WorkspaceManagement 
           onUpdateDefaultWorkspace={onUpdateDefaultWorkspace} 
@@ -442,6 +472,7 @@ const DashboardMenu = ({
       setShowSettingsMenu(false);
       setShowJobSubmenu(false);
       setShowProjectSubmenu(false);
+      setShowWorkspaceSubmenu(false);
     }
   };
 
@@ -477,6 +508,29 @@ const DashboardMenu = ({
           left: submenuLeft
         });
         setShowJobSubmenu(!showJobSubmenu);
+      }
+    }
+  };
+
+  const handleWorkspaceMenuClick = (e) => {
+    e.stopPropagation();
+    if (workspaceMenuButtonRef.current) {
+      const rect = workspaceMenuButtonRef.current.getBoundingClientRect();
+      const scrollY = window.scrollY || document.documentElement.scrollTop;
+      const scrollX = window.scrollX || document.documentElement.scrollLeft;
+      setShowJobSubmenu(false);
+      setShowProjectSubmenu(false);
+      if (!isMobile) {
+        setWorkspaceSubmenuPosition({
+          top: rect.top + scrollY,
+          left: rect.left + scrollX - 210
+        });
+        setShowWorkspaceSubmenu(!showWorkspaceSubmenu);
+      } else {
+        const submenuTop = rect.bottom + scrollY + 5;
+        const submenuLeft = Math.max(10, rect.left + scrollX - 90);
+        setWorkspaceSubmenuPosition({ top: submenuTop, left: submenuLeft });
+        setShowWorkspaceSubmenu(!showWorkspaceSubmenu);
       }
     }
   };
@@ -524,6 +578,7 @@ const DashboardMenu = ({
     setShowNotifications(false);
     setShowJobSubmenu(false);
     setShowProjectSubmenu(false);
+    setShowWorkspaceSubmenu(false);
   };
 
   // Function to close settings modal and reset component
@@ -546,6 +601,7 @@ const DashboardMenu = ({
     setShowSettingsMenu(false);
     setShowJobSubmenu(false);
     setShowProjectSubmenu(false);
+    setShowWorkspaceSubmenu(false);
   };
 
   const handleMobileNotifications = () => {
@@ -554,6 +610,7 @@ const DashboardMenu = ({
     setShowSettingsMenu(false);
     setShowJobSubmenu(false);
     setShowProjectSubmenu(false);
+    setShowWorkspaceSubmenu(false);
   };
 
   const handleMobileRequestWorkspace = () => {
@@ -562,6 +619,7 @@ const DashboardMenu = ({
     setShowSettingsMenu(false);
     setShowJobSubmenu(false);
     setShowProjectSubmenu(false);
+    setShowWorkspaceSubmenu(false);
   };
   
   // Handle submenu item click
@@ -570,6 +628,7 @@ const DashboardMenu = ({
     setShowJobSubmenu(false);
     setShowProjectSubmenu(false);
     setShowSettingsMenu(false);
+    setShowWorkspaceSubmenu(false);
   };
   
   return (
@@ -824,14 +883,16 @@ const DashboardMenu = ({
                     )}
                     
                     <div className="dropdown-divider"></div>
-                    
-                    <button 
-                      className="dropdown-item"
-                      onClick={() => handleSettingsMenuItemClick('workspaceSettings')}
+
+                    <div 
+                      className="dropdown-item has-submenu"
+                      ref={workspaceMenuButtonRef}
+                      onClick={handleWorkspaceMenuClick}
                     >
                       <i className="fas fa-building dropdown-icon" />
                       <span className="dropdown-text">Workspace Management</span>
-                    </button>
+                      <i className={`fas ${showWorkspaceSubmenu ? 'fa-chevron-up' : 'fa-chevron-down'} submenu-arrow`} />
+                    </div>
                     
                     {/* Add Admin Dashboard item for mobile */}
                     {userRole === 'Admin' && (
@@ -927,6 +988,42 @@ const DashboardMenu = ({
                 >
                   <i className="fas fa-sync-alt submenu-icon" />
                   <span className="submenu-text">Job Status Update</span>
+                </button>
+              </div>
+            )}
+
+            {isMobile && showWorkspaceSubmenu && (
+              <div
+                ref={workspaceSubmenuRef}
+                className="workspace-submenu mobile-workspace-submenu"
+                style={{
+                  position: 'fixed',
+                  top: `${workspaceSubmenuPosition.top}px`,
+                  left: `${Math.max(10, Math.min(workspaceSubmenuPosition.left, window.innerWidth - 210))}px`,
+                  zIndex: 1006
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="submenu-header">
+                  <span>Workspace Management</span>
+                </div>
+
+                <div className="submenu-divider"></div>
+
+                <button
+                  className="submenu-item"
+                  onClick={() => handleSubmenuItemClick('workspacePermission')}
+                >
+                  <i className="fas fa-user-shield submenu-icon" />
+                  <span className="submenu-text">Workspace Permissions</span>
+                </button>
+
+                <button
+                  className="submenu-item"
+                  onClick={() => handleSubmenuItemClick('workspaceSettings')}
+                >
+                  <i className="fas fa-building submenu-icon" />
+                  <span className="submenu-text">Workspace Settings</span>
                 </button>
               </div>
             )}
@@ -1102,13 +1199,17 @@ const DashboardMenu = ({
                     
                     <div className="dropdown-divider"></div>
                     
-                    <button 
-                      className="dropdown-item"
-                      onClick={() => handleSettingsMenuItemClick('workspaceSettings')}
+                    <div className="dropdown-divider"></div>
+
+                    <div 
+                      className="dropdown-item has-submenu"
+                      ref={workspaceMenuButtonRef}
+                      onClick={handleWorkspaceMenuClick}
                     >
                       <i className="fas fa-building dropdown-icon" />
                       <span className="dropdown-text">Workspace Management</span>
-                    </button>
+                      <i className={`fas ${showWorkspaceSubmenu ? 'fa-chevron-left' : 'fa-chevron-right'} submenu-arrow`} />
+                    </div>
                     
                     {/* Add Admin Dashboard item */}
                     {userRole === 'Admin' && (
@@ -1204,6 +1305,42 @@ const DashboardMenu = ({
                 >
                   <i className="fas fa-sync-alt submenu-icon" />
                   <span className="submenu-text">Job Status Update</span>
+                </button>
+              </div>
+            )}
+
+            {showWorkspaceSubmenu && !isMobile && (
+              <div
+                ref={workspaceSubmenuRef}
+                className="workspace-submenu desktop-workspace-submenu"
+                style={{
+                  position: 'fixed',
+                  top: `${workspaceSubmenuPosition.top}px`,
+                  left: `${workspaceSubmenuPosition.left}px`,
+                  zIndex: 1005
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="submenu-header">
+                  <span>Workspace Management</span>
+                </div>
+
+                <div className="submenu-divider"></div>
+
+                <button
+                  className="submenu-item"
+                  onClick={() => handleSubmenuItemClick('workspacePermission')}
+                >
+                  <i className="fas fa-user-shield submenu-icon" />
+                  <span className="submenu-text">Workspace Permissions</span>
+                </button>
+
+                <button
+                  className="submenu-item"
+                  onClick={() => handleSubmenuItemClick('workspaceSettings')}
+                >
+                  <i className="fas fa-building submenu-icon" />
+                  <span className="submenu-text">Workspace Settings</span>
                 </button>
               </div>
             )}

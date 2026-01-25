@@ -1,0 +1,14 @@
+.user-workspaces-modern { display:flex; gap:16px; }
+.users-pane { width: 30%; }
+.users-header input { width:100%; padding:8px; border-radius:6px; border:1px solid #ddd; }
+.users-list { list-style:none; padding:0; margin:0; border:1px solid #e9ecef; border-radius:6px; max-height:60vh; overflow-y:auto; }
+.users-list li { padding:10px; border-bottom:1px solid #f5f5f5; cursor:pointer; }
+.users-list li.active { background:#e9f5ff; }
+.projects-pane { flex:1; }
+.projects-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+.projects-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:12px; }
+.project-card { border:1px solid #e9ecef; border-radius:6px; padding:12px; background:#fff; }
+.project-title { font-weight:600; margin-bottom:8px; }
+.project-actions { margin-top:8px; }
+.btn.danger { background:#dc3545; color:#fff; border:none; padding:6px 10px; border-radius:4px; cursor:pointer; }
+.empty { padding:20px; color:#666; }

@@ -1513,11 +1513,7 @@ useEffect(() => {
   }
 
   const sortedJobs = viewMode === "stacked" 
-    ? (jobsToDisplay && jobsToDisplay.length > 0 
-        ? [...jobsToDisplay].sort((a, b) => {
-            return (b.noteCount || 0) - (a.noteCount || 0);
-          })
-        : []) 
+    ? (jobsToDisplay && jobsToDisplay.length > 0 ? [...jobsToDisplay] : []) 
     : Object.keys(notesByJob).sort((a, b) => {
         const mostRecentA = notesByJob[a][0] ?
             new Date(notesByJob[a][0].timeStamp || notesByJob[a][0].date || 0).getTime() : 0;

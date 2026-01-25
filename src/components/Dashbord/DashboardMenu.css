@@ -2362,3 +2362,33 @@ body.dropdown-open {
   position: fixed !important;
   z-index: 1005;
 }
+
+/* Force opaque backgrounds for all dropdowns/menus (match project submenu) */
+.settings-dropdown,
+.mobile-settings-dropdown,
+.user-dropdown,
+.notifications-dropdown,
+.desktop-job-submenu,
+.mobile-job-submenu,
+.desktop-project-submenu,
+.mobile-project-submenu,
+.desktop-workspace-submenu,
+.mobile-workspace-submenu,
+.workspace-submenu,
+.project-submenu {
+  background-color: #ffffff !important;
+  border: 1px solid #e0e0e0 !important;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.12) !important;
+  backdrop-filter: none !important;
+}
+
+/* Ensure dropdown items display on opaque background */
+.settings-dropdown .dropdown-item,
+.mobile-settings-dropdown .dropdown-item,
+.user-dropdown .dropdown-item,
+.notifications-dropdown .notification-item,
+.project-submenu .submenu-item,
+.workspace-submenu .submenu-item {
+  background: transparent !important;
+  color: #334155 !important;
+}
