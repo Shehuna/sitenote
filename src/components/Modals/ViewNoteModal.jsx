@@ -528,219 +528,235 @@ const ViewNoteModal = ({
     return currentY;
   };
 
-  const generatePDF = async () => {
-    let max = maxNotes;
-    if (typeof max === 'string') {
-      const t = max.trim().toLowerCase();
-      if (t === '' || t === 'all') max = '10000';
+const generatePDF = async () => {
+  let max = maxNotes;
+  if (typeof max === 'string') {
+    const t = max.trim().toLowerCase();
+    if (t === '' || t === 'all') max = '10000';
+  }
+
+  if (isNaN(parseInt(max)) || parseInt(max) <= 0) {
+    toast.error("Invalid number of notes.");
+    return;
+  }
+
+  setPdfGenerating(true);
+
+  try {
+    const regularFontUrl = 'https://raw.githubusercontent.com/openmaptiles/fonts/master/noto-sans/noto-sans-ethiopic/NotoSansEthiopic-Regular.ttf';
+    const boldFontUrl = 'https://raw.githubusercontent.com/twardoch/toto-fonts/master/ttf/sans-bol/_Ethi_/NotoSans-Ethiopic-Bold.ttf';
+
+    const [regularBase64, boldBase64] = await Promise.all([
+      fetchFontBase64(regularFontUrl),
+      fetchFontBase64(boldFontUrl)
+    ]);
+
+    const notesToPrint = relatedNotes.slice(-parseInt(max));
+
+    const pdf = new jsPDF();
+
+    pdf.addFileToVFS('NotoSansEthiopic-Regular.ttf', regularBase64);
+    pdf.addFont('NotoSansEthiopic-Regular.ttf', 'NotoEthiopic', 'normal');
+
+    pdf.addFileToVFS('NotoSansEthiopic-Bold.ttf', boldBase64);
+    pdf.addFont('NotoSansEthiopic-Bold.ttf', 'NotoEthiopic', 'bold');
+
+    pdf.setFont('helvetica', 'normal');
+
+    // Set initial color to black for headers
+    pdf.setTextColor(0, 0, 0);
+    pdf.setFontSize(16);
+    pdf.text('Job Notes', 10, 10);
+
+    let headerY = 20;
+
+    pdf.setFontSize(12);
+    if (currentNote?.siteNote?.workspace) {
+      renderMixedText(pdf, `Workspace: ${currentNote.siteNote.workspace}`, 10, headerY);
+      headerY += 6;
     }
 
-    if (isNaN(parseInt(max)) || parseInt(max) <= 0) {
-      toast.error("Invalid number of notes.");
-      return;
+    if (currentNote?.siteNote?.project) {
+      renderMixedText(pdf, `Project: ${currentNote.siteNote.project}`, 10, headerY);
+      headerY += 6;
     }
 
-    setPdfGenerating(true);
+    if (currentNote?.siteNote?.job) {
+      renderMixedText(pdf, `Job: ${currentNote.siteNote.job}`, 10, headerY);
+      headerY += 6;
+    }
 
-    try {
-      const regularFontUrl = 'https://raw.githubusercontent.com/openmaptiles/fonts/master/noto-sans/NotoSansEthiopic-Regular.ttf';
-      const boldFontUrl = 'https://raw.githubusercontent.com/twardoch/toto-fonts/master/ttf/sans-bol/_Ethi_/NotoSans-Ethiopic-Bold.ttf';
+    if (jobDetails) {
+      if (jobDetails.type) {
+        renderMixedText(pdf, `Type: ${jobDetails.type}`, 10, headerY);
+        headerY += 6;
+      }
 
-      const [regularBase64, boldBase64] = await Promise.all([
-        fetchFontBase64(regularFontUrl),
-        fetchFontBase64(boldFontUrl)
-      ]);
+      if (jobDetails.priorityName && jobDetails.priorityName !== "Unknown") {
+        renderMixedText(pdf, `Priority: ${jobDetails.priorityName}`, 10, headerY);
+        headerY += 6;
+      }
 
-      const notesToPrint = relatedNotes.slice(-parseInt(max));
+      if (jobDetails.startDate) {
+        renderMixedText(pdf, `Start: ${formatDate(jobDetails.startDate)}`, 10, headerY);
+        headerY += 6;
+      }
 
-      const pdf = new jsPDF();
+      if (jobDetails.endDate) {
+        renderMixedText(pdf, `End: ${formatDate(jobDetails.endDate)}`, 10, headerY);
+        headerY += 6;
+      }
 
-      pdf.addFileToVFS('NotoSansEthiopic-Regular.ttf', regularBase64);
-      pdf.addFont('NotoSansEthiopic-Regular.ttf', 'NotoEthiopic', 'normal');
+      if (jobDetails.actualEndDate) {
+        renderMixedText(pdf, `Actual End: ${formatDate(jobDetails.actualEndDate)}`, 10, headerY);
+        headerY += 6;
+      }
 
-      pdf.addFileToVFS('NotoSansEthiopic-Bold.ttf', boldBase64);
-      pdf.addFont('NotoSansEthiopic-Bold.ttf', 'NotoEthiopic', 'bold');
+      if (jobDetails.managerId != null) {
+        let managerText = managerInfo
+          ? `${managerInfo.fname || managerInfo.firstName || ''} ${managerInfo.lname || managerInfo.lastName || ''}`.trim()
+          : `ID: ${jobDetails.managerId}`;
+        if (managerInfo?.email) {
+          managerText += ` (${managerInfo.email})`;
+        }
+        renderMixedText(pdf, `Manager: ${managerText}`, 10, headerY);
+        headerY += 6;
+      }
 
-      pdf.setFont('helvetica', 'normal');
+      if (jobDetails.createdDate) {
+        renderMixedText(pdf, `Created: ${formatDate(jobDetails.createdDate)}`, 10, headerY);
+        headerY += 6;
+      }
+    }
 
-      pdf.setFontSize(16);
-      pdf.text('Job Notes', 10, 10);
+    let y = headerY + 10;
+    let lastDate = null;
 
-      let headerY = 20;
+    for (const note of notesToPrint) {
+      const currentDate = formatDate(note.date);
 
+      if (currentDate !== lastDate) {
+        // Set gray color for date header (lighter gray - 120,120,120)
+        pdf.setTextColor(150, 150, 150);
+        pdf.setFontSize(10);
+        pdf.text(currentDate, 105, y, { align: 'center' });
+        y += 8;
+        lastDate = currentDate;
+      }
+
+      // Set gray color for username and timestamp (darker gray - 90,90,90)
+      pdf.setTextColor(150, 150, 150);
       pdf.setFontSize(12);
-      if (currentNote?.siteNote?.workspace) {
-        renderMixedText(pdf, `Workspace: ${currentNote.siteNote.workspace}`, 10, headerY);
-        headerY += 6;
-      }
+      renderMixedText(pdf, `${note.userName} - ${formatRelativeTime(note.timeStamp)}`, 10, y);
+      y += 6;
 
-      if (currentNote?.siteNote?.project) {
-        renderMixedText(pdf, `Project: ${currentNote.siteNote.project}`, 10, headerY);
-        headerY += 6;
-      }
+      // Reset to black for note content
+      pdf.setTextColor(0, 0, 0);
+      y = renderFormattedText(pdf, note.note, 10, y);
 
-      if (currentNote?.siteNote?.job) {
-        renderMixedText(pdf, `Job: ${currentNote.siteNote.job}`, 10, headerY);
-        headerY += 6;
-      }
-
-      if (jobDetails) {
-        if (jobDetails.type) {
-          renderMixedText(pdf, `Type: ${jobDetails.type}`, 10, headerY);
-          headerY += 6;
-        }
-
-        if (jobDetails.priorityName && jobDetails.priorityName !== "Unknown") {
-          renderMixedText(pdf, `Priority: ${jobDetails.priorityName}`, 10, headerY);
-          headerY += 6;
-        }
-
-        if (jobDetails.startDate) {
-          renderMixedText(pdf, `Start: ${formatDate(jobDetails.startDate)}`, 10, headerY);
-          headerY += 6;
-        }
-
-        if (jobDetails.endDate) {
-          renderMixedText(pdf, `End: ${formatDate(jobDetails.endDate)}`, 10, headerY);
-          headerY += 6;
-        }
-
-        if (jobDetails.actualEndDate) {
-          renderMixedText(pdf, `Actual End: ${formatDate(jobDetails.actualEndDate)}`, 10, headerY);
-          headerY += 6;
-        }
-
-        if (jobDetails.managerId != null) {
-          let managerText = managerInfo
-            ? `${managerInfo.fname || managerInfo.firstName || ''} ${managerInfo.lname || managerInfo.lastName || ''}`.trim()
-            : `ID: ${jobDetails.managerId}`;
-          if (managerInfo?.email) {
-            managerText += ` (${managerInfo.email})`;
-          }
-          renderMixedText(pdf, `Manager: ${managerText}`, 10, headerY);
-          headerY += 6;
-        }
-
-        if (jobDetails.createdDate) {
-          renderMixedText(pdf, `Created: ${formatDate(jobDetails.createdDate)}`, 10, headerY);
-          headerY += 6;
-        }
-      }
-
-      let y = headerY + 10;
-      let lastDate = null;
-
-      for (const note of notesToPrint) {
-        const currentDate = formatDate(note.date);
-
-        if (currentDate !== lastDate) {
-          pdf.setFontSize(10);
-          pdf.setTextColor(100, 100, 100);
-          pdf.text(currentDate, 105, y, { align: 'center' });
-          y += 8;
-          lastDate = currentDate;
-        }
-
-        pdf.setFontSize(12);
-        pdf.setTextColor(0, 0, 0);
-        renderMixedText(pdf, `${note.userName} - ${formatRelativeTime(note.timeStamp)}`, 10, y);
+      if (note.documentCount > 0) {
+        // Set medium gray for attachment count (100,100,100)
+        pdf.setTextColor(100, 100, 100);
+        pdf.setFontSize(8);
+        pdf.text(`Attachments: ${note.documentCount}`, 10, y);
         y += 6;
+      }
 
-        y = renderFormattedText(pdf, note.note, 10, y);
-
-        if (note.documentCount > 0) {
-          pdf.setFontSize(8);
-          pdf.text(`Attachments: ${note.documentCount}`, 10, y);
+      const images = noteImages[note.id] || [];
+      for (const img of images) {
+        try {
+          const url = `${apiUrl}/InlineImages/GetInlineImage/${img.id}`;
+          const base64 = await getBase64(url);
+          if (y + 42 > 270) {
+            pdf.addPage();
+            y = 10;
+          }
+          pdf.addImage(base64, 'JPEG', 10, y, 60, 40);
+          y += 42;
+        } catch (error) {
+          if (y + 6 > 270) {
+            pdf.addPage();
+            y = 10;
+          }
+          // Set gray for fallback image text
+          pdf.setTextColor(120, 120, 120);
+          pdf.text(`[Image: ${img.fileName}]`, 10, y);
           y += 6;
         }
+      }
 
-        const images = noteImages[note.id] || [];
-        for (const img of images) {
-          try {
-            const url = `${apiUrl}/InlineImages/GetInlineImage/${img.id}`;
-            const base64 = await getBase64(url);
-            if (y + 42 > 270) {
-              pdf.addPage();
-              y = 10;
-            }
-            pdf.addImage(base64, 'JPEG', 10, y, 60, 40);
-            y += 42;
-          } catch (error) {
-            if (y + 6 > 270) {
-              pdf.addPage();
-              y = 10;
-            }
-            pdf.text(`[Image: ${img.fileName}]`, 10, y);
-            y += 6;
+      // Add replies to PDF
+      if (noteReplies[note.id]) {
+        const replies = noteReplies[note.id];
+        for (const reply of replies) {
+          if (y + 10 > 270) {
+            pdf.addPage();
+            y = 10;
           }
-        }
-
-        // Add replies to PDF (always include them since they're always expanded)
-        if (noteReplies[note.id]) {
-          const replies = noteReplies[note.id];
-          for (const reply of replies) {
-            if (y + 10 > 270) {
-              pdf.addPage();
-              y = 10;
-            }
-            
-            pdf.setFontSize(10);
+          
+          // Set gray for reply username and timestamp
+          pdf.setTextColor(100, 100, 100);
+          pdf.setFontSize(10);
+          pdf.text(`↪ ${reply.userName} - ${formatRelativeTime(reply.timeStamp)}`, 15, y);
+          y += 5;
+          
+          // Reset to black for reply content
+          pdf.setTextColor(0, 0, 0);
+          pdf.setFontSize(9);
+          y = renderFormattedText(pdf, reply.note, 15, y);
+          
+          if (reply.documentCount > 0) {
+            // Set medium gray for reply attachment count
             pdf.setTextColor(100, 100, 100);
-            pdf.text(`↪ ${reply.userName} - ${formatRelativeTime(reply.timeStamp)}`, 15, y);
-            y += 5;
-            
-            pdf.setFontSize(9);
-            pdf.setTextColor(0, 0, 0);
-            y = renderFormattedText(pdf, reply.note, 15, y);
-            
-            if (reply.documentCount > 0) {
-              pdf.setFontSize(7);
-              pdf.text(`Attachments: ${reply.documentCount}`, 15, y);
-              y += 4;
-            }
-            
-            const replyImages = noteImages[reply.id] || [];
-            for (const img of replyImages) {
-              try {
-                const url = `${apiUrl}/InlineImages/GetInlineImage/${img.id}`;
-                const base64 = await getBase64(url);
-                if (y + 35 > 270) {
-                  pdf.addPage();
-                  y = 10;
-                }
-                pdf.addImage(base64, 'JPEG', 15, y, 50, 35);
-                y += 37;
-              } catch (error) {
-                if (y + 5 > 270) {
-                  pdf.addPage();
-                  y = 10;
-                }
-                pdf.text(`[Image: ${img.fileName}]`, 15, y);
-                y += 5;
-              }
-            }
-            
-            y += 6;
+            pdf.setFontSize(7);
+            pdf.text(`Attachments: ${reply.documentCount}`, 15, y);
+            y += 4;
           }
-        }
-
-        y += 8;
-
-        if (y > 270) {
-          pdf.addPage();
-          y = 10;
+          
+          const replyImages = noteImages[reply.id] || [];
+          for (const img of replyImages) {
+            try {
+              const url = `${apiUrl}/InlineImages/GetInlineImage/${img.id}`;
+              const base64 = await getBase64(url);
+              if (y + 35 > 270) {
+                pdf.addPage();
+                y = 10;
+              }
+              pdf.addImage(base64, 'JPEG', 15, y, 50, 35);
+              y += 37;
+            } catch (error) {
+              if (y + 5 > 270) {
+                pdf.addPage();
+                y = 10;
+              }
+              // Set gray for fallback reply image text
+              pdf.setTextColor(120, 120, 120);
+              pdf.text(`[Image: ${img.fileName}]`, 15, y);
+              y += 5;
+            }
+          }
+          
+          y += 6;
         }
       }
 
-      pdf.save(`notes_${jobId || noteId}.pdf`);
-    } catch (error) {
-      console.error("Error generating PDF:", error);
-      toast.error("Failed to generate PDF");
-    } finally {
-      setPdfGenerating(false);
-      setShowPrintDialog(false);
+      y += 8;
+
+      if (y > 270) {
+        pdf.addPage();
+        y = 10;
+      }
     }
-  };
+
+    pdf.save(`notes_${jobId || noteId}.pdf`);
+  } catch (error) {
+    console.error("Error generating PDF:", error);
+    toast.error("Failed to generate PDF");
+  } finally {
+    setPdfGenerating(false);
+    setShowPrintDialog(false);
+  }
+};
 
   const renderNoteImages = (noteId) => {
     const images = noteImages[noteId] || [];

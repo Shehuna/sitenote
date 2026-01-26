@@ -1,16 +1,19 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import PropTypes from "prop-types";
-import ReactDOM from 'react-dom';
+import ReactDOM from "react-dom";
 import "./NotesTab.css";
-import ReplyModal from '../Modals/ReplyModal';
+import ReplyModal from "../Modals/ReplyModal";
 import toast from "react-hot-toast";
 
 // Portal component for tooltips
 const TooltipPortal = ({ children }) => {
-  return ReactDOM.createPortal(
-    children,
-    document.body
-  );
+  return ReactDOM.createPortal(children, document.body);
 };
 
 const NotesTab = ({
@@ -45,7 +48,7 @@ const NotesTab = ({
   jobs,
   setViewNote,
   setShowViewModal,
-  stackedJobs, 
+  stackedJobs,
   loadingStackedJobs,
   fetchStackedJobs,
   fetchNotes,
@@ -54,6 +57,7 @@ const NotesTab = ({
   hasActiveFilters,
   filteredNotesFromApi,
   searchResults,
+  workspaces,
 }) => {
   const [showReplyModal, setShowReplyModal] = useState(false);
   const [selectedNoteForReply, setSelectedNoteForReply] = useState(null);
@@ -66,6 +70,10 @@ const NotesTab = ({
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isLoadingInitial, setIsLoadingInitial] = useState(false);
   
+  // New state for stacked view loading
+  const [isStackedViewLoading, setIsStackedViewLoading] = useState(false);
+  const [isFilteringStacked, setIsFilteringStacked] = useState(false);
+
   // New states for reply/link functionality
   const [noteReplies, setNoteReplies] = useState([]);
   const [loadingReplies, setLoadingReplies] = useState(false);
@@ -73,33 +81,64 @@ const NotesTab = ({
   const [linkedNoteContent, setLinkedNoteContent] = useState({});
   const [loadingLinkedNote, setLoadingLinkedNote] = useState({});
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
-  
+
+  // State for stacked card hover popup
+  const [hoveredStackCard, setHoveredStackCard] = useState(null);
+  const [stackCardPopupPosition, setStackCardPopupPosition] = useState({ x: 0, y: 0 });
+  const [stackCardElementRect, setStackCardElementRect] = useState(null);
+
   const loadingRef = useRef(false);
   const observerRef = useRef(null);
   const lastRowRef = useRef(null);
   const lastCardRef = useRef(null);
   const containerRef = useRef(null);
   const hoverTimeoutRef = useRef(null);
-  
+  const stackCardHoverTimeoutRef = useRef(null);
+  const viewModeRef = useRef(viewMode);
+  const hasActiveFiltersRef = useRef(hasActiveFilters);
+
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
   const [hoveredOriginalNote, setHoveredOriginalNote] = useState(null);
-const [originalNoteContent, setOriginalNoteContent] = useState({});
-const [loadingOriginalNote, setLoadingOriginalNote] = useState({});
-/* const hoverTimeoutRef = useRef(null);
-const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
-const [hoveredLinkedNote, setHoveredLinkedNote] = useState(null);
-const [linkedNoteContent, setLinkedNoteContent] = useState({});
-const [loadingLinkedNote, setLoadingLinkedNote] = useState({}); */
-const linkHoverTimeoutRef = useRef(null); 
+  const [originalNoteContent, setOriginalNoteContent] = useState({});
+  const [loadingOriginalNote, setLoadingOriginalNote] = useState({});
+  const linkHoverTimeoutRef = useRef(null); 
     
   const pageSize = 25;
   const initialPageNumber = 1;
+
+  // Track view mode changes
+  useEffect(() => {
+    if (viewModeRef.current !== viewMode && viewMode === "stacked") {
+      setIsStackedViewLoading(true);
+      const timer = setTimeout(() => {
+        setIsStackedViewLoading(false);
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+    viewModeRef.current = viewMode;
+  }, [viewMode]);
+
+  // Track filter changes in stacked view
+  useEffect(() => {
+    if (viewMode === "stacked" && hasActiveFiltersRef.current !== hasActiveFilters) {
+      setIsFilteringStacked(true);
+      const timer = setTimeout(() => {
+        setIsFilteringStacked(false);
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+    hasActiveFiltersRef.current = hasActiveFilters;
+  }, [hasActiveFilters, viewMode]);
 
   // Function to fetch note replies from NEW API
   const fetchNoteReplies = useCallback(async () => {
     setLoadingReplies(true);
     try {
-      const response = await fetch(`${apiUrl}/SiteNote/GetAllReplies?pageNumber=1&pageSize=1000&userId=${userId}`);
+      const response = await fetch(
+        `${apiUrl}/SiteNote/GetAllReplies?pageNumber=1&pageSize=1000&userId=${userId}`
+      );
       if (response.ok) {
         const data = await response.json();
         setNoteReplies(data.siteNotes || []);
@@ -119,44 +158,52 @@ const linkHoverTimeoutRef = useRef(null);
   }, [fetchNoteReplies, loadingReplies, noteReplies.length]);
 
   // Check if a note is a reply - UPDATED logic
-  const isNoteReply = useCallback((noteId) => {
-    return noteReplies.some(reply => reply.id === noteId);
-  }, [noteReplies]);
+  const isNoteReply = useCallback(
+    (noteId) => {
+      return noteReplies.some((reply) => reply.id === noteId);
+    },
+    [noteReplies]
+  );
 
   // Get the original note ID for a reply note - UPDATED logic
-  const getReplyNoteId = useCallback((replyNoteId) => {
-    const reply = noteReplies.find(reply => reply.id === replyNoteId);
-    return reply ? reply.reply : null;
-  }, [noteReplies]);
+  const getReplyNoteId = useCallback(
+    (replyNoteId) => {
+      const reply = noteReplies.find((reply) => reply.id === replyNoteId);
+      return reply ? reply.reply : null;
+    },
+    [noteReplies]
+  );
 
   // Fetch original note content for hover tooltip
   const fetchOriginalNoteContent = async (originalNoteId) => {
     if (!originalNoteId || linkedNoteContent[originalNoteId]) return;
-    
+
     try {
-      setLoadingLinkedNote(prev => ({ ...prev, [originalNoteId]: true }));
-      const response = await fetch(`${apiUrl}/SiteNote/GetSiteNoteById/${originalNoteId}`);
+      setLoadingLinkedNote((prev) => ({ ...prev, [originalNoteId]: true }));
+      const response = await fetch(
+        `${apiUrl}/SiteNote/GetSiteNoteById/${originalNoteId}`
+      );
       if (response.ok) {
         const data = await response.json();
         if (data && data.siteNote) {
-          setLinkedNoteContent(prev => ({
+          setLinkedNoteContent((prev) => ({
             ...prev,
             [originalNoteId]: {
               id: data.siteNote.id,
               content: data.siteNote.note || "No content",
               userName: data.siteNote.userName || "Unknown",
               date: data.siteNote.timeStamp || data.siteNote.date,
-              workspace: data.siteNote.workspace || '',
-              project: data.siteNote.project || '',
-              job: data.siteNote.job || ''
-            }
+              workspace: data.siteNote.workspace || "",
+              project: data.siteNote.project || "",
+              job: data.siteNote.job || "",
+            },
           }));
         }
       }
     } catch (error) {
       console.error(`Error fetching original note ${originalNoteId}:`, error);
     } finally {
-      setLoadingLinkedNote(prev => ({ ...prev, [originalNoteId]: false }));
+      setLoadingLinkedNote((prev) => ({ ...prev, [originalNoteId]: false }));
     }
   };
 
@@ -166,17 +213,17 @@ const linkHoverTimeoutRef = useRef(null);
       // Get mouse position relative to viewport
       const mouseX = e.clientX;
       const mouseY = e.clientY;
-      
+
       // Get viewport dimensions
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
-      
+
       // Tooltip dimensions
       const tooltipWidth = 350;
       const tooltipHeight = 200; // Approximate height
-      
+
       let x, y;
-   
+
       // Check if there's enough space on the right of the mouse
       if (mouseX + tooltipWidth + 10 <= viewportWidth) {
         // Show to the right of mouse
@@ -188,35 +235,35 @@ const linkHoverTimeoutRef = useRef(null);
         // Not enough space on either side, show to the right anyway
         x = Math.max(10, viewportWidth - tooltipWidth - 10);
       }
-      
+
       // Vertical positioning - show tooltip below the mouse
       y = mouseY + 15; // 15px offset below cursor
-      
+
       // Adjust if tooltip goes off screen vertically
       if (y + tooltipHeight > viewportHeight) {
         // Not enough space below, show above mouse
         y = mouseY - tooltipHeight - 10;
       }
-      
+
       // Ensure positions are within bounds
       x = Math.max(10, Math.min(x, viewportWidth - tooltipWidth - 10));
       y = Math.max(10, Math.min(y, viewportHeight - tooltipHeight - 10));
-      
-      setTooltipPosition({ 
-        x, 
-        y
+
+      setTooltipPosition({
+        x,
+        y,
       });
     }
-    
+
     // Clear any existing timeout
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
     }
-    
+
     // Set timeout for hover delay (500ms)
     hoverTimeoutRef.current = setTimeout(() => {
       setHoveredLinkedNote(noteId);
-      
+
       // Fetch original note content if not already loaded
       const originalNoteId = getReplyNoteId(noteId);
       if (originalNoteId && !linkedNoteContent[originalNoteId]) {
@@ -233,11 +280,90 @@ const linkHoverTimeoutRef = useRef(null);
     setHoveredLinkedNote(null);
   };
 
+  // Check if stack card should show popup on hover
+  const shouldShowPopup = (job) => {
+    if (!job) return false;
+    
+    return (
+      job.lastSiteNote &&
+      job.lastSiteNote.trim() !== "" &&
+      job.lastSiteNote.length > 150
+    );
+  };
+
+  // Handle hover over truncated note text in stack card
+  const handleNoteTextMouseEnter = (job, e) => {
+    if (!job || !shouldShowPopup(job)) {
+      return;
+    }
+
+    // Clear any existing timeout
+    if (stackCardHoverTimeoutRef.current) {
+      clearTimeout(stackCardHoverTimeoutRef.current);
+    }
+
+    // Get the element and its position
+    const noteTextElement = e.currentTarget;
+    const rect = noteTextElement.getBoundingClientRect();
+    
+    // Store element rect for positioning
+    setStackCardElementRect(rect);
+
+    // Get viewport dimensions
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    // Popup dimensions
+    const popupWidth = 320;
+    const popupHeight = 180;
+
+    // Calculate position: show to the right of the text by default
+    let popupX = rect.right + 10; // 10px to the right of the text
+    let popupY = rect.top;
+
+    // Adjust if popup goes off screen horizontally
+    if (popupX + popupWidth > viewportWidth - 20) {
+      // Not enough space on the right, show to the left
+      popupX = rect.left - popupWidth - 10;
+    }
+
+    // Ensure popup stays within viewport horizontally
+    popupX = Math.max(20, Math.min(popupX, viewportWidth - popupWidth - 20));
+
+    // Check if there's enough space vertically
+    if (popupY + popupHeight > viewportHeight - 20) {
+      // Not enough space below, adjust upward
+      popupY = viewportHeight - popupHeight - 20;
+    }
+
+    setStackCardPopupPosition({
+      x: popupX,
+      y: popupY
+    });
+
+    // Set timeout for hover delay (300ms for faster response)
+    stackCardHoverTimeoutRef.current = setTimeout(() => {
+      setHoveredStackCard(job.jobId || job.jobName);
+    }, 300);
+  };
+
+  // Handle mouse leave from note text
+  const handleNoteTextMouseLeave = () => {
+    if (stackCardHoverTimeoutRef.current) {
+      clearTimeout(stackCardHoverTimeoutRef.current);
+    }
+    setHoveredStackCard(null);
+    setStackCardElementRect(null);
+  };
+
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (hoverTimeoutRef.current) {
         clearTimeout(hoverTimeoutRef.current);
+      }
+      if (stackCardHoverTimeoutRef.current) {
+        clearTimeout(stackCardHoverTimeoutRef.current);
       }
     };
   }, []);
@@ -248,69 +374,79 @@ const linkHoverTimeoutRef = useRef(null);
       e.stopPropagation();
       e.preventDefault();
     }
-    
+
     const originalNoteId = getReplyNoteId(replyNoteId);
     if (!originalNoteId) {
       toast.error("No linked note found");
       return;
     }
-    
+
     // Find the original note in displayNotes
-    const originalNote = displayNotes.find(note => note.id === originalNoteId);
-    
+    const originalNote = displayNotes.find(
+      (note) => note.id === originalNoteId
+    );
+
     if (originalNote) {
       // 1. Select the original note
       handleRowClick(originalNote);
-      
+
       // 2. Scroll to the original note
       setTimeout(() => {
         let noteElement = null;
-        
+
         // Try different selectors based on view mode
-        if (viewMode === 'table') {
+        if (viewMode === "table") {
           // Add data-note-id to table rows first
-          noteElement = document.querySelector(`tr[data-note-id="${originalNoteId}"]`);
-        } else if (viewMode === 'cards' || viewMode === 'stacked') {
-          noteElement = document.querySelector(`.note-card[data-note-id="${originalNoteId}"]`);
+          noteElement = document.querySelector(
+            `tr[data-note-id="${originalNoteId}"]`
+          );
+        } else if (viewMode === "cards" || viewMode === "stacked") {
+          noteElement = document.querySelector(
+            `.note-card[data-note-id="${originalNoteId}"]`
+          );
         }
-        
+
         if (noteElement) {
           // Scroll to element
-          noteElement.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'center' 
+          noteElement.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
           });
-          
+
           // 3. Highlight with yellow background
-          noteElement.classList.add('highlight-original-note');
-          
+          noteElement.classList.add("highlight-original-note");
+
           // Remove highlight after 2 seconds
           setTimeout(() => {
-            noteElement.classList.remove('highlight-original-note');
+            noteElement.classList.remove("highlight-original-note");
           }, 2000);
         } else {
-          toast.error(`Note (ID: ${originalNoteId}) not found in current view.`);
+          toast.error(
+            `Note (ID: ${originalNoteId}) not found in current view.`
+          );
         }
       }, 100);
     } else {
-      toast.error(`Original note (ID: ${originalNoteId}) not found in current view.`);
+      toast.error(
+        `Original note (ID: ${originalNoteId}) not found in current view.`
+      );
     }
   };
 
   // Format tooltip content
   const formatTooltipContent = (content) => {
     if (!content) return "No content";
-    
+
     // Create temporary div to extract text
-    const div = document.createElement('div');
+    const div = document.createElement("div");
     div.innerHTML = content;
-    const text = div.textContent || div.innerText || '';
-    
+    const text = div.textContent || div.innerText || "";
+
     // Limit to 150 characters
     if (text.length > 150) {
-      return text.substring(0, 150) + '...';
+      return text.substring(0, 150) + "...";
     }
-    
+
     return text;
   };
 
@@ -321,271 +457,311 @@ const linkHoverTimeoutRef = useRef(null);
   };
 
   // Handler to refresh notes after replying
-const refreshNotesAfterReply = async () => {
-  try {
-    console.log("🔄 Starting refresh after reply...");
-    
-    // 1. First refresh the replies list (for link functionality)
-    await fetchNoteReplies();
-    
-    // 2. Check if we need to refresh notes
-    if (!hasActiveFilters && !searchTerm.trim()) {
-      console.log("🔄 Refreshing local notes...");
+  const refreshNotesAfterReply = async () => {
+    try {
+      console.log("🔄 Starting refresh after reply...");
       
-      // Clear loading state
-      loadingRef.current = false;
+      // 1. First refresh the replies list (for link functionality)
+      await fetchNoteReplies();
       
-      // Fetch fresh notes directly (bypass cache if possible)
-      if (fetchNotes && typeof fetchNotes === 'function') {
-        // Call with page 1 to get newest notes
-        const result = await fetchNotes(1, pageSize);
+      // 2. Check if we need to refresh notes
+      if (!hasActiveFilters && !searchTerm.trim()) {
+        console.log("🔄 Refreshing local notes...");
         
-        if (result && result.notes) {
-          console.log(`✅ Loaded ${result.notes.length} fresh notes`);
+        // Clear loading state
+        loadingRef.current = false;
+        
+        // Fetch fresh notes directly (bypass cache if possible)
+        if (fetchNotes && typeof fetchNotes === 'function') {
+          // Call with page 1 to get newest notes
+          const result = await fetchNotes(1, pageSize);
           
-          // Update state
-          setLocalNotes([...result.notes].sort((a, b) => b.id - a.id));
-          setHasMore(result.hasMore);
-          setPage(2); 
-          setIsInitialLoad(false);
+          if (result && result.notes) {
+            console.log(`✅ Loaded ${result.notes.length} fresh notes`);
+            
+            // Update state
+            setLocalNotes([...result.notes].sort((a, b) => b.id - a.id));
+            setHasMore(result.hasMore);
+            setPage(2); 
+            setIsInitialLoad(false);
+          }
         }
       }
+      
+      console.log("✅ Refresh completed");
+      
+    } catch (error) {
+      console.error("❌ Error refreshing notes after reply:", error);
+      toast.error("Failed to refresh notes");
     }
-    
-    console.log("✅ Refresh completed");
-    
-  } catch (error) {
-    console.error("❌ Error refreshing notes after reply:", error);
-    toast.error("Failed to refresh notes");
-  }
-};
+  };
 
   // Determine which notes to display based on filters/search
   const displayNotes = useMemo(() => {
     if (searchTerm.trim() || hasActiveFilters) {
-      const sourceNotes = searchTerm.trim() ? (searchResults || []) : (filteredNotesFromApi || []);
-      
+      const sourceNotes = searchTerm.trim()
+        ? searchResults || []
+        : filteredNotesFromApi || [];
+
       const seen = new Map();
       const deduplicated = [];
-      
+
       for (const note of sourceNotes) {
         if (note.id && !seen.has(note.id)) {
           seen.set(note.id, note);
           deduplicated.push(note);
         }
       }
-      
+
       return deduplicated.sort((a, b) => b.id - a.id);
     }
-    
+
     if (searchTerm.trim() || hasActiveFilters) {
-      return searchTerm.trim() ? (searchResults || []) : (filteredNotesFromApi || []);
+      return searchTerm.trim()
+        ? searchResults || []
+        : filteredNotesFromApi || [];
     }
-    
+
     if (finalDisplayNotes && finalDisplayNotes.length > 0) {
       if (localNotes.length === 0) {
         return [...finalDisplayNotes].sort((a, b) => b.id - a.id);
       }
-      
+
       const allNotesMap = new Map();
-      
-      localNotes.forEach(note => {
+
+      localNotes.forEach((note) => {
         allNotesMap.set(note.id, note);
       });
-      
-      finalDisplayNotes.forEach(note => {
+
+      finalDisplayNotes.forEach((note) => {
         allNotesMap.set(note.id, note);
       });
-      
+
       return Array.from(allNotesMap.values()).sort((a, b) => b.id - a.id);
     }
-    
+
     return localNotes || [];
   }, [
-    searchTerm, 
-    hasActiveFilters, 
-    searchResults, 
-    filteredNotesFromApi, 
+    searchTerm,
+    hasActiveFilters,
+    searchResults,
+    filteredNotesFromApi,
     localNotes,
-    finalDisplayNotes
+    finalDisplayNotes,
   ]);
 
-const HighlightText = ({ text, highlight }) => {
-  if (!highlight || !text || typeof text !== 'string') {
-    return <span>{text}</span>;
-  }
-
-  try {
-    const escapedHighlight = highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`(${escapedHighlight})`, 'gi');
-    const parts = text.split(regex);
-    
-    return (
-      <span>
-        {parts.map((part, index) => {
-          const match = part.toLowerCase() === highlight.toLowerCase();
-          
-          return match ? (
-            <mark 
-              key={index} 
-              className="search-highlight"
-              style={{
-                backgroundColor: '#ffeb3b',
-                padding: '0 2px',
-                borderRadius: '2px',
-                fontWeight: 'bold',
-                color: '#000'
-              }}
-            >
-              {part}
-            </mark>
-          ) : (
-            <span key={index}>{part}</span>
-          );
-        })}
-      </span>
-    );
-  } catch (error) {
-    console.error('Error highlighting text:', error);
-    return <span>{text}</span>;
-  }
-};
-
-const highlightHtmlContent = (html, highlight) => {
-  if (!highlight || !html || typeof html !== 'string') {
-    return html;
-  }
-
-  try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-    
-    const escapedHighlight = highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`(${escapedHighlight})`, 'gi');
-    
-    const highlightNode = (node) => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        const text = node.textContent;
-        if (regex.test(text)) {
-          const span = document.createElement('span');
-          const parts = text.split(regex);
-          
-          parts.forEach((part) => {
-            if (regex.test(part)) {
-              const mark = document.createElement('mark');
-              mark.className = 'search-highlight';
-              mark.style.cssText = 'background-color: #ffeb3b; padding: 0 2px; border-radius: 2px; font-weight: bold; color: #000;';
-              mark.textContent = part;
-              span.appendChild(mark);
-            } else {
-              span.appendChild(document.createTextNode(part));
-            }
-          });
-          
-          node.parentNode.replaceChild(span, node);
-        }
-      } else if (node.nodeType === Node.ELEMENT_NODE && 
-                 node.nodeName !== 'SCRIPT' && 
-                 node.nodeName !== 'STYLE' &&
-                 !node.classList.contains('search-highlight')) {
-        Array.from(node.childNodes).forEach(child => highlightNode(child));
-      }
-    };
-    
-    highlightNode(doc.body);
-    
-    return doc.body.innerHTML;
-  } catch (error) {
-    console.error('Error highlighting HTML:', error);
-    return html;
-  }
-};
-
-  // Determine which jobs to display in stacked view
+  // FIXED: Determine which jobs to display in stacked view
   const jobsToDisplay = useMemo(() => {
     if (viewMode !== "stacked") return [];
+
+    console.log("Stacked jobs available:", stackedJobs?.length || 0);
+    console.log("Has active filters:", hasActiveFilters);
     
-    // If filters are active, use filteredStackedJobs (passed as stackedJobs when hasActiveFilters is true)
-    // If no filters, use regular stackedJobs
+    // Always use stackedJobs prop (it will be filteredStackedJobs when hasActiveFilters is true)
     return stackedJobs || [];
   }, [viewMode, stackedJobs, hasActiveFilters]);
 
+  const HighlightText = ({ text, highlight }) => {
+    if (!highlight || !text || typeof text !== "string") {
+      return <span>{text}</span>;
+    }
+
+    try {
+      const escapedHighlight = highlight.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(`(${escapedHighlight})`, "gi");
+      const parts = text.split(regex);
+
+      return (
+        <span>
+          {parts.map((part, index) => {
+            const match = part.toLowerCase() === highlight.toLowerCase();
+
+            return match ? (
+              <mark
+                key={index}
+                className="search-highlight"
+                style={{
+                  backgroundColor: "#ffeb3b",
+                  padding: "0 2px",
+                  borderRadius: "2px",
+                  fontWeight: "bold",
+                  color: "#000",
+                }}
+              >
+                {part}
+              </mark>
+            ) : (
+              <span key={index}>{part}</span>
+            );
+          })}
+        </span>
+      );
+    } catch (error) {
+      console.error("Error highlighting text:", error);
+      return <span>{text}</span>;
+    }
+  };
+
+  const highlightHtmlContent = (html, highlight) => {
+    if (!highlight || !html || typeof html !== "string") {
+      return html;
+    }
+
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+
+      const escapedHighlight = highlight.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(`(${escapedHighlight})`, "gi");
+
+      const highlightNode = (node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const text = node.textContent;
+          if (regex.test(text)) {
+            const span = document.createElement("span");
+            const parts = text.split(regex);
+
+            parts.forEach((part) => {
+              if (regex.test(part)) {
+                const mark = document.createElement("mark");
+                mark.className = "search-highlight";
+                mark.style.cssText =
+                  "background-color: #ffeb3b; padding: 0 2px; border-radius: 2px; font-weight: bold; color: #000;";
+                mark.textContent = part;
+                span.appendChild(mark);
+              } else {
+                span.appendChild(document.createTextNode(part));
+              }
+            });
+
+            node.parentNode.replaceChild(span, node);
+          }
+        } else if (
+          node.nodeType === Node.ELEMENT_NODE &&
+          node.nodeName !== "SCRIPT" &&
+          node.nodeName !== "STYLE" &&
+          !node.classList.contains("search-highlight")
+        ) {
+          Array.from(node.childNodes).forEach((child) => highlightNode(child));
+        }
+      };
+
+      highlightNode(doc.body);
+
+      return doc.body.innerHTML;
+    } catch (error) {
+      console.error("Error highlighting HTML:", error);
+      return html;
+    }
+  };
+
   // Sync finalDisplayNotes from parent to localNotes when appropriate
   useEffect(() => {
-    if (finalDisplayNotes && 
-        finalDisplayNotes.length > 0 && 
-        !hasActiveFilters && 
-        !searchTerm.trim()) {
-      
+    if (
+      finalDisplayNotes &&
+      finalDisplayNotes.length > 0 &&
+      !hasActiveFilters &&
+      !searchTerm.trim()
+    ) {
       if (isInitialLoad) {
         setLocalNotes([...finalDisplayNotes].sort((a, b) => b.id - a.id));
         setHasMore(finalDisplayNotes.length >= pageSize);
         setIsInitialLoad(false);
       } else {
-        const existingIds = new Set(localNotes.map(note => note.id));
-        const newNotesFromParent = finalDisplayNotes.filter(note => !existingIds.has(note.id));
-        
+        const existingIds = new Set(localNotes.map((note) => note.id));
+        const newNotesFromParent = finalDisplayNotes.filter(
+          (note) => !existingIds.has(note.id)
+        );
+
         if (newNotesFromParent.length > 0) {
-          const sortedNewNotes = [...newNotesFromParent].sort((a, b) => b.id - a.id);
-          setLocalNotes(prev => [...sortedNewNotes, ...prev]);
-          
-          const updatedNotes = finalDisplayNotes.filter(note => existingIds.has(note.id));
+          const sortedNewNotes = [...newNotesFromParent].sort(
+            (a, b) => b.id - a.id
+          );
+          setLocalNotes((prev) => [...sortedNewNotes, ...prev]);
+
+          const updatedNotes = finalDisplayNotes.filter((note) =>
+            existingIds.has(note.id)
+          );
           if (updatedNotes.length > 0) {
-            setLocalNotes(prev => prev.map(note => {
-              const updatedNote = updatedNotes.find(u => u.id === note.id);
-              return updatedNote || note;
-            }));
+            setLocalNotes((prev) =>
+              prev.map((note) => {
+                const updatedNote = updatedNotes.find((u) => u.id === note.id);
+                return updatedNote || note;
+              })
+            );
           }
         }
       }
     }
-  }, [finalDisplayNotes, hasActiveFilters, searchTerm, isInitialLoad, localNotes, pageSize]);
+  }, [
+    finalDisplayNotes,
+    hasActiveFilters,
+    searchTerm,
+    isInitialLoad,
+    localNotes,
+    pageSize,
+  ]);
 
   // Reset infinite scroll when filters/search are cleared
   useEffect(() => {
     if (!hasActiveFilters && !searchTerm.trim() && !isInitialLoad) {
       setHasMore(true);
       setPage(1);
-      
+
       if (finalDisplayNotes && finalDisplayNotes.length > 0) {
         setLocalNotes([...finalDisplayNotes].sort((a, b) => b.id - a.id));
         setPage(2);
         setHasMore(finalDisplayNotes.length >= pageSize);
       }
     }
-  }, [hasActiveFilters, searchTerm, isInitialLoad, finalDisplayNotes, pageSize]);
+  }, [
+    hasActiveFilters,
+    searchTerm,
+    isInitialLoad,
+    finalDisplayNotes,
+    pageSize,
+  ]);
 
   // Function to fetch user status by ID
   const fetchUserStatus = async (userId) => {
     if (!userId || userStatusMap[userId]) return;
 
     try {
-      setLoadingUsers(prev => ({ ...prev, [userId]: true }));
-      const response = await fetch(`${apiUrl}/UserManagement/GetUserById/${userId}`);
+      setLoadingUsers((prev) => ({ ...prev, [userId]: true }));
+      const response = await fetch(
+        `${apiUrl}/UserManagement/GetUserById/${userId}`
+      );
       if (response.ok) {
         const data = await response.json();
-        setUserStatusMap(prev => ({
+        setUserStatusMap((prev) => ({
           ...prev,
           [userId]: {
             active: data.user?.status === 1,
-            name: `${data.user?.fname} ${data.user?.lname}`.trim() || data.user?.userName || 'Unknown'
-          }
+            name:
+              `${data.user?.fname} ${data.user?.lname}`.trim() ||
+              data.user?.userName ||
+              "Unknown",
+          },
         }));
       }
     } catch (error) {
       console.error(`Error fetching user ${userId}:`, error);
     } finally {
-      setLoadingUsers(prev => ({ ...prev, [userId]: false }));
+      setLoadingUsers((prev) => ({ ...prev, [userId]: false }));
     }
   };
 
   // Load initial notes via API (only when parent doesn't provide them)
   const loadInitialNotes = useCallback(async () => {
-    if (loadingRef.current || (finalDisplayNotes && finalDisplayNotes.length > 0)) return;
-    
+    if (
+      loadingRef.current ||
+      (finalDisplayNotes && finalDisplayNotes.length > 0)
+    )
+      return;
+
     loadingRef.current = true;
     setIsLoadingInitial(true);
-    
+
     try {
       const result = await fetchNotes(initialPageNumber, pageSize);
       if (result && result.notes) {
@@ -604,24 +780,31 @@ const highlightHtmlContent = (html, highlight) => {
 
   // Load more notes via API
   const loadMoreNotes = useCallback(async () => {
-    if (loadingRef.current || !hasMore || hasActiveFilters || searchTerm.trim()) {
+    if (
+      loadingRef.current ||
+      !hasMore ||
+      hasActiveFilters ||
+      searchTerm.trim()
+    ) {
       return;
     }
-    
+
     loadingRef.current = true;
     setLoadingMore(true);
-    
+
     try {
       const result = await fetchNotes(page, pageSize);
       if (result && result.notes && result.notes.length > 0) {
-        setLocalNotes(prev => {
-          const existingIds = new Set(prev.map(note => note.id));
-          const newNotes = result.notes.filter(note => !existingIds.has(note.id));
+        setLocalNotes((prev) => {
+          const existingIds = new Set(prev.map((note) => note.id));
+          const newNotes = result.notes.filter(
+            (note) => !existingIds.has(note.id)
+          );
           const sortedNewNotes = [...newNotes].sort((a, b) => b.id - a.id);
           return [...prev, ...sortedNewNotes];
         });
         setHasMore(result.hasMore);
-        setPage(prev => prev + 1);
+        setPage((prev) => prev + 1);
       } else {
         setHasMore(false);
       }
@@ -632,229 +815,131 @@ const highlightHtmlContent = (html, highlight) => {
       setLoadingMore(false);
     }
   }, [fetchNotes, page, hasMore, hasActiveFilters, searchTerm]);
-/*   const handleReplyToNote = (note, e) => {
-  console.log('Reply button clicked!', { noteId: note.id, event: e });
-  
-  if (e) {
-    e.stopPropagation();
-    e.preventDefault();
-    
-    // Store the clicked button's ref
-    const buttonIndex = Object.keys(replyButtonRefs.current).find(key => 
-      replyButtonRefs.current[key] === e.currentTarget
-    );
-    
-    if (buttonIndex) {
-      setActiveReplyButtonRef(replyButtonRefs.current[buttonIndex]);
-    }
-  }
-  
-  console.log('Setting selected note and showing modal');
-  setSelectedNoteForReply(note);
-  setShowReplyModal(true);
-}; */
-/* const handleLinkedNoteClick = (note, e) => {
-  console.log('Linked note button clicked!', { 
-    noteId: note.id, 
-    linkedToNoteId: note.repliedSiteNoteId 
-  });
-  
-  if (e) {
-    e.stopPropagation();
-    e.preventDefault();
-  }
-  
-  if (note.repliedSiteNoteId) {
-    const originalNote = displayNotes.find(n => n.id === note.repliedSiteNoteId);
-    
-    if (originalNote) {
-      handleRowClick(originalNote);
-      
-      setTimeout(() => {
-        const originalNoteElement = document.querySelector(`[data-note-id="${originalNote.id}"]`);
-        if (originalNoteElement) {
-          originalNoteElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          
-          originalNoteElement.style.backgroundColor = '#fff3cd';
-          originalNoteElement.style.boxShadow = '0 0 0 3px #ffc107';
-          
-          setTimeout(() => {
-            if (originalNoteElement) {
-              originalNoteElement.style.backgroundColor = '';
-              originalNoteElement.style.boxShadow = '';
-            }
-          }, 2000);
+
+  const fetchLinkedNoteContent = async (noteId) => {
+    if (!noteId || linkedNoteContent[noteId]) return;
+
+    try {
+      setLoadingLinkedNote((prev) => ({ ...prev, [noteId]: true }));
+      const response = await fetch(`${apiUrl}/SiteNote/GetNoteById/${noteId}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.note) {
+          setLinkedNoteContent((prev) => ({
+            ...prev,
+            [noteId]: {
+              content: data.note.note || "No content",
+              userName: data.note.userName || "Unknown",
+              date: data.note.timeStamp || data.note.date,
+              workspace: data.note.workspace || "",
+              project: data.note.project || "",
+              job: data.note.job || "",
+            },
+          }));
         }
-      }, 100);
-    } else {
-      alert(`Original note (ID: ${note.repliedSiteNoteId}) not found in current view.`);
-    }
-  }
-}; */
-const fetchLinkedNoteContent = async (noteId) => {
-  if (!noteId || linkedNoteContent[noteId]) return;
-  
-  try {
-    setLoadingLinkedNote(prev => ({ ...prev, [noteId]: true }));
-    const response = await fetch(`${apiUrl}/SiteNote/GetNoteById/${noteId}`);
-    if (response.ok) {
-      const data = await response.json();
-      if (data && data.note) {
-        setLinkedNoteContent(prev => ({
-          ...prev,
-          [noteId]: {
-            content: data.note.note || "No content",
-            userName: data.note.userName || "Unknown",
-            date: data.note.timeStamp || data.note.date,
-            workspace: data.note.workspace || '',
-            project: data.note.project || '',
-            job: data.note.job || ''
-          }
-        }));
       }
-    }
-  } catch (error) {
-    console.error(`Error fetching linked note ${noteId}:`, error);
-  } finally {
-    setLoadingLinkedNote(prev => ({ ...prev, [noteId]: false }));
-  }
-};
-/* const handleLinkedNoteMouseEnter = (note, e) => {
-  if (e) {
-    const button = e.currentTarget;
-    button.style.backgroundColor = '#3498db';
-    button.style.color = 'white';
-    button.style.transition = 'all 0.2s ease';
-    
-    const rect = button.getBoundingClientRect();
-    setTooltipPosition({ x: rect.right + 10, y: rect.top });
-  }
-  
-  linkHoverTimeoutRef.current = setTimeout(() => {
-    setHoveredLinkedNote(note.id);
-    
-    if (note.repliedSiteNoteId && !linkedNoteContent[note.repliedSiteNoteId]) {
-      fetchLinkedNoteContent(note.repliedSiteNoteId);
-    }
-  }, 500);
-}; */
-
-/* const handleLinkedNoteMouseLeave = (e) => {
-  if (e) {
-    const button = e.currentTarget;
-    button.style.backgroundColor = '';
-    button.style.color = '#3498db';
-  }
-  
-  if (linkHoverTimeoutRef.current) {
-    clearTimeout(linkHoverTimeoutRef.current);
-  }
-  setHoveredLinkedNote(null);
-}; */
-
-useEffect(() => {
-  return () => {
-    if (linkHoverTimeoutRef.current) {
-      clearTimeout(linkHoverTimeoutRef.current);
+    } catch (error) {
+      console.error(`Error fetching linked note ${noteId}:`, error);
+    } finally {
+      setLoadingLinkedNote((prev) => ({ ...prev, [noteId]: false }));
     }
   };
-}, []);
-const handleViewOriginalNote = (note, e) => {
-  console.log('View original button clicked!', { 
-    noteId: note.id, 
-    repliedToNoteId: note.repliedSiteNoteId 
-  });
-  
-  if (e) {
-    e.stopPropagation();
-    e.preventDefault();
-  }
-  
-  if (note.repliedSiteNoteId) {
-    const originalNote = displayNotes.find(n => n.id === note.repliedSiteNoteId);
-    
-    if (originalNote) {
-      handleRowClick(originalNote);
-      
-      setTimeout(() => {
-        const originalNoteElement = document.querySelector(`[data-note-id="${originalNote.id}"]`);
-        if (originalNoteElement) {
-          originalNoteElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          originalNoteElement.classList.add('highlight-original-note');
-          setTimeout(() => {
-            originalNoteElement.classList.remove('highlight-original-note');
-          }, 2000);
-        }
-      }, 100);
-    } else {
-      alert(`Original note (ID: ${note.repliedSiteNoteId}) not found in current view.`);
-    }
-  }
-};
 
-/* const fetchOriginalNoteContent = async (noteId) => {
-  if (!noteId || originalNoteContent[noteId]) return;
-  
-  try {
-    setLoadingOriginalNote(prev => ({ ...prev, [noteId]: true }));
-    const response = await fetch(`${apiUrl}/Notes/GetNoteById/${noteId}`);
-    if (response.ok) {
-      const data = await response.json();
-      if (data && data.note) {
-        setOriginalNoteContent(prev => ({
-          ...prev,
-          [noteId]: {
-            content: data.note.note || "No content",
-            userName: data.note.userName || "Unknown",
-            date: data.note.timeStamp || data.note.date
+  const handleViewOriginalNote = (note, e) => {
+    console.log("View original button clicked!", {
+      noteId: note.id,
+      repliedToNoteId: note.repliedSiteNoteId,
+    });
+
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+
+    if (note.repliedSiteNoteId) {
+      const originalNote = displayNotes.find(
+        (n) => n.id === note.repliedSiteNoteId
+      );
+
+      if (originalNote) {
+        handleRowClick(originalNote);
+
+        setTimeout(() => {
+          const originalNoteElement = document.querySelector(
+            `[data-note-id="${originalNote.id}"]`
+          );
+          if (originalNoteElement) {
+            originalNoteElement.scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+            });
+            originalNoteElement.classList.add("highlight-original-note");
+            setTimeout(() => {
+              originalNoteElement.classList.remove("highlight-original-note");
+            }, 2000);
           }
-        }));
+        }, 100);
+      } else {
+        alert(
+          `Original note (ID: ${note.repliedSiteNoteId}) not found in current view.`
+        );
       }
     }
-  } catch (error) {
-    console.error(`Error fetching original note ${noteId}:`, error);
-  } finally {
-    setLoadingOriginalNote(prev => ({ ...prev, [noteId]: false }));
-  }
-}; */
+  };
 
-const handleOriginalNoteMouseEnter = (note, e) => {
-  if (e) {
-    setTooltipPosition({ x: e.clientX, y: e.clientY });
-  }
-  
-  hoverTimeoutRef.current = setTimeout(() => {
-    setHoveredOriginalNote(note.id);
-    
-    if (note.repliedSiteNoteId && !originalNoteContent[note.repliedSiteNoteId]) {
-      fetchOriginalNoteContent(note.repliedSiteNoteId);
+  const handleOriginalNoteMouseEnter = (note, e) => {
+    if (e) {
+      setTooltipPosition({ x: e.clientX, y: e.clientY });
     }
-  }, 500);
-};
 
-const handleOriginalNoteMouseLeave = () => {
-  if (hoverTimeoutRef.current) {
-    clearTimeout(hoverTimeoutRef.current);
-  }
-  setHoveredOriginalNote(null);
-};
-useEffect(() => {
-  return () => {
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredOriginalNote(note.id);
+
+      if (
+        note.repliedSiteNoteId &&
+        !originalNoteContent[note.repliedSiteNoteId]
+      ) {
+        fetchOriginalNoteContent(note.repliedSiteNoteId);
+      }
+    }, 500);
+  };
+
+  const handleOriginalNoteMouseLeave = () => {
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
     }
+    setHoveredOriginalNote(null);
   };
-}, []);
 
   useEffect(() => {
-    if (isDataLoaded && !hasActiveFilters && !searchTerm.trim() && isInitialLoad) {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (
+      isDataLoaded &&
+      !hasActiveFilters &&
+      !searchTerm.trim() &&
+      isInitialLoad
+    ) {
       if (!finalDisplayNotes || finalDisplayNotes.length === 0) {
         loadInitialNotes();
       } else {
         setIsInitialLoad(false);
       }
     }
-  }, [isDataLoaded, hasActiveFilters, searchTerm, isInitialLoad, loadInitialNotes, finalDisplayNotes]);
+  }, [
+    isDataLoaded,
+    hasActiveFilters,
+    searchTerm,
+    isInitialLoad,
+    loadInitialNotes,
+    finalDisplayNotes,
+  ]);
 
   const setupObserver = useCallback(() => {
     if (observerRef.current) {
@@ -866,9 +951,9 @@ useEffect(() => {
     }
 
     let targetElement = null;
-    if (viewMode === 'table' && lastRowRef.current) {
+    if (viewMode === "table" && lastRowRef.current) {
       targetElement = lastRowRef.current;
-    } else if (viewMode === 'cards' && lastCardRef.current) {
+    } else if (viewMode === "cards" && lastCardRef.current) {
       targetElement = lastCardRef.current;
     }
 
@@ -876,24 +961,36 @@ useEffect(() => {
 
     const options = {
       root: null,
-      rootMargin: '100px',
+      rootMargin: "100px",
       threshold: 0.1,
     };
 
     const observer = new IntersectionObserver((entries) => {
       const [entry] = entries;
-      if (entry.isIntersecting && hasMore && !loadingMore && !loadingRef.current) {
+      if (
+        entry.isIntersecting &&
+        hasMore &&
+        !loadingMore &&
+        !loadingRef.current
+      ) {
         loadMoreNotes();
       }
     }, options);
 
     observer.observe(targetElement);
     observerRef.current = observer;
-  }, [viewMode, hasMore, loadingMore, hasActiveFilters, searchTerm, loadMoreNotes]);
+  }, [
+    viewMode,
+    hasMore,
+    loadingMore,
+    hasActiveFilters,
+    searchTerm,
+    loadMoreNotes,
+  ]);
 
   useEffect(() => {
     setupObserver();
-    
+
     return () => {
       if (observerRef.current) {
         observerRef.current.disconnect();
@@ -910,26 +1007,27 @@ useEffect(() => {
   }, [displayNotes, setupObserver]);
 
   useEffect(() => {
-  if (displayNotes && displayNotes.length > 0) {
-    const uniqueUserIds = [...new Set(displayNotes
-      .filter(note => note.userId)
-      .map(note => note.userId)
-    )];
+    if (displayNotes && displayNotes.length > 0) {
+      const uniqueUserIds = [
+        ...new Set(
+          displayNotes.filter((note) => note.userId).map((note) => note.userId)
+        ),
+      ];
 
-    uniqueUserIds.forEach(userId => {
-      if (!userStatusMap[userId] && !loadingUsers[userId]) {
-        fetchUserStatus(userId);
-      }
-    });
-  }
-}, [displayNotes, fetchUserStatus, loadingUsers, userStatusMap]);
+      uniqueUserIds.forEach((userId) => {
+        if (!userStatusMap[userId] && !loadingUsers[userId]) {
+          fetchUserStatus(userId);
+        }
+      });
+    }
+  }, [displayNotes, fetchUserStatus, loadingUsers, userStatusMap]);
 
   const getUserStatusStyle = (userId) => {
     if (userId && userStatusMap[userId] && !userStatusMap[userId].active) {
-      return { 
-        color: '#95a5a6', 
-        fontStyle: 'italic', 
-        opacity: 0.7 
+      return {
+        color: "#95a5a6",
+        fontStyle: "italic",
+        opacity: 0.7,
       };
     }
     return {};
@@ -939,7 +1037,10 @@ useEffect(() => {
     if (loadingUsers[userId]) {
       return (
         <span className="user-status-loading" title="Loading user status...">
-          <i className="fas fa-spinner fa-spin" style={{ marginLeft: '4px', fontSize: '10px' }} />
+          <i
+            className="fas fa-spinner fa-spin"
+            style={{ marginLeft: "4px", fontSize: "10px" }}
+          />
         </span>
       );
     }
@@ -948,51 +1049,59 @@ useEffect(() => {
   };
 
   const renderUserNameWithStatus = (note) => {
-    const isInactive = userStatusMap[note.userId] && !userStatusMap[note.userId].active;
-    
+    const isInactive =
+      userStatusMap[note.userId] && !userStatusMap[note.userId].active;
+
     if (isInactive) {
       return (
-        <span className="inactive-user-wrapper" style={{ position: 'relative', display: 'inline-block' }}>
-          <span style={getUserStatusStyle(note.userId)}>{note.userName || "Unknown"}</span>
-          <div className="inactive-user-tooltip" style={{
-            position: 'absolute',
-            bottom: '100%',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            backgroundColor: '#333',
-            color: 'white',
-            padding: '4px 8px',
-            borderRadius: '4px',
-            fontSize: '12px',
-            whiteSpace: 'nowrap',
-            zIndex: 1000,
-            opacity: 0,
-            visibility: 'hidden',
-            transition: 'opacity 0.2s, visibility 0.2s',
-            marginBottom: '5px'
-          }}>
+        <span
+          className="inactive-user-wrapper"
+          style={{ position: "relative", display: "inline-block" }}
+        >
+          <span style={getUserStatusStyle(note.userId)}>
+            {note.userName || "Unknown"}
+          </span>
+          <div
+            className="inactive-user-tooltip"
+            style={{
+              position: "absolute",
+              bottom: "100%",
+              left: "50%",
+              transform: "translateX(-50%)",
+              backgroundColor: "#333",
+              color: "white",
+              padding: "4px 8px",
+              borderRadius: "4px",
+              fontSize: "12px",
+              whiteSpace: "nowrap",
+              zIndex: 1000,
+              opacity: 0,
+              visibility: "hidden",
+              transition: "opacity 0.2s, visibility 0.2s",
+              marginBottom: "5px",
+            }}
+          >
             Inactive User
           </div>
         </span>
       );
     }
-    
+
     return <span>{note.userName || "Unknown"}</span>;
   };
-  
 
   const formatRelativeTime = (dateString) => {
     if (!dateString) return "Unknown date";
-    
+
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return "Invalid date";
-    
+
     const now = new Date();
     const diffInMs = now - date;
     const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
     const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
     const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
-    
+
     if (diffInMinutes < 1) {
       return "Just now";
     } else if (diffInMinutes < 60) {
@@ -1051,10 +1160,21 @@ useEffect(() => {
   const renderTableEmptyState = () => {
     return (
       <tr>
-        <td colSpan={8} style={{ textAlign: "center", padding: 40, color: "#999" }}>
+        <td
+          colSpan={8}
+          style={{ textAlign: "center", padding: 40, color: "#999" }}
+        >
           {isDataLoaded && !initialLoading && !loadingUniques ? (
             <>
-              <i className="fas fa-search" style={{ fontSize: 28, marginBottom: 12, display: "block", opacity: 0.5 }} />
+              <i
+                className="fas fa-search"
+                style={{
+                  fontSize: 28,
+                  marginBottom: 12,
+                  display: "block",
+                  opacity: 0.5,
+                }}
+              />
               <div>
                 {searchTerm.trim()
                   ? "No notes match your search"
@@ -1072,8 +1192,19 @@ useEffect(() => {
   // Render empty state for cards
   const renderCardEmptyState = () => {
     return (
-      <div className="empty-state" style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px" }}>
-        <i className="fas fa-search" style={{ fontSize: 28, marginBottom: 12, display: "block", opacity: 0.5 }} />
+      <div
+        className="empty-state"
+        style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px" }}
+      >
+        <i
+          className="fas fa-search"
+          style={{
+            fontSize: 28,
+            marginBottom: 12,
+            display: "block",
+            opacity: 0.5,
+          }}
+        />
         <h3>
           {searchTerm.trim()
             ? "No notes match your search"
@@ -1097,7 +1228,7 @@ useEffect(() => {
     const uniqueKey = `${note.id}-${index}`;
     const isReply = isNoteReply(note.id);
     const originalNoteId = isReply ? getReplyNoteId(note.id) : null;
-    
+
     return (
       <tr
         key={uniqueKey}
@@ -1105,58 +1236,97 @@ useEffect(() => {
         onClick={() => handleRowClick(note)}
         onDoubleClick={() => {
           handleRowDoubleClick(note);
-          const job = jobs.find(j => String(j.id) === String(note.job) || j.name === note.job);
+          const job = jobs.find(
+            (j) => String(j.id) === String(note.job) || j.name === note.job
+          );
           setViewNote({
             id: note.id,
             jobId: job?.id ?? null,
           });
           setShowViewModal(true);
         }}
-        className={`${selectedRow === note.id ? "selected-row" : ""} ${focusedRow === note.id ? "focused-row" : ""}`}
+        className={`${selectedRow === note.id ? "selected-row" : ""} ${
+          focusedRow === note.id ? "focused-row" : ""
+        }`}
         style={{ cursor: "pointer" }}
         ref={isLast ? lastRowRef : null}
         onMouseEnter={(e) => {
-          const inactiveWrapper = e.currentTarget.querySelector('.inactive-user-wrapper');
+          const inactiveWrapper = e.currentTarget.querySelector(
+            ".inactive-user-wrapper"
+          );
           if (inactiveWrapper) {
-            const tooltip = inactiveWrapper.querySelector('.inactive-user-tooltip');
-              tooltip.style.opacity = '1';
-              tooltip.style.visibility = 'visible';
-            }
+            const tooltip = inactiveWrapper.querySelector(
+              ".inactive-user-tooltip"
+            );
+            tooltip.style.opacity = "1";
+            tooltip.style.visibility = "visible";
           }
-        }
+        }}
         onMouseLeave={(e) => {
-          const inactiveWrapper = e.currentTarget.querySelector('.inactive-user-wrapper');
+          const inactiveWrapper = e.currentTarget.querySelector(
+            ".inactive-user-wrapper"
+          );
           if (inactiveWrapper) {
-            const tooltip = inactiveWrapper.querySelector('.inactive-user-tooltip');
+            const tooltip = inactiveWrapper.querySelector(
+              ".inactive-user-tooltip"
+            );
             if (tooltip) {
-              tooltip.style.opacity = '0';
-              tooltip.style.visibility = 'hidden';
+              tooltip.style.opacity = "0";
+              tooltip.style.visibility = "hidden";
             }
           }
         }}
       >
-        <td title={new Date(note.date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}>
+        <td
+          title={new Date(note.date).toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          })}
+        >
           {formatRelativeTime(note.timeStamp)}
         </td>
         <td>{note.workspace || "—"}</td>
         <td>{note.project || "—"}</td>
         <td>{note.job || "—"}</td>
-        <td className="editable" style={{ position: "relative", maxWidth: "300px" }}>
-          <div className="note-cell-container" style={{ display: "flex", alignItems: "flex-start", position: "relative", maxWidth: "100%" }}>
+        <td
+          className="editable"
+          style={{ position: "relative", maxWidth: "300px" }}
+        >
+          <div
+            className="note-cell-container"
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              position: "relative",
+              maxWidth: "100%",
+            }}
+          >
             <span
-              style={{ flex: 1, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", display: "block", maxWidth: "100%" }}
-              dangerouslySetInnerHTML={{ 
-        __html: note.note && note.note.length > 69 
-          ? highlightHtmlContent(note.note.substring(0, 69) + "...", searchTerm)
-          : highlightHtmlContent(note.note || "", searchTerm)
-      }}
+              style={{
+                flex: 1,
+                overflow: "hidden",
+                whiteSpace: "nowrap",
+                textOverflow: "ellipsis",
+                display: "block",
+                maxWidth: "100%",
+              }}
+              dangerouslySetInnerHTML={{
+                __html:
+                  note.note && note.note.length > 69
+                    ? highlightHtmlContent(
+                        note.note.substring(0, 69) + "...",
+                        searchTerm
+                      )
+                    : highlightHtmlContent(note.note || "", searchTerm),
+              }}
             />
-            <div 
-                className="note-hover-popup" 
-                dangerouslySetInnerHTML={{ 
-                  __html: highlightHtmlContent(note.note, searchTerm) 
-                }} 
-              />
+            <div
+              className="note-hover-popup"
+              dangerouslySetInnerHTML={{
+                __html: highlightHtmlContent(note.note, searchTerm),
+              }}
+            />
             {renderPriorityDot(priorityValue, note)}
           </div>
         </td>
@@ -1164,18 +1334,29 @@ useEffect(() => {
           {renderUserNameWithStatus(note)}
           {renderUserStatusIndicator(note.userId, note.userName)}
         </td>
-        <td className="file-cell" onClick={(e) => { e.stopPropagation(); handleViewAttachments(note); }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-            <i className="fas fa-paperclip" style={{ opacity: note.documentCount > 0 ? 1 : 0.3 }} />
+        <td
+          className="file-cell"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleViewAttachments(note);
+          }}
+        >
+          <span
+            style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+          >
+            <i
+              className="fas fa-paperclip"
+              style={{ opacity: note.documentCount > 0 ? 1 : 0.3 }}
+            />
             <span>({note.documentCount || 0})</span>
-            
+
             {/* Reply button - show for all notes */}
-            <i 
-              className="fas fa-reply" 
-              style={{ 
-                color: "#3498db", 
+            <i
+              className="fas fa-reply"
+              style={{
+                color: "#3498db",
                 cursor: "pointer",
-                fontSize: "12px"
+                fontSize: "12px",
               }}
               title="Reply"
               onClick={(e) => {
@@ -1183,7 +1364,7 @@ useEffect(() => {
                 handleReplyToNote(note);
               }}
             />
-            
+
             {/* Link button - only for reply notes */}
             {isReply && originalNoteId && (
               <button
@@ -1192,25 +1373,25 @@ useEffect(() => {
                 onMouseEnter={(e) => handleLinkedNoteMouseEnter(note.id, e)}
                 onMouseLeave={handleLinkedNoteMouseLeave}
                 style={{
-                  background: 'none',
-                  border: '1px solid #3498db',
-                  color: '#3498db',
-                  borderRadius: '4px',
-                  padding: '2px 6px',
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  marginLeft: '4px',
-                  height: '24px',
-                  transition: 'all 0.2s ease'
+                  background: "none",
+                  border: "1px solid #3498db",
+                  color: "#3498db",
+                  borderRadius: "4px",
+                  padding: "2px 6px",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  marginLeft: "4px",
+                  height: "24px",
+                  transition: "all 0.2s ease",
                 }}
               >
-                <i className="fas fa-link" style={{ fontSize: '10px' }} />
+                <i className="fas fa-link" style={{ fontSize: "10px" }} />
               </button>
             )}
-            
+
             {renderTableImageIcon(note)}
           </span>
         </td>
@@ -1249,21 +1430,25 @@ useEffect(() => {
 
   // Render priority dot for table view
   const renderPriorityDot = (priorityValue, note) => {
-     if (priorityValue > 1) {
+    if (priorityValue > 1) {
       return (
         <div
           className={`priority-dot priority-dot-${priorityValue}`}
-          style={{ 
-            width: "10px", 
-            height: "10px", 
-            borderRadius: "50%", 
-            position: "absolute", 
-            top: "4px", 
-            right: "4px", 
-            cursor: "pointer", 
-            zIndex: 10 
+          style={{
+            width: "10px",
+            height: "10px",
+            borderRadius: "50%",
+            position: "absolute",
+            top: "4px",
+            right: "4px",
+            cursor: "pointer",
+            zIndex: 10,
           }}
-          title={priorityValue === 3 ? "Medium Priority - Click to change" : "High Priority - Click to change"}
+          title={
+            priorityValue === 3
+              ? "Medium Priority - Click to change"
+              : "High Priority - Click to change"
+          }
           onClick={(e) => {
             e.stopPropagation();
             setSelectedNoteForPriority(note);
@@ -1273,11 +1458,24 @@ useEffect(() => {
         />
       );
     }
-    
+
     return (
       <div
         className="priority-dot priority-dot-placeholder"
-        style={{ width: "10px", height: "10px", borderRadius: "50%", position: "absolute", top: "4px", right: "4px", cursor: "pointer", zIndex: 10, opacity: 0.2, border: "1px dashed #bdc3c7", backgroundColor: "transparent", transition: "all 0.2s ease" }}
+        style={{
+          width: "10px",
+          height: "10px",
+          borderRadius: "50%",
+          position: "absolute",
+          top: "4px",
+          right: "4px",
+          cursor: "pointer",
+          zIndex: 10,
+          opacity: 0.2,
+          border: "1px dashed #bdc3c7",
+          backgroundColor: "transparent",
+          transition: "all 0.2s ease",
+        }}
         title="Click to set priority"
         onClick={(e) => {
           e.stopPropagation();
@@ -1285,19 +1483,26 @@ useEffect(() => {
           setPriorityDropdownPosition({ x: e.clientX, y: e.clientY });
           setShowPriorityDropdown(true);
         }}
-        onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.5"; e.currentTarget.style.borderColor = "#3498db"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.2"; e.currentTarget.style.borderColor = "#bdc3c7"; }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.opacity = "0.5";
+          e.currentTarget.style.borderColor = "#3498db";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.opacity = "0.2";
+          e.currentTarget.style.borderColor = "#bdc3c7";
+        }}
       />
     );
   };
 
   const renderNoteCard = (note, index, isLast = false) => {
     const priorityValue = note.priority || 1;
-    const isInactive = userStatusMap[note.userId] && !userStatusMap[note.userId].active;
+    const isInactive =
+      userStatusMap[note.userId] && !userStatusMap[note.userId].active;
     const uniqueKey = `${note.id}-${index}`;
     const isReply = isNoteReply(note.id);
     const originalNoteId = isReply ? getReplyNoteId(note.id) : null;
-    
+
     return (
       <div
         key={uniqueKey}
@@ -1308,19 +1513,23 @@ useEffect(() => {
         ref={isLast ? lastCardRef : null}
         onMouseEnter={(e) => {
           if (isInactive) {
-            const tooltip = e.currentTarget.querySelector('.inactive-user-tooltip');
+            const tooltip = e.currentTarget.querySelector(
+              ".inactive-user-tooltip"
+            );
             if (tooltip) {
-              tooltip.style.opacity = '1';
-              tooltip.style.visibility = 'visible';
+              tooltip.style.opacity = "1";
+              tooltip.style.visibility = "visible";
             }
           }
         }}
         onMouseLeave={(e) => {
           if (isInactive) {
-            const tooltip = e.currentTarget.querySelector('.inactive-user-tooltip');
+            const tooltip = e.currentTarget.querySelector(
+              ".inactive-user-tooltip"
+            );
             if (tooltip) {
-              tooltip.style.opacity = '0';
-              tooltip.style.visibility = 'hidden';
+              tooltip.style.opacity = "0";
+              tooltip.style.visibility = "hidden";
             }
           }
         }}
@@ -1328,37 +1537,59 @@ useEffect(() => {
         <div className="note-header">
           <div className="user-avatar-wrapper">
             <div className="user-avatar">
-              {note.userName ? (() => {
-                const names = note.userName.trim().split(/\s+/);
-                const firstInitial = names[0] ? names[0].charAt(0).toUpperCase() : "";
-                const lastInitial = names.length > 1 ? names[names.length - 1].charAt(0).toUpperCase() : "";
-                return firstInitial + lastInitial;
-              })() : <i className="fas fa-user" />}
+              {note.userName ? (
+                (() => {
+                  const names = note.userName.trim().split(/\s+/);
+                  const firstInitial = names[0]
+                    ? names[0].charAt(0).toUpperCase()
+                    : "";
+                  const lastInitial =
+                    names.length > 1
+                      ? names[names.length - 1].charAt(0).toUpperCase()
+                      : "";
+                  return firstInitial + lastInitial;
+                })()
+              ) : (
+                <i className="fas fa-user" />
+              )}
             </div>
-            <div className="user-tooltip">{note.userName || "Unknown User"}</div>
+            <div className="user-tooltip">
+              {note.userName || "Unknown User"}
+            </div>
           </div>
           <div className="note-meta">
-            <div className="note-author" title={note.userName || "Unknown User"}>
+            <div
+              className="note-author"
+              title={note.userName || "Unknown User"}
+            >
               {isInactive ? (
-                <span className="inactive-user-wrapper" style={{ position: 'relative', display: 'inline-block' }}>
-                  <span style={getUserStatusStyle(note.userId)}>{note.userName || "Unknown"}</span>
-                  <div className="inactive-user-tooltip" style={{
-                    position: 'absolute',
-                    bottom: '100%',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    backgroundColor: '#333',
-                    color: 'white',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    fontSize: '12px',
-                    whiteSpace: 'nowrap',
-                    zIndex: 1000,
-                    opacity: 0,
-                    visibility: 'hidden',
-                    transition: 'opacity 0.2s, visibility 0.2s',
-                    marginBottom: '5px'
-                  }}>
+                <span
+                  className="inactive-user-wrapper"
+                  style={{ position: "relative", display: "inline-block" }}
+                >
+                  <span style={getUserStatusStyle(note.userId)}>
+                    {note.userName || "Unknown"}
+                  </span>
+                  <div
+                    className="inactive-user-tooltip"
+                    style={{
+                      position: "absolute",
+                      bottom: "100%",
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      backgroundColor: "#333",
+                      color: "white",
+                      padding: "4px 8px",
+                      borderRadius: "4px",
+                      fontSize: "12px",
+                      whiteSpace: "nowrap",
+                      zIndex: 1000,
+                      opacity: 0,
+                      visibility: "hidden",
+                      transition: "opacity 0.2s, visibility 0.2s",
+                      marginBottom: "5px",
+                    }}
+                  >
                     Inactive User
                   </div>
                 </span>
@@ -1367,44 +1598,91 @@ useEffect(() => {
               )}
               {renderUserStatusIndicator(note.userId, note.userName)}
             </div>
-            <div className="note-date" title={new Date(note.date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}>
+            <div
+              className="note-date"
+              title={new Date(note.date).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+              })}
+            >
               {formatRelativeTime(note.timeStamp)}
             </div>
           </div>
           <div className="note-context">
-            <div className="context-item job" title={note.job}><HighlightText text={note.job || "—"} highlight={searchTerm}/></div>
+            <div className="context-item job" title={note.job}>
+              <HighlightText text={note.job || "—"} highlight={searchTerm} />
+            </div>
             <div className="context-item workspace-project">
-              <span title={note.workspace}><HighlightText text={note.workspace || "—"} highlight={searchTerm} /></span>/
-              <span title={note.project}><HighlightText text={note.project || "—"} highlight={searchTerm} /></span>
+              <span title={note.workspace}>
+                <HighlightText
+                  text={note.workspace || "—"}
+                  highlight={searchTerm}
+                />
+              </span>
+              /
+              <span title={note.project}>
+                <HighlightText
+                  text={note.project || "—"}
+                  highlight={searchTerm}
+                />
+              </span>
             </div>
           </div>
         </div>
         <div className="note-content">
-          <div className="note-card-content-container" style={{ position: "relative" }}>
-            <div className="note-text" dangerouslySetInnerHTML={{ __html: highlightHtmlContent(note.note || "", searchTerm) 
-  }} />
-            {note.note && note.note.length > 150 && (
-              <div className="note-card-popup" dangerouslySetInnerHTML={{ __html: note.note }} />
+          <div
+            className="note-card-content-container"
+            style={{ position: "relative" }}
+          >
+            <div
+              className="note-text"
+              style={{
+                maxHeight: "110px",
+                overflow: "hidden",
+                position: "relative",
+              }}
+              dangerouslySetInnerHTML={{
+                __html: highlightHtmlContent(note.note || "", searchTerm),
+              }}
+            />
+            {note.note && note.note.length > 69 && (
+              <div
+                className="note-card-popup"
+                dangerouslySetInnerHTML={{ __html: note.note }}
+              />
             )}
           </div>
         </div>
         <div className="note-footer">
-          <div className="note-attachments" style={{ display: "flex", alignItems: "center", gap: "2px" }}>
+          <div
+            className="note-attachments"
+            style={{ display: "flex", alignItems: "center", gap: "2px" }}
+          >
             {renderCardImageIcon(note)}
-            <button className="attachment-btn" onClick={(e) => { e.stopPropagation(); handleViewAttachments(note); }}>
-              <i className="fas fa-paperclip" style={{ opacity: note.documentCount > 0 ? 1 : 0.3 }} />
+            <button
+              className="attachment-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleViewAttachments(note);
+              }}
+            >
+              <i
+                className="fas fa-paperclip"
+                style={{ opacity: note.documentCount > 0 ? 1 : 0.3 }}
+              />
               <span>({note.documentCount || 0})</span>
             </button>
-            
+
             {/* Reply button */}
-            <button 
+            <button
               className="attachment-btn"
-              style={{ 
+              style={{
                 padding: "4px 8px",
                 background: "transparent",
                 border: "none",
                 cursor: "pointer",
-                color: "#3498db"
+                color: "#3498db",
               }}
               onClick={(e) => {
                 e.stopPropagation();
@@ -1414,7 +1692,7 @@ useEffect(() => {
             >
               <i className="fas fa-reply" />
             </button>
-            
+
             {/* Link button - only for reply notes */}
             {isReply && originalNoteId && (
               <button
@@ -1423,17 +1701,17 @@ useEffect(() => {
                 onMouseEnter={(e) => handleLinkedNoteMouseEnter(note.id, e)}
                 onMouseLeave={handleLinkedNoteMouseLeave}
                 style={{
-                  background: 'none',
-                  border: '1px solid #3498db',
-                  color: '#3498db',
-                  borderRadius: '4px',
-                  padding: '4px 8px',
-                  fontSize: '12px',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  transition: 'all 0.2s ease'
+                  background: "none",
+                  border: "1px solid #3498db",
+                  color: "#3498db",
+                  borderRadius: "4px",
+                  padding: "4px 8px",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  transition: "all 0.2s ease",
                 }}
               >
                 <i className="fas fa-link" />
@@ -1442,13 +1720,34 @@ useEffect(() => {
           </div>
           <div className="note-actions">
             {renderCardPriorityIndicator(priorityValue, note)}
-            <button className="action-btn add" onClick={(e) => { e.stopPropagation(); handleAddFromRow(note); }} title="Add New Note">
+            <button
+              className="action-btn add"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAddFromRow(note);
+              }}
+              title="Add New Note"
+            >
               <i className="fas fa-plus" />
             </button>
-            <button className="action-btn edit" onClick={(e) => { e.stopPropagation(); handleEdit(note); }} title="Edit Note">
+            <button
+              className="action-btn edit"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleEdit(note);
+              }}
+              title="Edit Note"
+            >
               <i className="fas fa-edit" />
             </button>
-            <button className="action-btn delete" onClick={(e) => { e.stopPropagation(); handleDelete(note); }} title="Delete Note">
+            <button
+              className="action-btn delete"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(note);
+              }}
+              title="Delete Note"
+            >
               <i className="fas fa-trash" />
             </button>
           </div>
@@ -1464,7 +1763,11 @@ useEffect(() => {
         <div
           className={`priority-indicator priority-${priorityValue}`}
           style={{ cursor: "pointer" }}
-          title={priorityValue === 3 ? "Medium Priority - Click to change" : "High Priority - Click to change"}
+          title={
+            priorityValue === 3
+              ? "Medium Priority - Click to change"
+              : "High Priority - Click to change"
+          }
           onClick={(e) => {
             e.stopPropagation();
             setSelectedNoteForPriority(note);
@@ -1474,11 +1777,20 @@ useEffect(() => {
         />
       );
     }
-    
+
     return (
       <div
         className="priority-placeholder"
-        style={{ cursor: "pointer", opacity: 0.2, transition: "all 0.2s ease", width: "16px", height: "16px", borderRadius: "50%", border: "1px dashed #ddd", backgroundColor: "transparent" }}
+        style={{
+          cursor: "pointer",
+          opacity: 0.2,
+          transition: "all 0.2s ease",
+          width: "16px",
+          height: "16px",
+          borderRadius: "50%",
+          border: "1px dashed #ddd",
+          backgroundColor: "transparent",
+        }}
         title="Click to set priority"
         onClick={(e) => {
           e.stopPropagation();
@@ -1486,8 +1798,14 @@ useEffect(() => {
           setPriorityDropdownPosition({ x: e.clientX, y: e.clientY });
           setShowPriorityDropdown(true);
         }}
-        onMouseEnter={(e) => { e.currentTarget.style.opacity = "0.5"; e.currentTarget.style.borderColor = "#3498db"; }}
-        onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.2"; e.currentTarget.style.borderColor = "#ddd"; }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.opacity = "0.5";
+          e.currentTarget.style.borderColor = "#3498db";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.opacity = "0.2";
+          e.currentTarget.style.borderColor = "#ddd";
+        }}
       />
     );
   };
@@ -1496,8 +1814,8 @@ useEffect(() => {
   const notesByJob = {};
   if (viewMode === "stacked") {
     if (jobsToDisplay && jobsToDisplay.length > 0) {
-      jobsToDisplay.forEach(job => {
-        if (job.jobName && job.notes && Array.isArray(job.notes)) {
+      jobsToDisplay.forEach((job) => {
+        if (job && job.jobName && job.notes && Array.isArray(job.notes)) {
           notesByJob[job.jobName] = job.notes;
         }
       });
@@ -1512,298 +1830,394 @@ useEffect(() => {
     });
   }
 
-  const sortedJobs = viewMode === "stacked" 
-    ? (jobsToDisplay && jobsToDisplay.length > 0 ? [...jobsToDisplay] : []) 
-    : Object.keys(notesByJob).sort((a, b) => {
-        const mostRecentA = notesByJob[a][0] ?
-            new Date(notesByJob[a][0].timeStamp || notesByJob[a][0].date || 0).getTime() : 0;
-        const mostRecentB = notesByJob[b][0] ?
-            new Date(notesByJob[b][0].timeStamp || notesByJob[b][0].date || 0).getTime() : 0;
-        return mostRecentB - mostRecentA;
-      });
+  // UPDATED: Sort jobs in stacked view by latestTimeStamp (most recent first)
+  const sortedJobs =
+    viewMode === "stacked"
+      ? jobsToDisplay && jobsToDisplay.length > 0
+        ? [...jobsToDisplay].filter(job => job).sort((a, b) => {
+            // Sort by latestTimeStamp (most recent first), then by noteCount as fallback
+            const timeA = a.latestTimeStamp ? new Date(a.latestTimeStamp).getTime() : 0;
+            const timeB = b.latestTimeStamp ? new Date(b.latestTimeStamp).getTime() : 0;
+            
+            // If timestamps are equal or not available, sort by note count
+            if (timeB !== timeA) {
+              return timeB - timeA; // Most recent first
+            }
+            return (b.noteCount || 0) - (a.noteCount || 0);
+          })
+        : []
+      : Object.keys(notesByJob).sort((a, b) => {
+          const mostRecentA = notesByJob[a][0]
+            ? new Date(
+                notesByJob[a][0].timeStamp || notesByJob[a][0].date || 0
+              ).getTime()
+            : 0;
+          const mostRecentB = notesByJob[b][0]
+            ? new Date(
+                notesByJob[b][0].timeStamp || notesByJob[b][0].date || 0
+              ).getTime()
+            : 0;
+          return mostRecentB - mostRecentA;
+        });
 
   const isAnyStackExpanded = Object.values(expandedStacks).some((v) => v);
 
+  // Find the hovered stack card for popup
+  const hoveredStackCardJob = hoveredStackCard 
+    ? jobsToDisplay?.find(
+        (job) => job && (job.jobId === hoveredStackCard || job.jobName === hoveredStackCard)
+      )
+    : null;
+
   // Render collapsed stack (without loading notes yet)
   const renderCollapsedStack = (job) => {
+    if (!job) return null;
+    
     const jobName = job.jobName;
     const noteCount = job.noteCount || 0;
     const isLoading = job.isLoadingNotes;
-    const hasLastSiteNote = job.lastSiteNote && job.lastSiteNote.trim() !== "";
-    
+    const shouldShowPopupOnHover = shouldShowPopup(job);
+
     return (
       <div
-        key={`stack-${job.jobId}`}
-        className={`collapsed-stack ${isLoading ? 'loading' : ''}`}
+        key={`stack-${job.jobId || job.jobName}`}
+        className={`collapsed-stack ${isLoading ? "loading" : ""}`}
         onClick={() => toggleStackExpansion(jobName, job.jobId)}
         style={{
-          cursor: "pointer",
+          cursor: 'pointer',
           position: "relative",
           height: "280px",
           width: "100%",
         }}
       >
         {isLoading && (
-          <div className="stack-loading-overlay" style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(255, 255, 255, 0.9)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 10,
-            borderRadius: '8px'
-          }}>
-            <div style={{ textAlign: 'center' }}>
-              <i className="fas fa-spinner fa-spin" style={{ fontSize: '24px', color: '#3498db', marginBottom: '10px' }} />
-              <div style={{ fontSize: '14px', color: '#666' }}>Loading notes...</div>
+          <div
+            className="stack-loading-overlay"
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(255, 255, 255, 0.9)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 10,
+              borderRadius: "8px",
+            }}
+          >
+            <div style={{ textAlign: "center" }}>
+              <i
+                className="fas fa-spinner fa-spin"
+                style={{
+                  fontSize: "24px",
+                  color: "#3498db",
+                  marginBottom: "10px",
+                }}
+              />
+              <div style={{ fontSize: "14px", color: "#666" }}>
+                Loading notes...
+              </div>
             </div>
           </div>
         )}
-        
-        {[...Array(Math.min(noteCount, 5))].map(
-          (_, index) => {
-            const isTopCard = index === 0;
-            return (
-              <div
-                key={`layer-${index}`}
-                className="stack-layer-card"
-                style={{
-                  position: "absolute",
-                  right: "0",
-                  left: `${index * 15}px`,
-                  transform: `rotate(${index * -2}deg)`,
-                  zIndex: 5 - index,
-                  width: "300px",
-                  height: "250px",
-                  opacity: 1 - index * 0.2,
-                  transition: "all 0.3s ease",
-                  overflow: "hidden",
-                }}
+
+        {[...Array(Math.min(noteCount, 5))].map((_, index) => {
+          const isTopCard = index === 0;
+          return (
+            <div
+              key={`layer-${index}`}
+              className="stack-layer-card"
+              style={{
+                position: "absolute",
+                right: "0",
+                left: `${index * 15}px`,
+                transform: `rotate(${index * -2}deg)`,
+                zIndex: 5 - index,
+                width: "300px",
+                height: "250px",
+                opacity: 1 - index * 0.2,
+                transition: "all 0.3s ease",
+                overflow: "hidden",
+              }}
+            >
+              {isTopCard ? (
+                <div
+                  style={{
+                    padding: "15px",
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                  }}
                 >
-                  {isTopCard ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      marginBottom: "10px",
+                      paddingBottom: "10px",
+                      borderBottom: "1px solid #f0f0f0",
+                    }}
+                  >
                     <div
                       style={{
-                        padding: "15px",
-                        height: "100%",
-                        display: "flex",
-                        flexDirection: "column",
+                        flex: 1,
                       }}
                     >
                       <div
                         style={{
                           display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "flex-start",
-                          marginBottom: "10px",
-                          paddingBottom: "10px",
-                          borderBottom: "1px solid #f0f0f0",
+                          alignItems: "center",
+                          gap: "8px",
+                          marginBottom: "5px",
                         }}
                       >
-                        <div
+                        <i
+                          className="fas fa-briefcase"
+                          style={{ color: "#14A2B6" }}
+                        />
+                        <span
                           style={{
-                            flex: 1,
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "8px",
-                              marginBottom: "5px",
-                            }}
-                          >
-                            <i
-                              className="fas fa-briefcase"
-                              style={{ color: "#14A2B6" }}
-                            />
-                            <span
-                              style={{
-                                fontWeight: 600,
-                                color: "#2c3e50",
-                                fontSize: "16px",
-                              }}
-                            >
-                              {jobName}
-                            </span>
-                          </div>
-                        </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "6px",
-                            background: "#14A2B6",
-                            color: "white",
-                            padding: "4px 10px",
-                            borderRadius: "20px",
-                            fontSize: "12px",
                             fontWeight: 600,
+                            color: "#2c3e50",
+                            fontSize: "16px",
                           }}
                         >
-                          <i className="fas fa-layer-group" />
-                          <span>{noteCount} notes</span>
-                        </div>
-                      </div>
-                      <div
-                        style={{
-                          flex: 1,
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: "10px",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "10px",
-                          }}
-                        >
-                          <div
-                            style={{
-                              width: "28px",
-                              height: "28px",
-                              borderRadius: "50%",
-                              backgroundColor: "#14A2B6",
-                              color: "white",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              fontSize: "12px",
-                              fontWeight: "bold",
-                            }}
-                          >
-                            {job.lastSiteNoteUserName
-                              ? job.lastSiteNoteUserName.charAt(0).toUpperCase()
-                              : job.jobName?.charAt(0)?.toUpperCase() || "J"}
-                          </div>
-                          <span style={{ fontSize: "14px", color: "#555" }}>
-                            {job.lastSiteNoteUserName || 
-                            (job.notes && job.notes.length > 0 && job.notes[0].userName) || 
-                            "Loading..."}
-                          </span>
-                        </div>
-    
-      <div
-        style={{
-          fontSize: "13px",
-          color: "#666",
-          lineHeight: 1.4,
-          flex: 1,
-          overflow: "hidden",
-          display: "-webkit-box",
-          WebkitLineClamp: 3,
-          WebkitBoxOrient: "vertical",
-          padding: "8px",
-          backgroundColor: "#f8f9fa",
-          borderRadius: "4px",
-          borderLeft: "3px solid #21f869ff",
-          marginTop: "8px",
-        }}
-      >
-        
-        <div 
-          style={{ 
-            fontSize: "12px", 
-            color: "#666", 
-            lineHeight: 1.4,
-            maxHeight: "60px",
-            overflow: "hidden"
-          }}
-          dangerouslySetInnerHTML={{ 
-            __html: job.lastSiteNote 
-              ? job.lastSiteNote 
-              : (job.notes && job.notes.length > 0 
-                  ? (job.notes[0].note || "No note content")
-                  : (hasActiveFilters && job.hasLoadedNotes 
-                      ? "No notes match current filters" 
-                      : "Click to load notes"))
-          }} 
-        />
-      </div>
-      
-                        <div
-                          style={{
-                            fontSize: "11px",
-                            color: "#888",
-                            marginTop: "auto",
-                            paddingTop: "8px",
-                            borderTop: "1px dashed #e9ecef",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "6px",
-                          }}
-                        >
-                          <i className="fas fa-clock" style={{ fontSize: "10px" }} />
-                          <span>
-                            {job.latestTimeStamp ? 
-                            formatRelativeTime(job.latestTimeStamp) : "No updates"}
-                          </span>
-                        </div>
-                      </div>
-                      <div
-                        style={{
-                          textAlign: "center",
-                          paddingTop: "10px",
-                          borderTop: "1px dashed #e9ecef",
-                          marginTop: "10px",
-                        }}
-                      >
-                        <div
-                          style={{
-                            fontSize: "12px",
-                            color: "#7f8c8d",
-                            fontStyle: "italic",
-                          }}
-                        >
-                          {isLoading ? 'Loading...' : 'Click to expand'}
-                          {hasActiveFilters && !isLoading && ' (filtered view)'}
-                        </div>
+                          {jobName}
+                        </span>
                       </div>
                     </div>
-                  ) : (
                     <div
                       style={{
-                        height: "100%",
-                        background:
-                          "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)",
                         display: "flex",
                         alignItems: "center",
-                        justifyContent: "center",
-                        color: "#bdc3c7",
+                        gap: "6px",
+                        background: "#14A2B6",
+                        color: "white",
+                        padding: "4px 10px",
+                        borderRadius: "20px",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                      }}
+                    >
+                      <i className="fas fa-layer-group" />
+                      <span>{noteCount} notes</span>
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "10px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: "28px",
+                          height: "28px",
+                          borderRadius: "50%",
+                          backgroundColor: "#14A2B6",
+                          color: "white",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "12px",
+                          fontWeight: "bold",
+                        }}
+                      >
+                        {job.lastSiteNoteUserName
+                          ? job.lastSiteNoteUserName.charAt(0).toUpperCase()
+                          : job.jobName?.charAt(0)?.toUpperCase() || "J"}
+                      </div>
+                      <span style={{ fontSize: "14px", color: "#555" }}>
+                        {job.lastSiteNoteUserName ||
+                          (job.notes &&
+                            job.notes.length > 0 &&
+                            job.notes[0].userName) ||
+                          "Loading..."}
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        color: "#666",
+                        lineHeight: 1.4,
+                        flex: 1,
+                        overflow: "hidden",
+                        display: "-webkit-box",
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: "vertical",
+                        padding: "8px",
+                        backgroundColor: "#f8f9fa",
+                        borderRadius: "4px",
+                        borderLeft: "3px solid #21f869ff",
+                        marginTop: "8px",
+                        position: "relative",
+                      }}
+                    >
+                      <div
+                        className="note-text-preview"
+                        style={{
+                          fontSize: "12px",
+                          color: "#666",
+                          lineHeight: 1.4,
+                          maxHeight: "60px",
+                          overflow: "hidden",
+                          display: "-webkit-box",
+                          WebkitLineClamp: 3,
+                          WebkitBoxOrient: "vertical",
+                          wordBreak: "break-word",
+                          cursor: shouldShowPopupOnHover ? 'help' : 'default',
+                        }}
+                        onMouseEnter={(e) => shouldShowPopupOnHover && job && handleNoteTextMouseEnter(job, e)}
+                        onMouseLeave={() => shouldShowPopupOnHover && handleNoteTextMouseLeave()}
+                        dangerouslySetInnerHTML={{
+                          __html: job.lastSiteNote
+                            ? job.lastSiteNote
+                            : job.notes && job.notes.length > 0
+                            ? job.notes[0].note || "No note content"
+                            : hasActiveFilters && job.hasLoadedNotes
+                            ? "No notes match current filters"
+                            : "Click to load notes",
+                        }}
+                      />
+                      
+                      {/* Gradient overlay for truncated text */}
+                      {shouldShowPopupOnHover && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            height: "20px",
+                            background: "linear-gradient(to bottom, transparent, #f8f9fa)",
+                            pointerEvents: "none",
+                          }}
+                        />
+                      )}
+                      
+                      {/* Truncated indicator */}
+                      {shouldShowPopupOnHover && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            bottom: "2px",
+                            right: "8px",
+                            fontSize: "10px",
+                            color: "#3498db",
+                            backgroundColor: "rgba(255, 255, 255, 0.8)",
+                            padding: "0 4px",
+                            borderRadius: "2px",
+                            pointerEvents: "none",
+                          }}
+                        >
+                          
+                        </div>
+                      )}
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        color: "#888",
+                        marginTop: "auto",
+                        paddingTop: "8px",
+                        borderTop: "1px dashed #e9ecef",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
                       }}
                     >
                       <i
-                        className="fas fa-sticky-note"
-                        style={{ fontSize: "24px" }}
+                        className="fas fa-clock"
+                        style={{ fontSize: "10px" }}
                       />
+                      <span>
+                        {job.latestTimeStamp
+                          ? formatRelativeTime(job.latestTimeStamp)
+                          : "No updates"}
+                      </span>
                     </div>
-                  )}
+                  </div>
+                  <div
+                    style={{
+                      textAlign: "center",
+                      paddingTop: "10px",
+                      borderTop: "1px dashed #e9ecef",
+                      marginTop: "10px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: "#7f8c8d",
+                        fontStyle: "italic",
+                      }}
+                    >
+                      {isLoading ? "Loading..." : "Click to expand"}
+                      {hasActiveFilters && !isLoading && " (filtered view)"}
+                    </div>
+                  </div>
                 </div>
-              );
-            }
-          )}
+              ) : (
+                <div
+                  style={{
+                    height: "100%",
+                    background:
+                      "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#bdc3c7",
+                  }}
+                >
+                  <i
+                    className="fas fa-sticky-note"
+                    style={{ fontSize: "24px" }}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   };
 
-  // Render expanded stack with notes
+  // Render expanded stack with notes - UPDATED to sort notes by timestamp
   const renderExpandedStack = (job) => {
+    if (!job) return null;
+    
     const jobName = job.jobName;
-    const jobNotes = job.notes || [];
+    // Sort notes by timestamp (most recent first) when displaying
+    const jobNotes = job.notes 
+      ? [...job.notes].sort((a, b) => {
+          const timeA = new Date(a.timeStamp || a.date || 0).getTime();
+          const timeB = new Date(b.timeStamp || b.date || 0).getTime();
+          return timeB - timeA; // Most recent first
+        })
+      : [];
     const isLoading = job.isLoadingNotes;
     const hasError = job.errorLoadingNotes;
     const hasLoaded = job.hasLoadedNotes;
     const noteCount = job.noteCount || 0;
     const displayNoteCount = jobNotes.length;
-    
+
     return (
       <div
-        key={`stack-${job.jobId}`}
+        key={`stack-${job.jobId || job.jobName}`}
         className={`job-stack-container expanded-full-width`}
       >
         <div className="expanded-stack">
@@ -1816,38 +2230,62 @@ useEffect(() => {
             </div>
             <div className="expanded-stack-count">
               <i className="fas fa-layer-group" />
-              <span>{displayNoteCount} of {noteCount} notes</span>
+              <span>
+                {displayNoteCount} of {noteCount} notes
+              </span>
             </div>
           </div>
-          
+
           {/* Loading state */}
           {isLoading && (
-            <div className="stack-notes-loading" style={{
-              padding: "40px",
-              textAlign: "center",
-              color: "#666",
-              backgroundColor: "#f8f9fa",
-              borderRadius: "8px",
-              margin: "20px 0"
-            }}>
-              <i className="fas fa-spinner fa-spin" style={{ fontSize: "24px", marginBottom: "10px", display: "block" }} />
+            <div
+              className="stack-notes-loading"
+              style={{
+                padding: "40px",
+                textAlign: "center",
+                color: "#666",
+                backgroundColor: "#f8f9fa",
+                borderRadius: "8px",
+                margin: "20px 0",
+              }}
+            >
+              <i
+                className="fas fa-spinner fa-spin"
+                style={{
+                  fontSize: "24px",
+                  marginBottom: "10px",
+                  display: "block",
+                }}
+              />
               <div>Loading notes for {jobName}...</div>
             </div>
           )}
-          
+
           {/* Error state */}
           {hasError && !isLoading && (
-            <div className="stack-notes-error" style={{
-              padding: "20px",
-              textAlign: "center",
-              color: "#e74c3c",
-              backgroundColor: "#fdf2f2",
-              borderRadius: "8px",
-              margin: "20px 0",
-              border: "1px solid #f8d7da"
-            }}>
-              <i className="fas fa-exclamation-triangle" style={{ fontSize: "24px", marginBottom: "10px", display: "block" }} />
-              <div style={{ marginBottom: "10px" }}>Failed to load notes: {hasError}</div>
+            <div
+              className="stack-notes-error"
+              style={{
+                padding: "20px",
+                textAlign: "center",
+                color: "#e74c3c",
+                backgroundColor: "#fdf2f2",
+                borderRadius: "8px",
+                margin: "20px 0",
+                border: "1px solid #f8d7da",
+              }}
+            >
+              <i
+                className="fas fa-exclamation-triangle"
+                style={{
+                  fontSize: "24px",
+                  marginBottom: "10px",
+                  display: "block",
+                }}
+              />
+              <div style={{ marginBottom: "10px" }}>
+                Failed to load notes: {hasError}
+              </div>
               <button
                 onClick={() => toggleStackExpansion(jobName, job.jobId)}
                 style={{
@@ -1856,7 +2294,7 @@ useEffect(() => {
                   color: "white",
                   border: "none",
                   borderRadius: "4px",
-                  cursor: "pointer"
+                  cursor: "pointer",
                 }}
               >
                 <i className="fas fa-redo" style={{ marginRight: "8px" }} />
@@ -1864,23 +2302,40 @@ useEffect(() => {
               </button>
             </div>
           )}
-          
+
           {/* Loaded notes */}
           {hasLoaded && !isLoading && !hasError && (
             <>
               {displayNoteCount === 0 ? (
-                <div className="no-notes-filtered" style={{
-                  padding: "40px",
-                  textAlign: "center",
-                  color: "#999",
-                  backgroundColor: "#f8f9fa",
-                  borderRadius: "8px",
-                  margin: "20px 0"
-                }}>
-                  <i className="fas fa-search" style={{ fontSize: "24px", marginBottom: "10px", display: "block", opacity: 0.5 }} />
+                <div
+                  className="no-notes-filtered"
+                  style={{
+                    padding: "40px",
+                    textAlign: "center",
+                    color: "#999",
+                    backgroundColor: "#f8f9fa",
+                    borderRadius: "8px",
+                    margin: "20px 0",
+                  }}
+                >
+                  <i
+                    className="fas fa-search"
+                    style={{
+                      fontSize: "24px",
+                      marginBottom: "10px",
+                      display: "block",
+                      opacity: 0.5,
+                    }}
+                  />
                   <div>No notes match your current filters for this job</div>
                   {hasActiveFilters && (
-                    <div style={{ marginTop: "10px", fontSize: "14px", color: "#666" }}>
+                    <div
+                      style={{
+                        marginTop: "10px",
+                        fontSize: "14px",
+                        color: "#666",
+                      }}
+                    >
                       Try adjusting your filters or clear them to see all notes
                     </div>
                   )}
@@ -1888,25 +2343,31 @@ useEffect(() => {
               ) : (
                 <>
                   {displayNoteCount > 0 && displayNoteCount < noteCount && (
-                    <div className="notes-count-info" style={{
-                      padding: "8px",
-                      backgroundColor: "#e3f2fd",
-                      borderRadius: "4px",
-                      margin: "10px 0",
-                      fontSize: "12px",
-                      color: "#1565c0"
-                    }}>
-                      <i className="fas fa-info-circle" /> Showing {displayNoteCount} of {noteCount} notes
+                    <div
+                      className="notes-count-info"
+                      style={{
+                        padding: "8px",
+                        backgroundColor: "#e3f2fd",
+                        borderRadius: "4px",
+                        margin: "10px 0",
+                        fontSize: "12px",
+                        color: "#1565c0",
+                      }}
+                    >
+                      <i className="fas fa-info-circle" /> Showing{" "}
+                      {displayNoteCount} of {noteCount} notes
                       {hasActiveFilters && " that match your filters"}
                     </div>
                   )}
-                  
+
                   <div className="expanded-notes-grid">
                     {jobNotes.map((note) => {
                       const priorityValue = note.priority || 1;
                       const isReply = isNoteReply(note.id);
-                      const originalNoteId = isReply ? getReplyNoteId(note.id) : null;
-                      
+                      const originalNoteId = isReply
+                        ? getReplyNoteId(note.id)
+                        : null;
+
                       return (
                         <div
                           key={note.id}
@@ -1922,13 +2383,17 @@ useEffect(() => {
                               <div className="user-avatar">
                                 {note.userName ? (
                                   (() => {
-                                    const names = note.userName.trim().split(/\s+/);
+                                    const names = note.userName
+                                      .trim()
+                                      .split(/\s+/);
                                     const firstInitial = names[0]
                                       ? names[0].charAt(0).toUpperCase()
                                       : "";
                                     const lastInitial =
                                       names.length > 1
-                                        ? names[names.length - 1].charAt(0).toUpperCase()
+                                        ? names[names.length - 1]
+                                            .charAt(0)
+                                            .toUpperCase()
                                         : "";
                                     return firstInitial + lastInitial;
                                   })()
@@ -1949,11 +2414,14 @@ useEffect(() => {
                               </div>
                               <div
                                 className="note-date"
-                                title={new Date(note.date).toLocaleDateString("en-US", {
-                                  year: "numeric",
-                                  month: "short",
-                                  day: "numeric",
-                                })}
+                                title={new Date(note.date).toLocaleDateString(
+                                  "en-US",
+                                  {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                  }
+                                )}
                               >
                                 {formatRelativeTime(note.timeStamp)}
                               </div>
@@ -1963,15 +2431,24 @@ useEffect(() => {
                                 className="context-item job"
                                 title={note.job}
                               >
-                                 <HighlightText text={note.job || "—"} highlight={searchTerm} />
+                                <HighlightText
+                                  text={note.job || "—"}
+                                  highlight={searchTerm}
+                                />
                               </div>
                               <div className="context-item workspace-project">
                                 <span title={note.workspace}>
-                                  <HighlightText text={note.workspace || "—"} highlight={searchTerm} />
+                                  <HighlightText
+                                    text={note.workspace || "—"}
+                                    highlight={searchTerm}
+                                  />
                                 </span>
                                 /
                                 <span title={note.project}>
-                                  <HighlightText text={note.project || "—"} highlight={searchTerm} />
+                                  <HighlightText
+                                    text={note.project || "—"}
+                                    highlight={searchTerm}
+                                  />
                                 </span>
                               </div>
                             </div>
@@ -2017,53 +2494,58 @@ useEffect(() => {
                                     opacity: note.documentCount > 0 ? 1 : 0.3,
                                   }}
                                 />
-                                <span>
-                                  ({note.documentCount || 0})
-                                </span>
+                                <span>({note.documentCount || 0})</span>
                               </button>
 
-                                <button 
-                                  className="attachment-btn"
-                                  style={{ 
-                                    padding: "4px 8px",
-                                    background: "transparent",
-                                    border: "none",
+                              <button
+                                className="attachment-btn"
+                                style={{
+                                  padding: "4px 8px",
+                                  background: "transparent",
+                                  border: "none",
+                                  cursor: "pointer",
+                                  color: "#3498db",
+                                }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleReplyToNote(note);
+                                }}
+                                title="Reply to this note"
+                              >
+                                <i className="fas fa-reply" />
+                              </button>
+
+                              {/* Link button - only for reply notes */}
+                              {isReply && originalNoteId && (
+                                <button
+                                  className="link-to-note-btn"
+                                  onClick={(e) =>
+                                    handleLinkedNoteClick(note.id, e)
+                                  }
+                                  onMouseEnter={(e) =>
+                                    handleLinkedNoteMouseEnter(note.id, e)
+                                  }
+                                  onMouseLeave={handleLinkedNoteMouseLeave}
+                                  style={{
+                                    background: "none",
+                                    border: "1px solid #3498db",
+                                    color: "#3498db",
+                                    borderRadius: "4px",
+                                    padding: "2px 6px",
+                                    fontSize: "12px",
                                     cursor: "pointer",
-                                    color: "#3498db"
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "4px",
+                                    transition: "all 0.2s ease",
                                   }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleReplyToNote(note);
-                                  }}
-                                  title="Reply to this note"
                                 >
-                                  <i className="fas fa-reply" />
+                                  <i
+                                    className="fas fa-link"
+                                    style={{ fontSize: "10px" }}
+                                  />
                                 </button>
-                                
-                                {/* Link button - only for reply notes */}
-                                {isReply && originalNoteId && (
-                                  <button
-                                    className="link-to-note-btn"
-                                    onClick={(e) => handleLinkedNoteClick(note.id, e)}
-                                    onMouseEnter={(e) => handleLinkedNoteMouseEnter(note.id, e)}
-                                    onMouseLeave={handleLinkedNoteMouseLeave}
-                                    style={{
-                                      background: 'none',
-                                      border: '1px solid #3498db',
-                                      color: '#3498db',
-                                      borderRadius: '4px',
-                                      padding: '2px 6px',
-                                      fontSize: '12px',
-                                      cursor: 'pointer',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '4px',
-                                      transition: 'all 0.2s ease'
-                                    }}
-                                  >
-                                    <i className="fas fa-link" style={{ fontSize: '10px' }} />
-                                  </button>
-                                )}
+                              )}
                             </div>
                             <div className="note-actions">
                               {priorityValue > 1 ? (
@@ -2112,7 +2594,8 @@ useEffect(() => {
                                   }}
                                   onMouseEnter={(e) => {
                                     e.currentTarget.style.opacity = "0.5";
-                                    e.currentTarget.style.borderColor = "#3498db";
+                                    e.currentTarget.style.borderColor =
+                                      "#3498db";
                                   }}
                                   onMouseLeave={(e) => {
                                     e.currentTarget.style.opacity = "0.2";
@@ -2160,18 +2643,29 @@ useEffect(() => {
               )}
             </>
           )}
-          
+
           {/* No notes loaded yet */}
           {!hasLoaded && !isLoading && !hasError && (
-            <div className="stack-notes-placeholder" style={{
-              padding: "40px",
-              textAlign: "center",
-              color: "#999",
-              backgroundColor: "#f8f9fa",
-              borderRadius: "8px",
-              margin: "20px 0"
-            }}>
-              <i className="fas fa-sticky-note" style={{ fontSize: "24px", marginBottom: "10px", display: "block", opacity: 0.5 }} />
+            <div
+              className="stack-notes-placeholder"
+              style={{
+                padding: "40px",
+                textAlign: "center",
+                color: "#999",
+                backgroundColor: "#f8f9fa",
+                borderRadius: "8px",
+                margin: "20px 0",
+              }}
+            >
+              <i
+                className="fas fa-sticky-note"
+                style={{
+                  fontSize: "24px",
+                  marginBottom: "10px",
+                  display: "block",
+                  opacity: 0.5,
+                }}
+              />
               <div>Click "Retry Loading" to load notes for this job</div>
             </div>
           )}
@@ -2181,8 +2675,60 @@ useEffect(() => {
   };
 
   // Find the hovered note for tooltip
-  const hoveredNote = displayNotes.find(n => n.id === hoveredLinkedNote);
-  const hoveredOriginalNoteId = hoveredNote ? getReplyNoteId(hoveredNote.id) : null;
+  const hoveredNote = displayNotes.find((n) => n.id === hoveredLinkedNote);
+  const hoveredOriginalNoteId = hoveredNote
+    ? getReplyNoteId(hoveredNote.id)
+    : null;
+
+  // Render stacked view loading spinner
+  const renderStackedViewLoading = () => {
+    return (
+      <div
+        className="stacked-view-loading"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "400px",
+          width: "100%",
+          backgroundColor: "#f8f9fa",
+          borderRadius: "8px",
+        }}
+      >
+        <i
+          className="fas fa-spinner fa-spin"
+          style={{
+            fontSize: "48px",
+            color: "#3498db",
+            marginBottom: "20px",
+          }}
+        />
+        <div
+          style={{
+            fontSize: "18px",
+            color: "#2c3e50",
+            marginBottom: "10px",
+            fontWeight: "500",
+          }}
+        >
+          {isStackedViewLoading ? "Loading stacked view..." : "Applying filters..."}
+        </div>
+        <div
+          style={{
+            fontSize: "14px",
+            color: "#7f8c8d",
+            textAlign: "center",
+            maxWidth: "400px",
+          }}
+        >
+          {isStackedViewLoading
+            ? "Please wait while we organize your notes by job..."
+            : "Filtering notes across all jobs..."}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="grid-scroll-container" ref={containerRef}>
@@ -2219,33 +2765,63 @@ useEffect(() => {
               </tr>
             </thead>
             <tbody>
-              {!isDataLoaded || initialLoading || searchLoading || loadingFiltered || loadingUniques || isLoadingInitial ? (
+              {!isDataLoaded ||
+              initialLoading ||
+              searchLoading ||
+              loadingFiltered ||
+              loadingUniques ||
+              isLoadingInitial ? (
                 renderTableSkeleton()
               ) : displayNotes.length === 0 ? (
                 renderTableEmptyState()
               ) : (
                 <>
-                  {displayNotes.map((note, index) => 
-                    renderTableRow(note, index, index === displayNotes.length - 1)
+                  {displayNotes.map((note, index) =>
+                    renderTableRow(
+                      note,
+                      index,
+                      index === displayNotes.length - 1
+                    )
                   )}
                   {loadingMore && (
                     <tr>
-                      <td colSpan={8} style={{ textAlign: "center", padding: "20px" }}>
+                      <td
+                        colSpan={8}
+                        style={{ textAlign: "center", padding: "20px" }}
+                      >
                         <div className="loading-more">
-                          <i className="fas fa-spinner fa-spin" style={{ marginRight: "8px" }} />
+                          <i
+                            className="fas fa-spinner fa-spin"
+                            style={{ marginRight: "8px" }}
+                          />
                           Loading more notes...
                         </div>
                       </td>
                     </tr>
                   )}
-                  {!hasMore && displayNotes.length > 0 && !loadingMore && !hasActiveFilters && !searchTerm.trim() && (
-                    <tr>
-                      <td colSpan={8} style={{ textAlign: "center", padding: "10px", color: "#666", fontStyle: "italic" }}>
-                        <i className="fas fa-check-circle" style={{ marginRight: "8px", color: "#75a0f5ff" }} />
-                        No more notes to load
-                      </td>
-                    </tr>
-                  )}
+                  {!hasMore &&
+                    displayNotes.length > 0 &&
+                    !loadingMore &&
+                    !hasActiveFilters &&
+                    !searchTerm.trim() && (
+                      <tr>
+                        <td
+                          colSpan={8}
+                          style={{
+                            textAlign: "center",
+                            padding: "10px",
+                            color: "#666",
+                            fontStyle: "italic",
+                          }}
+                        >
+                          <i
+                            className="fas fa-check-circle"
+                            style={{ marginRight: "8px", color: "#75a0f5ff" }}
+                          />
+                          No more notes to load
+                        </td>
+                      </tr>
+                    )}
                 </>
               )}
             </tbody>
@@ -2253,7 +2829,11 @@ useEffect(() => {
         </div>
       ) : viewMode === "stacked" ? (
         <div className="stacked-notes-horizontal">
-          {loadingStackedJobs ? (
+          {/* Show loading spinner when switching to stacked view or filtering */}
+          {(isStackedViewLoading || isFilteringStacked) ? (
+            renderStackedViewLoading()
+          ) : loadingStackedJobs && !hasActiveFilters ? (
+            // Show skeleton only when loading initial stacked jobs (not during filtering)
             [...Array(3)].map((_, i) => (
               <div key={i} className="job-stack-skeleton">
                 <div className="skeleton-stack-header" />
@@ -2262,52 +2842,24 @@ useEffect(() => {
             ))
           ) : !jobsToDisplay || jobsToDisplay.length === 0 ? (
             <div className="empty-state">
-              <i className="fas fa-layer-group" style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.3 }}/>
+              <i
+                className="fas fa-layer-group"
+                style={{ fontSize: "48px", marginBottom: "16px", opacity: 0.3 }}
+              />
               <h3>
-                {hasActiveFilters 
-                  ? "No jobs match your filters" 
+                {loadingStackedJobs || loadingFiltered
+                  ? "Loading jobs..."
+                  : hasActiveFilters
+                  ? "No jobs match your filters"
                   : "No stacked jobs available"}
               </h3>
               <p>
-                {hasActiveFilters
+                {loadingStackedJobs || loadingFiltered
+                  ? "Please wait while we load your jobs..."
+                  : hasActiveFilters
                   ? "Try adjusting your filters to see matching jobs"
                   : "No jobs with notes found."}
               </p>
-              {hasActiveFilters ? (
-                <button 
-                  onClick={() => {
-                    // Clear filters would be handled by parent
-                  }}
-                  style={{ 
-                    marginTop: '16px', 
-                    padding: '8px 16px',
-                    backgroundColor: '#3498db',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <i className="fas fa-times" style={{ marginRight: '8px' }} />
-                  Clear Filters
-                </button>
-              ) : (
-                <button 
-                  onClick={() => fetchStackedJobs && fetchStackedJobs()}
-                  style={{ 
-                    marginTop: '16px', 
-                    padding: '8px 16px',
-                    backgroundColor: '#3498db',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer'
-                  }}
-                >
-                  <i className="fas fa-redo" style={{ marginRight: '8px' }} />
-                  Retry Loading
-                </button>
-              )}
             </div>
           ) : (
             <div className="stacked-container">
@@ -2316,9 +2868,11 @@ useEffect(() => {
                   <button
                     className="collapse-all-stacks-btn"
                     onClick={() => {
-                      Object.keys(expandedStacks).forEach(jobName => {
+                      Object.keys(expandedStacks).forEach((jobName) => {
                         if (expandedStacks[jobName]) {
-                          const job = jobsToDisplay.find(j => j.jobName === jobName);
+                          const job = jobsToDisplay.find(
+                            (j) => j && j.jobName === jobName
+                          );
                           if (job) {
                             toggleStackExpansion(jobName, job.jobId);
                           }
@@ -2328,17 +2882,19 @@ useEffect(() => {
                   >
                     <i className="fas fa-compress" />
                   </button>
-                </div> 
+                </div>
               )}
               {sortedJobs.map((job) => {
+                if (!job) return null;
+                
                 const jobName = job.jobName;
                 const isExpanded = expandedStacks[jobName];
-                
+
                 if (!isExpanded && isAnyStackExpanded) {
                   return null;
                 }
-                
-                return isExpanded 
+
+                return isExpanded
                   ? renderExpandedStack(job)
                   : renderCollapsedStack(job);
               })}
@@ -2347,170 +2903,322 @@ useEffect(() => {
         </div>
       ) : (
         <div className="notes-grid">
-          {!isDataLoaded || initialLoading || searchLoading || loadingFiltered || isLoadingInitial ? (
+          {!isDataLoaded ||
+          initialLoading ||
+          searchLoading ||
+          loadingFiltered ||
+          isLoadingInitial ? (
             renderCardSkeleton()
           ) : displayNotes.length === 0 ? (
             renderCardEmptyState()
           ) : (
             <>
-              {displayNotes.map((note, index) => 
+              {displayNotes.map((note, index) =>
                 renderNoteCard(note, index, index === displayNotes.length - 1)
               )}
               {loadingMore && (
                 <div className="loading-more-cards">
-                  <i className="fas fa-spinner fa-spin" style={{ marginRight: "8px" }} />
+                  <i
+                    className="fas fa-spinner fa-spin"
+                    style={{ marginRight: "8px" }}
+                  />
                   Loading more notes...
                 </div>
               )}
-              {!hasMore && displayNotes.length > 0 && !loadingMore && !hasActiveFilters && !searchTerm.trim() && (
-                <div className="no-more-notes" style={{ 
-                  gridColumn: "1 / -1", 
-                  textAlign: "center", 
-                  padding: "8px", 
-                  color: "#666", 
-                  fontStyle: "italic",
-                  borderRadius: "8px",
-                  margin: "5px 0"
-                }}>
-                  <i className="fas fa-check-circle" style={{ marginRight: "8px", color: "#75a0f5ff" }} />
-                  No more notes to load
-                </div>
-              )}
+              {!hasMore &&
+                displayNotes.length > 0 &&
+                !loadingMore &&
+                !hasActiveFilters &&
+                !searchTerm.trim() && (
+                  <div
+                    className="no-more-notes"
+                    style={{
+                      gridColumn: "1 / -1",
+                      textAlign: "center",
+                      padding: "8px",
+                      color: "#666",
+                      fontStyle: "italic",
+                      borderRadius: "8px",
+                      margin: "5px 0",
+                    }}
+                  >
+                    <i
+                      className="fas fa-check-circle"
+                      style={{ marginRight: "8px", color: "#75a0f5ff" }}
+                    />
+                    No more notes to load
+                  </div>
+                )}
             </>
           )}
         </div>
       )}
-      
+
       {/* Global tooltip portal for linked notes */}
       {hoveredLinkedNote && hoveredOriginalNoteId && (
         <TooltipPortal>
-          <div 
+          <div
             className="linked-note-tooltip"
             style={{
-              position: 'fixed',
+              position: "fixed",
               top: `${tooltipPosition.y}px`,
               left: `${tooltipPosition.x}px`,
               zIndex: 99999,
-              backgroundColor: 'white',
-              border: '1px solid #ddd',
-              borderRadius: '4px',
-              padding: '12px',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-              maxWidth: '350px',
-              minWidth: '300px',
-              fontSize: '12px',
-              pointerEvents: 'none'
+              backgroundColor: "white",
+              border: "1px solid #ddd",
+              borderRadius: "4px",
+              padding: "12px",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+              maxWidth: "350px",
+              minWidth: "300px",
+              fontSize: "12px",
+              pointerEvents: "none",
             }}
           >
-            <div style={{ 
-              fontWeight: 'bold', 
-              marginBottom: '8px', 
-              color: '#2c3e50', 
-              borderBottom: '2px solid #3498db', 
-              paddingBottom: '6px',
-              fontSize: '13px'
-            }}>
-              <i className="fas fa-link" style={{ marginRight: '6px', color: '#3498db' }} />
+            <div
+              style={{
+                fontWeight: "bold",
+                marginBottom: "8px",
+                color: "#2c3e50",
+                borderBottom: "2px solid #3498db",
+                paddingBottom: "6px",
+                fontSize: "13px",
+              }}
+            >
+              <i
+                className="fas fa-link"
+                style={{ marginRight: "6px", color: "#3498db" }}
+              />
               Linked to Original Note #{hoveredOriginalNoteId}
             </div>
-            
+
             {loadingLinkedNote[hoveredOriginalNoteId] ? (
-              <div style={{ 
-                color: '#3498db', 
-                fontStyle: 'italic', 
-                padding: '16px', 
-                textAlign: 'center',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px'
-              }}>
+              <div
+                style={{
+                  color: "#3498db",
+                  fontStyle: "italic",
+                  padding: "16px",
+                  textAlign: "center",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                }}
+              >
                 <i className="fas fa-spinner fa-spin" />
                 Loading original note...
               </div>
             ) : linkedNoteContent[hoveredOriginalNoteId] ? (
               <>
-                <div style={{ 
-                  margin: '8px 0 12px 0', 
-                  color: '#555', 
-                  lineHeight: 1.5,
-                  maxHeight: '80px',
-                  overflow: 'hidden',
-                  backgroundColor: '#f8f9fa',
-                  padding: '8px',
-                  borderRadius: '4px',
-                  borderLeft: '3px solid #3498db'
-                }}>
-                  <strong>Content:</strong> {formatTooltipContent(linkedNoteContent[hoveredOriginalNoteId].content)}
+                <div
+                  style={{
+                    margin: "8px 0 12px 0",
+                    color: "#555",
+                    lineHeight: 1.5,
+                    maxHeight: "80px",
+                    overflow: "hidden",
+                    backgroundColor: "#f8f9fa",
+                    padding: "8px",
+                    borderRadius: "4px",
+                    borderLeft: "3px solid #3498db",
+                  }}
+                >
+                  <strong>Content:</strong>{" "}
+                  {formatTooltipContent(
+                    linkedNoteContent[hoveredOriginalNoteId].content
+                  )}
                 </div>
-                <div style={{ 
-                  fontSize: '11px', 
-                  color: '#7f8c8d',
-                  backgroundColor: '#f5f5f5',
-                  padding: '8px',
-                  borderRadius: '4px'
-                }}>
-                  <div style={{ marginBottom: '4px' }}>
-                    <i className="fas fa-user" style={{ marginRight: '6px', width: '12px' }} />
-                    <strong>By:</strong> {linkedNoteContent[hoveredOriginalNoteId].userName}
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "#7f8c8d",
+                    backgroundColor: "#f5f5f5",
+                    padding: "8px",
+                    borderRadius: "4px",
+                  }}
+                >
+                  <div style={{ marginBottom: "4px" }}>
+                    <i
+                      className="fas fa-user"
+                      style={{ marginRight: "6px", width: "12px" }}
+                    />
+                    <strong>By:</strong>{" "}
+                    {linkedNoteContent[hoveredOriginalNoteId].userName}
                   </div>
-                  <div style={{ marginBottom: '4px' }}>
-                    <i className="far fa-clock" style={{ marginRight: '6px', width: '12px' }} />
-                    <strong>Date:</strong> {new Date(linkedNoteContent[hoveredOriginalNoteId].date).toLocaleDateString()} {new Date(linkedNoteContent[hoveredOriginalNoteId].date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  <div style={{ marginBottom: "4px" }}>
+                    <i
+                      className="far fa-clock"
+                      style={{ marginRight: "6px", width: "12px" }}
+                    />
+                    <strong>Date:</strong>{" "}
+                    {new Date(
+                      linkedNoteContent[hoveredOriginalNoteId].date
+                    ).toLocaleDateString()}{" "}
+                    {new Date(
+                      linkedNoteContent[hoveredOriginalNoteId].date
+                    ).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </div>
-                  {(linkedNoteContent[hoveredOriginalNoteId].workspace || linkedNoteContent[hoveredOriginalNoteId].project || linkedNoteContent[hoveredOriginalNoteId].job) && (
+                  {(linkedNoteContent[hoveredOriginalNoteId].workspace ||
+                    linkedNoteContent[hoveredOriginalNoteId].project ||
+                    linkedNoteContent[hoveredOriginalNoteId].job) && (
                     <div>
-                      <i className="fas fa-map-marker-alt" style={{ marginRight: '6px', width: '12px' }} />
-                      <strong>Location:</strong> {linkedNoteContent[hoveredOriginalNoteId].workspace} / {linkedNoteContent[hoveredOriginalNoteId].project} / {linkedNoteContent[hoveredOriginalNoteId].job}
+                      <i
+                        className="fas fa-map-marker-alt"
+                        style={{ marginRight: "6px", width: "12px" }}
+                      />
+                      <strong>Location:</strong>{" "}
+                      {linkedNoteContent[hoveredOriginalNoteId].workspace} /{" "}
+                      {linkedNoteContent[hoveredOriginalNoteId].project} /{" "}
+                      {linkedNoteContent[hoveredOriginalNoteId].job}
                     </div>
                   )}
                 </div>
               </>
             ) : (
-              <div style={{ 
-                color: '#3498db', 
-                fontStyle: 'italic', 
-                padding: '16px', 
-                textAlign: 'center',
-                backgroundColor: '#f8f9fa',
-                borderRadius: '4px'
-              }}>
-                <i className="fas fa-info-circle" style={{ marginRight: '8px' }} />
+              <div
+                style={{
+                  color: "#3498db",
+                  fontStyle: "italic",
+                  padding: "16px",
+                  textAlign: "center",
+                  backgroundColor: "#f8f9fa",
+                  borderRadius: "4px",
+                }}
+              >
+                <i
+                  className="fas fa-info-circle"
+                  style={{ marginRight: "8px" }}
+                />
                 Hover to load original note preview
               </div>
             )}
-            
-            <div style={{ 
-              fontSize: '11px', 
-              color: '#3498db', 
-              marginTop: '8px', 
-              fontStyle: 'italic',
-              paddingTop: '8px',
-              borderTop: '1px solid #eee'
-            }}>
-              <i className="fas fa-mouse-pointer" style={{ marginRight: '6px' }} />
+
+            <div
+              style={{
+                fontSize: "11px",
+                color: "#3498db",
+                marginTop: "8px",
+                fontStyle: "italic",
+                paddingTop: "8px",
+                borderTop: "1px solid #eee",
+              }}
+            >
+              <i
+                className="fas fa-mouse-pointer"
+                style={{ marginRight: "6px" }}
+              />
               Click to jump to original note
             </div>
-            
+
             {/* Add a small arrow pointing to the mouse/cursor */}
-            <div 
+            <div
               style={{
-                position: 'absolute',
-                top: '-8px',
-                left: '20px',
-                width: '16px',
-                height: '16px',
-                backgroundColor: 'white',
-                borderLeft: '1px solid #ddd',
-                borderTop: '1px solid #ddd',
-                transform: 'rotate(45deg)',
+                position: "absolute",
+                top: "-8px",
+                left: "20px",
+                width: "16px",
+                height: "16px",
+                backgroundColor: "white",
+                borderLeft: "1px solid #ddd",
+                borderTop: "1px solid #ddd",
+                transform: "rotate(45deg)",
                 zIndex: 1,
               }}
             />
           </div>
         </TooltipPortal>
       )}
-      
+
+      {/* Stack card hover popup - Only show when hovering over truncated text */}
+      {hoveredStackCard && hoveredStackCardJob && shouldShowPopup(hoveredStackCardJob) && (
+        <TooltipPortal>
+          <div
+            className="stack-card-popup"
+            style={{
+              position: "fixed",
+              top: `${stackCardPopupPosition.y}px`,
+              left: `${stackCardPopupPosition.x}px`,
+              zIndex: 99999,
+              backgroundColor: "white",
+              border: "1px solid #e0e0e0",
+              borderRadius: "6px",
+              padding: "16px",
+              boxShadow: "0 2px 12px rgba(0,0,0,0.1)",
+              width: "320px",
+              maxWidth: "320px",
+              fontSize: "13px",
+              pointerEvents: "none",
+            }}
+          >
+            {/* Plain content area */}
+            <div
+              style={{
+                color: "#333",
+                lineHeight: 1.5,
+                maxHeight: "140px",
+                overflow: "auto",
+                padding: "8px",
+                fontSize: "13px",
+                wordBreak: "break-word",
+              }}
+              dangerouslySetInnerHTML={{
+                __html: hoveredStackCardJob.lastSiteNote,
+              }}
+            />
+
+            {/* Metadata at the bottom - subtle styling */}
+            <div
+              style={{
+                fontSize: "11px",
+                color: "#666",
+                marginTop: "12px",
+                paddingTop: "8px",
+                borderTop: "1px solid #f0f0f0",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              {hoveredStackCardJob.lastSiteNoteUserName && (
+                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                  <i className="fas fa-user" style={{ fontSize: "10px" }} />
+                  <span>{hoveredStackCardJob.lastSiteNoteUserName}</span>
+                </div>
+              )}
+              {hoveredStackCardJob.latestTimeStamp && (
+                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                  <i className="far fa-clock" style={{ fontSize: "10px" }} />
+                  <span>{formatRelativeTime(hoveredStackCardJob.latestTimeStamp)}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Arrow pointing to the note text element */}
+            {stackCardElementRect && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: stackCardPopupPosition.y > stackCardElementRect.bottom ? "-6px" : "calc(100% - 6px)",
+                  left: "50%",
+                  transform: stackCardPopupPosition.y > stackCardElementRect.bottom 
+                    ? "translateX(-50%) rotate(45deg)" 
+                    : "translateX(-50%) rotate(225deg)",
+                  width: "12px",
+                  height: "12px",
+                  backgroundColor: "white",
+                  borderLeft: "1px solid #e0e0e0",
+                  borderTop: "1px solid #e0e0e0",
+                  zIndex: 1,
+                }}
+              />
+            )}
+          </div>
+        </TooltipPortal>
+      )}
+
       {/* Reply Modal */}
       {showReplyModal && selectedNoteForReply && (
         <ReplyModal
@@ -2566,6 +3274,8 @@ NotesTab.propTypes = {
   hasActiveFilters: PropTypes.bool.isRequired,
   filteredNotesFromApi: PropTypes.array.isRequired,
   searchResults: PropTypes.array.isRequired,
+  projects: PropTypes.array,
+  workspaces: PropTypes.array,
 };
 
 NotesTab.defaultProps = {
@@ -2575,7 +3285,8 @@ NotesTab.defaultProps = {
   fetchStackedJobs: () => {},
   filteredNotesFromApi: [],
   searchResults: [],
+  projects: [],
+  workspaces: [],
 };
-
 
 export default NotesTab;

@@ -191,10 +191,10 @@ const AssignUsers = ({ filteredUsers, projects, jobs, loading, setLoading, defId
     };
 
     return (
-        <div className="tab-content" style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '500px' }}>
-            <div className="settings-form" style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div className="tab-content" style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '650px' }}>
+            <div className="settings-form" style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {/* User Selection */}
-                <div className="form-group" style={{ marginBottom: '0' }}>
+                <div className="form-group" style={{ marginBottom: '0', flexShrink: 0 }}>
                     <label style={{ fontSize: '14px', marginBottom: '6px', fontWeight: '500' }}>Select User:</label>
                     <select
                         value={assignUser}
@@ -314,7 +314,7 @@ const AssignUsers = ({ filteredUsers, projects, jobs, loading, setLoading, defId
                         className="jobs-selection-container"
                         style={{
                             flex: 1,
-                            maxHeight: '280px',
+                            maxHeight: '420px', // Increased height
                             overflowY: 'auto',
                             border: '1px solid #ddd',
                             borderRadius: '4px',
@@ -515,7 +515,7 @@ const AssignUsers = ({ filteredUsers, projects, jobs, loading, setLoading, defId
                 </div>
 
                 {/* Selection Info */}
-                <div className="selection-info" style={{ marginTop: '6px', fontSize: '13px' }}>
+                <div className="selection-info" style={{ marginTop: '6px', fontSize: '13px', flexShrink: 0 }}>
                     {assignedJobs.length === 0 ? (
                         <span style={{ color: '#666' }}>No jobs selected</span>
                     ) : (

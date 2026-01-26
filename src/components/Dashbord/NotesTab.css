@@ -984,7 +984,7 @@ tr.selected-row.priority-4 {
   border: 1px solid #ddd;
   border-radius: 4px;
   padding: 12px;
-  max-width: 350px;
+  max-width: 300px;
   max-height: 300px;
   overflow-y: auto;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
