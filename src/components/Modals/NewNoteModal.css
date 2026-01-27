@@ -627,13 +627,13 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 12px;
-    height: 18px;
+    width: 12px !important;
+    height: 18px !important;
     border: 1px solid #ddd;
     background: white;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 6px;
     transition: all 0.2s ease;
 }
 

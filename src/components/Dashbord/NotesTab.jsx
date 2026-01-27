@@ -16,6 +16,58 @@ const TooltipPortal = ({ children }) => {
   return ReactDOM.createPortal(children, document.body);
 };
 
+// Function to process HTML content for URLs
+const processHtmlForUrls = (html) => {
+  if (!html) return html;
+  
+  try {
+    // Create a temporary element
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    
+    // Find all text nodes that aren't already inside links
+    const walker = document.createTreeWalker(
+      tempDiv,
+      NodeFilter.SHOW_TEXT,
+      null,
+      false
+    );
+    
+    const textNodes = [];
+    let node;
+    while ((node = walker.nextNode())) {
+      // Skip if parent is already an anchor tag
+      if (node.parentNode.nodeName !== 'A') {
+        textNodes.push(node);
+      }
+    }
+    
+    // Process each text node
+    textNodes.forEach((textNode) => {
+      const text = textNode.textContent;
+      if (text && text.match(/(https?:\/\/|www\.)/gi)) {
+        const span = document.createElement('span');
+        span.innerHTML = text.replace(
+          /(https?:\/\/[^\s<>"]+|www\.[^\s<>"]+)/gi,
+          (url) => {
+            let href = url;
+            if (!href.startsWith('http://') && !href.startsWith('https://')) {
+              href = 'https://' + href;
+            }
+            return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="note-url-link" onclick="event.stopPropagation()">${url}</a>`;
+          }
+        );
+        textNode.parentNode.replaceChild(span, textNode);
+      }
+    });
+    
+    return tempDiv.innerHTML;
+  } catch (error) {
+    console.error('Error processing HTML for URLs:', error);
+    return html;
+  }
+};
+
 const NotesTab = ({
   viewMode,
   finalDisplayNotes,
@@ -602,14 +654,23 @@ const NotesTab = ({
     }
   };
 
+  // UPDATED: highlightHtmlContent function with URL detection
   const highlightHtmlContent = (html, highlight) => {
-    if (!highlight || !html || typeof html !== "string") {
+    if (!html || typeof html !== "string") {
       return html;
     }
 
     try {
+      // First process URLs
+      const withUrls = processHtmlForUrls(html);
+      
+      // If no search highlight, just return with URLs
+      if (!highlight) {
+        return withUrls;
+      }
+
       const parser = new DOMParser();
-      const doc = parser.parseFromString(html, "text/html");
+      const doc = parser.parseFromString(withUrls, "text/html");
 
       const escapedHighlight = highlight.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const regex = new RegExp(`(${escapedHighlight})`, "gi");
@@ -640,7 +701,8 @@ const NotesTab = ({
           node.nodeType === Node.ELEMENT_NODE &&
           node.nodeName !== "SCRIPT" &&
           node.nodeName !== "STYLE" &&
-          !node.classList.contains("search-highlight")
+          !node.classList.contains("search-highlight") &&
+          node.nodeName !== "A" // Don't process inside existing links
         ) {
           Array.from(node.childNodes).forEach((child) => highlightNode(child));
         }
@@ -1301,6 +1363,12 @@ const NotesTab = ({
               position: "relative",
               maxWidth: "100%",
             }}
+            onClick={(e) => {
+              // If a link was clicked, don't trigger row selection
+              if (e.target.tagName === 'A' && e.target.classList.contains('note-url-link')) {
+                e.stopPropagation();
+              }
+            }}
           >
             <span
               style={{
@@ -1634,6 +1702,12 @@ const NotesTab = ({
           <div
             className="note-card-content-container"
             style={{ position: "relative" }}
+            onClick={(e) => {
+              // If a link was clicked, don't trigger card selection
+              if (e.target.tagName === 'A' && e.target.classList.contains('note-url-link')) {
+                e.stopPropagation();
+              }
+            }}
           >
             <div
               className="note-text"
@@ -1649,7 +1723,7 @@ const NotesTab = ({
             {note.note && note.note.length > 69 && (
               <div
                 className="note-card-popup"
-                dangerouslySetInnerHTML={{ __html: note.note }}
+                dangerouslySetInnerHTML={{ __html: highlightHtmlContent(note.note, searchTerm) }}
               />
             )}
           </div>
@@ -2083,13 +2157,16 @@ const NotesTab = ({
                         onMouseEnter={(e) => shouldShowPopupOnHover && job && handleNoteTextMouseEnter(job, e)}
                         onMouseLeave={() => shouldShowPopupOnHover && handleNoteTextMouseLeave()}
                         dangerouslySetInnerHTML={{
-                          __html: job.lastSiteNote
-                            ? job.lastSiteNote
-                            : job.notes && job.notes.length > 0
-                            ? job.notes[0].note || "No note content"
-                            : hasActiveFilters && job.hasLoadedNotes
-                            ? "No notes match current filters"
-                            : "Click to load notes",
+                          __html: highlightHtmlContent(
+                            job.lastSiteNote
+                              ? job.lastSiteNote
+                              : job.notes && job.notes.length > 0
+                              ? job.notes[0].note || "No note content"
+                              : hasActiveFilters && job.hasLoadedNotes
+                              ? "No notes match current filters"
+                              : "Click to load notes",
+                            searchTerm
+                          ),
                         }}
                       />
                       
@@ -2457,16 +2534,22 @@ const NotesTab = ({
                             <div
                               className="note-card-content-container"
                               style={{ position: "relative" }}
+                              onClick={(e) => {
+                                // If a link was clicked, don't trigger card selection
+                                if (e.target.tagName === 'A' && e.target.classList.contains('note-url-link')) {
+                                  e.stopPropagation();
+                                }
+                              }}
                             >
                               <div
                                 className="note-text"
                                 dangerouslySetInnerHTML={{
-                                  __html: note.note,
+                                  __html: highlightHtmlContent(note.note, searchTerm),
                                 }}
                               />
                               {note.note && note.note.length > 150 && (
                                 <div className="note-card-popup">
-                                  {note.note}
+                                  {highlightHtmlContent(note.note, searchTerm)}
                                 </div>
                               )}
                             </div>
@@ -3165,7 +3248,7 @@ const NotesTab = ({
                 wordBreak: "break-word",
               }}
               dangerouslySetInnerHTML={{
-                __html: hoveredStackCardJob.lastSiteNote,
+                __html: highlightHtmlContent(hoveredStackCardJob.lastSiteNote, searchTerm),
               }}
             />
 

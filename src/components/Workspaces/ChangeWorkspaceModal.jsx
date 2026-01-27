@@ -7,12 +7,12 @@ const ChangeWorkspaceModal = ({
   onClose, 
   ownerUserID, 
   onUpdateDefaultWorkspace,
-  
 }) => {
     
     const [selectedWorkspace, setSelectedWorkspace] = useState('');
     const [workspaces, setWorkspaces] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [changing, setChanging] = useState(false); // New state for tracking change operation
     const [error, setError] = useState(null);
     
     const API_URL = process.env.REACT_APP_API_BASE_URL;
@@ -22,6 +22,15 @@ const ChangeWorkspaceModal = ({
             fetchWorkspaces(ownerUserID);
         }
     }, [isOpen, ownerUserID]);
+
+    // Reset states when modal closes
+    useEffect(() => {
+        if (!isOpen) {
+            setSelectedWorkspace('');
+            setChanging(false);
+            setError(null);
+        }
+    }, [isOpen]);
 
     const fetchWorkspaces = async (userid) => {
         setLoading(true);
@@ -79,6 +88,9 @@ const ChangeWorkspaceModal = ({
         }
 
         try {
+            setChanging(true); // Start changing
+            setError(null); // Clear any previous errors
+            
             // Update default workspace in database
             await updateUserDefaultWorkspace(ownerUserID, selectedWorkspace);
             
@@ -89,7 +101,10 @@ const ChangeWorkspaceModal = ({
             onClose();
         } catch (err) {
             console.error('Error changing workspace:', err);
+            setError(err.message || 'Failed to change workspace');
             toast.error(err.message || 'Failed to change workspace');
+        } finally {
+            setChanging(false); // Reset changing state regardless of success/error
         }
     };
 
@@ -113,14 +128,17 @@ const ChangeWorkspaceModal = ({
             isOpen={isOpen}
             onClose={onClose}
             title="Change Workspace"
+            disableClose={changing} // Optional: prevent closing while changing
         >
             <div className="settings-form">
                 <div className="form-group">
                     <label>Select Workspace:</label>
                     <select
+                        style={{maxHeight: '100px', overflow: 'hidden'}}
                         value={selectedWorkspace}
                         onChange={(e) => setSelectedWorkspace(e.target.value)}
                         className="workspace-select"
+                        disabled={changing} // Disable dropdown while changing
                     >
                         <option value="">Select a Workspace</option>
                         {workspaces.map((workspace) => (
@@ -138,13 +156,21 @@ const ChangeWorkspaceModal = ({
                     <button 
                         className="btn-primary" 
                         onClick={handleWorkspaceChange}
-                        disabled={!selectedWorkspace}
+                        disabled={!selectedWorkspace || changing}
                     >
-                        Change Workspace
+                        {changing ? (
+                            <>
+                                <span className="spinner-border spinner-border-sm me-2"></span>
+                                Changing...
+                            </>
+                        ) : (
+                            'Change Workspace'
+                        )}
                     </button>
                     <button
                         className="btn-close"
                         onClick={onClose}
+                        disabled={changing} // Optional: disable cancel while changing
                     >
                         Cancel
                     </button>

@@ -2026,3 +2026,34 @@ tr.highlight-original-note {
 .attachment-btn:hover i.fa-reply {
   color: #3498db;
 }
+/* URL links in notes */
+.note-url-link {
+  color: #3498db;
+  text-decoration: underline;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  word-break: break-all;
+}
+
+.note-url-link:hover {
+  color: #2980b9;
+  text-decoration: none;
+}
+
+/* Prevent text selection on URLs */
+.note-url-link::selection {
+  background: rgba(52, 152, 219, 0.3);
+}
+
+/* Ensure URLs don't interfere with row clicks */
+.note-url-link:active,
+.note-url-link:focus {
+  outline: none;
+}
+
+/* Make sure URLs work in different views */
+.table-view .note-url-link,
+.card-view .note-url-link,
+.stacked-view .note-url-link {
+  font-weight: 500;
+}

@@ -1045,16 +1045,16 @@ const Dashboard = ({
 
   // Debug logging
   useEffect(() => {
-    console.log("Selected Filters:", selectedFilters);
+    /* console.log("Selected Filters:", selectedFilters);
     console.log("Has Active Filters:", hasActiveFilters);
     console.log("Filter Options:", filterOptions);
     console.log("View Mode:", viewMode);
     console.log("Filtered Stacked Jobs:", filteredStackedJobs?.length || 0);
-    console.log("Stacked Jobs:", stackedJobs?.length || 0);
+    console.log("Stacked Jobs:", stackedJobs?.length || 0); */
   }, [selectedFilters, hasActiveFilters, filterOptions, viewMode, filteredStackedJobs, stackedJobs]);
 
   // Load filter options on component mount - MOVE THIS AFTER fetchFilterOptions is defined
-  useEffect(() => {
+ /*  useEffect(() => {
     if (userid && isDataLoaded) {
       const loadAllOptions = async () => {
         try {
@@ -1068,7 +1068,7 @@ const Dashboard = ({
       };
       loadAllOptions();
     }
-  }, [userid, isDataLoaded]);
+  }, [userid, isDataLoaded]); */
 
   const displayNotes = useMemo(() => {
     if (searchTerm.trim()) {
@@ -1235,7 +1235,6 @@ const Dashboard = ({
     [filterOptions, filterSearchTerm]
   );
 
-  // FIXED: getFilterDisplayValue function
   const getFilterDisplayValue = useCallback(
     (filterType, value) => {
       if (!value) return "";
@@ -1251,8 +1250,6 @@ const Dashboard = ({
         return option.displayText || option.text || value;
       }
 
-      // If we don't have the option loaded yet, try to find it in the data
-      // For workspace, check workspaces prop
       if (filterType === "workspace" && workspaces) {
         const workspace = workspaces.find(
           (w) => w.id?.toString() === value?.toString() || 
@@ -1300,15 +1297,11 @@ const Dashboard = ({
           console.error("Error formatting date:", e);
         }
       }
-
-      // For userName, we might need to fetch user info
-      // Return the value as fallback
       return value;
     },
     [filterOptions, workspaces, projects, jobs]
   );
 
-  // FIXED: handleFilterCheckboxChange function
   const handleFilterCheckboxChange = useCallback(
     async (filterType, value, rawValue = null) => {
       const currentValues = selectedFilters[filterType] || [];
@@ -1990,7 +1983,7 @@ const Dashboard = ({
       });
       
       // Reload all filter options
-      await reloadAllFilters();
+      //await reloadAllFilters();
       
       if (viewMode === "stacked") {
         if (hasActiveFilters) {
@@ -2002,10 +1995,10 @@ const Dashboard = ({
       }
       
       // Also refresh filter options display
-      const filterTypes = ["date", "workspace", "project", "job", "userName"];
+     /*  const filterTypes = ["date", "workspace", "project", "job", "userName"];
       filterTypes.forEach(type => {
         fetchFilterOptions(type);
-      });
+      }); */
       
     } catch {
       toast.error("Refresh error");
