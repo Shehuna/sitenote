@@ -392,12 +392,6 @@ tr.selected-row.priority-4 {
   border-right: 5px solid transparent;
   border-bottom: 5px solid #2c3e50;
 }
-/* Color variations */
-.user-avatar:nth-child(4n+1) { background: #3498db !important; }
-.user-avatar:nth-child(4n+2) { background: #e74c3c !important; }
-.user-avatar:nth-child(4n+3) { background: #2ecc71 !important; }
-.user-avatar:nth-child(4n+4) { background: #f39c12 !important; }
-
 .note-meta {
   flex: 1;
   min-width: 0;
@@ -1852,7 +1846,9 @@ td span[style*="color: #95a5a6"]:hover {
 
 .table-actions {
   display: flex;
-  gap: 8px;
+  gap: 12px; 
+  padding: 8px 12px; 
+  min-width: 180px; 
 }
 
 .table-actions button {

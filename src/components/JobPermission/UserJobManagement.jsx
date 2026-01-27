@@ -1,6 +1,40 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import './UserJobManagement.css';
 
+// Custom Confirmation Modal Component
+const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, message, confirmText = "Confirm", cancelText = "Cancel" }) => {
+  if (!isOpen) return null;
+
+  const handleConfirm = () => {
+    onConfirm();
+    onClose();
+  };
+
+  return (
+    <div className="custom-modal-overlay">
+      <div className="custom-modal">
+        <div className="custom-modal-header">
+          <h3>{title}</h3>
+          <button className="close-modal-btn" onClick={onClose}>
+            <i className="fas fa-times"></i>
+          </button>
+        </div>
+        <div className="custom-modal-body">
+          <p>{message}</p>
+        </div>
+        <div className="custom-modal-footer">
+          <button className="cancel-btn" onClick={onClose}>
+            {cancelText}
+          </button>
+          <button className="confirm-btn" onClick={handleConfirm}>
+            {confirmText}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const UserJobManagement = ({ defWorkID, fetchedUsers }) => {
     const [userJobsData, setUserJobsData] = useState({});
     const [loading, setLoading] = useState(false);
@@ -8,6 +42,13 @@ const UserJobManagement = ({ defWorkID, fetchedUsers }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedJobs, setSelectedJobs] = useState({});
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+    
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [confirmModalData, setConfirmModalData] = useState({
+        userId: null,
+        selectedCount: 0,
+        userName: ''
+    });
 
     const containerRef = useRef(null);
 
@@ -168,8 +209,7 @@ const UserJobManagement = ({ defWorkID, fetchedUsers }) => {
         }));
     };
 
-    // Handle deny permission for selected jobs of a specific user
-    const handleDenyPermissionForUser = async (userId) => {
+    const handleOpenDenyConfirmation = (userId) => {
         const userSelectedJobs = selectedJobs[userId] || {};
         const selectedJobIds = Object.keys(userSelectedJobs).filter(jobId => userSelectedJobs[jobId]);
         
@@ -178,10 +218,23 @@ const UserJobManagement = ({ defWorkID, fetchedUsers }) => {
             return;
         }
 
-        if (!window.confirm(`Are you sure you want to deny permission for ${selectedJobIds.length} job(s) for this user?`)) {
-            return;
-        }
+        const user = fetchedUsers.find(u => u.userId === userId);
+        const userName = user ? `${user.fname} ${user.lname}` : 'this user';
+        
+        setConfirmModalData({
+            userId,
+            selectedCount: selectedJobIds.length,
+            userName
+        });
+        
+        setShowConfirmModal(true);
+    };
 
+    const handleDenyPermissionConfirmed = async () => {
+        const { userId } = confirmModalData;
+        const userSelectedJobs = selectedJobs[userId] || {};
+        const selectedJobIds = Object.keys(userSelectedJobs).filter(jobId => userSelectedJobs[jobId]);
+        
         const user = JSON.parse(localStorage.getItem('user'));
         
         try {
@@ -237,6 +290,15 @@ const UserJobManagement = ({ defWorkID, fetchedUsers }) => {
             console.error('Error denying permissions:', err);
             alert('Error denying permissions. Please try again.');
         }
+    };
+
+    const handleCloseConfirmModal = () => {
+        setShowConfirmModal(false);
+        setConfirmModalData({
+            userId: null,
+            selectedCount: 0,
+            userName: ''
+        });
     };
 
     // Filter users based on search term
@@ -328,207 +390,212 @@ const UserJobManagement = ({ defWorkID, fetchedUsers }) => {
     );
 
     return (
-        <div 
-            ref={containerRef}
-            className="user-job-management"
-            style={{ 
-                padding: isMobile ? '10px' : '15px',
-                maxHeight: getContainerHeight(),
-                overflowY: 'auto',
-                boxSizing: 'border-box'
-            }}
-        >
-            
-            {/* Controls */}
-            <div className="user-job-controls">
-                <div className="search-bar" style={{ flex: 1 }}>
-                    <i className="fas fa-search" style={{ fontSize: isMobile ? '12px' : '14px' }}></i>
-                    <input
-                        type="text"
-                        placeholder="Search users or job names..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        style={{
-                            padding: isMobile ? '6px 6px 6px 24px' : '8px 8px 8px 30px',
-                            fontSize: isMobile ? '12px' : '13px'
-                        }}
-                    />
-                </div>
-               
-            </div>
-
-            {/* Users List */}
-            <div className="users-list" style={{ gap: isMobile ? '10px' : '15px' }}>
-                {filteredUsers.map(user => {
-                    const userData = userJobsData[user.userId];
-                    const jobsToDisplay = getJobsToDisplayForUser(user.userId);
-                    
-                    if (jobsToDisplay.length === 0) return null;
-
-                    const allSelected = areAllJobsSelectedForUser(user.userId, jobsToDisplay);
-                    const anySelected = areAnyJobsSelectedForUser(user.userId, jobsToDisplay);
-                    const selectedCount = anySelected ? Object.values(selectedJobs[user.userId] || {}).filter(Boolean).length : 0;
-                    const totalJobCount = getUserJobCount(user.userId);
-
-                    return (
-                        <div 
-                            key={user.userId} 
-                            className="user-card"
-                            style={{ 
-                                padding: isMobile ? '12px' : '15px',
-                                marginBottom: isMobile ? '8px' : '0'
-                            }}
-                        >
-                            <div className="user-info">
-                                <div className="user-main-info">
-                                    <h3 className="user-name" style={{ fontSize: isMobile ? '14px' : '16px' }}>
-                                        {user.fname} {user.lname}
-                                    </h3>
-                                    
-                                </div>
-                                
-                            </div>
-
-                            {userData?.loading ? (
-                                <div className="loading-jobs" style={{ padding: isMobile ? '20px 10px' : '30px 15px' }}>
-                                    <i className="fas fa-spinner fa-spin"></i> Loading jobs...
-                                </div>
-                            ) : userData?.error ? (
-                                <div className="error-jobs" style={{ padding: isMobile ? '20px 10px' : '30px 15px', fontSize: isMobile ? '12px' : '13px' }}>
-                                    <i className="fas fa-exclamation-triangle"></i> Error: {userData.error}
-                                </div>
-                            ) : (
-                                <div className="user-jobs-section" style={{ padding: isMobile ? '12px 0 0 0' : '15px 0 0 0' }}>
-                                    <div className="jobs-section-header" style={{ 
-                                        flexDirection: isMobile ? 'column' : 'row',
-                                        alignItems: isMobile ? 'flex-start' : 'center',
-                                        gap: isMobile ? '8px' : '0',
-                                        marginBottom: isMobile ? '10px' : '12px'
-                                    }}>
-                                        <h4 className="jobs-section-title" style={{ fontSize: isMobile ? '13px' : '14px' }}>
-                                            Job Permissions ({jobsToDisplay.length})
-                                            {anySelected && <span className="selected-count"> - {selectedCount} selected</span>}
-                                        </h4>
-                                        <div className="bulk-actions" style={{ 
-                                            width: isMobile ? '100%' : 'auto',
-                                            justifyContent: isMobile ? 'space-between' : 'flex-end'
-                                        }}>
-                                            <label className="select-all-checkbox" style={{ fontSize: isMobile ? '12px' : '13px' }}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={allSelected}
-                                                    onChange={() => handleSelectAllForUser(user.userId, jobsToDisplay)}
-                                                />
-                                                Select All
-                                            </label>
-                                            {anySelected && (
-                                                <button 
-                                                    onClick={() => handleDenyPermissionForUser(user.userId)}
-                                                    className="deny-selected-btn"
-                                                    title="Deny Permission for Selected Jobs"
-                                                    style={{
-                                                        padding: isMobile ? '4px 8px' : '6px 10px',
-                                                        fontSize: isMobile ? '11px' : '12px'
-                                                    }}
-                                                >
-                                                    <i className="fas fa-ban"></i>
-                                                    {isMobile ? `Deny (${selectedCount})` : `Deny Selected (${selectedCount})`}
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div 
-                                        className="jobs-list" 
-                                        style={{ 
-                                            maxHeight: isMobile ? '200px' : '250px',
-                                            gap: isMobile ? '6px' : '8px'
-                                        }}
-                                    >
-                                        {jobsToDisplay.map(job => {
-                                            const isSelected = selectedJobs[user.userId]?.[job.jobId] || false;
-                                            
-                                            return (
-                                                <div 
-                                                    key={job.jobId} 
-                                                    className="job-item"
-                                                    style={{ 
-                                                        padding: isMobile ? '8px' : '10px',
-                                                        fontSize: isMobile ? '12px' : '13px'
-                                                    }}
-                                                >
-                                                    <div className="job-info">
-                                                        <label className="job-checkbox" style={{ gap: isMobile ? '6px' : '8px' }}>
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={isSelected}
-                                                                onChange={() => handleCheckboxChange(user.userId, job.jobId)}
-                                                            />
-                                                            <div className="job-details">
-                                                                <span className="job-name" style={{ fontSize: isMobile ? '12px' : '13px' }}>
-                                                                    {job.jobName}
-                                                                </span>
-                                                                <div 
-                                                                    className="job-meta" 
-                                                                    style={{ 
-                                                                        flexDirection: isMobile ? 'column' : 'row',
-                                                                        gap: isMobile ? '4px' : '8px',
-                                                                        fontSize: isMobile ? '10px' : '11px'
-                                                                    }}
-                                                                >
-                                                                    
-                                                                    <span className="project">Project: {job.projectName}</span>
-                                                                    {!isMobile && (
-                                                                        <span className="workspace">Workspace: {job.workspaceName}</span>
-                                                                    )}
-                                                                </div>
-                                                               
-                                                            </div>
-                                                        </label>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    );
-                })}
-            </div>
-
-            {filteredUsers.length === 0 && (
-                <div 
-                    className="no-results" 
-                    style={{ 
-                        padding: isMobile ? '30px 15px' : '40px 20px',
-                        fontSize: isMobile ? '13px' : '14px'
-                    }}
-                >
-                    <i className="fas fa-search" style={{ fontSize: isMobile ? '36px' : '48px' }}></i>
-                    <h3 style={{ fontSize: isMobile ? '16px' : '18px' }}>
-                        No users or jobs found
-                    </h3>
-                    <p>
-                        {searchTerm ? 
-                            `No users or jobs match your search criteria "${searchTerm}"` :
-                            'No users with job permissions found in this workspace'
-                        }
-                    </p>
-                    {searchTerm && (
-                        <button 
-                            onClick={() => setSearchTerm('')}
-                            className="clear-search-btn"
+        <>
+            <div 
+                ref={containerRef}
+                className="user-job-management"
+                style={{ 
+                    padding: isMobile ? '10px' : '15px',
+                    maxHeight: getContainerHeight(),
+                    overflowY: 'auto',
+                    boxSizing: 'border-box'
+                }}
+            >
+                
+                <div className="user-job-controls">
+                    <div className="search-bar" style={{ flex: 1 }}>
+                        <i className="fas fa-search" style={{ fontSize: isMobile ? '12px' : '14px' }}></i>
+                        <input
+                            type="text"
+                            placeholder="Search users or job names..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
                             style={{
-                                padding: isMobile ? '6px 12px' : '8px 16px',
+                                padding: isMobile ? '6px 6px 6px 24px' : '8px 8px 8px 30px',
                                 fontSize: isMobile ? '12px' : '13px'
                             }}
-                        >
-                            Clear Search
-                        </button>
-                    )}
+                        />
+                    </div>
                 </div>
-            )}
-        </div>
+
+                <div className="users-list" style={{ gap: isMobile ? '10px' : '15px' }}>
+                    {filteredUsers.map(user => {
+                        const userData = userJobsData[user.userId];
+                        const jobsToDisplay = getJobsToDisplayForUser(user.userId);
+                        
+                        if (jobsToDisplay.length === 0) return null;
+
+                        const allSelected = areAllJobsSelectedForUser(user.userId, jobsToDisplay);
+                        const anySelected = areAnyJobsSelectedForUser(user.userId, jobsToDisplay);
+                        const selectedCount = anySelected ? Object.values(selectedJobs[user.userId] || {}).filter(Boolean).length : 0;
+                        const totalJobCount = getUserJobCount(user.userId);
+
+                        return (
+                            <div 
+                                key={user.userId} 
+                                className="user-card"
+                                style={{ 
+                                    padding: isMobile ? '12px' : '15px',
+                                    marginBottom: isMobile ? '8px' : '0'
+                                }}
+                            >
+                                <div className="user-info">
+                                    <div className="user-main-info">
+                                        <h3 className="user-name" style={{ fontSize: isMobile ? '14px' : '16px' }}>
+                                            {user.fname} {user.lname}
+                                        </h3>
+                                    </div>
+                                </div>
+
+                                {userData?.loading ? (
+                                    <div className="loading-jobs" style={{ padding: isMobile ? '20px 10px' : '30px 15px' }}>
+                                        <i className="fas fa-spinner fa-spin"></i> Loading jobs...
+                                    </div>
+                                ) : userData?.error ? (
+                                    <div className="error-jobs" style={{ padding: isMobile ? '20px 10px' : '30px 15px', fontSize: isMobile ? '12px' : '13px' }}>
+                                        <i className="fas fa-exclamation-triangle"></i> Error: {userData.error}
+                                    </div>
+                                ) : (
+                                    <div className="user-jobs-section" style={{ padding: isMobile ? '12px 0 0 0' : '15px 0 0 0' }}>
+                                        <div className="jobs-section-header" style={{ 
+                                            flexDirection: isMobile ? 'column' : 'row',
+                                            alignItems: isMobile ? 'flex-start' : 'center',
+                                            gap: isMobile ? '8px' : '0',
+                                            marginBottom: isMobile ? '10px' : '12px'
+                                        }}>
+                                            <h4 className="jobs-section-title" style={{ fontSize: isMobile ? '13px' : '14px' }}>
+                                                Job Permissions ({jobsToDisplay.length})
+                                                {anySelected && <span className="selected-count"> - {selectedCount} selected</span>}
+                                            </h4>
+                                            <div className="bulk-actions" style={{ 
+                                                width: isMobile ? '100%' : 'auto',
+                                                justifyContent: isMobile ? 'space-between' : 'flex-end'
+                                            }}>
+                                                <label className="select-all-checkbox" style={{ fontSize: isMobile ? '12px' : '13px' }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={allSelected}
+                                                        onChange={() => handleSelectAllForUser(user.userId, jobsToDisplay)}
+                                                    />
+                                                    Select All
+                                                </label>
+                                                {anySelected && (
+                                                    <button 
+                                                        onClick={() => handleOpenDenyConfirmation(user.userId)}
+                                                        className="deny-selected-btn"
+                                                        title="Deny Permission for Selected Jobs"
+                                                        style={{
+                                                            padding: isMobile ? '4px 8px' : '6px 10px',
+                                                            fontSize: isMobile ? '11px' : '12px'
+                                                        }}
+                                                    >
+                                                        <i className="fas fa-ban"></i>
+                                                        {isMobile ? `Deny (${selectedCount})` : `Deny Selected (${selectedCount})`}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div 
+                                            className="jobs-list" 
+                                            style={{ 
+                                                maxHeight: isMobile ? '200px' : '250px',
+                                                gap: isMobile ? '6px' : '8px'
+                                            }}
+                                        >
+                                            {jobsToDisplay.map(job => {
+                                                const isSelected = selectedJobs[user.userId]?.[job.jobId] || false;
+                                                
+                                                return (
+                                                    <div 
+                                                        key={job.jobId} 
+                                                        className="job-item"
+                                                        style={{ 
+                                                            padding: isMobile ? '8px' : '10px',
+                                                            fontSize: isMobile ? '12px' : '13px'
+                                                        }}
+                                                    >
+                                                        <div className="job-info">
+                                                            <label className="job-checkbox" style={{ gap: isMobile ? '6px' : '8px' }}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={isSelected}
+                                                                    onChange={() => handleCheckboxChange(user.userId, job.jobId)}
+                                                                />
+                                                                <div className="job-details">
+                                                                    <span className="job-name" style={{ fontSize: isMobile ? '12px' : '13px' }}>
+                                                                        {job.jobName}
+                                                                    </span>
+                                                                    <div 
+                                                                        className="job-meta" 
+                                                                        style={{ 
+                                                                            flexDirection: isMobile ? 'column' : 'row',
+                                                                            gap: isMobile ? '4px' : '8px',
+                                                                            fontSize: isMobile ? '10px' : '11px'
+                                                                        }}
+                                                                    >
+                                                                        <span className="project">Project: {job.projectName}</span>
+                                                                        {!isMobile && (
+                                                                            <span className="workspace">Workspace: {job.workspaceName}</span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {filteredUsers.length === 0 && (
+                    <div 
+                        className="no-results" 
+                        style={{ 
+                            padding: isMobile ? '30px 15px' : '40px 20px',
+                            fontSize: isMobile ? '13px' : '14px'
+                        }}
+                    >
+                        <i className="fas fa-search" style={{ fontSize: isMobile ? '36px' : '48px' }}></i>
+                        <h3 style={{ fontSize: isMobile ? '16px' : '18px' }}>
+                            No users or jobs found
+                        </h3>
+                        <p>
+                            {searchTerm ? 
+                                `No users or jobs match your search criteria "${searchTerm}"` :
+                                'No users with job permissions found in this workspace'
+                            }
+                        </p>
+                        {searchTerm && (
+                            <button 
+                                onClick={() => setSearchTerm('')}
+                                className="clear-search-btn"
+                                style={{
+                                    padding: isMobile ? '6px 12px' : '8px 16px',
+                                    fontSize: isMobile ? '12px' : '13px'
+                                }}
+                            >
+                                Clear Search
+                            </button>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            <ConfirmationModal
+                isOpen={showConfirmModal}
+                onClose={handleCloseConfirmModal}
+                onConfirm={handleDenyPermissionConfirmed}
+                title="Confirm Deny Permission"
+                message={`Are you sure you want to deny permission for ${confirmModalData.selectedCount} job(s) for ${confirmModalData.userName}? This action cannot be undone.`}
+                confirmText="Deny Permission"
+                cancelText="Cancel"
+            />
+        </>
     );
 };
 

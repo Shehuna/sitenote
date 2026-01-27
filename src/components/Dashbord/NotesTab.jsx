@@ -1491,77 +1491,69 @@ const NotesTab = ({
           >
             <i className="fas fa-trash" />
           </a>
+          <a
+  onClick={(e) => {
+    e.stopPropagation();
+    setSelectedNoteForPriority(note);
+    setPriorityDropdownPosition({ x: e.clientX, y: e.clientY });
+    setShowPriorityDropdown(true);
+  }}
+  title={note.priority ? `Priority ${note.priority} - Click to change` : "Click to set priority"}
+  style={{ 
+    color: note.priority ? "#bac0c0ff" : "#ccc",
+    opacity: note.priority ? 1 : 0.5
+  }}
+>
+  <i className="fas fa-flag" />
+</a>
         </td>
       </tr>
     );
   };
 
-  // Render priority dot for table view
-  const renderPriorityDot = (priorityValue, note) => {
-    if (priorityValue > 1) {
-      return (
-        <div
-          className={`priority-dot priority-dot-${priorityValue}`}
-          style={{
-            width: "10px",
-            height: "10px",
-            borderRadius: "50%",
-            position: "absolute",
-            top: "4px",
-            right: "4px",
-            cursor: "pointer",
-            zIndex: 10,
-          }}
-          title={
-            priorityValue === 3
-              ? "Medium Priority - Click to change"
-              : "High Priority - Click to change"
-          }
-          onClick={(e) => {
-            e.stopPropagation();
-            setSelectedNoteForPriority(note);
-            setPriorityDropdownPosition({ x: e.clientX, y: e.clientY });
-            setShowPriorityDropdown(true);
-          }}
-        />
-      );
-    }
-
+ // Render priority dot for table view
+const renderPriorityDot = (priorityValue, note) => {
+  if (priorityValue > 1) {
+    const dotColor = priorityValue === 3 ? "#e8f628" : "#ef5350"; 
+    
     return (
       <div
-        className="priority-dot priority-dot-placeholder"
-        style={{
-          width: "10px",
-          height: "10px",
-          borderRadius: "50%",
-          position: "absolute",
-          top: "4px",
-          right: "4px",
-          cursor: "pointer",
+        className={`priority-dot priority-dot-${priorityValue}`}
+        style={{ 
+          width: "10px", 
+          height: "10px", 
+          borderRadius: "50%", 
+          position: "absolute", 
+          top: "4px", 
+          right: "4px", 
           zIndex: 10,
-          opacity: 0.2,
-          border: "1px dashed #bdc3c7",
-          backgroundColor: "transparent",
-          transition: "all 0.2s ease",
+          backgroundColor: dotColor
         }}
-        title="Click to set priority"
-        onClick={(e) => {
-          e.stopPropagation();
-          setSelectedNoteForPriority(note);
-          setPriorityDropdownPosition({ x: e.clientX, y: e.clientY });
-          setShowPriorityDropdown(true);
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.opacity = "0.5";
-          e.currentTarget.style.borderColor = "#3498db";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.opacity = "0.2";
-          e.currentTarget.style.borderColor = "#bdc3c7";
-        }}
+        title={priorityValue === 3 ? "Medium Priority" : "High Priority"}
       />
     );
-  };
+  }
+  
+  return (
+    <div
+      className="priority-dot priority-dot-placeholder"
+      style={{ 
+        width: "10px", 
+        height: "10px", 
+        borderRadius: "50%", 
+        position: "absolute", 
+        top: "4px", 
+        right: "4px", 
+        zIndex: 10, 
+        opacity: 0.2, 
+        border: "1px dashed #bdc3c7", 
+        backgroundColor: "transparent", 
+        transition: "all 0.2s ease" 
+      }}
+      title="No priority set"
+    />
+  );
+};
 
   const renderNoteCard = (note, index, isLast = false) => {
     const priorityValue = note.priority || 1;
@@ -1832,57 +1824,66 @@ const NotesTab = ({
 
   // Render priority indicator for card view
   const renderCardPriorityIndicator = (priorityValue, note) => {
-    if (priorityValue > 1) {
-      return (
-        <div
-          className={`priority-indicator priority-${priorityValue}`}
-          style={{ cursor: "pointer" }}
-          title={
-            priorityValue === 3
-              ? "Medium Priority - Click to change"
-              : "High Priority - Click to change"
-          }
-          onClick={(e) => {
-            e.stopPropagation();
-            setSelectedNoteForPriority(note);
-            setPriorityDropdownPosition({ x: e.clientX, y: e.clientY });
-            setShowPriorityDropdown(true);
-          }}
-        />
-      );
-    }
-
+  if (priorityValue > 1) {
+    const flagColor = priorityValue === 3 ? "#e8f628" : "#ef5350"; 
+    
     return (
-      <div
-        className="priority-placeholder"
-        style={{
-          cursor: "pointer",
-          opacity: 0.2,
+      <i 
+        className="fas fa-flag"
+        style={{ 
+          cursor: "pointer", 
+          opacity: 1,
           transition: "all 0.2s ease",
-          width: "16px",
-          height: "16px",
-          borderRadius: "50%",
-          border: "1px dashed #ddd",
-          backgroundColor: "transparent",
+          fontSize: "12px",
+          color: flagColor
         }}
-        title="Click to set priority"
+        title={priorityValue === 3 ? "Medium Priority (3) - Click to change" : "High Priority (4) - Click to change"}
         onClick={(e) => {
           e.stopPropagation();
           setSelectedNoteForPriority(note);
           setPriorityDropdownPosition({ x: e.clientX, y: e.clientY });
           setShowPriorityDropdown(true);
         }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.opacity = "0.5";
-          e.currentTarget.style.borderColor = "#3498db";
+        onMouseEnter={(e) => { 
+          e.currentTarget.style.opacity = "0.9";
+          e.currentTarget.style.transform = "scale(1.1)";
         }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.opacity = "0.2";
-          e.currentTarget.style.borderColor = "#ddd";
+        onMouseLeave={(e) => { 
+          e.currentTarget.style.opacity = 1;
+          e.currentTarget.style.transform = "scale(1)";
         }}
       />
     );
-  };
+  }
+  
+  return (
+    <i 
+      className="fas fa-flag"
+      style={{ 
+        cursor: "pointer", 
+        opacity: 0,
+        transition: "all 0.2s ease",
+        fontSize: "12px",
+        color: "#ffffff"
+      }}
+      title="Click to set priority"
+      onClick={(e) => {
+        e.stopPropagation();
+        setSelectedNoteForPriority(note);
+        setPriorityDropdownPosition({ x: e.clientX, y: e.clientY });
+        setShowPriorityDropdown(true);
+      }}
+      onMouseEnter={(e) => { 
+        e.currentTarget.style.opacity = "0.3"; 
+        e.currentTarget.style.filter = "drop-shadow(0 0 1px #bdc3c7b1) drop-shadow(0 0 1px #bdc3c7b1)";
+      }}
+      onMouseLeave={(e) => { 
+        e.currentTarget.style.opacity = 0; 
+        e.currentTarget.style.filter = "none";
+      }}
+    />
+  );
+};
 
   // Handle stacked jobs logic
   const notesByJob = {};
@@ -2632,60 +2633,61 @@ const NotesTab = ({
                             </div>
                             <div className="note-actions">
                               {priorityValue > 1 ? (
-                                <div
-                                  className={`priority-indicator priority-${priorityValue}`}
-                                  style={{ cursor: "pointer" }}
-                                  title={
-                                    priorityValue === 3
-                                      ? "Medium Priority - Click to change"
-                                      : priorityValue === 4
-                                      ? "High Priority - Click to change"
-                                      : "No Priority"
-                                  }
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedNoteForPriority(note);
-                                    setPriorityDropdownPosition({
-                                      x: e.clientX,
-                                      y: e.clientY,
-                                    });
-                                    setShowPriorityDropdown(true);
-                                  }}
-                                />
-                              ) : (
-                                <div
-                                  className="priority-placeholder"
-                                  style={{
-                                    cursor: "pointer",
-                                    opacity: 0.2,
-                                    transition: "all 0.2s ease",
-                                    width: "16px",
-                                    height: "16px",
-                                    borderRadius: "50%",
-                                    border: "1px dashed #ddd",
-                                    backgroundColor: "transparent",
-                                  }}
-                                  title="Click to set priority"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedNoteForPriority(note);
-                                    setPriorityDropdownPosition({
-                                      x: e.clientX,
-                                      y: e.clientY,
-                                    });
-                                    setShowPriorityDropdown(true);
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    e.currentTarget.style.opacity = "0.5";
-                                    e.currentTarget.style.borderColor =
-                                      "#3498db";
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.opacity = "0.2";
-                                    e.currentTarget.style.borderColor = "#ddd";
-                                  }}
-                                />
-                              )}
+                            <i 
+                              className="fas fa-flag"
+                              style={{ 
+                                cursor: "pointer", 
+                                opacity: 1,
+                                transition: "all 0.2s ease",
+                                fontSize: "12px",
+                                color: priorityValue === 3 ? "#e8f628" : "#ef5350"
+                              }}
+                              title={priorityValue === 3 ? "Medium Priority (3) - Click to change" : "High Priority (4) - Click to change"}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedNoteForPriority(note);
+                                setPriorityDropdownPosition({
+                                  x: e.clientX,
+                                  y: e.clientY,
+                                });
+                                setShowPriorityDropdown(true);
+                              }}
+                              onMouseEnter={(e) => { 
+                                e.currentTarget.style.opacity = "0.9";
+                                e.currentTarget.style.transform = "scale(1.1)";
+                              }}
+                              onMouseLeave={(e) => { 
+                                e.currentTarget.style.opacity = 1;
+                                e.currentTarget.style.transform = "scale(1)";
+                              }}
+                            />
+                          ) : (
+                            <i 
+                              className="fas fa-flag"
+                              style={{ 
+                                cursor: "pointer", 
+                                opacity: 0,
+                                transition: "all 0.2s ease",
+                                fontSize: "12px",
+                                color: "#ffffff"
+                              }}
+                              title="Click to set priority"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedNoteForPriority(note);
+                                setPriorityDropdownPosition({ x: e.clientX, y: e.clientY });
+                                setShowPriorityDropdown(true);
+                              }}
+                              onMouseEnter={(e) => { 
+                                e.currentTarget.style.opacity = "0.3"; 
+                                e.currentTarget.style.filter = "drop-shadow(0 0 1px #bdc3c7b1) drop-shadow(0 0 1px #bdc3c7b1)";
+                              }}
+                              onMouseLeave={(e) => { 
+                                e.currentTarget.style.opacity = 0; 
+                                e.currentTarget.style.filter = "none";
+                              }}
+                            />
+                          )}
                               <button
                                 className="action-btn"
                                 onClick={(e) => {

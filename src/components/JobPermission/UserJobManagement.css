@@ -93,6 +93,7 @@
     display: flex;
     flex-direction: column;
     gap: 15px;
+    height: auto;
 }
 
 .user-card {
@@ -198,7 +199,17 @@
 }
 
 .user-jobs-section {
-    padding: 15px 0 0 0;
+    padding: 15px 15px 15px 15px !important; /* Add padding on all sides */
+    margin-top: 15px !important;
+    min-height: 200px !important; /* Increase minimum height significantly */
+    display: block !important; /* Force display */
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: relative !important;
+    z-index: 1 !important;
+    background: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+    border-radius: 8px !important;
 }
 
 .jobs-section-header {
@@ -266,9 +277,11 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    max-height: 250px;
+    /* Remove or comment out max-height: 250px; */
+    /* max-height: 250px; */ /* REMOVE THIS LINE */
     overflow-y: auto;
     padding-right: 4px;
+    flex: 1; /* Add this to take available space */
 }
 
 .job-item {
@@ -548,5 +561,158 @@
     .deny-selected-btn {
         width: 100%;
         justify-content: center;
+    }
+}
+.custom-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(3px);
+    animation: fadeIn 0.2s ease;
+}
+
+.custom-modal {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    width: 90%;
+    max-width: 400px;
+    overflow: hidden;
+    animation: slideIn 0.3s ease;
+}
+
+.custom-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.custom-modal-header h3 {
+    margin: 0;
+    color: #333;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.close-modal-btn {
+    background: none;
+    border: none;
+    font-size: 18px;
+    color: #6c757d;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.close-modal-btn:hover {
+    background: #e9ecef;
+    color: #495057;
+}
+
+.custom-modal-body {
+    padding: 24px;
+    text-align: center;
+}
+
+.custom-modal-body p {
+    margin: 0;
+    color: #555;
+    line-height: 1.5;
+    font-size: 15px;
+}
+
+.custom-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 20px 24px;
+    background: #f8f9fa;
+    border-top: 1px solid #e9ecef;
+}
+
+.cancel-btn {
+    padding: 10px 20px;
+    background: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.cancel-btn:hover {
+    background: #5a6268;
+    transform: translateY(-1px);
+}
+
+.confirm-btn {
+    padding: 10px 20px;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.confirm-btn:hover {
+    background: #c82333;
+    transform: translateY(-1px);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (max-width: 768px) {
+    .custom-modal {
+        width: 95%;
+        margin: 10px;
+    }
+    
+    .custom-modal-header {
+        padding: 16px 20px;
+    }
+    
+    .custom-modal-body {
+        padding: 20px;
+    }
+    
+    .custom-modal-footer {
+        padding: 16px 20px;
+        flex-direction: column-reverse;
+    }
+    
+    .cancel-btn,
+    .confirm-btn {
+        width: 100%;
+        padding: 12px;
     }
 }
