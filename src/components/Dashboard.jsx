@@ -733,6 +733,42 @@ const Dashboard = ({
     if (!userid || !jobId) return [];
     
     try {
+      // If we're in stacked view and there is a search term, use the text-filtered API
+      if (viewMode === "stacked" && searchTerm && searchTerm.trim() !== "") {
+        const params = new URLSearchParams({
+          pageNumber: "1",
+          pageSize: "100",
+          jobId: jobId,
+          userId: userid,
+          searchText: searchTerm,
+        });
+
+        const notesResponse = await fetch(
+          `${apiUrl}/SiteNote/GetSiteNotesByJobIdWithTextFilter?${params.toString()}`
+        );
+
+        if (!notesResponse.ok) {
+          throw new Error(`Failed to fetch text-filtered notes for job ${jobId}: ${notesResponse.status}`);
+        }
+
+        const notesData = await notesResponse.json();
+
+        return (notesData.siteNotes || []).map((note) => ({
+          ...note,
+          id: note.id,
+          userName: note.userName || note.UserName || "Unknown User",
+          documentCount: note.documentCount || note.DocumentCount || 0,
+          timeStamp: note.timeStamp || note.date || note.timeStamp || note.createdDate,
+          date: note.date || note.createdDate || new Date().toISOString(),
+          workspace: note.workspace || note.workspaceName || "",
+          project: note.project || note.projectName || "",
+          job: note.job || "",
+          note: note.note || note.content || "",
+          jobId: note.jobId || jobId,
+        }));
+      }
+
+      // Fallback to original logic (handles filters and combinations)
       const params = new URLSearchParams({
         jobId: jobId,
         userId: userid,
@@ -828,7 +864,7 @@ const Dashboard = ({
       console.error(`Error fetching notes for job ${jobId}:`, error);
       throw error;
     }
-  }, [apiUrl, userid, hasActiveFilters, generateFilterCombinations]);
+  }, [apiUrl, userid, hasActiveFilters, generateFilterCombinations, viewMode, searchTerm]);
 
   // NEW: Updated toggleStackExpansion with filter support
   const toggleStackExpansion = useCallback(async (jobName, jobId) => {
@@ -958,6 +994,43 @@ const Dashboard = ({
 
     setLoadingStackedJobs(true);
     try {
+      // If user is in stacked view and there's a search term, use the text search jobs API
+      if (viewMode === "stacked" && searchTerm && searchTerm.trim() !== "") {
+        const params = new URLSearchParams({
+          searchText: searchTerm,
+          userId: userid,
+        });
+
+        const jobResponse = await fetch(
+          `${apiUrl}/SiteNote/GetJobsBySiteNoteText?${params.toString()}`
+        );
+
+        if (!jobResponse.ok) {
+          throw new Error(`Failed to fetch stacked jobs by text: ${jobResponse.status}`);
+        }
+
+        const jobData = await jobResponse.json();
+
+        const jobs = (jobData.jobs || []).map((job) => ({
+          jobId: job.jobId,
+          jobName: job.jobName,
+          jobDescription: job.jobDescription || "",
+          noteCount: job.matchingNotesCount || job.totalSiteNotes || 0,
+          latestTimeStamp: job.latestMatchingNote || job.latestTimeStamp,
+          workspaceName: job.workspaceName || job.workspace || "",
+          projectName: job.projectName || job.project || "",
+          // Loading states
+          isLoadingNotes: false,
+          hasLoadedNotes: false,
+          notes: null,
+          errorLoadingNotes: null,
+        }));
+
+        setStackedJobs(jobs.filter(j => j.noteCount > 0));
+        return;
+      }
+
+      // Default behavior: fetch stacked jobs metadata
       const jobResponse = await fetch(
         `${apiUrl}/SiteNote/GetStackedJobs?userId=${userid}&pageNumber=1&pageSize=50`
       );
@@ -981,7 +1054,7 @@ const Dashboard = ({
         noteCount: job.totalSiteNotes || 0,
         latestTimeStamp: job.latestTimeStamp,
         lastSiteNoteUserName: job.lastSiteNoteUserName || null,
-        lastSiteNote: job.lastSiteNote || "", // ADD THIS LINE - includes the latest note content
+        lastSiteNote: job.lastSiteNote || "",
         // NEW: Loading states
         isLoadingNotes: false,
         hasLoadedNotes: false,
@@ -1000,7 +1073,7 @@ const Dashboard = ({
     } finally {
       setLoadingStackedJobs(false);
     }
-  }, [apiUrl, userid]);
+  }, [apiUrl, userid, searchTerm, viewMode]);
 
   const fetchWorkspaceRole = useCallback(async () => {
     if (!userid || !defaultUserWorkspaceID) {
@@ -1825,6 +1898,15 @@ const Dashboard = ({
       fetchStackedJobs();
     }
   }, [userid, viewMode, fetchStackedJobs, hasActiveFilters]);
+
+  // When a search is performed, re-fetch stacked jobs so text-search is applied
+  useEffect(() => {
+    if (!userid) return;
+    if (viewMode === "stacked" && searchTerm && searchTerm.trim() !== "") {
+      console.log("Search term changed in stacked view, fetching stacked jobs with text search...");
+      fetchStackedJobs();
+    }
+  }, [searchTerm, viewMode, userid, fetchStackedJobs]);
 
   const handlePriorityUpdate = () => {
     refreshNotes();
