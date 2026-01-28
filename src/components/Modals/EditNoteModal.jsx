@@ -8,6 +8,9 @@ const EditNoteModal = ({
   refreshNotes,
   updateNote,
   defaultWorkspaceId,
+  fetchNotesWithFilters,
+  selectedFilters,
+  hasActiveFilters
 }) => {
   const [isEditable, setIsEditable] = useState(true);
   const [journalData, setJournalData] = useState({
@@ -1071,9 +1074,17 @@ const EditNoteModal = ({
         if (priorityId) {
           await handleUpdatepriority();
         }
+        onClose(noteIdToReturn);
         
-        onClose();
-        refreshNotes();
+        // UPDATED: Refresh based on filter status
+        if (hasActiveFilters && fetchNotesWithFilters) {
+          // If filters are active, refresh filtered notes
+          await fetchNotesWithFilters(selectedFilters);
+        } else {
+          // Otherwise, use the normal refresh
+          await refreshNotes();
+        }
+        
         toast.success('Note updated successfully!');
       } else {
         throw new Error("Failed to save note: No success confirmation from server");
@@ -1761,7 +1772,7 @@ const EditNoteModal = ({
 
         <div className="modal-footer">
           <button
-            onClick={onClose}
+            onClick={() => onClose(note.id)}
             className="cancel-button"
             disabled={isSubmitting || isDownloading || isUploading}
           >

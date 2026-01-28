@@ -17,7 +17,10 @@ const NewNoteModal = forwardRef(({
     defWorkSpaceId,
     userworksaces = [],
     source = 'dashboard',
-    defaultWorkspaceRole // Add this prop
+    defaultWorkspaceRole,
+    fetchNotesWithFilters,
+    selectedFilters,
+    hasActiveFilters
 }, ref) => {
     // State declarations - REMOVE text mode states
     const [activeTab, setActiveTab] = useState('journal');
@@ -1096,7 +1099,14 @@ const handleImageUpload = useCallback((e) => {
             }
 
             await handleAddPriority(siteNoteId, user.id);
-            refreshNotes();
+            if (hasActiveFilters && fetchNotesWithFilters) {
+                // If filters are active, refresh filtered notes
+                await fetchNotesWithFilters(selectedFilters);
+            } else {
+                // Otherwise, use the normal refresh
+                await refreshNotes();
+            }
+            
             if (refreshFilteredNotes) refreshFilteredNotes();
             onClose();
             toast.success('Note saved successfully!');
@@ -1877,7 +1887,10 @@ NewNoteModal.propTypes = {
         })
     ),
     source: PropTypes.oneOf(['grid', 'dashboard']),
-    defaultWorkspaceRole: PropTypes.number // Add this prop type
+    defaultWorkspaceRole: PropTypes.number,
+    fetchNotesWithFilters: PropTypes.func,
+    selectedFilters: PropTypes.object,
+    hasActiveFilters: PropTypes.bool
 };
 
 NewNoteModal.defaultProps = {
@@ -1887,7 +1900,10 @@ NewNoteModal.defaultProps = {
     defWorkSpaceId: null,
     userworksaces: [],
     source: 'dashboard',
-    defaultWorkspaceRole: null
+    defaultWorkspaceRole: null,
+    fetchNotesWithFilters: null,
+    selectedFilters: {},
+    hasActiveFilters: false
 };
 
 export default NewNoteModal;

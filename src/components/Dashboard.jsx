@@ -167,12 +167,6 @@ const Dashboard = ({
     if (!hasAnyFilters) {
       return [];
     }
-
-    // For each filter type, we want to create combinations where
-    // we select ONE value from EACH filter type that has values
-    // This gives us OR logic within filter types
-    
-    // Get arrays of values for each filter type (include null for no selection)
     const filterArrays = {};
     
     Object.keys(filters).forEach(filterType => {
@@ -1116,18 +1110,9 @@ const Dashboard = ({
     }
   }, [apiUrl, userid, defaultUserWorkspaceID]);
 
-  // Debug logging
-  useEffect(() => {
-    /* console.log("Selected Filters:", selectedFilters);
-    console.log("Has Active Filters:", hasActiveFilters);
-    console.log("Filter Options:", filterOptions);
-    console.log("View Mode:", viewMode);
-    console.log("Filtered Stacked Jobs:", filteredStackedJobs?.length || 0);
-    console.log("Stacked Jobs:", stackedJobs?.length || 0); */
-  }, [selectedFilters, hasActiveFilters, filterOptions, viewMode, filteredStackedJobs, stackedJobs]);
 
   // Load filter options on component mount - MOVE THIS AFTER fetchFilterOptions is defined
- /*  useEffect(() => {
+useEffect(() => {
     if (userid && isDataLoaded) {
       const loadAllOptions = async () => {
         try {
@@ -1141,7 +1126,7 @@ const Dashboard = ({
       };
       loadAllOptions();
     }
-  }, [userid, isDataLoaded]); */
+  }, [userid, isDataLoaded]);  
 
   const displayNotes = useMemo(() => {
     if (searchTerm.trim()) {
@@ -1535,10 +1520,10 @@ const Dashboard = ({
     }
     
     // Reload all filters without any parameters
-    await reloadAllFilters();
-    
+    //await reloadAllFilters();
+    refreshNotes()
     toast.success("All filters cleared");
-  }, [reloadAllFilters, viewMode, fetchStackedJobs]);
+  }, [viewMode, fetchStackedJobs]);
 
   const toggleFilterDropdown = useCallback(
     async (filterType) => {
@@ -2064,7 +2049,11 @@ const Dashboard = ({
         userName: false,
       });
       
-      // Reload all filter options
+        if (hasActiveFilters) {
+          // Re-fetch with current filters
+          await fetchNotesWithFilters(selectedFilters);
+        } 
+      
       //await reloadAllFilters();
       
       if (viewMode === "stacked") {
@@ -2077,10 +2066,10 @@ const Dashboard = ({
       }
       
       // Also refresh filter options display
-     /*  const filterTypes = ["date", "workspace", "project", "job", "userName"];
-      filterTypes.forEach(type => {
-        fetchFilterOptions(type);
-      }); */
+    //  const filterTypes = ["date", "workspace", "project", "job", "userName"];
+    //   filterTypes.forEach(type => {
+    //     fetchFilterOptions(type);
+    //   }); 
       
     } catch {
       toast.error("Refresh error");
@@ -3056,7 +3045,7 @@ const Dashboard = ({
             setShowNewModal(false);
           }}
           refreshNotes={refreshNotes}
-          refreshFilteredNotes={() => {}}
+          refreshFilteredNotes={hasActiveFilters ? () => fetchNotesWithFilters(selectedFilters) : () => {}}
           addSiteNote={addSiteNote}
           onUploadDocument={onUploadDocument}
           onDeleteDocument={onDeleteDocument}
@@ -3065,6 +3054,9 @@ const Dashboard = ({
           prefilledData={prefilledData}
           source={modalSource}
           defaultWorkspaceRole={defaultWorkspaceRole}
+          fetchNotesWithFilters={fetchNotesWithFilters}
+          selectedFilters={selectedFilters}
+          hasActiveFilters={hasActiveFilters}
         />
       )}
 
@@ -3084,6 +3076,9 @@ const Dashboard = ({
           defaultUserWorkspaceID={defaultUserWorkspaceID}
           onPriorityUpdate={handlePriorityUpdate}
           openToPriorityTab={true}
+          fetchNotesWithFilters={fetchNotesWithFilters}
+          selectedFilters={selectedFilters}
+          hasActiveFilters={hasActiveFilters}
         />
       )}
 
