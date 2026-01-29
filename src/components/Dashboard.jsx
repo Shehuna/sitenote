@@ -167,6 +167,12 @@ const Dashboard = ({
     if (!hasAnyFilters) {
       return [];
     }
+
+    // For each filter type, we want to create combinations where
+    // we select ONE value from EACH filter type that has values
+    // This gives us OR logic within filter types
+    
+    // Get arrays of values for each filter type (include null for no selection)
     const filterArrays = {};
     
     Object.keys(filters).forEach(filterType => {
@@ -621,9 +627,15 @@ const Dashboard = ({
         params.append("siteNoteUserId", combination.userName);
       }
 
-      const response = await fetch(
-        `${apiUrl}/SiteNote/GetSiteNotesWithFilters?${params.toString()}`
-      );
+      // If a search term exists, use the text-filter API which accepts the same
+      // filter params plus `searchText`. Otherwise fall back to the original filters endpoint.
+      let url = `${apiUrl}/SiteNote/GetSiteNotesWithFilters?${params.toString()}`;
+      if (searchTerm && searchTerm.trim() !== "") {
+        params.append("searchText", searchTerm);
+        url = `${apiUrl}/SiteNote/GetSiteNotesWithTextFilter?${params.toString()}`;
+      }
+
+      const response = await fetch(url);
       
       if (!response.ok) {
         console.error(`Failed to fetch notes for combination:`, response.status);
@@ -649,7 +661,7 @@ const Dashboard = ({
       console.error("Error fetching notes for combination:", error);
       return [];
     }
-  }, [apiUrl, userid]);
+  }, [apiUrl, userid, searchTerm]);
 
   // UPDATED: fetchNotesWithFilters - Now handles multiple values with OR logic
   const fetchNotesWithFilters = useCallback(
@@ -729,6 +741,52 @@ const Dashboard = ({
     try {
       // If we're in stacked view and there is a search term, use the text-filtered API
       if (viewMode === "stacked" && searchTerm && searchTerm.trim() !== "") {
+        // If filters were provided, generate combinations and call text-filtered API per combo
+        const activeFilters = filters && Object.values(filters).some((arr) => arr?.length > 0);
+        if (activeFilters) {
+          const combinations = generateFilterCombinations(filters);
+          const promises = combinations.map((combo) => {
+            const params = new URLSearchParams({
+              pageNumber: "1",
+              pageSize: "100",
+              jobId: jobId,
+              userId: userid,
+              searchText: searchTerm,
+            });
+            if (combo.date) params.append("date", combo.date);
+            if (combo.workspace) params.append("workspaceId", combo.workspace);
+            if (combo.project) params.append("projectId", combo.project);
+            if (combo.userName) params.append("siteNoteUserId", combo.userName);
+            return fetch(`${apiUrl}/SiteNote/GetSiteNotesByJobIdWithTextFilter?${params.toString()}`).then(res => res.ok ? res.json() : { siteNotes: [] });
+          });
+
+          const results = await Promise.all(promises);
+          const seenIds = new Set();
+          const combined = [];
+          results.forEach(r => {
+            (r.siteNotes || []).forEach(n => {
+              if (!seenIds.has(n.id)) {
+                seenIds.add(n.id);
+                combined.push(n);
+              }
+            });
+          });
+
+          return combined.map((note) => ({
+            ...note,
+            id: note.id,
+            userName: note.userName || note.UserName || "Unknown User",
+            documentCount: note.documentCount || note.DocumentCount || 0,
+            timeStamp: note.timeStamp || note.date || note.timeStamp || note.createdDate,
+            date: note.date || note.createdDate || new Date().toISOString(),
+            workspace: note.workspace || note.workspaceName || "",
+            project: note.project || note.projectName || "",
+            job: note.job || "",
+            note: note.note || note.content || "",
+            jobId: note.jobId || jobId,
+          }));
+        }
+
         const params = new URLSearchParams({
           pageNumber: "1",
           pageSize: "100",
@@ -990,6 +1048,50 @@ const Dashboard = ({
     try {
       // If user is in stacked view and there's a search term, use the text search jobs API
       if (viewMode === "stacked" && searchTerm && searchTerm.trim() !== "") {
+        // If filters are active, we need to preserve OR logic via combinations
+        if (hasActiveFilters) {
+          const combinations = generateFilterCombinations(selectedFilters);
+          const promises = combinations.map((combo) => {
+            const params = new URLSearchParams({
+              searchText: searchTerm,
+              userId: userid,
+            });
+            if (combo.date) params.append("date", combo.date);
+            if (combo.workspace) params.append("workspaceId", combo.workspace);
+            if (combo.project) params.append("projectId", combo.project);
+            if (combo.job) params.append("jobId", combo.job);
+            if (combo.userName) params.append("siteNoteUserId", combo.userName);
+            return fetch(`${apiUrl}/SiteNote/GetJobsBySiteNoteText?${params.toString()}`).then(res => res.ok ? res.json() : { jobs: [] });
+          });
+
+          const results = await Promise.all(promises);
+          const jobsMap = new Map();
+          results.forEach(r => {
+            (r.jobs || []).forEach((job) => {
+              if (!jobsMap.has(job.jobId)) {
+                jobsMap.set(job.jobId, job);
+              }
+            });
+          });
+
+          const jobs = Array.from(jobsMap.values()).map((job) => ({
+            jobId: job.jobId,
+            jobName: job.jobName,
+            jobDescription: job.jobDescription || "",
+            noteCount: job.matchingNotesCount || job.totalSiteNotes || 0,
+            latestTimeStamp: job.latestMatchingNote || job.latestTimeStamp,
+            workspaceName: job.workspaceName || job.workspace || "",
+            projectName: job.projectName || job.project || "",
+            isLoadingNotes: false,
+            hasLoadedNotes: false,
+            notes: null,
+            errorLoadingNotes: null,
+          }));
+
+          setStackedJobs(jobs.filter(j => j.noteCount > 0));
+          return;
+        }
+
         const params = new URLSearchParams({
           searchText: searchTerm,
           userId: userid,
@@ -1067,7 +1169,7 @@ const Dashboard = ({
     } finally {
       setLoadingStackedJobs(false);
     }
-  }, [apiUrl, userid, searchTerm, viewMode]);
+  }, [apiUrl, userid, searchTerm, viewMode, selectedFilters, hasActiveFilters, generateFilterCombinations]);
 
   const fetchWorkspaceRole = useCallback(async () => {
     if (!userid || !defaultUserWorkspaceID) {
@@ -1110,9 +1212,18 @@ const Dashboard = ({
     }
   }, [apiUrl, userid, defaultUserWorkspaceID]);
 
+  // Debug logging
+  useEffect(() => {
+    console.log("Selected Filters:", selectedFilters);
+    console.log("Has Active Filters:", hasActiveFilters);
+    console.log("Filter Options:", filterOptions);
+    console.log("View Mode:", viewMode);
+    console.log("Filtered Stacked Jobs:", filteredStackedJobs?.length || 0);
+    console.log("Stacked Jobs:", stackedJobs?.length || 0);
+  }, [selectedFilters, hasActiveFilters, filterOptions, viewMode, filteredStackedJobs, stackedJobs]);
 
   // Load filter options on component mount - MOVE THIS AFTER fetchFilterOptions is defined
-useEffect(() => {
+  useEffect(() => {
     if (userid && isDataLoaded) {
       const loadAllOptions = async () => {
         try {
@@ -1126,7 +1237,7 @@ useEffect(() => {
       };
       loadAllOptions();
     }
-  }, [userid, isDataLoaded]);  
+  }, [userid, isDataLoaded]);
 
   const displayNotes = useMemo(() => {
     if (searchTerm.trim()) {
@@ -1293,6 +1404,7 @@ useEffect(() => {
     [filterOptions, filterSearchTerm]
   );
 
+  // FIXED: getFilterDisplayValue function
   const getFilterDisplayValue = useCallback(
     (filterType, value) => {
       if (!value) return "";
@@ -1355,11 +1467,15 @@ useEffect(() => {
           console.error("Error formatting date:", e);
         }
       }
+
+      // For userName, we might need to fetch user info
+      // Return the value as fallback
       return value;
     },
     [filterOptions, workspaces, projects, jobs]
   );
 
+  // FIXED: handleFilterCheckboxChange function
   const handleFilterCheckboxChange = useCallback(
     async (filterType, value, rawValue = null) => {
       const currentValues = selectedFilters[filterType] || [];
@@ -1523,7 +1639,7 @@ useEffect(() => {
     //await reloadAllFilters();
     refreshNotes()
     toast.success("All filters cleared");
-  }, [viewMode, fetchStackedJobs]);
+  }, [reloadAllFilters, viewMode, fetchStackedJobs]);
 
   const toggleFilterDropdown = useCallback(
     async (filterType) => {
@@ -2049,12 +2165,8 @@ useEffect(() => {
         userName: false,
       });
       
-        if (hasActiveFilters) {
-          // Re-fetch with current filters
-          await fetchNotesWithFilters(selectedFilters);
-        } 
-      
-      //await reloadAllFilters();
+      // Reload all filter options
+      await reloadAllFilters();
       
       if (viewMode === "stacked") {
         if (hasActiveFilters) {
@@ -2066,10 +2178,10 @@ useEffect(() => {
       }
       
       // Also refresh filter options display
-    //  const filterTypes = ["date", "workspace", "project", "job", "userName"];
-    //   filterTypes.forEach(type => {
-    //     fetchFilterOptions(type);
-    //   }); 
+      const filterTypes = ["date", "workspace", "project", "job", "userName"];
+      filterTypes.forEach(type => {
+        fetchFilterOptions(type);
+      });
       
     } catch {
       toast.error("Refresh error");
@@ -2261,19 +2373,60 @@ useEffect(() => {
       }
       setSearchLoading(true);
       try {
-        const r = await fetch(
-          `${apiUrl}/SiteNote/SearchSiteNotes?searchTerm=${encodeURIComponent(
-            t
-          )}&pageNumber=1&pageSize=50&userId=${userid}`
-        );
-        if (!r.ok) throw new Error();
-        const d = await r.json();
+        // If there are active selected filters, generate combinations and call
+        // GetSiteNotesWithTextFilter for each combination to preserve OR logic.
+        const hasFilters = Object.values(selectedFilters || {}).some((arr) => arr?.length > 0);
+        let combinedNotes = [];
+        const seen = new Set();
+
+        if (hasFilters) {
+          const combinations = generateFilterCombinations(selectedFilters);
+          const promises = combinations.map((combo) => {
+            const params = new URLSearchParams({
+              pageNumber: "1",
+              pageSize: "50",
+              searchText: t,
+              userId: userid,
+            });
+            if (combo.date) params.append("date", combo.date);
+            if (combo.workspace) params.append("workspaceId", combo.workspace);
+            if (combo.project) params.append("projectId", combo.project);
+            if (combo.job) params.append("jobId", combo.job);
+            if (combo.userName) params.append("siteNoteUserId", combo.userName);
+
+            return fetch(`${apiUrl}/SiteNote/GetSiteNotesWithTextFilter?${params.toString()}`).then((res) =>
+              res.ok ? res.json() : { siteNotes: [] }
+            );
+          });
+
+          const results = await Promise.all(promises);
+          results.forEach((r) => {
+            (r.siteNotes || []).forEach((n) => {
+              if (!seen.has(n.id)) {
+                seen.add(n.id);
+                combinedNotes.push(n);
+              }
+            });
+          });
+        } else {
+          const params = new URLSearchParams({
+            pageNumber: "1",
+            pageSize: "50",
+            searchText: t,
+            userId: userid,
+          });
+          const r = await fetch(`${apiUrl}/SiteNote/GetSiteNotesWithTextFilter?${params.toString()}`);
+          if (!r.ok) throw new Error();
+          const d = await r.json();
+          combinedNotes = d.siteNotes || [];
+        }
+
         setSearchResults(
-          (d.siteNotes || []).map((n) => ({
+          combinedNotes.map((n) => ({
             ...n,
             userName: n.UserName || n.userName,
             documentCount: n.DocumentCount || n.documentCount || 0,
-            note: n.note || n.content || "", // Ensure note content is included
+            note: n.note || n.content || "",
           }))
         );
       } catch {
@@ -2284,7 +2437,7 @@ useEffect(() => {
       }
     };
     run();
-  }, [searchTerm, userid, apiUrl]);
+  }, [searchTerm, userid, apiUrl, selectedFilters]);
 
   const fetchWorkspacesByUserId = async () => {
     try {
@@ -3045,7 +3198,7 @@ useEffect(() => {
             setShowNewModal(false);
           }}
           refreshNotes={refreshNotes}
-          refreshFilteredNotes={hasActiveFilters ? () => fetchNotesWithFilters(selectedFilters) : () => {}}
+          refreshFilteredNotes={() => {}}
           addSiteNote={addSiteNote}
           onUploadDocument={onUploadDocument}
           onDeleteDocument={onDeleteDocument}
