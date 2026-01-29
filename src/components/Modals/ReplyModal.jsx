@@ -20,6 +20,7 @@ const ReplyModal = ({
   
   const [richTextContent, setRichTextContent] = useState('');
   const [pastedImages, setPastedImages] = useState([]);
+  const [isContentExpanded, setIsContentExpanded] = useState(false);
 
   const editorRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -41,6 +42,79 @@ const ReplyModal = ({
   const getCurrentUser = () => {
     const user = JSON.parse(localStorage.getItem('user'));
     return user || { id: 1, name: 'Current User', userName: 'Current User' };
+  };
+
+  const handlePriorityClick = () => {
+    let nextPriority;
+    if (selectedPriority === '1') {
+        nextPriority = '3'; 
+    } else if (selectedPriority === '3') {
+        nextPriority = '4'; 
+    } else {
+        nextPriority = '1'; 
+    }
+    
+    setSelectedPriority(nextPriority);
+    toast.success(`Priority set to ${nextPriority === '4' ? 'High' : nextPriority === '3' ? 'Medium' : 'No Priority'}`);
+  };
+
+  const stripHtml = (html) => {
+    if (!html) return '';
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    return tempDiv.textContent || tempDiv.innerText || '';
+  };
+
+  const truncateHtml = (html, maxWords = 20) => { 
+    if (!html) return '';
+    
+    const plainText = stripHtml(html);
+    const words = plainText.split(/\s+/);
+    
+    if (words.length <= maxWords) return html;
+    
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    
+    const truncateNode = (node, remainingWords) => {
+      if (remainingWords <= 0) return 0;
+      
+      if (node.nodeType === Node.TEXT_NODE) {
+        const wordsInNode = node.textContent.split(/\s+/);
+        if (wordsInNode.length <= remainingWords) {
+          return wordsInNode.length;
+        } else {
+          const truncatedText = wordsInNode.slice(0, remainingWords).join(' ') + '...';
+          node.textContent = truncatedText;
+          return remainingWords;
+        }
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        let wordsUsed = 0;
+        for (let child of node.childNodes) {
+          if (wordsUsed >= remainingWords) {
+            while (child) {
+              const nextSibling = child.nextSibling;
+              node.removeChild(child);
+              child = nextSibling;
+            }
+            break;
+          }
+          wordsUsed += truncateNode(child, remainingWords - wordsUsed);
+        }
+        return wordsUsed;
+      }
+      return 0;
+    };
+    
+    truncateNode(tempDiv, maxWords);
+    
+    return tempDiv.innerHTML;
+  };
+
+  const needsTruncation = (html) => {
+    if (!html) return false;
+    const plainText = stripHtml(html);
+    return plainText.split(/\s+/).length > 20; 
   };
 
   const processPastedImage = (file) => {
@@ -75,36 +149,43 @@ const ReplyModal = ({
   };
 
   const safelyRenderHTML = (html) => {
-  if (!html) return { __html: '' };
-  
-  // Create a document fragment to parse and clean
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  
-  // Remove potentially dangerous elements
-  const dangerous = doc.querySelectorAll('script, style, iframe, object, embed, form, input, button, textarea, select');
-  dangerous.forEach(el => el.remove());
-  
-  // Remove event handlers
-  const allElements = doc.body.querySelectorAll('*');
-  allElements.forEach(el => {
-    Array.from(el.attributes).forEach(attr => {
-      if (attr.name.startsWith('on')) {
-        el.removeAttribute(attr.name);
-      }
+    if (!html) return { __html: '' };
+    
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    
+    const dangerous = doc.querySelectorAll('script, style, iframe, object, embed, form, input, button, textarea, select');
+    dangerous.forEach(el => el.remove());
+    
+    const allElements = doc.body.querySelectorAll('*');
+    allElements.forEach(el => {
+      Array.from(el.attributes).forEach(attr => {
+        if (attr.name.startsWith('on')) {
+          el.removeAttribute(attr.name);
+        }
+      });
+      
+      ['href', 'src', 'action'].forEach(attr => {
+        const value = el.getAttribute(attr);
+        if (value && value.toLowerCase().startsWith('javascript:')) {
+          el.removeAttribute(attr);
+        }
+      });
     });
     
-    // Remove dangerous attributes
-    ['href', 'src', 'action'].forEach(attr => {
-      const value = el.getAttribute(attr);
-      if (value && value.toLowerCase().startsWith('javascript:')) {
-        el.removeAttribute(attr);
-      }
-    });
-  });
-  
-  return { __html: doc.body.innerHTML };
-};
+    return { __html: doc.body.innerHTML };
+  };
+
+  const renderOriginalNoteContent = () => {
+    if (!note?.note) return { __html: '' };
+    
+    if (!isContentExpanded) {
+      const truncatedHtml = truncateHtml(note.note, 20); 
+      return safelyRenderHTML(truncatedHtml);
+    }
+    
+    return safelyRenderHTML(note.note);
+  };
 
   const handlePaste = useCallback((e) => {
     e.preventDefault();
@@ -704,6 +785,44 @@ const ReplyModal = ({
           </label>
         </div>
         
+        <div className="documents-button-wrapper" style={{ position: 'relative' }}>
+          <button 
+            onClick={() => setActiveTab('documents')} 
+            title={`${documents.length} document${documents.length !== 1 ? 's' : ''} attached`}
+            className={`documents-button ${activeTab === 'documents' ? 'active' : ''}`}
+            type="button"
+          >
+            <i className="fas fa-paperclip"></i>
+            {documents.length > 0 && (
+              <span className="documents-badge">
+                {documents.length}
+              </span>
+            )}
+          </button>
+        </div>
+        
+        <div className="priority-flag-container">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              handlePriorityClick();
+            }}
+            title={`${selectedPriority === '1' ? 'No Priority - Click to set' : 
+                    selectedPriority === '3' ? 'Medium Priority - Click to change' : 
+                    'High Priority - Click to change'}`}
+            className={`priority-flag-button priority-${selectedPriority} ${selectedPriority > 1 ? 'has-priority' : ''}`}
+            type="button"
+          >
+            <i className="fas fa-flag"></i>
+            
+            {selectedPriority > 1 && (
+              <div
+                className={`priority-flag-dot priority-${selectedPriority}`}
+              />
+            )}
+          </button>
+        </div>
+        
         <button 
           onClick={clearEditor} 
           title="Clear All"
@@ -811,19 +930,9 @@ const ReplyModal = ({
     <div className="journal-section">
       <div className="form-group">
         <label>Priority {errors.priority && <span className="error-message-inline">{errors.priority}</span>}</label>
-        <select
-          value={selectedPriority}
-          onChange={(e) => {
-            setSelectedPriority(e.target.value);
-            setErrors(prev => ({ ...prev, priority: undefined }));
-          }}
-          className={`priority-select ${selectedPriority ? `priority-${selectedPriority}` : ''} ${errors.priority ? 'error' : ''}`}
-        >
-          <option value="">Select Priority</option>
-          <option value="4" className="priority-option-4">High</option>
-          <option value="3" className="priority-option-3">Medium</option>
-          <option value="1" className="priority-option-1">No Priority</option>
-        </select>
+        <div className="priority-tab-note">
+          <i className="fas fa-info-circle"></i> Priority can be set using the flag button in the toolbar above.
+        </div>
       </div>
     </div>
   );
@@ -848,6 +957,8 @@ const ReplyModal = ({
     });
   };
 
+  const shouldShowExpandButton = note?.note && needsTruncation(note.note);
+
   if (!note) return null;
 
   return (
@@ -860,7 +971,7 @@ const ReplyModal = ({
         ref={modalRef}
       >
         <div className="modal-content-wrapper">
-          <div className="original-note-preview">
+          <div className="original-note-preview compact">
             <div className="original-note-header">
               <div className="original-note-user-info">
                 <div className="original-note-user">
@@ -889,8 +1000,30 @@ const ReplyModal = ({
             <div className="original-note-content">
               <div 
                 className="original-note-text"
-                dangerouslySetInnerHTML={safelyRenderHTML(note.note)}
-            />
+                dangerouslySetInnerHTML={renderOriginalNoteContent()}
+              />
+              
+              {shouldShowExpandButton && (
+                <div className="expand-content-container">
+                  <button 
+                    onClick={() => setIsContentExpanded(!isContentExpanded)}
+                    className="expand-content-button"
+                    type="button"
+                  >
+                    {isContentExpanded ? (
+                      <>
+                        <i className="fas fa-chevron-up"></i>
+                        Show Less
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-chevron-down"></i>
+                        Show More
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -900,32 +1033,6 @@ const ReplyModal = ({
               <button onClick={() => setApiError(null)} className="dismiss-error">×</button>
             </div>
           )}
-
-          <div className="tabs-container">
-            <div className="tabs">
-              <button 
-                className={`tab-button ${activeTab === 'journal' ? 'active' : ''}`} 
-                onClick={() => setActiveTab('journal')}
-                type="button"
-              >
-                Reply
-              </button>
-              <button 
-                className={`tab-button ${activeTab === 'documents' ? 'active' : ''}`} 
-                onClick={() => setActiveTab('documents')}
-                type="button"
-              >
-                Documents ({documents.length})
-              </button>
-              <button 
-                className={`tab-button ${activeTab === 'priority' ? 'active' : ''}`} 
-                onClick={() => setActiveTab('priority')}
-                type="button"
-              >
-                Priority
-              </button>
-            </div>
-          </div>
 
           <div className="tab-content-scrollable">
             {renderTabContent()}
@@ -1010,4 +1117,3 @@ const ReplyModal = ({
 };
 
 export default ReplyModal;
-
