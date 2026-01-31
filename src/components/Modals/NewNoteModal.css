@@ -635,6 +635,7 @@
     cursor: pointer;
     font-size: 6px;
     transition: all 0.2s ease;
+    margin-top: 4px;
 }
 
 .image-upload-button:hover {
@@ -1343,4 +1344,108 @@
 
 .priority-flag-button.disabled {
     opacity: 0.5;
+}
+/* Emoji Picker Styles */
+.emoji-picker-wrapper {
+    position: relative;
+    display: inline-block;
+}
+
+.emoji-button {
+    background: none;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 8px 10px;
+    cursor: pointer;
+    color: #666;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    height: 36px;
+}
+
+.emoji-button:hover:not(.disabled) {
+    background-color: #f5f5f5;
+    color: #333;
+}
+
+.emoji-button.active {
+    background-color: #e9ecef;
+    border-color: #007bff;
+    color: #007bff;
+}
+
+.emoji-button.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.emoji-picker-container {
+    position: fixed;
+    z-index: 10000;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    max-width: calc(100vw - 40px);
+    max-height: calc(100vh - 80px);
+    width: 350px;
+    height: 400px;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+}
+@media (max-width: 768px) {
+    .emoji-picker-container {
+        width: calc(100vw - 40px);
+        height: calc(60vh - 40px);
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+    }
+}
+/* Ensure emoji picker has proper styling */
+emoji-picker {
+    --background: #ffffff;
+    --border-color: #e0e0e0;
+    --border-radius: 8px;
+    --button-active-background: #f0f0f0;
+    --button-hover-background: #f5f5f5;
+    --category-emoji-padding: 8px;
+    --category-emoji-size: 24px;
+    --category-font-color: #666;
+    --category-font-size: 13px;
+    --indicator-color: #007bff;
+    --input-border-color: #e0e0e0;
+    --input-border-radius: 20px;
+    --input-font-color: #333;
+    --input-placeholder-color: #999;
+    --num-columns: 8;
+    --outline-color: #007bff80;
+}
+
+/* Make sure emoji picker doesn't overflow modal */
+.edit-note-modal {
+    position: relative;
+    overflow: visible;
+}
+
+.editor-toolbar {
+    position: relative;
+}
+
+/* Adjust toolbar layout to accommodate emoji picker */
+.editor-formatting-tools {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+/* Ensure emoji picker dropdown has proper z-index */
+.emoji-picker-container {
+    z-index: 10000;
 }

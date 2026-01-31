@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./ViewNoteModal.css";
 import toast from "react-hot-toast";
+import html2canvas from "html2canvas";
 import jsPDF from 'jspdf';
 
 const ViewNoteModal = ({
@@ -35,6 +36,311 @@ const ViewNoteModal = ({
   const lightboxRef = useRef(null);
 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
+
+  // Comprehensive emoji regex patterns
+  const emojiPatterns = [
+    /[\u{1F600}-\u{1F64F}]/gu, // Emoticons
+    /[\u{1F300}-\u{1F5FF}]/gu, // Misc Symbols and Pictographs
+    /[\u{1F680}-\u{1F6FF}]/gu, // Transport and Map Symbols
+    /[\u{1F700}-\u{1F77F}]/gu, // Alchemical Symbols
+    /[\u{1F780}-\u{1F7FF}]/gu, // Geometric Shapes Extended
+    /[\u{1F800}-\u{1F8FF}]/gu, // Supplemental Arrows-C
+    /[\u{1F900}-\u{1F9FF}]/gu, // Supplemental Symbols and Pictographs
+    /[\u{1FA00}-\u{1FA6F}]/gu, // Chess Symbols
+    /[\u{1FA70}-\u{1FAFF}]/gu, // Symbols and Pictographs Extended-A
+    /[\u{2600}-\u{26FF}]/gu,   // Misc symbols
+    /[\u{2700}-\u{27BF}]/gu,   // Dingbats
+    /[\u{E000}-\u{F8FF}]/gu,   // Private Use Area
+    /[\u{FE00}-\u{FE0F}]/gu,   // Variation Selectors
+    /[\u{1F1E6}-\u{1F1FF}]/gu, // Regional indicator symbols
+  ];
+
+  // Check if character is an emoji
+  const isEmoji = (character) => {
+    // First check if it's a single character that might be garbled
+    if (character.length > 1) {
+      // Check each emoji pattern
+      for (const pattern of emojiPatterns) {
+        if (pattern.test(character)) {
+          return true;
+        }
+      }
+    }
+    
+    // Also check for common garbled sequences that might be emojis
+    const garbledToEmojiMap = {
+      "Ø>ÞàØ<ßI": "😀", // Example mapping, you might need to expand this
+      // Add more mappings as you discover them
+    };
+    
+    return garbledToEmojiMap[character] !== undefined;
+  };
+
+  // Get emoji character from garbled text
+  const getEmojiFromGarbled = (garbledText) => {
+    const garbledToEmojiMap = {
+      "Ø>ÞàØ<ßI": "😀",
+      "Ø>ÞàØ<ßJ": "😃",
+      "Ø>ÞàØ<ßK": "😄",
+      "Ø>ÞàØ<ßL": "😁",
+      "Ø>ÞàØ<ßM": "😆",
+      "Ø>ÞàØ<ßN": "😅",
+      "Ø>ÞàØ<ßO": "😂",
+      "Ø>ÞàØ<ßP": "🤣",
+      "Ø>ÞàØ<ßQ": "😊",
+      "Ø>ÞàØ<ßR": "😇",
+      // Add more mappings as needed based on what you see
+    };
+    
+    return garbledToEmojiMap[garbledText] || "❓"; // Default to question mark if unknown
+  };
+
+  // Detect if text contains any garbled emoji sequences
+  const containsGarbledEmoji = (text) => {
+    const garbledPatterns = [
+      /Ø>ÞàØ<ß[I-Z]/g, // Pattern for garbled emojis
+      /[^\x00-\x7F]{3,}/g, // Any non-ASCII sequence of 3+ characters
+    ];
+    
+    for (const pattern of garbledPatterns) {
+      if (pattern.test(text)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Replace garbled emoji sequences with actual emojis
+  const fixGarbledEmojis = (text) => {
+    if (!text) return text;
+    
+    let fixedText = text;
+    
+    // Replace known garbled patterns
+    const garbledToEmojiMap = {
+      "Ø>ÞàØ<ßI": "😀",
+      "Ø>ÞàØ<ßJ": "😃",
+      "Ø>ÞàØ<ßK": "😄",
+      "Ø>ÞàØ<ßL": "😁",
+      "Ø>ÞàØ<ßM": "😆",
+      "Ø>ÞàØ<ßN": "😅",
+      "Ø>ÞàØ<ßO": "😂",
+      "Ø>ÞàØ<ßP": "🤣",
+      "Ø>ÞàØ<ßQ": "😊",
+      "Ø>ÞàØ<ßR": "😇",
+      "Ø>ÞàØ<ßS": "🙂",
+      "Ø>ÞàØ<ßT": "🙃",
+      "Ø>ÞàØ<ßU": "😉",
+      "Ø>ÞàØ<ßV": "😌",
+      "Ø>ÞàØ<ßW": "😍",
+      "Ø>ÞàØ<ßX": "😘",
+      "Ø>ÞàØ<ßY": "😗",
+      "Ø>ÞàØ<ßZ": "😙",
+    };
+    
+    // Replace all known garbled patterns
+    Object.keys(garbledToEmojiMap).forEach(garbled => {
+      const regex = new RegExp(garbled.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+      fixedText = fixedText.replace(regex, garbledToEmojiMap[garbled]);
+    });
+    
+    return fixedText;
+  };
+
+  // Create emoji as image on canvas
+  const createEmojiImage = (emoji, fontSize = 12) => {
+    try {
+      // Create offscreen canvas
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      // Set canvas size
+      const size = Math.max(fontSize * 1.2, 20);
+      canvas.width = size;
+      canvas.height = size;
+      
+      // Clear with transparent background
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Set font - use a system font that supports emojis
+      ctx.font = `bold ${fontSize}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Android Emoji", "EmojiOne Color", "Twemoji Mozilla", sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'black';
+      
+      // Draw emoji
+      ctx.fillText(emoji, canvas.width / 2, canvas.height / 2);
+      
+      // Convert to data URL
+      return canvas.toDataURL('image/png');
+    } catch (error) {
+      console.error('Error creating emoji image:', error);
+      return null;
+    }
+  };
+
+  // Alternative: Use Twemoji CDN for emoji images
+  const getTwemojiUrl = (emoji, size = 72) => {
+    try {
+      // Convert emoji to code point
+      const codePoint = emoji.codePointAt(0).toString(16);
+      return `https://twemoji.maxcdn.com/v/latest/72x72/${codePoint}.png`;
+    } catch (error) {
+      console.error('Error getting Twemoji URL:', error);
+      return null;
+    }
+  };
+
+  // Fetch emoji image from Twemoji
+  const fetchEmojiImage = async (emoji) => {
+    try {
+      const url = getTwemojiUrl(emoji);
+      if (!url) return null;
+      
+      const response = await fetch(url);
+      if (!response.ok) return null;
+      
+      const blob = await response.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error('Error fetching emoji image:', error);
+      return null;
+    }
+  };
+
+  // Split text into segments (text and emojis)
+  const splitTextIntoChunks = (text) => {
+    if (!text) return [];
+    
+    // First fix any garbled emojis
+    const fixedText = fixGarbledEmojis(text);
+    
+    const chunks = [];
+    let currentChunk = '';
+    let inEmojiChunk = false;
+    
+    for (let i = 0; i < fixedText.length; i++) {
+      const char = fixedText[i];
+      const nextChar = fixedText[i + 1];
+      
+      // Check if current character might be part of an emoji
+      const charCode = char.charCodeAt(0);
+      const isLikelyEmoji = charCode > 0x00FF || (charCode >= 0x1F600 && charCode <= 0x1F64F);
+      
+      if (isLikelyEmoji) {
+        // End previous text chunk if exists
+        if (currentChunk && !inEmojiChunk) {
+          chunks.push({
+            type: 'text',
+            content: currentChunk
+          });
+          currentChunk = '';
+        }
+        
+        inEmojiChunk = true;
+        currentChunk += char;
+        
+        // Check if next character is also part of the same emoji (for multi-char emojis)
+        if (nextChar && nextChar.charCodeAt(0) >= 0xFE00 && nextChar.charCodeAt(0) <= 0xFE0F) {
+          // Variation selector, add to current emoji
+          currentChunk += nextChar;
+          i++; // Skip next character
+        }
+      } else {
+        // End previous emoji chunk if exists
+        if (currentChunk && inEmojiChunk) {
+          chunks.push({
+            type: 'emoji',
+            content: currentChunk
+          });
+          currentChunk = '';
+        }
+        
+        inEmojiChunk = false;
+        currentChunk += char;
+      }
+    }
+    
+    // Add the last chunk
+    if (currentChunk) {
+      chunks.push({
+        type: inEmojiChunk ? 'emoji' : 'text',
+        content: currentChunk
+      });
+    }
+    
+    return chunks;
+  };
+
+  // Render text with emoji support for PDF
+  const renderTextWithEmojis = (pdf, text, x, y, fontSize = 10, maxWidth = null) => {
+    if (!text) return x;
+    
+    // Fix garbled emojis first
+    const fixedText = fixGarbledEmojis(text);
+    
+    // Split into chunks
+    const chunks = splitTextIntoChunks(fixedText);
+    let currentX = x;
+    
+    for (const chunk of chunks) {
+      if (chunk.type === 'text') {
+        // Render regular text with Ethiopic support
+        let run = '';
+        let currentFont = 'helvetica';
+        
+        for (let char of chunk.content) {
+          const isEth = isEthiopic(char);
+          const newFont = isEth ? 'NotoEthiopic' : 'helvetica';
+          
+          if (newFont !== currentFont) {
+            if (run) {
+              pdf.setFont(currentFont, 'normal');
+              pdf.text(run, currentX, y);
+              currentX += pdf.getTextWidth(run);
+            }
+            currentFont = newFont;
+            run = char;
+          } else {
+            run += char;
+          }
+        }
+        
+        if (run) {
+          pdf.setFont(currentFont, 'normal');
+          pdf.text(run, currentX, y);
+          currentX += pdf.getTextWidth(run);
+        }
+      } else if (chunk.type === 'emoji') {
+        // Render emoji as image
+        try {
+          // Create emoji image
+          const emojiImage = createEmojiImage(chunk.content, fontSize);
+          if (emojiImage) {
+            const emojiSize = fontSize * 0.8;
+            pdf.addImage(emojiImage, 'PNG', currentX, y - fontSize * 0.6, emojiSize, emojiSize);
+            currentX += emojiSize * 0.9;
+          } else {
+            // Fallback: render as text
+            pdf.setFont('helvetica', 'normal');
+            pdf.text(chunk.content, currentX, y);
+            currentX += pdf.getTextWidth(chunk.content);
+          }
+        } catch (error) {
+          // Fallback to text
+          pdf.setFont('helvetica', 'normal');
+          pdf.text(chunk.content, currentX, y);
+          currentX += pdf.getTextWidth(chunk.content);
+        }
+      }
+    }
+    
+    return currentX;
+  };
 
   // Fetch replies for a specific note
   const fetchNoteReplies = async (siteNoteId) => {
@@ -418,32 +724,9 @@ const ViewNoteModal = ({
     );
   };
 
-  const renderMixedText = (pdf, text, startX, startY, style = 'normal') => {
-    let currentX = startX;
-    let run = '';
-    let currentFont = 'helvetica';
-    pdf.setFont('helvetica', style);
-    for (let char of text) {
-      const isEth = isEthiopic(char);
-      const newFont = isEth ? 'NotoEthiopic' : 'helvetica';
-
-      if (newFont !== currentFont) {
-        if (run) {
-          pdf.setFont(currentFont, style);
-          pdf.text(run, currentX, startY);
-          currentX += pdf.getTextWidth(run);
-        }
-        currentFont = newFont;
-        run = char;
-      } else {
-        run += char;
-      }
-    }
-
-    if (run) {
-      pdf.setFont(currentFont, style);
-      pdf.text(run, currentX, startY);
-    }
+  // Render text with emoji and Ethiopic support
+  const renderMixedText = (pdf, text, startX, startY, style = 'normal', fontSize = 10) => {
+    return renderTextWithEmojis(pdf, text, startX, startY, fontSize);
   };
 
   const renderFormattedText = (pdf, html, startX, startY) => {
@@ -483,8 +766,7 @@ const ViewNoteModal = ({
           }
 
           const style = styles.bold ? 'bold' : 'normal';
-
-          renderMixedText(pdf, line, x + styles.indent, currentY, style);
+          renderTextWithEmojis(pdf, line, x + styles.indent, currentY, styles.fontSize);
 
           if (styles.underline) {
             const textWidth = pdf.getTextWidth(line);
@@ -516,7 +798,7 @@ const ViewNoteModal = ({
           newStyles.indent -= 10;
         } else if (tag === 'LI') {
           pdf.setFontSize(styles.fontSize);
-          renderMixedText(pdf, '• ', x + styles.indent - 5, currentY);
+          renderTextWithEmojis(pdf, '• ', x + styles.indent - 5, currentY, styles.fontSize);
           currentY = renderElement(pdf, child, x, currentY, newStyles);
           currentY += styles.lineHeight / 2;
         } else {
@@ -543,221 +825,474 @@ const generatePDF = async () => {
   setPdfGenerating(true);
 
   try {
-    const regularFontUrl = 'https://raw.githubusercontent.com/openmaptiles/fonts/master/noto-sans/noto-sans-ethiopic/NotoSansEthiopic-Regular.ttf';
-    const boldFontUrl = 'https://raw.githubusercontent.com/twardoch/toto-fonts/master/ttf/sans-bol/_Ethi_/NotoSans-Ethiopic-Bold.ttf';
-
-    const [regularBase64, boldBase64] = await Promise.all([
-      fetchFontBase64(regularFontUrl),
-      fetchFontBase64(boldFontUrl)
-    ]);
-
     const notesToPrint = relatedNotes.slice(-parseInt(max));
+    
+    // We'll generate each page separately to prevent cutting notes
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+      compress: true
+    });
 
-    const pdf = new jsPDF();
+    let currentPage = 1;
+    let yPosition = 20; // Start position on page (mm)
+    const pageWidth = 210; // A4 width in mm
+    const pageHeight = 297; // A4 height in mm
+    const margin = 20; // Margin on all sides
+    const lineHeight = 5; // Line height in mm
+    const noteSpacing = 2; // Space between notes in mm
+    const maxContentWidth = pageWidth - (2 * margin); // Max width for content
+    const footerHeight = 5; // Space for footer with page number
 
-    pdf.addFileToVFS('NotoSansEthiopic-Regular.ttf', regularBase64);
-    pdf.addFont('NotoSansEthiopic-Regular.ttf', 'NotoEthiopic', 'normal');
+    // Store all page data for adding page numbers later
+    const pageData = [];
 
-    pdf.addFileToVFS('NotoSansEthiopic-Bold.ttf', boldBase64);
-    pdf.addFont('NotoSansEthiopic-Bold.ttf', 'NotoEthiopic', 'bold');
-
-    pdf.setFont('helvetica', 'normal');
-
-    // Set initial color to black for headers
-    pdf.setTextColor(0, 0, 0);
-    pdf.setFontSize(16);
-    pdf.text('Job Notes', 10, 10);
-
-    let headerY = 20;
-
-    pdf.setFontSize(12);
-    if (currentNote?.siteNote?.workspace) {
-      renderMixedText(pdf, `Workspace: ${currentNote.siteNote.workspace}`, 10, headerY);
-      headerY += 6;
-    }
-
-    if (currentNote?.siteNote?.project) {
-      renderMixedText(pdf, `Project: ${currentNote.siteNote.project}`, 10, headerY);
-      headerY += 6;
-    }
-
-    if (currentNote?.siteNote?.job) {
-      renderMixedText(pdf, `Job: ${currentNote.siteNote.job}`, 10, headerY);
-      headerY += 6;
-    }
-
-    if (jobDetails) {
-      if (jobDetails.type) {
-        renderMixedText(pdf, `Type: ${jobDetails.type}`, 10, headerY);
-        headerY += 6;
-      }
-
-      if (jobDetails.priorityName && jobDetails.priorityName !== "Unknown") {
-        renderMixedText(pdf, `Priority: ${jobDetails.priorityName}`, 10, headerY);
-        headerY += 6;
-      }
-
-      if (jobDetails.startDate) {
-        renderMixedText(pdf, `Start: ${formatDate(jobDetails.startDate)}`, 10, headerY);
-        headerY += 6;
-      }
-
-      if (jobDetails.endDate) {
-        renderMixedText(pdf, `End: ${formatDate(jobDetails.endDate)}`, 10, headerY);
-        headerY += 6;
-      }
-
-      if (jobDetails.actualEndDate) {
-        renderMixedText(pdf, `Actual End: ${formatDate(jobDetails.actualEndDate)}`, 10, headerY);
-        headerY += 6;
-      }
-
-      if (jobDetails.managerId != null) {
-        let managerText = managerInfo
-          ? `${managerInfo.fname || managerInfo.firstName || ''} ${managerInfo.lname || managerInfo.lastName || ''}`.trim()
-          : `ID: ${jobDetails.managerId}`;
-        if (managerInfo?.email) {
-          managerText += ` (${managerInfo.email})`;
-        }
-        renderMixedText(pdf, `Manager: ${managerText}`, 10, headerY);
-        headerY += 6;
-      }
-
-      if (jobDetails.createdDate) {
-        renderMixedText(pdf, `Created: ${formatDate(jobDetails.createdDate)}`, 10, headerY);
-        headerY += 6;
-      }
-    }
-
-    let y = headerY + 10;
-    let lastDate = null;
-
-    for (const note of notesToPrint) {
-      const currentDate = formatDate(note.date);
-
-      if (currentDate !== lastDate) {
-        // Set gray color for date header (lighter gray - 120,120,120)
-        pdf.setTextColor(150, 150, 150);
-        pdf.setFontSize(10);
-        pdf.text(currentDate, 105, y, { align: 'center' });
-        y += 8;
-        lastDate = currentDate;
-      }
-
-      // Set gray color for username and timestamp (darker gray - 90,90,90)
-      pdf.setTextColor(150, 150, 150);
-      pdf.setFontSize(12);
-      renderMixedText(pdf, `${note.userName} - ${formatRelativeTime(note.timeStamp)}`, 10, y);
-      y += 6;
-
-      // Reset to black for note content
-      pdf.setTextColor(0, 0, 0);
-      y = renderFormattedText(pdf, note.note, 10, y);
-
-      if (note.documentCount > 0) {
-        // Set medium gray for attachment count (100,100,100)
-        pdf.setTextColor(100, 100, 100);
-        pdf.setFontSize(8);
-        pdf.text(`Attachments: ${note.documentCount}`, 10, y);
-        y += 6;
-      }
-
-      const images = noteImages[note.id] || [];
-      for (const img of images) {
-        try {
-          const url = `${apiUrl}/InlineImages/GetInlineImage/${img.id}`;
-          const base64 = await getBase64(url);
-          if (y + 42 > 270) {
-            pdf.addPage();
-            y = 10;
-          }
-          pdf.addImage(base64, 'JPEG', 10, y, 60, 40);
-          y += 42;
-        } catch (error) {
-          if (y + 6 > 270) {
-            pdf.addPage();
-            y = 10;
-          }
-          // Set gray for fallback image text
-          pdf.setTextColor(120, 120, 120);
-          pdf.text(`[Image: ${img.fileName}]`, 10, y);
-          y += 6;
-        }
-      }
-
-      // Add replies to PDF
-      if (noteReplies[note.id]) {
-        const replies = noteReplies[note.id];
-        for (const reply of replies) {
-          if (y + 10 > 270) {
-            pdf.addPage();
-            y = 10;
-          }
-          
-          // Set gray for reply username and timestamp
-          pdf.setTextColor(100, 100, 100);
-          pdf.setFontSize(10);
-          pdf.text(`↪ ${reply.userName} - ${formatRelativeTime(reply.timeStamp)}`, 15, y);
-          y += 5;
-          
-          // Reset to black for reply content
-          pdf.setTextColor(0, 0, 0);
-          pdf.setFontSize(9);
-          y = renderFormattedText(pdf, reply.note, 15, y);
-          
-          if (reply.documentCount > 0) {
-            // Set medium gray for reply attachment count
-            pdf.setTextColor(100, 100, 100);
-            pdf.setFontSize(7);
-            pdf.text(`Attachments: ${reply.documentCount}`, 15, y);
-            y += 4;
-          }
-          
-          const replyImages = noteImages[reply.id] || [];
-          for (const img of replyImages) {
-            try {
-              const url = `${apiUrl}/InlineImages/GetInlineImage/${img.id}`;
-              const base64 = await getBase64(url);
-              if (y + 35 > 270) {
-                pdf.addPage();
-                y = 10;
-              }
-              pdf.addImage(base64, 'JPEG', 15, y, 50, 35);
-              y += 37;
-            } catch (error) {
-              if (y + 5 > 270) {
-                pdf.addPage();
-                y = 10;
-              }
-              // Set gray for fallback reply image text
-              pdf.setTextColor(120, 120, 120);
-              pdf.text(`[Image: ${img.fileName}]`, 15, y);
-              y += 5;
-            }
-          }
-          
-          y += 6;
-        }
-      }
-
-      y += 8;
-
-      if (y > 270) {
+    // Function to check if we need a new page
+    const checkNewPage = (neededHeight) => {
+      if (yPosition + neededHeight > pageHeight - margin - footerHeight) {
+        // Store current page state before adding new page
+        pageData.push({
+          pageNum: currentPage,
+          yPosition: yPosition
+        });
+        
         pdf.addPage();
-        y = 10;
+        currentPage++;
+        yPosition = margin;
+        return true;
       }
+      return false;
+    };
+
+    // Add header only on first page
+    if (currentPage === 1) {
+      // Job Title
+      pdf.setFontSize(20);
+      pdf.setFont("helvetica", "bold");
+      const jobTitle = `Job Notes - ${currentNote?.siteNote?.job || jobDetails?.name || `Job_${jobId || noteId}`}`;
+      const titleWidth = pdf.getTextWidth(jobTitle);
+      const titleX = (pageWidth - titleWidth) / 2;
+      pdf.text(jobTitle, titleX, yPosition);
+      yPosition += 12;
+
+      // Divider line
+      pdf.setLineWidth(0.5);
+      pdf.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 10;
+
+      // Job details
+      pdf.setFontSize(12);
+      pdf.setFont("helvetica", "normal");
+      
+      if (currentNote?.siteNote?.workspace) {
+        pdf.text(`Workspace: ${currentNote.siteNote.workspace}`, margin, yPosition);
+        yPosition += lineHeight;
+      }
+      
+      if (currentNote?.siteNote?.project) {
+        pdf.text(`Project: ${currentNote.siteNote.project}`, margin, yPosition);
+        yPosition += lineHeight;
+      }
+      
+      if (jobDetails?.createdDate) {
+        pdf.text(`Created: ${formatDate(jobDetails.createdDate)}`, margin, yPosition);
+        yPosition += lineHeight;
+      }
+      
+      yPosition += 5; // Extra space after header
     }
 
-    pdf.save(`notes_${jobId || noteId}.pdf`);
+    // Process each note
+    for (const note of notesToPrint) {
+      // Calculate approximate height needed for this note
+      let noteHeight = 0;
+      
+      // Note text height (truncated version)
+      if (note.note) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = note.note;
+        const plainText = tempDiv.textContent || tempDiv.innerText || '';
+        const truncatedText = plainText.length > 200 ? plainText.substring(0, 200) + '...' : plainText;
+        
+        // Split text into lines based on max width
+        pdf.setFontSize(13);
+        pdf.setFont("helvetica", "bold");
+        const lines = pdf.splitTextToSize(truncatedText, maxContentWidth);
+        noteHeight += lines.length * lineHeight;
+      } else {
+        noteHeight += lineHeight; // For "[No text]"
+      }
+      
+      // User/date line
+      noteHeight += lineHeight;
+      
+      // Images height
+      const images = noteImages[note.id] || [];
+      if (images.length > 0) {
+        noteHeight += 30; // Approximate height for images
+      }
+      
+      // Document count
+      if (note.documentCount > 0) {
+        noteHeight += lineHeight;
+      }
+      
+      // Replies height
+      if (noteReplies[note.id]) {
+        noteHeight += 5; // Space for replies header
+        noteReplies[note.id].forEach(() => {
+          noteHeight += lineHeight * 2; // Approximate height per reply
+        });
+      }
+      
+      // Add spacing between notes
+      noteHeight += noteSpacing;
+      
+      // Check if we need a new page before adding this note
+      if (checkNewPage(noteHeight)) {
+        // If it's a new page and not the first page, add some top margin
+        if (currentPage > 1) {
+          yPosition += 2; // Space at top of new pages
+        }
+      }
+      
+      // Create a container for this note
+      const noteContainer = document.createElement('div');
+      noteContainer.style.cssText = `
+        width: ${maxContentWidth}mm;
+        margin: 0 auto;
+        padding: 8px;
+        background: #f9f9f9;
+        border-radius: 4px;
+        margin-bottom: ${noteSpacing}mm;
+        box-sizing: border-box;
+      `;
+
+      // Note header with text left, user/time right
+      const noteHeader = document.createElement('div');
+      noteHeader.style.cssText = `
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 4px;
+      `;
+
+      // Note text
+      const noteTextContainer = document.createElement('div');
+      noteTextContainer.style.cssText = `
+        flex: 1;
+        min-width: 200px;
+        font-weight: bold;
+        color: #000;
+        font-size: 13px;
+        padding-right: 8px;
+        line-height: 1.2;
+      `;
+
+      if (note.note) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = note.note;
+        const plainText = tempDiv.textContent || tempDiv.innerText || '';
+        noteTextContainer.textContent = plainText.length > 200 
+          ? plainText.substring(0, 200) + '...' 
+          : plainText;
+      } else {
+        noteTextContainer.textContent = '[No text]';
+      }
+
+      noteHeader.appendChild(noteTextContainer);
+
+      // User and date
+      const userDateDiv = document.createElement('div');
+      userDateDiv.style.cssText = `
+        text-align: right;
+        color: #666;
+        font-size: 11px;
+        white-space: nowrap;
+        flex-shrink: 0;
+        line-height: 1.2;
+      `;
+
+      const noteDate = new Date(note.timeStamp || note.date);
+      const formattedDate = !isNaN(noteDate.getTime()) 
+        ? noteDate.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        : 'Invalid Date';
+
+      userDateDiv.textContent = `${note.userName} - ${formattedDate}`;
+      noteHeader.appendChild(userDateDiv);
+
+      noteContainer.appendChild(noteHeader);
+
+      // Full note text if truncated
+      if (note.note) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = note.note;
+        const plainText = tempDiv.textContent || tempDiv.innerText || '';
+        if (plainText.length > 200) {
+          const fullNoteDiv = document.createElement('div');
+          fullNoteDiv.style.cssText = `
+            margin-top: 6px;
+            color: #333;
+            font-size: 12px;
+            line-height: 1.3;
+          `;
+          fullNoteDiv.innerHTML = note.note;
+          noteContainer.appendChild(fullNoteDiv);
+        }
+      }
+
+      // Images
+      if (images.length > 0) {
+        const imagesContainer = document.createElement('div');
+        imagesContainer.style.cssText = `
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-top: 8px;
+        `;
+
+        images.forEach(img => {
+          const imgContainer = document.createElement('div');
+          imgContainer.style.cssText = `
+            width: 200px;
+            height: 120px;
+            overflow: hidden;
+            position: relative;
+          `;
+
+          const imgElement = document.createElement('img');
+          imgElement.src = `${apiUrl}/InlineImages/GetInlineImage/${img.id}`;
+          imgElement.alt = img.fileName;
+          imgElement.style.cssText = `
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+          `;
+          
+          imgContainer.appendChild(imgElement);
+          imagesContainer.appendChild(imgContainer);
+        });
+
+        noteContainer.appendChild(imagesContainer);
+      }
+
+      // Document count
+      if (note.documentCount > 0) {
+        const docCountDiv = document.createElement('div');
+        docCountDiv.style.cssText = `
+          margin-top: 6px;
+          color: #666;
+          font-size: 10px;
+          line-height: 1.2;
+        `;
+        docCountDiv.textContent = `📎 Attachments: ${note.documentCount}`;
+        noteContainer.appendChild(docCountDiv);
+      }
+
+      // Replies
+      if (noteReplies[note.id]) {
+        const repliesContainer = document.createElement('div');
+        repliesContainer.style.cssText = `
+          margin-top: 10px;
+          margin-left: 15px;
+          border-left: 1px solid #ddd;
+          padding-left: 8px;
+        `;
+
+        noteReplies[note.id].forEach(reply => {
+          const replyRow = document.createElement('div');
+          replyRow.style.cssText = `
+            margin-bottom: 4px;
+            padding: 6px;
+            background: #fff;
+            border-radius: 2px;
+            border: 1px solid #eee;
+          `;
+
+          const replyHeader = document.createElement('div');
+          replyHeader.style.cssText = `
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+          `;
+
+          const replyIconText = document.createElement('div');
+          replyIconText.style.cssText = `
+            font-weight: 600;
+            color: #000;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            flex: 1;
+            padding-right: 8px;
+            line-height: 1.2;
+          `;
+          
+          if (reply.note) {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = reply.note || '';
+            const replyPlainText = tempDiv.textContent || tempDiv.innerText || '';
+            const displayText = replyPlainText.length > 150 
+              ? replyPlainText.substring(0, 150) + '...' 
+              : replyPlainText;
+            replyIconText.innerHTML = '↩️ ' + displayText;
+          } else {
+            replyIconText.innerHTML = '↩️ [No text]';
+          }
+
+          replyHeader.appendChild(replyIconText);
+
+          const replyUserDate = document.createElement('div');
+          replyUserDate.style.cssText = `
+            text-align: right;
+            color: #666;
+            font-size: 10px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            line-height: 1.2;
+          `;
+
+          const replyDate = new Date(reply.timeStamp || reply.date);
+          const replyFormattedDate = !isNaN(replyDate.getTime())
+            ? replyDate.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })
+            : 'Invalid Date';
+
+          replyUserDate.textContent = `${reply.userName} - ${replyFormattedDate}`;
+          replyHeader.appendChild(replyUserDate);
+
+          replyRow.appendChild(replyHeader);
+          repliesContainer.appendChild(replyRow);
+        });
+
+        noteContainer.appendChild(repliesContainer);
+      }
+
+      // Create a temporary container for this note
+      const tempContainer = document.createElement('div');
+      tempContainer.style.cssText = `
+        position: fixed;
+        left: -9999px;
+        top: -9999px;
+        width: ${maxContentWidth}mm;
+        background: white;
+      `;
+      tempContainer.appendChild(noteContainer);
+      document.body.appendChild(tempContainer);
+
+      // Wait for images to load
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Capture this note as an image
+      const canvas = await html2canvas(noteContainer, {
+        scale: 2.0,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        onclone: (clonedDoc) => {
+          const images = clonedDoc.querySelectorAll('img');
+          const imagePromises = Array.from(images).map(img => {
+            if (img.complete) return Promise.resolve();
+            return new Promise(resolve => {
+              img.onload = resolve;
+              img.onerror = resolve;
+            });
+          });
+          return Promise.all(imagePromises);
+        }
+      });
+
+      // Remove temporary container
+      document.body.removeChild(tempContainer);
+
+      // Convert canvas to JPEG
+      const imgData = canvas.toDataURL('image/jpeg', 0.85);
+      
+      // Calculate image dimensions
+      const imgWidth = maxContentWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      // Check if this note will fit on current page
+      if (yPosition + imgHeight > pageHeight - margin - footerHeight) {
+        // Store current page state before adding new page
+        pageData.push({
+          pageNum: currentPage,
+          yPosition: yPosition
+        });
+        
+        pdf.addPage();
+        currentPage++;
+        yPosition = margin;
+        
+        // Add space at top of new pages
+        if (currentPage > 1) {
+          yPosition += 1;
+        }
+      }
+      
+      // Add the note image to PDF
+      pdf.addImage(imgData, 'JPEG', margin, yPosition, imgWidth, imgHeight);
+      
+      // Update yPosition for next note
+      yPosition += imgHeight + noteSpacing;
+    }
+
+    // Store final page state
+    pageData.push({
+      pageNum: currentPage,
+      yPosition: yPosition
+    });
+
+    // Add footer with page number to all pages
+    const totalPages = currentPage;
+    
+    for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+      pdf.setPage(pageNum);
+      
+      // Set page number style
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(100, 100, 100); // Gray color
+      
+      // Page number text
+      const pageNumberText = `Page ${pageNum} of ${totalPages}`;
+      const textWidth = pdf.getTextWidth(pageNumberText);
+      
+      // Center the page number at the bottom
+      const xPosition = (pageWidth - textWidth) / 2;
+      const yPosition = pageHeight - 10; // 10mm from bottom
+      
+      pdf.text(pageNumberText, xPosition, yPosition);
+    }
+
+    // Save PDF
+    const jobName = currentNote?.siteNote?.job || jobDetails?.name || `Job_${jobId || noteId}`;
+    const pdfFileName = jobName.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'notes';
+    pdf.save(`${pdfFileName}_notes.pdf`);
+
+    toast.success('PDF generated successfully!');
+
   } catch (error) {
-    console.error("Error generating PDF:", error);
-    toast.error("Failed to generate PDF");
+    console.error('Error generating PDF:', error);
+    toast.error('Failed to generate PDF');
   } finally {
     setPdfGenerating(false);
     setShowPrintDialog(false);
   }
 };
-
   const renderNoteImages = (noteId) => {
     const images = noteImages[noteId] || [];
     
@@ -988,10 +1523,6 @@ const generatePDF = async () => {
               <button className="header-button" onClick={() => setShowPrintDialog(true)}>
                 <i className="fas fa-print" />
               </button>
-{/* 
-              <button className="header-button">
-                <i className="fas fa-ellipsis-v" />
-              </button> */}
             </div>
           </div>
 
@@ -1068,16 +1599,19 @@ const generatePDF = async () => {
         </div>
       </div>
 
-      {showPrintDialog && (
-        <div className="print-dialog-overlay" onClick={() => setShowPrintDialog(false)}>
-          <div className="print-dialog" onClick={(e) => e.stopPropagation()}>
-            <h3>Print Notes to PDF</h3>
-            {pdfGenerating ? (
-              <div className="pdf-generating">
-                <i className="fas fa-spinner fa-spin" /> Generating PDF...
-              </div>
-            ) : (
-              <>
+     // Add this to your JSX section for the print dialog:
+  {showPrintDialog && (
+    <div className="print-dialog-overlay" onClick={() => setShowPrintDialog(false)}>
+      <div className="print-dialog" onClick={(e) => e.stopPropagation()}>
+        <h3>Print Notes to PDF</h3>
+        {pdfGenerating ? (
+          <div className="pdf-generating">
+            <i className="fas fa-spinner fa-spin" /> Generating PDF...
+          </div>
+        ) : (
+          <>
+            <div className="print-options">
+              <div className="print-option-group">
                 <label>
                   Maximum number of recent notes:
                   <input
@@ -1085,17 +1619,26 @@ const generatePDF = async () => {
                     value={maxNotes}
                     onChange={(e) => setMaxNotes(e.target.value)}
                     placeholder="All"
+                    className="notes-input"
                   />
                 </label>
-                <div className="buttons">
-                  <button onClick={generatePDF}>Generate PDF</button>
-                  <button onClick={() => setShowPrintDialog(false)}>Cancel</button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+              </div>
+              
+            </div>
+            
+            <div className="buttons">
+              <button className="generate-btn" onClick={generatePDF}>
+                <i className="fas fa-file-pdf" /> Generate PDF
+              </button>
+              <button className="cancel-btn" onClick={() => setShowPrintDialog(false)}>
+                Cancel
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )}
 
       {lightboxOpen && currentLightboxImage && (
         <div className="fullscreen-lightbox">

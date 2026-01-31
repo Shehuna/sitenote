@@ -4,6 +4,7 @@ import Modal from './Modal';
 import './NewNoteModal.css';
 import toast from 'react-hot-toast';
 import * as signalR from "@microsoft/signalr";
+import 'emoji-picker-element';
 
 const NewNoteModal = forwardRef(({
     isOpen,
@@ -61,6 +62,11 @@ const NewNoteModal = forwardRef(({
     // Rich text editor states - KEEP ONLY rich text
     const [richTextContent, setRichTextContent] = useState('');
     const [pastedImages, setPastedImages] = useState([]); // Store pasted images as Base64
+
+    // Emoji picker states
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const emojiPickerRef = useRef(null);
+    const emojiButtonRef = useRef(null);
 
     const editorRef = useRef(null);
     const hasFocusedRef = useRef(false);
@@ -123,6 +129,154 @@ const NewNoteModal = forwardRef(({
             };
         }
     }, [isOpen, isReadOnly]);
+
+    // Initialize emoji picker
+// Replace the entire emoji picker useEffect with this:
+useEffect(() => {
+    if (isOpen && !isReadOnly) {
+        let handleClickOutside;
+        
+        if (emojiPickerRef.current) {
+            // Add debugging to see what event is received
+            const handleEmojiClick = (event) => {
+                console.log('Emoji click event received:', event);
+                console.log('Event type:', event.type);
+                console.log('Event detail:', event.detail);
+                console.log('Event target:', event.target);
+                
+                if (!editorRef.current || isReadOnly) return;
+                
+                // Try different ways to extract the emoji
+                let emojiChar = '';
+                
+                // Method 1: Check event.detail directly
+                if (event.detail) {
+                    console.log('event.detail structure:', event.detail);
+                    
+                    // Try to extract emoji from different possible structures
+                    if (typeof event.detail === 'string') {
+                        emojiChar = event.detail;
+                        console.log('Found string emoji:', emojiChar);
+                    } else if (event.detail.unicode) {
+                        emojiChar = event.detail.unicode;
+                        console.log('Found unicode emoji:', emojiChar);
+                    } else if (event.detail.native) {
+                        emojiChar = event.detail.native;
+                        console.log('Found native emoji:', emojiChar);
+                    } else if (event.detail.emoji) {
+                        emojiChar = event.detail.emoji;
+                        console.log('Found emoji property:', emojiChar);
+                    } else {
+                        // Try to stringify and extract
+                        const str = JSON.stringify(event.detail);
+                        console.log('Stringified detail:', str);
+                        
+                        // Try to find emoji in the string
+                        const emojiMatch = str.match(/["']?([\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}])["']?/u);
+                        if (emojiMatch) {
+                            emojiChar = emojiMatch[1];
+                            console.log('Extracted emoji from string:', emojiChar);
+                        }
+                    }
+                }
+                
+                // If still no emoji, try to get it from the target
+                if (!emojiChar && event.target) {
+                    console.log('Trying to get emoji from target:', event.target);
+                    
+                    // Check if target has data-emoji or similar attributes
+                    if (event.target.getAttribute('data-emoji')) {
+                        emojiChar = event.target.getAttribute('data-emoji');
+                        console.log('Found emoji in data-emoji:', emojiChar);
+                    } else if (event.target.textContent) {
+                        const text = event.target.textContent.trim();
+                        // Check if text contains an emoji
+                        const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
+                        const match = text.match(emojiRegex);
+                        if (match) {
+                            emojiChar = match[0];
+                            console.log('Found emoji in textContent:', emojiChar);
+                        }
+                    }
+                }
+                
+                // Fallback if we still can't find an emoji
+                if (!emojiChar) {
+                    emojiChar = '❓';
+                    console.log('Using fallback emoji');
+                }
+                
+                console.log('Final emoji character to insert:', emojiChar);
+                
+                // Insert emoji at cursor position
+                const selection = window.getSelection();
+                if (selection.rangeCount > 0) {
+                    const range = selection.getRangeAt(0);
+                    const emojiNode = document.createTextNode(emojiChar);
+                    range.deleteContents();
+                    range.insertNode(emojiNode);
+                    
+                    // Move cursor after the emoji
+                    range.setStartAfter(emojiNode);
+                    range.setEndAfter(emojiNode);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                    
+                    // Update content
+                    setRichTextContent(editorRef.current.innerHTML);
+                }
+                
+                // Close emoji picker
+                setShowEmojiPicker(false);
+                
+                // Focus back on editor
+                if (editorRef.current) {
+                    editorRef.current.focus();
+                }
+            };
+            
+            // Add event listener
+            emojiPickerRef.current.addEventListener('emoji-click', handleEmojiClick);
+            
+            // Also try to listen for click events on the picker itself
+            emojiPickerRef.current.addEventListener('click', (e) => {
+                console.log('Emoji picker click event:', e);
+                console.log('Clicked element:', e.target);
+                console.log('Clicked element class:', e.target.className);
+                console.log('Clicked element innerHTML:', e.target.innerHTML);
+            });
+            
+            // Store for cleanup
+            emojiPickerRef.current._handleEmojiClick = handleEmojiClick;
+            
+            // Set up click outside to close
+            handleClickOutside = (event) => {
+                if (showEmojiPicker && 
+                    emojiButtonRef.current && 
+                    !emojiButtonRef.current.contains(event.target) &&
+                    emojiPickerRef.current && 
+                    !emojiPickerRef.current.contains(event.target)) {
+                    setShowEmojiPicker(false);
+                }
+            };
+
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        
+        return () => {
+            // Cleanup event listener
+            if (emojiPickerRef.current && emojiPickerRef.current._handleEmojiClick) {
+                emojiPickerRef.current.removeEventListener('emoji-click', emojiPickerRef.current._handleEmojiClick);
+                delete emojiPickerRef.current._handleEmojiClick;
+            }
+            
+            // Cleanup click outside listener
+            if (handleClickOutside) {
+                document.removeEventListener('mousedown', handleClickOutside);
+            }
+        };
+    }
+}, [isOpen, showEmojiPicker, isReadOnly]);
 
     // Utility functions
     const getCurrentUser = () => {
@@ -366,6 +520,7 @@ const handleImageUpload = useCallback((e) => {
             setApiError(null);
             setPastedImages([]);
             setRichTextContent('');
+            setShowEmojiPicker(false); // Close emoji picker when modal closes
         }
     }, [isOpen]);
 
@@ -510,6 +665,7 @@ const handleImageUpload = useCallback((e) => {
             setIsSaving(false);
             setApiError(null);
             setPastedImages([]);
+            setShowEmojiPicker(false);
         }
     }, [isOpen, prefilledData]);
 
@@ -1326,7 +1482,7 @@ const handleImageUpload = useCallback((e) => {
         </div>
     );
 
-    // Editor toolbar component - SIMPLIFIED (no mode toggle)
+    // Editor toolbar component - UPDATED with emoji picker
     const renderEditorToolbar = () => (
         <div className="editor-toolbar">
             <div className="editor-formatting-tools">
@@ -1371,6 +1527,50 @@ const handleImageUpload = useCallback((e) => {
                     <i className="fas fa-list-ol"></i>
                 </button>
                 
+                {/* Emoji Picker Button */}
+                <div className="emoji-picker-wrapper" style={{ position: 'relative' }}>
+                    <button 
+                        ref={emojiButtonRef}
+                        onClick={() => !isReadOnly && setShowEmojiPicker(!showEmojiPicker)}
+                        title={isReadOnly ? "Read-only mode" : "Insert Emoji"}
+                        className={`emoji-button ${showEmojiPicker ? 'active' : ''} ${isReadOnly ? 'disabled' : ''}`}
+                        disabled={isReadOnly}
+                        type="button"
+                    >
+                        <i className="far fa-smile"></i>
+                    </button>
+                    
+                    {/* Emoji Picker Dropdown */}
+                    {showEmojiPicker && !isReadOnly && (
+                        <div className="emoji-picker-container">
+                            <emoji-picker 
+                                ref={emojiPickerRef}
+                                class="emoji-picker"
+                                style={{
+                                    '--background': '#ffffff',
+                                    '--border-color': '#e0e0e0',
+                                    '--border-radius': '8px',
+                                    '--button-active-background': '#f0f0f0',
+                                    '--button-hover-background': '#f5f5f5',
+                                    '--category-emoji-padding': '8px',
+                                    '--category-emoji-size': '24px',
+                                    '--category-font-color': '#666',
+                                    '--category-font-size': '13px',
+                                    '--indicator-color': '#007bff',
+                                    '--input-border-color': '#e0e0e0',
+                                    '--input-border-radius': '20px',
+                                    '--input-font-color': '#333',
+                                    '--input-placeholder-color': '#999',
+                                    '--num-columns': '8',
+                                    '--outline-color': '#007bff80',
+                                    width: '350px',
+                                    height: '400px'
+                                }}
+                            ></emoji-picker>
+                        </div>
+                    )}
+                </div>
+                
                 <div className="image-upload-wrapper">
                     <label 
                         htmlFor="image-upload" 
@@ -1388,22 +1588,23 @@ const handleImageUpload = useCallback((e) => {
                         />
                     </label>
                 </div>
-            <div className="documents-button-wrapper" style={{ position: 'relative' }}>
-                <button 
-                    onClick={() => setActiveTab('documents')} 
-                    title={`${documents.length} document${documents.length !== 1 ? 's' : ''} attached`}
-                    className={`documents-button ${activeTab === 'documents' ? 'active' : ''} ${isReadOnly ? 'disabled' : ''}`}
-                    disabled={isReadOnly}
-                >
-                    <i className="fas fa-paperclip"></i>
-                    {documents.length > 0 && (
-                        <span className="documents-badge">
-                            {documents.length}
-                        </span>
-                    )}
-                </button>
-            </div>
             
+                <div className="documents-button-wrapper" style={{ position: 'relative' }}>
+                    <button 
+                        onClick={() => setActiveTab('documents')} 
+                        title={`${documents.length} document${documents.length !== 1 ? 's' : ''} attached`}
+                        className={`documents-button ${activeTab === 'documents' ? 'active' : ''} ${isReadOnly ? 'disabled' : ''}`}
+                        disabled={isReadOnly}
+                    >
+                        <i className="fas fa-paperclip"></i>
+                        {documents.length > 0 && (
+                            <span className="documents-badge">
+                                {documents.length}
+                            </span>
+                        )}
+                    </button>
+                </div>
+                
                 <div className="priority-flag-container">
                     <button 
                         onClick={(e) => {

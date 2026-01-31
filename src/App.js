@@ -4,8 +4,8 @@ import Login from './components/Login';
 import Dashboard from "./components/Dashboard";
 import toast, { Toaster } from 'react-hot-toast';
 import "./App.css";
-import UserManagement from "./components/Users/UserManagement";
 import AdminDashboard from "./components/AdminDashboard";
+import CreateUser from "./components/Users/CreateUser";
 
 function App() {
   const [notes, setNotes] = useState([]);
@@ -584,7 +584,7 @@ function App() {
           />
           <Route
             path="/users/user-management"
-            element={<UserManagement />}
+            element={<CreateUser onLogin={handleLogin}/>}
           />
           <Route 
             path="/" 
