@@ -378,90 +378,88 @@ const AttachedFileModal = ({
                 </div>
 
                 <div className="afm-field">
-                  <label>File:</label>
-                  
-                  <div 
-                    ref={dragDropAreaRef}
-                    className={`drag-drop-area ${isDragOver ? 'drag-over' : ''} ${pasteIndicator ? 'paste-success' : ''}`}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                    tabIndex={0} 
-                    onClick={() => document.getElementById('fileInput')?.click()}
-                  >
-                    <div className="drag-drop-icon">
-                    {pasteIndicator ? '📋' : isDragOver ? '⬆️' : '📋'}
-                  </div>
-                    
-                    <p className="drag-drop-title">
-                    {pasteIndicator ? 'File Pasted Successfully!' : 
-                    isDragOver ? 'Drop file here' : 
-                    'Drag & Drop or Paste file here'}
-                  </p>
-                                    
-                                    <p className="drag-drop-subtitle">
-                    {pasteIndicator ? 'Ready to upload!' : 'You can also copy a file and paste (Ctrl+V) here'}
-                  </p>
-                    
-                    
-                  </div>
-
-                  <input
-                    id="fileInput"
-                    type="file"
-                    onChange={handleFileInputChange}
-                    disabled={isUploading}
-                    style={{ display: 'none' }}
-                  />
-
-                  <div style={{ textAlign: 'center', marginBottom: '16px' }}>
-                    <button
-                      type="button"
-                      onClick={() => document.getElementById('fileInput')?.click()}
-                      disabled={isUploading}
-                      style={{
-                        padding: '10px 20px',
-                        backgroundColor: '#f0f0f0',
-                        border: '1px solid #ddd',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '14px'
-                      }}
-                    >
-                      Or Choose File
-                    </button>
-                  </div>
-
-                  {newDocument.file && (
-                    <div className="file-preview">
-                      <div className="file-preview-header">
-                        <div>
-                          <div className="file-preview-name">
-                            {newDocument.file.name}
-                          </div>
-                          <div className="file-preview-details">
-                            Size: {(newDocument.file.size / 1024 / 1024).toFixed(2)} MB
-                          </div>
-                        </div>
-                        <button 
-                          onClick={() => setNewDocument(prev => ({ ...prev, file: null }))}
-                          
-                          disabled={isUploading}
-                          
-                        >
-                          ×
-                        </button>
+                <label>File:</label>
+                
+                <div 
+                  ref={dragDropAreaRef}
+                  className={`drag-drop-area ${isDragOver ? 'drag-over' : ''} ${pasteIndicator ? 'paste-success' : ''} ${isUploading ? 'uploading' : ''}`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  tabIndex={0} 
+                  onClick={() => !isUploading && document.getElementById('fileInput')?.click()}
+                >
+                  {/* Upload spinner overlay */}
+                  {isUploading && (
+                    <div className="upload-spinner-overlay">
+                      <div className="upload-spinner-container">
+                        <div className="upload-spinner"></div>
+                        <div className="upload-spinner-text">Uploading Document</div>
+                        {newDocument.file && (
+                          <>
+                            <div className="upload-spinner-filename">
+                              {newDocument.file.name}
+                            </div>
+                            
+                            <div className="upload-spinner-filename" style={{ fontSize: '12px', color: '#888' }}>
+                              Please wait...
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   )}
+                  
+                  <div className="drag-drop-content">
+                    <div className="drag-drop-icon">
+                      {isUploading ? '⏳' : pasteIndicator ? '📋' : isDragOver ? '⬆️' : '📋'}
+                    </div>
+                    
+                    <p className="drag-drop-title">
+                      {isUploading ? 'Upload in Progress...' : 
+                      pasteIndicator ? 'File Pasted Successfully!' : 
+                      isDragOver ? 'Drop file here' : 
+                      'Drag & Drop or Paste file here'}
+                    </p>
+                    
+                    <p className="drag-drop-subtitle">
+                      {isUploading ? 'Your file is being uploaded' : 
+                      pasteIndicator ? 'Ready to upload!' : 
+                      'You can also copy a file and paste (Ctrl+V) here'}
+                    </p>
+                  </div>
                 </div>
 
-                {isUploading && (
-                <div className="uploading-indicator">
-                  <div className="spinner"></div>
-                  Uploading {newDocument.file?.name}...
+                <input
+                  id="fileInput"
+                  type="file"
+                  onChange={handleFileInputChange}
+                  disabled={isUploading}
+                  style={{ display: 'none' }}
+                />
+
+                <div style={{ textAlign: 'center', marginBottom: '16px' }}>
+                  <button
+                    type="button"
+                    onClick={() => !isUploading && document.getElementById('fileInput')?.click()}
+                    disabled={isUploading}
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: isUploading ? '#e0e0e0' : '#f0f0f0',
+                      border: '1px solid #ddd',
+                      borderRadius: '6px',
+                      cursor: isUploading ? 'not-allowed' : 'pointer',
+                      fontSize: '14px',
+                      color: isUploading ? '#999' : '#333',
+                      opacity: isUploading ? 0.7 : 1
+                    }}
+                  >
+                    {isUploading ? 'Uploading...' : 'Or Choose File'}
+                  </button>
                 </div>
-              )}
+              </div>
+
+                
               </div>
 
               <div className="afm-footer">
@@ -480,9 +478,13 @@ const AttachedFileModal = ({
                   onClick={handleDocumentSubmit}
                   className="afm-save-button"
                   disabled={isUploading || !newDocument.name.trim() || !newDocument.file}
-                  style={{ backgroundColor: isUploading ? '#4caf50' : '' }}
                 >
-                  {isUploading ? `Uploading...` : 'Save Document'}
+                  {isUploading ? (
+                    <>
+                      <div className="spinner" style={{ display: 'inline-block', width: '16px', height: '16px', borderWidth: '2px', marginRight: '8px' }}></div>
+                      Uploading...
+                    </>
+                  ) : 'Save Document'}
                 </button>
               </div>
             </div>

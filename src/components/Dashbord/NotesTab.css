@@ -1848,7 +1848,7 @@ td span[style*="color: #95a5a6"]:hover {
   display: flex;
   gap: 12px; 
   padding: 8px 12px; 
-  min-width: 180px; 
+  min-width: 90px; 
 }
 
 .table-actions button {
