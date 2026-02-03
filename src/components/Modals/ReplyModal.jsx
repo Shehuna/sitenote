@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './ReplyModal.css';
 import toast from 'react-hot-toast';
+import 'emoji-picker-element';
 
 const ReplyModal = ({
   note,
@@ -22,6 +23,11 @@ const ReplyModal = ({
   const [pastedImages, setPastedImages] = useState([]);
   const [isContentExpanded, setIsContentExpanded] = useState(false);
 
+  // Emoji picker states - ADDED
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiPickerRef = useRef(null);
+  const emojiButtonRef = useRef(null);
+
   const editorRef = useRef(null);
   const fileInputRef = useRef(null);
   const modalRef = useRef(null);
@@ -38,6 +44,125 @@ const ReplyModal = ({
     'video/mpeg': ['.mpeg'], 'video/ogg': ['.ogv'], 'video/webm': ['.webm'],
     'video/quicktime': ['.mov'], 'video/x-msvideo': ['.avi']
   };
+
+  // Initialize emoji picker - ADDED
+  useEffect(() => {
+    if (emojiPickerRef.current) {
+      let handleClickOutside;
+      
+      if (emojiPickerRef.current) {
+        const handleEmojiClick = (event) => {
+          console.log('Emoji click event received:', event);
+          console.log('Event type:', event.type);
+          console.log('Event detail:', event.detail);
+          console.log('Event target:', event.target);
+          
+          if (!editorRef.current) return;
+          
+          let emojiChar = '';
+          
+          if (event.detail) {
+            console.log('event.detail structure:', event.detail);
+            
+            if (typeof event.detail === 'string') {
+              emojiChar = event.detail;
+              console.log('Found string emoji:', emojiChar);
+            } else if (event.detail.unicode) {
+              emojiChar = event.detail.unicode;
+              console.log('Found unicode emoji:', emojiChar);
+            } else if (event.detail.native) {
+              emojiChar = event.detail.native;
+              console.log('Found native emoji:', emojiChar);
+            } else if (event.detail.emoji) {
+              emojiChar = event.detail.emoji;
+              console.log('Found emoji property:', emojiChar);
+            } else {
+              const str = JSON.stringify(event.detail);
+              console.log('Stringified detail:', str);
+              
+              const emojiMatch = str.match(/["']?([\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}])["']?/u);
+              if (emojiMatch) {
+                emojiChar = emojiMatch[1];
+                console.log('Extracted emoji from string:', emojiChar);
+              }
+            }
+          }
+          
+          if (!emojiChar && event.target) {
+            console.log('Trying to get emoji from target:', event.target);
+            
+            if (event.target.getAttribute('data-emoji')) {
+              emojiChar = event.target.getAttribute('data-emoji');
+              console.log('Found emoji in data-emoji:', emojiChar);
+            } else if (event.target.textContent) {
+              const text = event.target.textContent.trim();
+              const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
+              const match = text.match(emojiRegex);
+              if (match) {
+                emojiChar = match[0];
+                console.log('Found emoji in textContent:', emojiChar);
+              }
+            }
+          }
+          
+          if (!emojiChar) {
+            emojiChar = '❓';
+            console.log('Using fallback emoji');
+          }
+          
+          console.log('Final emoji character to insert:', emojiChar);
+          
+          const selection = window.getSelection();
+          if (selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            const emojiNode = document.createTextNode(emojiChar);
+            range.deleteContents();
+            range.insertNode(emojiNode);
+            
+            range.setStartAfter(emojiNode);
+            range.setEndAfter(emojiNode);
+            selection.removeAllRanges();
+            selection.addRange(range);
+            
+            setRichTextContent(editorRef.current.innerHTML);
+          }
+          
+          setShowEmojiPicker(false);
+          
+          if (editorRef.current) {
+            editorRef.current.focus();
+          }
+        };
+        
+        emojiPickerRef.current.addEventListener('emoji-click', handleEmojiClick);
+        
+        emojiPickerRef.current._handleEmojiClick = handleEmojiClick;
+        
+        handleClickOutside = (event) => {
+          if (showEmojiPicker && 
+              emojiButtonRef.current && 
+              !emojiButtonRef.current.contains(event.target) &&
+              emojiPickerRef.current && 
+              !emojiPickerRef.current.contains(event.target)) {
+            setShowEmojiPicker(false);
+          }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+      }
+      
+      return () => {
+        if (emojiPickerRef.current && emojiPickerRef.current._handleEmojiClick) {
+          emojiPickerRef.current.removeEventListener('emoji-click', emojiPickerRef.current._handleEmojiClick);
+          delete emojiPickerRef.current._handleEmojiClick;
+        }
+        
+        if (handleClickOutside) {
+          document.removeEventListener('mousedown', handleClickOutside);
+        }
+      };
+    }
+  }, [showEmojiPicker]);
 
   const getCurrentUser = () => {
     const user = JSON.parse(localStorage.getItem('user'));
@@ -729,6 +854,7 @@ const ReplyModal = ({
     setErrors({});
   };
 
+  // Editor toolbar component with emoji picker - UPDATED
   const renderEditorToolbar = () => (
     <div className="editor-toolbar">
       <div className="editor-formatting-tools">
@@ -767,6 +893,49 @@ const ReplyModal = ({
         >
           <i className="fas fa-list-ol"></i>
         </button>
+        
+        {/* Emoji Picker Button - ADDED */}
+        <div className="emoji-picker-wrapper" style={{ position: 'relative' }}>
+          <button 
+            ref={emojiButtonRef}
+            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+            title="Insert Emoji"
+            className={`emoji-button ${showEmojiPicker ? 'active' : ''}`}
+            type="button"
+          >
+            <i className="far fa-smile"></i>
+          </button>
+          
+          {/* Emoji Picker Dropdown */}
+          {showEmojiPicker && (
+            <div className="emoji-picker-container">
+              <emoji-picker 
+                ref={emojiPickerRef}
+                class="emoji-picker"
+                style={{
+                  '--background': '#ffffff',
+                  '--border-color': '#e0e0e0',
+                  '--border-radius': '8px',
+                  '--button-active-background': '#f0f0f0',
+                  '--button-hover-background': '#f5f5f5',
+                  '--category-emoji-padding': '8px',
+                  '--category-emoji-size': '24px',
+                  '--category-font-color': '#666',
+                  '--category-font-size': '13px',
+                  '--indicator-color': '#007bff',
+                  '--input-border-color': '#e0e0e0',
+                  '--input-border-radius': '20px',
+                  '--input-font-color': '#333',
+                  '--input-placeholder-color': '#999',
+                  '--num-columns': '8',
+                  '--outline-color': '#007bff80',
+                  width: '350px',
+                  height: '400px'
+                }}
+              ></emoji-picker>
+            </div>
+          )}
+        </div>
         
         <div className="image-upload-wrapper">
           <label 

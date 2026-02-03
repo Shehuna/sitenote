@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import './DashboardHeader.css'
 
 const DashboardHeader = ({
@@ -22,6 +22,12 @@ const DashboardHeader = ({
 }) => {
   const hasActiveFilters = getActiveFilterCount() > 0;
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  
+  // Range selection state (UI only - functionality disabled)
+  const [rangeMode, setRangeMode] = useState(false);
+  const [rangeStart, setRangeStart] = useState(null);
+  const [rangeEnd, setRangeEnd] = useState(null);
+  const [hoveredDate, setHoveredDate] = useState(null);
   
   // Get available dates from props
   const getAvailableDates = () => {
@@ -73,34 +79,119 @@ const DashboardHeader = ({
     return selectedFilters.date?.includes(dateStr) || false;
   };
 
-  // Handle date selection
-  const handleDateSelect = (date) => {
-    if (!dateHasData(date)) return; // Only allow selection if date has data
+  // UI-only function to check if date is in range (for visual display)
+  const isDateInRange = (date) => {
+    if (!rangeStart || !rangeEnd) return false;
     
     const dateStr = formatDateForComparison(date);
+    const startStr = formatDateForComparison(rangeStart);
+    const endStr = formatDateForComparison(rangeEnd);
     
-    // Find the option object for this date
-    const dateOptions = getFilterOptions("date") || [];
-    const option = dateOptions.find(opt => {
-      const optDateStr = (opt.id || opt.text || '').split('T')[0];
-      return optDateStr === dateStr;
-    });
+    const dateTime = new Date(dateStr).getTime();
+    const startTime = new Date(startStr).getTime();
+    const endTime = new Date(endStr).getTime();
     
-    // Toggle date selection
-    if (selectedFilters.date?.includes(dateStr)) {
-      removeFilter('date', dateStr);
+    const sortedStart = Math.min(startTime, endTime);
+    const sortedEnd = Math.max(startTime, endTime);
+    
+    return dateTime >= sortedStart && dateTime <= sortedEnd;
+  };
+
+  // UI-only function to check if date is range start
+  const isRangeStart = (date) => {
+    if (!rangeStart) return false;
+    const dateStr = formatDateForComparison(date);
+    const startStr = formatDateForComparison(rangeStart);
+    return dateStr === startStr;
+  };
+
+  // UI-only function to check if date is range end
+  const isRangeEnd = (date) => {
+    if (!rangeEnd) return false;
+    const dateStr = formatDateForComparison(date);
+    const endStr = formatDateForComparison(rangeEnd);
+    return dateStr === endStr;
+  };
+
+  // UI-only function to check if date is in hover range
+  const isDateInHoverRange = (date) => {
+    if (!rangeStart || !hoveredDate) return false;
+    if (rangeEnd) return false;
+    
+    const dateStr = formatDateForComparison(date);
+    const startStr = formatDateForComparison(rangeStart);
+    const hoverStr = formatDateForComparison(hoveredDate);
+    
+    const dateTime = new Date(dateStr).getTime();
+    const startTime = new Date(startStr).getTime();
+    const hoverTime = new Date(hoverStr).getTime();
+    
+    const sortedStart = Math.min(startTime, hoverTime);
+    const sortedEnd = Math.max(startTime, hoverTime);
+    
+    return dateTime >= sortedStart && dateTime <= sortedEnd;
+  };
+
+  // Handle date selection - range functionality disabled
+  const handleDateSelect = (date) => {
+    if (!dateHasData(date)) return;
+    
+    if (rangeMode) {
+      // UI-only range selection (no actual filtering)
+      if (!rangeStart) {
+        // First click - set start date
+        setRangeStart(date);
+      } else if (!rangeEnd) {
+        // Second click - set end date
+        setRangeEnd(date);
+      } else {
+        // Third click - reset and start new range
+        setRangeStart(date);
+        setRangeEnd(null);
+        setHoveredDate(null);
+      }
     } else {
-      handleFilterCheckboxChange('date', dateStr, {
-        id: dateStr,
-        text: dateStr,
-        displayText: option?.displayText || new Date(dateStr).toLocaleDateString('en-US', {
-          weekday: 'short',
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric'
-        })
+      // Original single date selection (functional)
+      const dateStr = formatDateForComparison(date);
+      
+      // Find the option object for this date
+      const dateOptions = getFilterOptions("date") || [];
+      const option = dateOptions.find(opt => {
+        const optDateStr = (opt.id || opt.text || '').split('T')[0];
+        return optDateStr === dateStr;
       });
+      
+      // Toggle date selection
+      if (selectedFilters.date?.includes(dateStr)) {
+        removeFilter('date', dateStr);
+      } else {
+        handleFilterCheckboxChange('date', dateStr, {
+          id: dateStr,
+          text: dateStr,
+          displayText: option?.displayText || new Date(dateStr).toLocaleDateString('en-US', {
+            weekday: 'short',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+          })
+        });
+      }
     }
+  };
+
+  // Toggle range mode
+  const toggleRangeMode = () => {
+    setRangeMode(!rangeMode);
+    setRangeStart(null);
+    setRangeEnd(null);
+    setHoveredDate(null);
+  };
+
+  // Clear range selection (UI only)
+  const clearRangeSelection = () => {
+    setRangeStart(null);
+    setRangeEnd(null);
+    setHoveredDate(null);
   };
 
   // Render calendar
@@ -131,7 +222,12 @@ const DashboardHeader = ({
       const hasData = dateHasData(date);
       const isSelected = isDateSelected(date);
       const isToday = formatDateForComparison(date) === formatDateForComparison(new Date());
-      const isInPast = date < new Date(new Date().setHours(0, 0, 0, 0)); // Check if date is before today
+      const isInPast = date < new Date(new Date().setHours(0, 0, 0, 0));
+      
+      // Range selection states (UI only)
+      const inRange = rangeMode && (isDateInRange(date) || isDateInHoverRange(date));
+      const isStart = rangeMode && isRangeStart(date);
+      const isEnd = rangeMode && isRangeEnd(date);
       
       days.push(
         <div
@@ -140,8 +236,13 @@ const DashboardHeader = ({
             ${hasData ? 'has-data' : 'no-data'} 
             ${isSelected ? 'selected' : ''} 
             ${isToday ? 'today' : ''}
-            ${isInPast && !hasData ? 'past-date' : ''}`}
+            ${isInPast && !hasData ? 'past-date' : ''}
+            ${inRange ? 'in-range' : ''}
+            ${isStart ? 'range-start' : ''}
+            ${isEnd ? 'range-end' : ''}`}
           onClick={() => hasData && handleDateSelect(date)}
+          onMouseEnter={() => hasData && rangeMode && !rangeEnd && setHoveredDate(date)}
+          onMouseLeave={() => hasData && rangeMode && !rangeEnd && setHoveredDate(null)}
           title={
             hasData 
               ? `Select ${date.toLocaleDateString()}`
@@ -153,12 +254,15 @@ const DashboardHeader = ({
           {day}
           {hasData && <span className="data-indicator" title="Has site note data"></span>}
           {isSelected && <span className="selection-indicator" title="Selected"></span>}
+          {isStart && <span className="range-indicator start" title="Range start"></span>}
+          {isEnd && <span className="range-indicator end" title="Range end"></span>}
         </div>
       );
     }
     
     return (
       <div className="calendar-container">
+        {/* Calendar Header with Month Navigation */}
         <div className="calendar-header">
           <button 
             className="calendar-nav-btn" 
@@ -182,15 +286,75 @@ const DashboardHeader = ({
           </button>
         </div>
         
+        {/* Range Toggle Button - Placed under month section */}
+        <div className="range-toggle-section">
+          <button
+            className={`range-toggle-btn ${rangeMode ? 'active' : ''}`}
+            onClick={toggleRangeMode}
+            title={rangeMode ? "Switch to single date selection" : "Switch to date range selection"}
+          >
+            <i className={`fas ${rangeMode ? 'fa-calendar-week' : 'fa-calendar-day'}`} />
+            {rangeMode ? 'Range Selection' : 'Single Selection'}
+          </button>
+        </div>
+        
+        {/* Range Selection Info (when in range mode) */}
+        {rangeMode && (rangeStart || rangeEnd) && (
+          <div className="range-selection-info">
+            <div className="range-info">
+              <span className="range-label">Range:</span>
+              <span className="range-dates">
+                {rangeStart && (
+                  <span className="range-date start">
+                    {rangeStart.toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric'
+                    })}
+                  </span>
+                )}
+                {rangeStart && rangeEnd && (
+                  <span className="range-separator">
+                    <i className="fas fa-arrow-right" />
+                  </span>
+                )}
+                {rangeEnd && (
+                  <span className="range-date end">
+                    {rangeEnd.toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric'
+                    })}
+                  </span>
+                )}
+              </span>
+            </div>
+           
+            {(rangeStart || rangeEnd) && (
+              <button 
+                className="range-action-btn clear"
+                onClick={clearRangeSelection}
+                title="Clear range selection"
+              >
+                <i className="fas fa-times" /> 
+              </button>
+            )}
+          </div>
+        )}
+        
+        {/* Weekday Headers */}
         <div className="calendar-weekdays">
           {weekdays.map(day => (
             <div key={day} className="weekday-header">{day}</div>
           ))}
         </div>
         
+        {/* Calendar Days */}
         <div className="calendar-days">
           {days}
         </div>
+        
+        {/* Range Mode Instructions */}
         
       </div>
     );

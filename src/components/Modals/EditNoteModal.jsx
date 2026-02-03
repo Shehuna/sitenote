@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import "./EditNoteModal.css";
 import toast from "react-hot-toast";
+import 'emoji-picker-element';
 
 const EditNoteModal = ({
   note,
@@ -58,12 +59,17 @@ const EditNoteModal = ({
   const isInitialLoad = useRef(true);
   const lastRichTextContent = useRef('');
   const hasSetContent = useRef(false);
-  const hasFocused = useRef(false); // CORRECTED: Added const declaration
+  const hasFocused = useRef(false);
   const hasScrolledToEditor = useRef(false);
   
   // NEW: Add flags to track if data has been fetched
   const hasFetchedData = useRef(false);
   const isFetchingData = useRef(false);
+
+  // Emoji picker states - ADDED
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiPickerRef = useRef(null);
+  const emojiButtonRef = useRef(null);
 
   // Get current user
   const getCurrentUser = () => {
@@ -103,6 +109,126 @@ const EditNoteModal = ({
   };
 
   const isValidFileType = (file) => Object.keys(allowedFileTypes).includes(file.type);
+
+  // Initialize emoji picker - ADDED
+  useEffect(() => {
+    if (emojiPickerRef.current && canEditNote && isEditable) {
+      let handleClickOutside;
+      
+      if (emojiPickerRef.current) {
+        const handleEmojiClick = (event) => {
+          console.log('Emoji click event received:', event);
+          console.log('Event type:', event.type);
+          console.log('Event detail:', event.detail);
+          console.log('Event target:', event.target);
+          
+          if (!editorRef.current || !canEditNote || !isEditable) return;
+          
+          let emojiChar = '';
+          
+          if (event.detail) {
+            console.log('event.detail structure:', event.detail);
+            
+            if (typeof event.detail === 'string') {
+              emojiChar = event.detail;
+              console.log('Found string emoji:', emojiChar);
+            } else if (event.detail.unicode) {
+              emojiChar = event.detail.unicode;
+              console.log('Found unicode emoji:', emojiChar);
+            } else if (event.detail.native) {
+              emojiChar = event.detail.native;
+              console.log('Found native emoji:', emojiChar);
+            } else if (event.detail.emoji) {
+              emojiChar = event.detail.emoji;
+              console.log('Found emoji property:', emojiChar);
+            } else {
+              const str = JSON.stringify(event.detail);
+              console.log('Stringified detail:', str);
+              
+              const emojiMatch = str.match(/["']?([\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}])["']?/u);
+              if (emojiMatch) {
+                emojiChar = emojiMatch[1];
+                console.log('Extracted emoji from string:', emojiChar);
+              }
+            }
+          }
+          
+          if (!emojiChar && event.target) {
+            console.log('Trying to get emoji from target:', event.target);
+            
+            if (event.target.getAttribute('data-emoji')) {
+              emojiChar = event.target.getAttribute('data-emoji');
+              console.log('Found emoji in data-emoji:', emojiChar);
+            } else if (event.target.textContent) {
+              const text = event.target.textContent.trim();
+              const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
+              const match = text.match(emojiRegex);
+              if (match) {
+                emojiChar = match[0];
+                console.log('Found emoji in textContent:', emojiChar);
+              }
+            }
+          }
+          
+          if (!emojiChar) {
+            emojiChar = '❓';
+            console.log('Using fallback emoji');
+          }
+          
+          console.log('Final emoji character to insert:', emojiChar);
+          
+          const selection = window.getSelection();
+          if (selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            const emojiNode = document.createTextNode(emojiChar);
+            range.deleteContents();
+            range.insertNode(emojiNode);
+            
+            range.setStartAfter(emojiNode);
+            range.setEndAfter(emojiNode);
+            selection.removeAllRanges();
+            selection.addRange(range);
+            
+            setRichTextContent(editorRef.current.innerHTML);
+            lastRichTextContent.current = editorRef.current.innerHTML;
+          }
+          
+          setShowEmojiPicker(false);
+          
+          if (editorRef.current) {
+            editorRef.current.focus();
+          }
+        };
+        
+        emojiPickerRef.current.addEventListener('emoji-click', handleEmojiClick);
+        
+        emojiPickerRef.current._handleEmojiClick = handleEmojiClick;
+        
+        handleClickOutside = (event) => {
+          if (showEmojiPicker && 
+              emojiButtonRef.current && 
+              !emojiButtonRef.current.contains(event.target) &&
+              emojiPickerRef.current && 
+              !emojiPickerRef.current.contains(event.target)) {
+            setShowEmojiPicker(false);
+          }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+      }
+      
+      return () => {
+        if (emojiPickerRef.current && emojiPickerRef.current._handleEmojiClick) {
+          emojiPickerRef.current.removeEventListener('emoji-click', emojiPickerRef.current._handleEmojiClick);
+          delete emojiPickerRef.current._handleEmojiClick;
+        }
+        
+        if (handleClickOutside) {
+          document.removeEventListener('mousedown', handleClickOutside);
+        }
+      };
+    }
+  }, [showEmojiPicker, canEditNote, isEditable]);
 
   // Fetch priority by note ID
   const fetchPriorityByNoteId = useCallback(async (noteId) => {
@@ -221,7 +347,6 @@ const EditNoteModal = ({
     console.log('Fetching all note data for note:', noteData.id);
     
     try {
-      // Fetch priority, inline images, and documents in parallel
       const [priorityData, imagesData, documentsData] = await Promise.all([
         fetchPriorityByNoteId(noteData.id),
         fetchInlineImages(noteData.id),
@@ -230,7 +355,6 @@ const EditNoteModal = ({
       
       console.log('All data fetched:', { priorityData, imagesData, documentsData });
       
-      // Set existing images
       if (imagesData && Array.isArray(imagesData)) {
         setExistingImages(imagesData);
       }
@@ -321,7 +445,6 @@ const EditNoteModal = ({
   // Load note data - MAIN EFFECT - optimized
   useEffect(() => {
     if (note && !hasFetchedData.current) {
-      // Format date for input field
       let correctedDate = "";
       if (note.date) {
         const dateObj = new Date(note.date);
@@ -333,7 +456,6 @@ const EditNoteModal = ({
       
       const user = JSON.parse(localStorage.getItem("user"));
 
-      // Set journal data directly from note prop
       setJournalData({
         date: correctedDate,
         projectId: note.projectId?.toString() || "",
@@ -343,13 +465,10 @@ const EditNoteModal = ({
         workspaceId: note.workspaceId?.toString() || ""
       });
 
-      // Store original note content
       setOriginalNoteContent(note.note || '');
       
-      // Fetch all note data (priority, images, documents) - SINGLE CALL
       fetchAllNoteData(note);
       
-      // Set initial rich text content
       let content = note.note || '';
       
       if (content && !content.includes('<') && !content.includes('>')) {
@@ -359,13 +478,11 @@ const EditNoteModal = ({
       setRichTextContent(content);
       lastRichTextContent.current = content;
       
-      // Set editor content
       const setEditorContent = () => {
         if (editorRef.current) {
           editorRef.current.innerHTML = content;
           hasSetContent.current = true;
           
-          // Scroll modal to show editor, then focus with cursor at end
           setTimeout(() => {
             if (editorRef.current && !hasScrolledToEditor.current) {
               scrollModalToEditor();
@@ -385,7 +502,6 @@ const EditNoteModal = ({
     }
     
     return () => {
-      // Reset flags when component unmounts
       hasFetchedData.current = false;
       isFetchingData.current = false;
       hasFocused.current = false;
@@ -399,10 +515,8 @@ const EditNoteModal = ({
     if (existingImages.length > 0 && editorRef.current && hasSetContent.current) {
       const content = editorRef.current.innerHTML;
       
-      // Check if images are already added
       const hasImages = content.includes('image-wrapper');
       if (!hasImages) {
-        // Append images as separate wrappers
         const imageHtml = existingImages.map(img => {
           const imageUrl = img.url.startsWith('http') ? img.url : 
             `${process.env.REACT_APP_API_BASE_URL}${img.url}`;
@@ -418,13 +532,11 @@ const EditNoteModal = ({
           `;
         }).join('');
         
-        // Append images directly after text content
         const newContent = content + imageHtml;
         editorRef.current.innerHTML = newContent;
         setRichTextContent(newContent);
         lastRichTextContent.current = newContent;
         
-        // Add click handlers
         addImageClickHandlers();
       }
     }
@@ -980,7 +1092,6 @@ const EditNoteModal = ({
           await handleUpdatepriority();
         }
         onClose(noteIdToReturn);
-        //refreshNotes();
         return;
       }
 
@@ -989,7 +1100,6 @@ const EditNoteModal = ({
           await handleUpdatepriority();
         }
         onClose(noteIdToReturn);
-        //refreshNotes();
         return;
       }
 
@@ -1015,7 +1125,6 @@ const EditNoteModal = ({
       if (result && (result.success || result.id || result.message)) {
         const user = getCurrentUser();
         
-        // Delete images marked for deletion
         for (const imageId of imagesToDelete) {
           try {
             await deleteInlineImage(imageId);
@@ -1026,7 +1135,6 @@ const EditNoteModal = ({
           }
         }
         
-        // Upload new pasted images separately
         if (pastedImages.length > 0) {
           const imageUploadPromises = pastedImages.map(async (image, index) => {
             try {
@@ -1070,18 +1178,14 @@ const EditNoteModal = ({
           }
         }
         
-        // Update priority if it exists
         if (priorityId) {
           await handleUpdatepriority();
         }
         onClose(noteIdToReturn);
         
-        // UPDATED: Refresh based on filter status
         if (hasActiveFilters && fetchNotesWithFilters) {
-          // If filters are active, refresh filtered notes
           await fetchNotesWithFilters(selectedFilters);
         } else {
-          // Otherwise, use the normal refresh
           await refreshNotes();
         }
         
@@ -1130,12 +1234,10 @@ const EditNoteModal = ({
       try {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } catch (_) {
-        // ignore
       }
     }
   }, [error]);
 
-  // UPDATED: Only update priority, no add operation
   const handleUpdatepriority = async () => {
     if (!priorityId) {
       console.log('No priority ID, skipping priority update');
@@ -1266,7 +1368,10 @@ const EditNoteModal = ({
       setIsSubmitting(false);
     }, 1000);
   };
+  
   const handlePriorityClick = () => {
+    if (!canEditNote || !isEditable) return;
+    
     let nextPriority;
     if (selectedPriority === '1') {
         nextPriority = '3'; 
@@ -1278,9 +1383,9 @@ const EditNoteModal = ({
     
     setSelectedPriority(nextPriority);
     toast.success(`Priority set to ${nextPriority === '4' ? 'High' : nextPriority === '3' ? 'Medium' : 'No Priority'}`);
-};
+  };
 
-  // Editor toolbar component with disabled clear button
+  // Editor toolbar component with emoji picker - UPDATED
   const renderEditorToolbar = () => (
     <div className="editor-toolbar">
       <div className="editor-formatting-tools">
@@ -1325,8 +1430,56 @@ const EditNoteModal = ({
           <i className="fas fa-list-ol"></i>
         </button>
         
+        {/* Emoji Picker Button - ADDED */}
+        <div className="emoji-picker-wrapper" style={{ position: 'relative' }}>
+          <button 
+            ref={emojiButtonRef}
+            onClick={() => canEditNote && isEditable && setShowEmojiPicker(!showEmojiPicker)}
+            title={!isEditable || !canEditNote ? "View only - Cannot add emojis" : "Insert Emoji"}
+            className={`emoji-button ${showEmojiPicker ? 'active' : ''} ${!isEditable || !canEditNote ? 'disabled' : ''}`}
+            disabled={!isEditable || !canEditNote}
+            type="button"
+          >
+            <i className="far fa-smile"></i>
+          </button>
+          
+          {/* Emoji Picker Dropdown */}
+          {showEmojiPicker && canEditNote && isEditable && (
+            <div className="emoji-picker-container">
+              <emoji-picker 
+                ref={emojiPickerRef}
+                class="emoji-picker"
+                style={{
+                  '--background': '#ffffff',
+                  '--border-color': '#e0e0e0',
+                  '--border-radius': '8px',
+                  '--button-active-background': '#f0f0f0',
+                  '--button-hover-background': '#f5f5f5',
+                  '--category-emoji-padding': '8px',
+                  '--category-emoji-size': '24px',
+                  '--category-font-color': '#666',
+                  '--category-font-size': '13px',
+                  '--indicator-color': '#007bff',
+                  '--input-border-color': '#e0e0e0',
+                  '--input-border-radius': '20px',
+                  '--input-font-color': '#333',
+                  '--input-placeholder-color': '#999',
+                  '--num-columns': '8',
+                  '--outline-color': '#007bff80',
+                  width: '350px',
+                  height: '400px'
+                }}
+              ></emoji-picker>
+            </div>
+          )}
+        </div>
+        
         <div className="image-upload-wrapper">
-          <label htmlFor="image-upload" className="image-upload-button" title="Upload Image">
+          <label 
+            htmlFor="image-upload" 
+            className={`image-upload-button ${!isEditable || !canEditNote ? 'disabled' : ''}`} 
+            title={!isEditable || !canEditNote ? "View only - Cannot upload images" : "Upload Image"}
+          >
             <i className="fas fa-image"></i>
             <input
               id="image-upload"
@@ -1338,42 +1491,44 @@ const EditNoteModal = ({
             />
           </label>
         </div>
-         <div className="documents-button-wrapper" style={{ position: 'relative' }}>
-                <button 
-                    onClick={() => setActiveTab('documents')} 
-                    title={`${documents.length} document${documents.length !== 1 ? 's' : ''} attached`}
-                    className={`documents-button ${activeTab === 'documents' ? 'active' : ''} ''}`}
-                    
-                >
-                    <i className="fas fa-paperclip"></i>
-                    {documents.length > 0 && (
-                        <span className="documents-badge">
-                            {documents.length}
-                        </span>
-                    )}
-                </button>
-            </div>
+        
+        <div className="documents-button-wrapper" style={{ position: 'relative' }}>
+          <button 
+            onClick={() => setActiveTab('documents')} 
+            title={`${documents.length} document${documents.length !== 1 ? 's' : ''} attached`}
+            className={`documents-button ${activeTab === 'documents' ? 'active' : ''} ${!isEditable || !canEditNote ? 'disabled' : ''}`}
+            disabled={!isEditable || !canEditNote}
+          >
+            <i className="fas fa-paperclip"></i>
+            {documents.length > 0 && (
+              <span className="documents-badge">
+                {documents.length}
+              </span>
+            )}
+          </button>
+        </div>
+        
+        <div className="priority-flag-container">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              handlePriorityClick();
+            }}
+            title={`${selectedPriority === '1' ? 'No Priority - Click to set' : 
+                    selectedPriority === '3' ? 'Medium Priority - Click to change' : 
+                    'High Priority - Click to change'}`}
+            className={`priority-flag-button priority-${selectedPriority} ${selectedPriority > 1 ? 'has-priority' : ''} ${!isEditable || !canEditNote ? 'disabled' : ''}`}
+            disabled={!isEditable || !canEditNote}
+          >
+            <i className="fas fa-flag"></i>
             
-            <div className="priority-flag-container">
-                <button 
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        handlePriorityClick();
-                    }}
-                    title={`${selectedPriority === '1' ? 'No Priority - Click to set' : 
-                            selectedPriority === '3' ? 'Medium Priority - Click to change' : 
-                            'High Priority - Click to change'}`}
-                    className={`priority-flag-button priority-${selectedPriority} ${selectedPriority > 1 ? 'has-priority' : ''}`}
-                >
-                    <i className="fas fa-flag"></i>
-                    
-                    {selectedPriority > 1 && (
-                        <div
-                            className={`priority-flag-dot priority-${selectedPriority}`}
-                        />
-                    )}
-                </button>
-            </div>
+            {selectedPriority > 1 && (
+              <div
+                className={`priority-flag-dot priority-${selectedPriority}`}
+              />
+            )}
+          </button>
+        </div>
         
         <button 
           onClick={clearEditor} 
@@ -1540,7 +1695,6 @@ const EditNoteModal = ({
             ×
           </button>
         </div>
-        {/* Top error banner: visible when `error` state is set */}
         {error && (
           <div className="error-message" style={{ margin: '10px 20px', padding: '12px', borderRadius: '6px', background: '#ffebee' }}>
             {error}
@@ -1617,7 +1771,6 @@ const EditNoteModal = ({
                 />
               </div>
 
-              {/* Rich Text Editor Section - Full Height */}
               <div 
                 ref={editorContainerRef} 
                 className="form-group" 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react'
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import Modal from '../Modals/Modal';
 import toast from 'react-hot-toast';
 import '../Modals/SettingsModal.css'
@@ -20,7 +20,12 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
     const [previousProjectName, setPreviousProjectName] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
     const [workspaces, setWorkspaces] = useState([]);
-    const [isSubmitting, setIsSubmitting] = useState(false); 
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [projectSuggestions, setProjectSuggestions] = useState([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [suggestionIndex, setSuggestionIndex] = useState(0);
+    const [showAllProjects, setShowAllProjects] = useState(false);
+    const inputRef = useRef(null);
 
     const API_URL = process.env.REACT_APP_API_BASE_URL
     
@@ -153,6 +158,36 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
         });
     }, [filteredProjects, searchQuery, workspaces]);
 
+    // Update project suggestions when input is clicked or value changes
+    useEffect(() => {
+        let suggestions = [];
+        
+        if (newProjectName.trim()) {
+            const query = newProjectName.toLowerCase().trim();
+            suggestions = filteredProjects.filter(project => 
+                project.name?.toLowerCase().includes(query)
+            );
+        } else if (showAllProjects) {
+            suggestions = [...filteredProjects];
+        }
+        
+        // Sort by name
+        suggestions.sort((a, b) => a.name?.localeCompare(b.name));
+        
+        // Limit to 10 suggestions
+        setProjectSuggestions(suggestions.slice(0, 10));
+        
+        if (showAllProjects && filteredProjects.length > 0) {
+            setShowSuggestions(true);
+        } else if (newProjectName.trim() && suggestions.length > 0) {
+            setShowSuggestions(true);
+        } else {
+            setShowSuggestions(false);
+        }
+        
+        setSuggestionIndex(0);
+    }, [newProjectName, filteredProjects, showAllProjects]);
+
     useEffect(() => {
         if (newProjectName && (!newProjectDescription || newProjectDescription === previousProjectName)) {
             setNewProjectDescription(newProjectName);
@@ -169,6 +204,66 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
         setNewProjectStatus(1);
         setSelectedWorkspace('');
         setError(null);
+        setProjectSuggestions([]);
+        setShowSuggestions(false);
+        setSuggestionIndex(0);
+        setShowAllProjects(false);
+    };
+
+    const handleSuggestionClick = (project) => {
+        setNewProjectName(project.name);
+        setNewProjectDescription(project.description || project.name);
+        setShowSuggestions(false);
+        setShowAllProjects(false);
+    };
+
+    const handleProjectNameKeyDown = (e) => {
+        if (!showSuggestions) return;
+
+        switch (e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                setSuggestionIndex(prev => 
+                    prev < projectSuggestions.length - 1 ? prev + 1 : prev
+                );
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                setSuggestionIndex(prev => prev > 0 ? prev - 1 : prev);
+                break;
+            case 'Enter':
+                e.preventDefault();
+                if (projectSuggestions[suggestionIndex]) {
+                    handleSuggestionClick(projectSuggestions[suggestionIndex]);
+                }
+                break;
+            case 'Escape':
+                setShowSuggestions(false);
+                setShowAllProjects(false);
+                break;
+            default:
+                break;
+        }
+    };
+
+    const handleInputFocus = () => {
+        if (filteredProjects.length > 0 && !newProjectName.trim()) {
+            setShowAllProjects(true);
+        }
+    };
+
+    const handleInputBlur = () => {
+        setTimeout(() => {
+            setShowSuggestions(false);
+            setShowAllProjects(false);
+        }, 200);
+    };
+
+    const handleInputChange = (e) => {
+        setNewProjectName(e.target.value);
+        if (e.target.value.trim()) {
+            setShowAllProjects(false);
+        }
     };
 
     const handleAddProject = async () => {
@@ -344,14 +439,55 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
                     </div>
                     <div className="form-group">
                         <label>Project Name:</label>
-                        <input
-                            type="text"
-                            value={newProjectName}
-                            onChange={(e) => setNewProjectName(e.target.value)}
-                            placeholder="Enter project name"
-                            autoFocus
-                            disabled={isSubmitting}
-                        />
+                        <div className="autocomplete-container">
+                            <input
+                                ref={inputRef}
+                                type="text"
+                                value={newProjectName}
+                                onChange={handleInputChange}
+                                onKeyDown={handleProjectNameKeyDown}
+                                onFocus={handleInputFocus}
+                                onBlur={handleInputBlur}
+                                placeholder="Type project name or click to see existing projects"
+                                autoFocus
+                                disabled={isSubmitting}
+                            />
+                            {showSuggestions && (
+                                <div className="autocomplete-suggestions">
+                                    <div className="suggestions-header">
+                                        <small>
+                                            {showAllProjects 
+                                                ? `All projects in ${workspaceName} (${projectSuggestions.length})` 
+                                                : `Matching projects in ${workspaceName} (${projectSuggestions.length})`
+                                            }
+                                        </small>
+                                    </div>
+                                    {projectSuggestions.map((project, index) => (
+                                        <div
+                                            key={project.id}
+                                            className={`suggestion-item ${index === suggestionIndex ? 'suggestion-active' : ''}`}
+                                            onMouseEnter={() => setSuggestionIndex(index)}
+                                            onMouseDown={() => handleSuggestionClick(project)}
+                                        >
+                                            <div className="suggestion-name">
+                                                {project.name}
+                                                {project.status !== 1 && (
+                                                    <span className="suggestion-status"> (Inactive)</span>
+                                                )}
+                                            </div>
+                                            {project.description && (
+                                                <div className="suggestion-description">{project.description}</div>
+                                            )}
+                                        </div>
+                                    ))}
+                                    {projectSuggestions.length === 0 && (
+                                        <div className="suggestion-item no-suggestions">
+                                            <div className="suggestion-name">No projects found</div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <div className="form-group">
                         <label>Project Description:</label>

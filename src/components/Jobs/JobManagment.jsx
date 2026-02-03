@@ -66,7 +66,10 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
     
     // Add state for workspace name
     const [workspaceName, setWorkspaceName] = useState(defaultworkspace);
-     
+    
+    // Add click timer ref to distinguish between single and double click
+    const clickTimerRef = useRef(null);
+    
     const handleKeyDown = useCallback((event) => {
         if ((event.ctrlKey || event.metaKey) && event.key === 's') {
             event.preventDefault(); 
@@ -241,6 +244,15 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
         document.addEventListener('click', handleClickOutside);
         return () => document.removeEventListener('click', handleClickOutside);
     }, [showJobDropdown]);
+    
+    // Clean up click timer on unmount
+    useEffect(() => {
+        return () => {
+            if (clickTimerRef.current) {
+                clearTimeout(clickTimerRef.current);
+            }
+        };
+    }, []);
   
     const resetFormStates = () => {
         setNewJobName('');
@@ -277,6 +289,32 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
         } catch (e) { }
         try { if (document && document.documentElement) document.documentElement.scrollTop = 0; } catch (e) { }
         try { if (document && document.body) document.body.scrollTop = 0; } catch (e) { }
+    };
+    
+    // Function to handle job click (single or double)
+    const handleJobClick = (jobId) => {
+        // Clear any existing timer
+        if (clickTimerRef.current) {
+            clearTimeout(clickTimerRef.current);
+        }
+        
+        // Set a timer for single click
+        clickTimerRef.current = setTimeout(() => {
+            // Single click: just select the job
+            setSelectedJob(jobId);
+        }, 300); // Delay for double-click detection
+    };
+    
+    // Function to handle job double click
+    const handleJobDoubleClick = (jobId) => {
+        // Clear the single click timer
+        if (clickTimerRef.current) {
+            clearTimeout(clickTimerRef.current);
+        }
+        
+        // Double click: select and open edit modal
+        setSelectedJob(jobId);
+        setIsEditJobOpen(true);
     };
     
     const fetchInitialData = async () => {
@@ -841,12 +879,16 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
+                    user-select: none; /* Prevent text selection */
                 }
                 .project-search-list li:hover {
                     background: #f5f5f5;
                 }
                 .project-search-list li.selected {
                     background: #e3f2fd;
+                }
+                .project-search-list li.double-clickable {
+                    cursor: pointer;
                 }
                 .dropdown-message {
                     position: absolute;
@@ -1033,8 +1075,11 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
                                             return (
                                                 <li
                                                     key={job.id}
-                                                    className={selectedJob === job.id ? 'selected' : ''}
-                                                    onClick={() => setSelectedJob(job.id)}
+                                                    className={`double-clickable ${selectedJob === job.id ? 'selected' : ''}`}
+                                                    onClick={() => handleJobClick(job.id)}
+                                                    onDoubleClick={() => handleJobDoubleClick(job.id)}
+                                                    style={{ cursor: 'pointer' }}
+                                                    title="Click to select, double-click to edit"
                                                 >
                                                     <div className="job-path">
                                                         <span className="workspace-name">{job.workspaceName}</span>

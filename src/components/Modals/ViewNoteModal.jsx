@@ -995,7 +995,7 @@ const generatePDF = async () => {
         tempDiv.innerHTML = note.note;
         const plainText = tempDiv.textContent || tempDiv.innerText || '';
         noteTextContainer.textContent = plainText.length > 200 
-          ? plainText.substring(0, 200) + '...' 
+          ? plainText.substring(0, 50) + '...' 
           : plainText;
       } else {
         noteTextContainer.textContent = '[No text]';

@@ -68,6 +68,134 @@ const processHtmlForUrls = (html) => {
   }
 };
 
+// Unified Note Text Popup Component - SIMPLIFIED VERSION
+const NoteTextPopup = ({ 
+  content, 
+  position, 
+  elementRect, 
+  searchTerm, 
+  onClose,
+  viewMode
+}) => {
+  if (!content || !position) return null;
+
+  // Process HTML content
+  const processedContent = processHtmlForUrls(content);
+  
+  // Highlight search terms
+  const highlightHtmlContent = (html, highlight) => {
+    if (!html || typeof html !== "string") {
+      return html;
+    }
+
+    try {
+      // If no search highlight, just return with URLs
+      if (!highlight) {
+        return processedContent;
+      }
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(processedContent, "text/html");
+
+      const escapedHighlight = highlight.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(`(${escapedHighlight})`, "gi");
+
+      const highlightNode = (node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const text = node.textContent;
+          if (regex.test(text)) {
+            const span = document.createElement("span");
+            const parts = text.split(regex);
+
+            parts.forEach((part) => {
+              if (regex.test(part)) {
+                const mark = document.createElement("mark");
+                mark.className = "search-highlight";
+                mark.style.cssText =
+                  "background-color: #ffeb3b; padding: 0 2px; border-radius: 2px; font-weight: bold; color: #000;";
+                mark.textContent = part;
+                span.appendChild(mark);
+              } else {
+                span.appendChild(document.createTextNode(part));
+              }
+            });
+
+            node.parentNode.replaceChild(span, node);
+          }
+        } else if (
+          node.nodeType === Node.ELEMENT_NODE &&
+          node.nodeName !== "SCRIPT" &&
+          node.nodeName !== "STYLE" &&
+          !node.classList.contains("search-highlight") &&
+          node.nodeName !== "A"
+        ) {
+          Array.from(node.childNodes).forEach((child) => highlightNode(child));
+        }
+      };
+
+      highlightNode(doc.body);
+      return doc.body.innerHTML;
+    } catch (error) {
+      console.error("Error highlighting HTML:", error);
+      return processedContent;
+    }
+  };
+
+  const highlightedContent = highlightHtmlContent(processedContent, searchTerm);
+
+  // Get popup width based on view mode
+  const getPopupWidth = () => {
+    switch(viewMode) {
+      case "table":
+        return "400px";
+      case "cards":
+        return "300px";
+      case "stacked":
+        return "300px";
+      default:
+        return "300px";
+    }
+  };
+
+  return (
+    <TooltipPortal>
+      <div
+        className="note-text-popup"
+        style={{
+          position: "fixed",
+          top: `${position.y}px`,
+          left: `${position.x}px`,
+          zIndex: 999999,
+          backgroundColor: "white",
+          border: "1px solid #e0e0e0",
+          borderRadius: "6px",
+          padding: "12px",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+          width: getPopupWidth(),
+          maxWidth: getPopupWidth(),
+          fontSize: "13px",
+          pointerEvents: "none",
+          maxHeight: "250px",
+          overflowY: "auto",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Content area only - no footer, no arrow */}
+        <div
+          style={{
+            color: "#333",
+            lineHeight: 1.5,
+            wordBreak: "break-word",
+          }}
+          dangerouslySetInnerHTML={{
+            __html: highlightedContent,
+          }}
+        />
+      </div>
+    </TooltipPortal>
+  );
+};
+
 const NotesTab = ({
   viewMode,
   finalDisplayNotes,
@@ -134,10 +262,10 @@ const NotesTab = ({
   const [loadingLinkedNote, setLoadingLinkedNote] = useState({});
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
 
-  // State for stacked card hover popup
-  const [hoveredStackCard, setHoveredStackCard] = useState(null);
-  const [stackCardPopupPosition, setStackCardPopupPosition] = useState({ x: 0, y: 0 });
-  const [stackCardElementRect, setStackCardElementRect] = useState(null);
+  // State for note text hover popup - STARTING INSIDE THE NOTES
+  const [hoveredNoteContent, setHoveredNoteContent] = useState(null);
+  const [notePopupPosition, setNotePopupPosition] = useState({ x: 0, y: 0 });
+  const [noteElementRect, setNoteElementRect] = useState(null);
 
   const loadingRef = useRef(false);
   const observerRef = useRef(null);
@@ -145,7 +273,7 @@ const NotesTab = ({
   const lastCardRef = useRef(null);
   const containerRef = useRef(null);
   const hoverTimeoutRef = useRef(null);
-  const stackCardHoverTimeoutRef = useRef(null);
+  const noteHoverTimeoutRef = useRef(null);
   const viewModeRef = useRef(viewMode);
   const hasActiveFiltersRef = useRef(hasActiveFilters);
 
@@ -272,7 +400,7 @@ const NotesTab = ({
 
       // Tooltip dimensions
       const tooltipWidth = 350;
-      const tooltipHeight = 200; // Approximate height
+      const tooltipHeight = 200;
 
       let x, y;
 
@@ -288,8 +416,8 @@ const NotesTab = ({
         x = Math.max(10, viewportWidth - tooltipWidth - 10);
       }
 
-      // Vertical positioning - show tooltip below the mouse
-      y = mouseY + 15; // 15px offset below cursor
+      // Vertical positioning
+      y = mouseY + 15;
 
       // Adjust if tooltip goes off screen vertically
       if (y + tooltipHeight > viewportHeight) {
@@ -332,26 +460,29 @@ const NotesTab = ({
     setHoveredLinkedNote(null);
   };
 
-  // Check if stack card should show popup on hover
-  const shouldShowPopup = (job) => {
-    if (!job) return false;
+  // Check if should show popup for note text
+  const shouldShowNotePopup = (note) => {
+    if (!note || !note.note) return false;
     
-    return (
-      job.lastSiteNote &&
-      job.lastSiteNote.trim() !== "" &&
-      job.lastSiteNote.length > 150
-    );
+    // Different thresholds for different view modes
+    if (viewMode === "table") {
+      return note.note.length > 69;
+    } else if (viewMode === "cards" || viewMode === "stacked") {
+      return note.note.length > 120;
+    }
+    
+    return false;
   };
 
-  // Handle hover over truncated note text in stack card
-  const handleNoteTextMouseEnter = (job, e) => {
-    if (!job || !shouldShowPopup(job)) {
+  // Handle hover over note text - UPDATED TO START INSIDE THE NOTES
+  const handleNoteTextMouseEnter = (note, e) => {
+    if (!note || !shouldShowNotePopup(note)) {
       return;
     }
 
     // Clear any existing timeout
-    if (stackCardHoverTimeoutRef.current) {
-      clearTimeout(stackCardHoverTimeoutRef.current);
+    if (noteHoverTimeoutRef.current) {
+      clearTimeout(noteHoverTimeoutRef.current);
     }
 
     // Get the element and its position
@@ -359,63 +490,81 @@ const NotesTab = ({
     const rect = noteTextElement.getBoundingClientRect();
     
     // Store element rect for positioning
-    setStackCardElementRect(rect);
+    setNoteElementRect(rect);
 
     // Get viewport dimensions
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
 
-    // Popup dimensions
-    const popupWidth = 320;
-    const popupHeight = 180;
+    // Popup dimensions - START INSIDE THE NOTES CONTAINER
+    const popupWidth = viewMode === "table" ? 400 : 350;
+    const popupHeight = 200;
 
-    // Calculate position: show to the right of the text by default
-    let popupX = rect.right + 10; // 10px to the right of the text
-    let popupY = rect.top;
-
-    // Adjust if popup goes off screen horizontally
-    if (popupX + popupWidth > viewportWidth - 20) {
-      // Not enough space on the right, show to the left
-      popupX = rect.left - popupWidth - 10;
+    // Calculate position to start INSIDE the notes container
+    // Position popup inside the note element, not outside
+    let popupX, popupY;
+    
+    // For table view, position inside the table cell
+    if (viewMode === "table") {
+      // Position inside the table cell, aligned with the text
+      popupX = rect.left + 5;
+      popupY = rect.top + 5;
+    } 
+    // For card view, position inside the card
+    else if (viewMode === "cards" || viewMode === "stacked") {
+      // Position inside the card, slightly offset from the top
+      popupX = rect.left + 10;
+      popupY = rect.top + 10;
+    }
+    // Default fallback
+    else {
+      popupX = rect.left;
+      popupY = rect.top;
     }
 
-    // Ensure popup stays within viewport horizontally
-    popupX = Math.max(20, Math.min(popupX, viewportWidth - popupWidth - 20));
-
-    // Check if there's enough space vertically
-    if (popupY + popupHeight > viewportHeight - 20) {
-      // Not enough space below, adjust upward
-      popupY = viewportHeight - popupHeight - 20;
+    // Ensure popup stays within the note element bounds
+    // Don't let it extend beyond the right edge of the note element
+    if (popupX + popupWidth > rect.right) {
+      popupX = rect.right - popupWidth - 10;
     }
 
-    setStackCardPopupPosition({
+    // Ensure popup stays within the note element bounds vertically
+    if (popupY + popupHeight > rect.bottom) {
+      popupY = rect.bottom - popupHeight - 10;
+    }
+
+    // Final bounds check against viewport
+    popupX = Math.max(10, Math.min(popupX, viewportWidth - popupWidth - 10));
+    popupY = Math.max(10, Math.min(popupY, viewportHeight - popupHeight - 10));
+
+    setNotePopupPosition({
       x: popupX,
       y: popupY
     });
 
-    // Set timeout for hover delay (300ms for faster response)
-    stackCardHoverTimeoutRef.current = setTimeout(() => {
-      setHoveredStackCard(job.jobId || job.jobName);
+    // Set timeout for hover delay (300ms)
+    noteHoverTimeoutRef.current = setTimeout(() => {
+      setHoveredNoteContent(note.note);
     }, 300);
   };
 
   // Handle mouse leave from note text
   const handleNoteTextMouseLeave = () => {
-    if (stackCardHoverTimeoutRef.current) {
-      clearTimeout(stackCardHoverTimeoutRef.current);
+    if (noteHoverTimeoutRef.current) {
+      clearTimeout(noteHoverTimeoutRef.current);
     }
-    setHoveredStackCard(null);
-    setStackCardElementRect(null);
+    setHoveredNoteContent(null);
+    setNoteElementRect(null);
   };
 
-  // Cleanup timeout on unmount
+  // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
       if (hoverTimeoutRef.current) {
         clearTimeout(hoverTimeoutRef.current);
       }
-      if (stackCardHoverTimeoutRef.current) {
-        clearTimeout(stackCardHoverTimeoutRef.current);
+      if (noteHoverTimeoutRef.current) {
+        clearTimeout(noteHoverTimeoutRef.current);
       }
     };
   }, []);
@@ -448,7 +597,6 @@ const NotesTab = ({
 
         // Try different selectors based on view mode
         if (viewMode === "table") {
-          // Add data-note-id to table rows first
           noteElement = document.querySelector(
             `tr[data-note-id="${originalNoteId}"]`
           );
@@ -702,7 +850,7 @@ const NotesTab = ({
           node.nodeName !== "SCRIPT" &&
           node.nodeName !== "STYLE" &&
           !node.classList.contains("search-highlight") &&
-          node.nodeName !== "A" // Don't process inside existing links
+          node.nodeName !== "A"
         ) {
           Array.from(node.childNodes).forEach((child) => highlightNode(child));
         }
@@ -972,14 +1120,6 @@ const NotesTab = ({
     }
     setHoveredOriginalNote(null);
   };
-
-  useEffect(() => {
-    return () => {
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (
@@ -1362,6 +1502,7 @@ const NotesTab = ({
               alignItems: "flex-start",
               position: "relative",
               maxWidth: "100%",
+              cursor: "default",
             }}
             onClick={(e) => {
               // If a link was clicked, don't trigger row selection
@@ -1369,6 +1510,8 @@ const NotesTab = ({
                 e.stopPropagation();
               }
             }}
+            onMouseEnter={(e) => shouldShowNotePopup(note) && handleNoteTextMouseEnter(note, e)}
+            onMouseLeave={() => shouldShowNotePopup(note) && handleNoteTextMouseLeave()}
           >
             <span
               style={{
@@ -1387,12 +1530,6 @@ const NotesTab = ({
                         searchTerm
                       )
                     : highlightHtmlContent(note.note || "", searchTerm),
-              }}
-            />
-            <div
-              className="note-hover-popup"
-              dangerouslySetInnerHTML={{
-                __html: highlightHtmlContent(note.note, searchTerm),
               }}
             />
             {renderPriorityDot(priorityValue, note)}
@@ -1693,13 +1830,15 @@ const renderPriorityDot = (priorityValue, note) => {
         <div className="note-content">
           <div
             className="note-card-content-container"
-            style={{ position: "relative" }}
+            style={{ position: "relative", height: "100%" }}
             onClick={(e) => {
               // If a link was clicked, don't trigger card selection
               if (e.target.tagName === 'A' && e.target.classList.contains('note-url-link')) {
                 e.stopPropagation();
               }
             }}
+            onMouseEnter={(e) => shouldShowNotePopup(note) && handleNoteTextMouseEnter(note, e)}
+            onMouseLeave={() => shouldShowNotePopup(note) && handleNoteTextMouseLeave()}
           >
             <div
               className="note-text"
@@ -1712,12 +1851,6 @@ const renderPriorityDot = (priorityValue, note) => {
                 __html: highlightHtmlContent(note.note || "", searchTerm),
               }}
             />
-            {note.note && note.note.length > 69 && (
-              <div
-                className="note-card-popup"
-                dangerouslySetInnerHTML={{ __html: highlightHtmlContent(note.note, searchTerm) }}
-              />
-            )}
           </div>
         </div>
         <div className="note-footer">
@@ -1937,13 +2070,6 @@ const renderPriorityDot = (priorityValue, note) => {
 
   const isAnyStackExpanded = Object.values(expandedStacks).some((v) => v);
 
-  // Find the hovered stack card for popup
-  const hoveredStackCardJob = hoveredStackCard 
-    ? jobsToDisplay?.find(
-        (job) => job && (job.jobId === hoveredStackCard || job.jobName === hoveredStackCard)
-      )
-    : null;
-
   // Render collapsed stack (without loading notes yet)
   const renderCollapsedStack = (job) => {
     if (!job) return null;
@@ -1951,7 +2077,6 @@ const renderPriorityDot = (priorityValue, note) => {
     const jobName = job.jobName;
     const noteCount = job.noteCount || 0;
     const isLoading = job.isLoadingNotes;
-    const shouldShowPopupOnHover = shouldShowPopup(job);
 
     return (
       <div
@@ -2153,10 +2278,7 @@ const renderPriorityDot = (priorityValue, note) => {
                           WebkitLineClamp: 3,
                           WebkitBoxOrient: "vertical",
                           wordBreak: "break-word",
-                          cursor: shouldShowPopupOnHover ? 'help' : 'default',
                         }}
-                        onMouseEnter={(e) => shouldShowPopupOnHover && job && handleNoteTextMouseEnter(job, e)}
-                        onMouseLeave={() => shouldShowPopupOnHover && handleNoteTextMouseLeave()}
                         dangerouslySetInnerHTML={{
                           __html: highlightHtmlContent(
                             job.lastSiteNote
@@ -2170,40 +2292,6 @@ const renderPriorityDot = (priorityValue, note) => {
                           ),
                         }}
                       />
-                      
-                      {/* Gradient overlay for truncated text */}
-                      {shouldShowPopupOnHover && (
-                        <div
-                          style={{
-                            position: "absolute",
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            height: "20px",
-                            background: "linear-gradient(to bottom, transparent, #f8f9fa)",
-                            pointerEvents: "none",
-                          }}
-                        />
-                      )}
-                      
-                      {/* Truncated indicator */}
-                      {shouldShowPopupOnHover && (
-                        <div
-                          style={{
-                            position: "absolute",
-                            bottom: "2px",
-                            right: "8px",
-                            fontSize: "10px",
-                            color: "#3498db",
-                            backgroundColor: "rgba(255, 255, 255, 0.8)",
-                            padding: "0 4px",
-                            borderRadius: "2px",
-                            pointerEvents: "none",
-                          }}
-                        >
-                          
-                        </div>
-                      )}
                     </div>
 
                     <div
@@ -2534,13 +2622,15 @@ const renderPriorityDot = (priorityValue, note) => {
                           <div className="note-content">
                             <div
                               className="note-card-content-container"
-                              style={{ position: "relative" }}
+                              style={{ position: "relative", height: "100%" }}
                               onClick={(e) => {
                                 // If a link was clicked, don't trigger card selection
                                 if (e.target.tagName === 'A' && e.target.classList.contains('note-url-link')) {
                                   e.stopPropagation();
                                 }
                               }}
+                              onMouseEnter={(e) => shouldShowNotePopup(note) && handleNoteTextMouseEnter(note, e)}
+                              onMouseLeave={() => shouldShowNotePopup(note) && handleNoteTextMouseLeave()}
                             >
                               <div
                                 className="note-text"
@@ -2548,11 +2638,6 @@ const renderPriorityDot = (priorityValue, note) => {
                                   __html: highlightHtmlContent(note.note, searchTerm),
                                 }}
                               />
-                              {note.note && note.note.length > 150 && (
-                                <div className="note-card-popup">
-                                  {highlightHtmlContent(note.note, searchTerm)}
-                                </div>
-                              )}
                             </div>
                           </div>
                           <div className="note-footer">
@@ -3039,6 +3124,18 @@ const renderPriorityDot = (priorityValue, note) => {
         </div>
       )}
 
+      {/* Unified Note Text Popup - SIMPLIFIED */}
+      {hoveredNoteContent && (
+        <NoteTextPopup
+          content={hoveredNoteContent}
+          position={notePopupPosition}
+          elementRect={noteElementRect}
+          searchTerm={searchTerm}
+          viewMode={viewMode}
+          onClose={() => setHoveredNoteContent(null)}
+        />
+      )}
+
       {/* Global tooltip portal for linked notes */}
       {hoveredLinkedNote && hoveredOriginalNoteId && (
         <TooltipPortal>
@@ -3048,7 +3145,7 @@ const renderPriorityDot = (priorityValue, note) => {
               position: "fixed",
               top: `${tooltipPosition.y}px`,
               left: `${tooltipPosition.x}px`,
-              zIndex: 99999,
+              zIndex: 999999,
               backgroundColor: "white",
               border: "1px solid #ddd",
               borderRadius: "4px",
@@ -3213,93 +3310,6 @@ const renderPriorityDot = (priorityValue, note) => {
                 zIndex: 1,
               }}
             />
-          </div>
-        </TooltipPortal>
-      )}
-
-      {/* Stack card hover popup - Only show when hovering over truncated text */}
-      {hoveredStackCard && hoveredStackCardJob && shouldShowPopup(hoveredStackCardJob) && (
-        <TooltipPortal>
-          <div
-            className="stack-card-popup"
-            style={{
-              position: "fixed",
-              top: `${stackCardPopupPosition.y}px`,
-              left: `${stackCardPopupPosition.x}px`,
-              zIndex: 99999,
-              backgroundColor: "white",
-              border: "1px solid #e0e0e0",
-              borderRadius: "6px",
-              padding: "16px",
-              boxShadow: "0 2px 12px rgba(0,0,0,0.1)",
-              width: "320px",
-              maxWidth: "320px",
-              fontSize: "13px",
-              pointerEvents: "none",
-            }}
-          >
-            {/* Plain content area */}
-            <div
-              style={{
-                color: "#333",
-                lineHeight: 1.5,
-                maxHeight: "140px",
-                overflow: "auto",
-                padding: "8px",
-                fontSize: "13px",
-                wordBreak: "break-word",
-              }}
-              dangerouslySetInnerHTML={{
-                __html: highlightHtmlContent(hoveredStackCardJob.lastSiteNote, searchTerm),
-              }}
-            />
-
-            {/* Metadata at the bottom - subtle styling */}
-            <div
-              style={{
-                fontSize: "11px",
-                color: "#666",
-                marginTop: "12px",
-                paddingTop: "8px",
-                borderTop: "1px solid #f0f0f0",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              {hoveredStackCardJob.lastSiteNoteUserName && (
-                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                  <i className="fas fa-user" style={{ fontSize: "10px" }} />
-                  <span>{hoveredStackCardJob.lastSiteNoteUserName}</span>
-                </div>
-              )}
-              {hoveredStackCardJob.latestTimeStamp && (
-                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                  <i className="far fa-clock" style={{ fontSize: "10px" }} />
-                  <span>{formatRelativeTime(hoveredStackCardJob.latestTimeStamp)}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Arrow pointing to the note text element */}
-            {stackCardElementRect && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: stackCardPopupPosition.y > stackCardElementRect.bottom ? "-6px" : "calc(100% - 6px)",
-                  left: "50%",
-                  transform: stackCardPopupPosition.y > stackCardElementRect.bottom 
-                    ? "translateX(-50%) rotate(45deg)" 
-                    : "translateX(-50%) rotate(225deg)",
-                  width: "12px",
-                  height: "12px",
-                  backgroundColor: "white",
-                  borderLeft: "1px solid #e0e0e0",
-                  borderTop: "1px solid #e0e0e0",
-                  zIndex: 1,
-                }}
-              />
-            )}
           </div>
         </TooltipPortal>
       )}

@@ -580,7 +580,7 @@
   border: 1px solid #e0e0e0;
   border-radius: 6px;
   margin-top: 8px;
-  max-height: 300px;
+  max-height: 350px;
   display: flex;
   flex-direction: column;
   overflow: hidden; /* Change from overflow: auto to hidden */
@@ -608,6 +608,7 @@
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   min-width: 320px;
   max-width: 400px;
+  min-height: 365px;
 }
 
 .calendar-dropdown.mobile {
@@ -835,4 +836,378 @@
   font-size: 32px;
   margin-bottom: 10px;
   color: #adb5bd;
+}
+/* Range Toggle Section - Under Month */
+.range-toggle-section {
+  margin: 12px 0;
+  text-align: center;
+}
+
+.range-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #495057;
+  transition: all 0.2s ease;
+  min-width: 160px;
+}
+
+.range-toggle-btn:hover {
+  background: #e9ecef;
+  border-color: #ced4da;
+}
+
+.range-toggle-btn.active {
+  background: #007bff;
+  color: white;
+  border-color: #0056b3;
+}
+
+.range-toggle-btn.active:hover {
+  background: #0056b3;
+}
+
+.range-toggle-btn i {
+  font-size: 14px;
+}
+
+/* Range Selection Info */
+.range-selection-info {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 12px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.range-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.range-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #495057;
+  white-space: nowrap;
+}
+
+.range-dates {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.range-date {
+  padding: 4px 8px;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.range-date.start {
+  border-color: #007bff;
+  background: #007bff;
+  color: #fff;
+}
+
+.range-date.end {
+  border-color: #dc3545;
+  background: #fff5f5;
+  color: #721c24;
+}
+
+.range-separator {
+  color: #6c757d;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+}
+
+.range-api-notice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 4px;
+  font-size: 11px;
+  color: #856404;
+  font-weight: 500;
+}
+
+.range-api-notice i {
+  font-size: 12px;
+}
+
+.range-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.range-action-btn.clear {
+  background: #6c757d;
+  color: white;
+  border-color: #545b62;
+}
+
+.range-action-btn.clear:hover {
+  background: #545b62;
+}
+
+.range-instructions {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: #e7f5ff;
+  border: 1px solid #a5d8ff;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #1864ab;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.range-instructions i {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+/* Range styling for calendar days */
+.calendar-day.in-range {
+  background: #e3f2fd !important;
+  border-color: #bbdefb !important;
+  color: #1976d2 !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.calendar-day.in-range:not(.range-start):not(.range-end) {
+  border-radius: 0;
+}
+
+.calendar-day.range-start {
+  background: #007bff !important;
+  border-color: #007bff !important;
+  color: white !important;
+  font-weight: 600;
+  position: relative;
+}
+
+.calendar-day.range-end {
+  background: #007bff !important;
+  border-color: #007bff !important;
+  color: white !important;
+  font-weight: 600;
+  position: relative;
+}
+
+.range-indicator {
+  position: absolute;
+  top: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.range-indicator.start {
+  background: white;
+  border: 1px solid #28a745;
+  right: 2px;
+}
+
+.range-indicator.end {
+  background: white;
+  border: 1px solid #dc3545;
+  left: 2px;
+}
+
+/* Fix for range hover preview */
+.calendar-day.has-data:hover:not(.selected):not(.range-start):not(.range-end) {
+  background: #d4edda !important;
+  border-color: #c3e6cb !important;
+}
+
+/* Responsive adjustments - FIXED for mobile */
+@media (max-width: 768px) {
+  .range-selection-info {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: nowrap;
+    padding: 8px 10px;
+  }
+  
+  .range-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+  
+  .range-label {
+    flex-shrink: 0;
+    font-size: 11px;
+  }
+  
+  .range-dates {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+  
+  .range-date {
+    font-size: 11px;
+    padding: 3px 6px;
+    flex-shrink: 0;
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .range-date.start {
+    border-color: #007bff;
+    background: #007bff;
+    color: #fff;
+  }
+  
+  .range-date.end {
+    border-color: #dc3545;
+    background: #dc3545;
+    color: #fff;
+  }
+  
+  .range-separator {
+    font-size: 9px;
+    flex-shrink: 0;
+  }
+  
+  .range-api-notice {
+    order: 3;
+    width: 100%;
+    margin-top: 8px;
+    padding: 6px;
+    font-size: 10px;
+    justify-content: center;
+  }
+  
+  .range-action-btn {
+    flex-shrink: 0;
+    margin-left: 8px;
+    padding: 5px 10px;
+    font-size: 11px;
+    align-self: center;
+  }
+  
+  .range-toggle-section {
+    margin: 10px 0;
+  }
+  
+  .range-toggle-btn {
+    width: 100%;
+    max-width: 200px;
+  }
+}
+
+/* Extra small devices */
+@media (max-width: 480px) {
+  .range-selection-info {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .range-info {
+    width: calc(100% - 70px); /* Leave space for clear button */
+    order: 1;
+  }
+  
+  .range-dates {
+    justify-content: flex-start;
+  }
+  
+  .range-date {
+    font-size: 10px;
+    padding: 2px 5px;
+    max-width: 75px;
+  }
+  
+  .range-action-btn {
+    order: 2;
+    margin-left: 0;
+    margin-top: 0;
+    width: 60px;
+    padding: 4px 8px;
+  }
+  
+  .range-api-notice {
+    order: 3;
+    margin-top: 8px;
+  }
+}
+
+/* Very small devices */
+@media (max-width: 360px) {
+  .range-info {
+    width: calc(100% - 60px);
+  }
+  
+  .range-date {
+    max-width: 65px;
+    font-size: 9px;
+  }
+  
+  .range-action-btn {
+    width: 55px;
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+}
+
+/* Mobile-specific adjustments */
+.mobile .range-toggle-btn {
+  width: 100%;
+  max-width: none;
+}
+
+.mobile .range-selection-info {
+  margin: 10px 0;
 }
