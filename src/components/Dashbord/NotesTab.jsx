@@ -271,7 +271,7 @@ const NotesTab = ({
   // AI chat dialog state
   const [showAiDialog, setShowAiDialog] = useState(false);
   const [aiJobContext, setAiJobContext] = useState(null);
-
+  const [manuallyUpdatedPriorities, setManuallyUpdatedPriorities] = useState({});
   const loadingRef = useRef(false);
   const observerRef = useRef(null);
   const lastRowRef = useRef(null);
@@ -287,6 +287,7 @@ const NotesTab = ({
   const [originalNoteContent, setOriginalNoteContent] = useState({});
   const [loadingOriginalNote, setLoadingOriginalNote] = useState({});
   const linkHoverTimeoutRef = useRef(null); 
+  
     
   const pageSize = 25;
   const initialPageNumber = 1;
@@ -562,6 +563,11 @@ const NotesTab = ({
       setHoveredNoteContent(note.note);
     }, 300);
   };
+  const getPriorityValue = (note) => {
+  return manuallyUpdatedPriorities[note.id] !== undefined 
+    ? manuallyUpdatedPriorities[note.id] 
+    : (note.priority || 1);
+};
 
   // Handle mouse leave from note text
   const handleNoteTextMouseLeave = () => {
@@ -647,6 +653,141 @@ const NotesTab = ({
       );
     }
   };
+  const handlePriorityClick = (note, e) => {
+  e.stopPropagation();
+  e.preventDefault();
+  
+  const currentPriority = manuallyUpdatedPriorities[note.id] || note.priority || 1;
+  let nextPriority;
+  
+  console.log(`Current priority for note ${note.id}: ${currentPriority}`);
+  
+  if (currentPriority === 1) {
+    nextPriority = 3; 
+  } else if (currentPriority === 3) {
+    nextPriority = 4; 
+  } else {
+    nextPriority = 1; 
+  }
+  
+  console.log(`Next priority for note ${note.id}: ${nextPriority}`);
+  
+  updateNotePriority(note.id, nextPriority);
+};
+
+const updateNotePriority = async (noteId, priorityValue) => {
+  try {
+    const user = JSON.parse(localStorage.getItem("user"));
+    
+    console.log(`API: Updating note ${noteId} to priority ${priorityValue}`);
+    
+    const checkResponse = await fetch(
+      `${process.env.REACT_APP_API_BASE_URL}/api/Priority/GetPriorityByNoteId/${noteId}`
+    );
+    
+    let priorityId = null;
+    if (checkResponse.ok) {
+      const data = await checkResponse.json();
+      console.log('Priority check response:', data);
+      if (data.priority || (Array.isArray(data) && data.length > 0)) {
+        priorityId = data.priority?.id || (Array.isArray(data) ? data[0]?.id : null);
+      }
+    }
+    
+    console.log(`Found priorityId: ${priorityId} for note ${noteId}`);
+    
+    if (priorityId) {
+      const response = await fetch(
+        `${process.env.REACT_APP_API_BASE_URL}/api/Priority/UpdatePriority/${priorityId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            priorityValue: priorityValue,
+            userId: user.id
+          })
+        }
+      );
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Update priority error:', errorText);
+        throw new Error("Failed to update priority");
+      }
+      
+      const result = await response.json();
+      console.log('Update priority result:', result);
+      
+    } else if (priorityValue > 1) {
+      const response = await fetch(
+        `${process.env.REACT_APP_API_BASE_URL}/api/Priority/AddPriority`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            priorityValue: priorityValue,
+            userId: user.id,
+            noteId: noteId
+          })
+        }
+      );
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Add priority error:', errorText);
+        throw new Error("Failed to add priority");
+      }
+      
+      const result = await response.json();
+      console.log('Add priority result:', result);
+      toast.success(`Priority set to ${priorityValue === 4 ? 'High' : 'Medium'}`);
+    } else {
+      console.log('No priority exists and setting to 1, no API call needed');
+      toast.success("Priority reset to default");
+    }
+    
+    updateNotePriorityEverywhere(noteId, priorityValue);
+    
+    setTimeout(() => {
+      refreshNotesAfterReply();
+    }, 300);
+    
+  } catch (error) {
+    console.error("Error updating priority:", error);
+    toast.error("Failed to update priority: " + error.message);
+    
+    setManuallyUpdatedPriorities(prev => {
+      const newState = { ...prev };
+      delete newState[noteId];
+      return newState;
+    });
+  }
+};
+
+const updateNotePriorityInState = (noteId, newPriority) => {
+  
+  setLocalNotes(prev => prev.map(note => 
+    note.id === noteId ? { ...note, priority: newPriority } : note
+  ));
+  
+  if (finalDisplayNotes && finalDisplayNotes.some(note => note.id === noteId)) {
+  }
+};
+
+const updateNotePriorityEverywhere = (noteId, newPriority) => {
+  console.log(`Updating priority for note ${noteId} to ${newPriority} everywhere`);
+  
+  setManuallyUpdatedPriorities(prev => ({
+    ...prev,
+    [noteId]: newPriority
+  }));
+  
+  setLocalNotes(prev => prev.map(note => 
+    note.id === noteId ? { ...note, priority: newPriority } : note
+  ));
+  
+  console.log('Priority update applied locally');
+};
 
   // Format tooltip content
   const formatTooltipContent = (content) => {
@@ -671,45 +812,32 @@ const NotesTab = ({
     setShowReplyModal(true);
   };
 
-  // Handler to refresh notes after replying
-  const refreshNotesAfterReply = async () => {
-    try {
-      console.log("🔄 Starting refresh after reply...");
+const refreshNotesAfterReply = async () => {
+  try {
+    console.log("🔄 Starting refresh...");
+    
+    await fetchNoteReplies();
+    
+    if (fetchNotes && typeof fetchNotes === 'function') {
+      const result = await fetchNotes(1, pageSize);
       
-      // 1. First refresh the replies list (for link functionality)
-      await fetchNoteReplies();
-      
-      // 2. Check if we need to refresh notes
-      if (!hasActiveFilters && !searchTerm.trim()) {
-        console.log("🔄 Refreshing local notes...");
+      if (result && result.notes) {
+        console.log(`✅ Loaded ${result.notes.length} fresh notes`);
         
-        // Clear loading state
-        loadingRef.current = false;
-        
-        // Fetch fresh notes directly (bypass cache if possible)
-        if (fetchNotes && typeof fetchNotes === 'function') {
-          // Call with page 1 to get newest notes
-          const result = await fetchNotes(1, pageSize);
-          
-          if (result && result.notes) {
-            console.log(`✅ Loaded ${result.notes.length} fresh notes`);
-            
-            // Update state
-            setLocalNotes([...result.notes].sort((a, b) => b.id - a.id));
-            setHasMore(result.hasMore);
-            setPage(2); 
-            setIsInitialLoad(false);
-          }
-        }
+        setLocalNotes([...result.notes].sort((a, b) => b.id - a.id));
+        setHasMore(result.hasMore);
+        setPage(2); 
+        setIsInitialLoad(false);
       }
-      
-      console.log("✅ Refresh completed");
-      
-    } catch (error) {
-      console.error("❌ Error refreshing notes after reply:", error);
-      toast.error("Failed to refresh notes");
     }
-  };
+    
+    console.log("✅ Refresh completed");
+    
+  } catch (error) {
+    console.error("❌ Error refreshing notes:", error);
+    toast.error("Failed to refresh notes");
+  }
+};
 
   // Determine which notes to display based on filters/search
   const displayNotes = useMemo(() => {
@@ -763,6 +891,7 @@ const NotesTab = ({
     filteredNotesFromApi,
     localNotes,
     finalDisplayNotes,
+    manuallyUpdatedPriorities,
   ]);
 
   // FIXED: Determine which jobs to display in stacked view
@@ -1441,7 +1570,8 @@ const NotesTab = ({
   };
 
   const renderTableRow = (note, index, isLast = false) => {
-    const priorityValue = note.priority || 1;
+    const priorityValue = getPriorityValue(note);
+   
     const uniqueKey = `${note.id}-${index}`;
     const isReply = isNoteReply(note.id);
     const originalNoteId = isReply ? getReplyNoteId(note.id) : null;
@@ -1547,7 +1677,13 @@ const NotesTab = ({
                     : highlightHtmlContent(note.note || "", searchTerm),
               }}
             />
-            {renderPriorityDot(priorityValue, note)}
+            <div
+              className="note-hover-popup"
+              dangerouslySetInnerHTML={{
+                __html: highlightHtmlContent(note.note, searchTerm),
+              }}
+            />
+           
           </div>
         </td>
         <td>
@@ -1644,20 +1780,24 @@ const NotesTab = ({
             <i className="fas fa-trash" />
           </a>
           <a
-  onClick={(e) => {
-    e.stopPropagation();
-    setSelectedNoteForPriority(note);
-    setPriorityDropdownPosition({ x: e.clientX, y: e.clientY });
-    setShowPriorityDropdown(true);
-  }}
-  title={note.priority ? `Priority ${note.priority} - Click to change` : "Click to set priority"}
-  style={{ 
-    color: note.priority ? "#bac0c0ff" : "#ccc",
-    opacity: note.priority ? 1 : 0.5
-  }}
->
-  <i className="fas fa-flag" />
-</a>
+            onClick={(e) => handlePriorityClick(note, e)}
+            title={`${priorityValue === 1 ? 'No Priority - Click to set' : 
+                    priorityValue === 3 ? 'Medium Priority - Click to change' : 
+                    'High Priority - Click to change'}`}
+            style={{
+              cursor: 'pointer',
+              color: priorityValue === 4 ? '#ef5350' : 
+                    priorityValue === 3 ? '#e8f628' : '#ccc',
+              opacity: priorityValue > 1 ? 1 : 0.5,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '20px',
+              height: '20px'
+            }}
+          >
+            <i className="fas fa-flag" />
+          </a>
         </td>
       </tr>
     );
@@ -1708,7 +1848,8 @@ const renderPriorityDot = (priorityValue, note) => {
 };
 
   const renderNoteCard = (note, index, isLast = false) => {
-    const priorityValue = note.priority || 1;
+    
+  const priorityValue = getPriorityValue(note);
     const isInactive =
       userStatusMap[note.userId] && !userStatusMap[note.userId].active;
     const uniqueKey = `${note.id}-${index}`;
@@ -1971,63 +2112,34 @@ const renderPriorityDot = (priorityValue, note) => {
   };
 
   // Render priority indicator for card view
-  const renderCardPriorityIndicator = (priorityValue, note) => {
-  if (priorityValue > 1) {
-    const flagColor = priorityValue === 3 ? "#e8f628" : "#ef5350"; 
-    
-    return (
-      <i 
-        className="fas fa-flag"
-        style={{ 
-          cursor: "pointer", 
-          opacity: 1,
-          transition: "all 0.2s ease",
-          fontSize: "12px",
-          color: flagColor
-        }}
-        title={priorityValue === 3 ? "Medium Priority (3) - Click to change" : "High Priority (4) - Click to change"}
-        onClick={(e) => {
-          e.stopPropagation();
-          setSelectedNoteForPriority(note);
-          setPriorityDropdownPosition({ x: e.clientX, y: e.clientY });
-          setShowPriorityDropdown(true);
-        }}
-        onMouseEnter={(e) => { 
-          e.currentTarget.style.opacity = "0.9";
-          e.currentTarget.style.transform = "scale(1.1)";
-        }}
-        onMouseLeave={(e) => { 
-          e.currentTarget.style.opacity = 1;
-          e.currentTarget.style.transform = "scale(1)";
-        }}
-      />
-    );
-  }
+const renderCardPriorityIndicator = (priorityValue, note) => {
+  const flagColor = priorityValue === 4 ? "#ef5350" : 
+                   priorityValue === 3 ? "#e8f628" : "#ccc";
   
   return (
     <i 
       className="fas fa-flag"
       style={{ 
         cursor: "pointer", 
-        opacity: 0,
+        opacity: priorityValue > 1 ? 1 : 0,
         transition: "all 0.2s ease",
         fontSize: "12px",
-        color: "#ffffff"
+        color: flagColor
       }}
-      title="Click to set priority"
+      title={priorityValue === 1 ? 'No Priority - Click to set' : 
+             priorityValue === 3 ? 'Medium Priority - Click to change' : 
+             'High Priority - Click to change'}
       onClick={(e) => {
         e.stopPropagation();
-        setSelectedNoteForPriority(note);
-        setPriorityDropdownPosition({ x: e.clientX, y: e.clientY });
-        setShowPriorityDropdown(true);
+        handlePriorityClick(note, e);
       }}
       onMouseEnter={(e) => { 
-        e.currentTarget.style.opacity = "0.3"; 
-        e.currentTarget.style.filter = "drop-shadow(0 0 1px #bdc3c7b1) drop-shadow(0 0 1px #bdc3c7b1)";
+        e.currentTarget.style.opacity = "0.9";
+        e.currentTarget.style.transform = "scale(1.1)";
       }}
       onMouseLeave={(e) => { 
-        e.currentTarget.style.opacity = 0; 
-        e.currentTarget.style.filter = "none";
+        e.currentTarget.style.opacity = priorityValue > 1 ? 1 : 0;
+        e.currentTarget.style.transform = "scale(1)";
       }}
     />
   );
@@ -2571,7 +2683,7 @@ const renderPriorityDot = (priorityValue, note) => {
 
                   <div className="expanded-notes-grid">
                     {jobNotes.map((note) => {
-                      const priorityValue = note.priority || 1;
+                      const priorityValue = getPriorityValue(note);
                       const isReply = isNoteReply(note.id);
                       const originalNoteId = isReply
                         ? getReplyNoteId(note.id)
@@ -2760,62 +2872,32 @@ const renderPriorityDot = (priorityValue, note) => {
                               )}
                             </div>
                             <div className="note-actions">
-                              {priorityValue > 1 ? (
-                            <i 
+                              <i 
                               className="fas fa-flag"
                               style={{ 
                                 cursor: "pointer", 
-                                opacity: 1,
+                                opacity: priorityValue > 1 ? 1 : 0,
                                 transition: "all 0.2s ease",
                                 fontSize: "12px",
-                                color: priorityValue === 3 ? "#e8f628" : "#ef5350"
+                                color: priorityValue === 4 ? "#ef5350" : 
+                                      priorityValue === 3 ? "#e8f628" : "#ccc"
                               }}
-                              title={priorityValue === 3 ? "Medium Priority (3) - Click to change" : "High Priority (4) - Click to change"}
+                              title={priorityValue === 1 ? 'No Priority - Click to set' : 
+                                    priorityValue === 3 ? 'Medium Priority - Click to change' : 
+                                    'High Priority - Click to change'}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setSelectedNoteForPriority(note);
-                                setPriorityDropdownPosition({
-                                  x: e.clientX,
-                                  y: e.clientY,
-                                });
-                                setShowPriorityDropdown(true);
+                                handlePriorityClick(note, e);
                               }}
                               onMouseEnter={(e) => { 
                                 e.currentTarget.style.opacity = "0.9";
                                 e.currentTarget.style.transform = "scale(1.1)";
                               }}
                               onMouseLeave={(e) => { 
-                                e.currentTarget.style.opacity = 1;
+                                e.currentTarget.style.opacity = priorityValue > 1 ? 1 : 0;
                                 e.currentTarget.style.transform = "scale(1)";
                               }}
                             />
-                          ) : (
-                            <i 
-                              className="fas fa-flag"
-                              style={{ 
-                                cursor: "pointer", 
-                                opacity: 0,
-                                transition: "all 0.2s ease",
-                                fontSize: "12px",
-                                color: "#ffffff"
-                              }}
-                              title="Click to set priority"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedNoteForPriority(note);
-                                setPriorityDropdownPosition({ x: e.clientX, y: e.clientY });
-                                setShowPriorityDropdown(true);
-                              }}
-                              onMouseEnter={(e) => { 
-                                e.currentTarget.style.opacity = "0.3"; 
-                                e.currentTarget.style.filter = "drop-shadow(0 0 1px #bdc3c7b1) drop-shadow(0 0 1px #bdc3c7b1)";
-                              }}
-                              onMouseLeave={(e) => { 
-                                e.currentTarget.style.opacity = 0; 
-                                e.currentTarget.style.filter = "none";
-                              }}
-                            />
-                          )}
                               <button
                                 className="action-btn"
                                 onClick={(e) => {
