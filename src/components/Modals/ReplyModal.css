@@ -266,6 +266,10 @@
     font-size: 14px;
 }
 
+.priority-select.priority-5 {
+    border-left: 4px solid #28a745;
+}
+
 .priority-select.priority-4 {
     border-left: 4px solid #e74c3c;
 }

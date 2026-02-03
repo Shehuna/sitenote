@@ -1369,21 +1369,37 @@ const EditNoteModal = ({
     }, 1000);
   };
   
-  const handlePriorityClick = () => {
-    if (!canEditNote || !isEditable) return;
-    
-    let nextPriority;
-    if (selectedPriority === '1') {
-        nextPriority = '3'; 
-    } else if (selectedPriority === '3') {
-        nextPriority = '4'; 
-    } else {
-        nextPriority = '1'; 
-    }
-    
-    setSelectedPriority(nextPriority);
-    toast.success(`Priority set to ${nextPriority === '4' ? 'High' : nextPriority === '3' ? 'Medium' : 'No Priority'}`);
-  };
+const handlePriorityClick = () => {
+  if (!canEditNote || !isEditable) return;
+  
+  // Cycle through priority levels: 1 → 3 → 4 → 5 → 1
+  let nextPriority;
+  if (selectedPriority === '1') {
+    nextPriority = '3'; // Medium
+  } else if (selectedPriority === '3') {
+    nextPriority = '4'; // High
+  } else if (selectedPriority === '4') {
+    nextPriority = '5'; // Completed
+  } else {
+    nextPriority = '1'; // No priority
+  }
+  
+  setSelectedPriority(nextPriority);
+  
+  // Update toast message for completed priority
+  let priorityText;
+  if (nextPriority === '5') {
+    priorityText = 'Completed';
+  } else if (nextPriority === '4') {
+    priorityText = 'High';
+  } else if (nextPriority === '3') {
+    priorityText = 'Medium';
+  } else {
+    priorityText = 'No Priority';
+  }
+  
+  toast.success(`Priority set to ${priorityText}`);
+};
 
   // Editor toolbar component with emoji picker - UPDATED
   const renderEditorToolbar = () => (
@@ -1509,26 +1525,28 @@ const EditNoteModal = ({
         </div>
         
         <div className="priority-flag-container">
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              handlePriorityClick();
-            }}
-            title={`${selectedPriority === '1' ? 'No Priority - Click to set' : 
-                    selectedPriority === '3' ? 'Medium Priority - Click to change' : 
-                    'High Priority - Click to change'}`}
-            className={`priority-flag-button priority-${selectedPriority} ${selectedPriority > 1 ? 'has-priority' : ''} ${!isEditable || !canEditNote ? 'disabled' : ''}`}
-            disabled={!isEditable || !canEditNote}
-          >
-            <i className="fas fa-flag"></i>
-            
-            {selectedPriority > 1 && (
-              <div
-                className={`priority-flag-dot priority-${selectedPriority}`}
-              />
-            )}
-          </button>
-        </div>
+  <button 
+    onClick={(e) => {
+      e.stopPropagation();
+      handlePriorityClick();
+    }}
+    title={`${selectedPriority === '1' ? 'No Priority - Click to set' : 
+            selectedPriority === '3' ? 'Medium Priority - Click to change' : 
+            selectedPriority === '4' ? 'High Priority - Click to change' :
+            selectedPriority === '5' ? 'Completed - Click to change' : 
+            'Click to set priority'}`}
+    className={`priority-flag-button priority-${selectedPriority} ${selectedPriority > 1 ? 'has-priority' : ''} ${!isEditable || !canEditNote ? 'disabled' : ''}`}
+    disabled={!isEditable || !canEditNote}
+  >
+    <i className="fas fa-flag"></i> {/* Always use flag icon */}
+    
+    {selectedPriority > 1 && (
+      <div
+        className={`priority-flag-dot priority-${selectedPriority}`}
+      />
+    )}
+  </button>
+</div>
         
         <button 
           onClick={clearEditor} 

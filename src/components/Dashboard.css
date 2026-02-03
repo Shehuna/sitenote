@@ -892,6 +892,7 @@ tr.selected-row.priority-4 {
 
 .priority-3 { background: #e8f628; } 
 .priority-4 { background: #f83330; } 
+.priority-5 { background: #28a745; }
 .priority-dot, .priority-indicator {
   width: 10px;
   height: 10px;

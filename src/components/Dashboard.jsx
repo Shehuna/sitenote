@@ -3167,6 +3167,13 @@ const Dashboard = ({
               <div className="priority-color-dot priority-4" />
               <span className="priority-label">High Priority</span>
             </div>
+            <div
+              className="priority-option"
+              onClick={() => handlePriorityChange(5)}
+            >
+              <div className="priority-color-dot priority-5" />
+              <span className="priority-label">Completed</span>
+            </div>
           </div>
         </div>
       )}

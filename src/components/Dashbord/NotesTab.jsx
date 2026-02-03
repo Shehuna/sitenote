@@ -666,7 +666,10 @@ const NotesTab = ({
     nextPriority = 3; 
   } else if (currentPriority === 3) {
     nextPriority = 4; 
-  } else {
+  }else if (currentPriority === 4) {
+    nextPriority = 5; 
+  }
+   else {
     nextPriority = 1; 
   }
   
@@ -1782,11 +1785,11 @@ const refreshNotesAfterReply = async () => {
           <a
             onClick={(e) => handlePriorityClick(note, e)}
             title={`${priorityValue === 1 ? 'No Priority - Click to set' : 
-                    priorityValue === 3 ? 'Medium Priority - Click to change' : 
-                    'High Priority - Click to change'}`}
+                    priorityValue === 3 ? 'Medium Priority - Click to change' : priorityValue === 4 ?  
+                    'High Priority - Click to change' : 'Completed - Click to change'}`}
             style={{
               cursor: 'pointer',
-              color: priorityValue === 4 ? '#ef5350' : 
+              color: priorityValue === 5 ? "#28a745" : priorityValue === 4 ? '#ef5350' : 
                     priorityValue === 3 ? '#e8f628' : '#ccc',
               opacity: priorityValue > 1 ? 1 : 0.5,
               display: 'inline-flex',
@@ -1806,7 +1809,7 @@ const refreshNotesAfterReply = async () => {
  // Render priority dot for table view
 const renderPriorityDot = (priorityValue, note) => {
   if (priorityValue > 1) {
-    const dotColor = priorityValue === 3 ? "#e8f628" : "#ef5350"; 
+    const dotColor = priorityValue === 3 ? "#e8f628" : priorityValue === 4 ? "#ef5350" : "#28a745"; 
     
     return (
       <div
@@ -1821,7 +1824,7 @@ const renderPriorityDot = (priorityValue, note) => {
           zIndex: 10,
           backgroundColor: dotColor
         }}
-        title={priorityValue === 3 ? "Medium Priority" : "High Priority"}
+        title={priorityValue === 3 ? "Medium Priority" : priorityValue === 4 ? "High Priority" : "Completed"}
       />
     );
   }
@@ -2112,34 +2115,59 @@ const renderPriorityDot = (priorityValue, note) => {
   };
 
   // Render priority indicator for card view
-const renderCardPriorityIndicator = (priorityValue, note) => {
-  const flagColor = priorityValue === 4 ? "#ef5350" : 
-                   priorityValue === 3 ? "#e8f628" : "#ccc";
+  const renderCardPriorityIndicator = (priorityValue, note) => {
+  if (priorityValue > 1) {
+    const flagColor = priorityValue === 3 ? "#e8f628" : priorityValue === 4 ? "#ef5350" : "#28a745"; 
+    
+    return (
+      <i 
+        className="fas fa-flag"
+        style={{ 
+          cursor: "pointer", 
+          opacity: 1,
+          transition: "all 0.2s ease",
+          fontSize: "12px",
+          color: flagColor
+        }}
+        title={priorityValue === 3 ? "Medium Priority (3) - Click to change" :  priorityValue === 4 ? "High Priority (4) - Click to change" : "Completed (5) - Click to change"}
+        onClick={(e) => {
+          e.stopPropagation();
+          handlePriorityClick(note, e);
+        }}
+        onMouseEnter={(e) => { 
+          e.currentTarget.style.opacity = "0.9";
+          e.currentTarget.style.transform = "scale(1.1)";
+        }}
+        onMouseLeave={(e) => { 
+          e.currentTarget.style.opacity = 1;
+          e.currentTarget.style.transform = "scale(1)";
+        }}
+      />
+    );
+  }
   
   return (
     <i 
       className="fas fa-flag"
       style={{ 
         cursor: "pointer", 
-        opacity: priorityValue > 1 ? 1 : 0,
+        opacity: 0,
         transition: "all 0.2s ease",
         fontSize: "12px",
-        color: flagColor
+        color: "#ffffff"
       }}
-      title={priorityValue === 1 ? 'No Priority - Click to set' : 
-             priorityValue === 3 ? 'Medium Priority - Click to change' : 
-             'High Priority - Click to change'}
+      title="Click to set priority"
       onClick={(e) => {
         e.stopPropagation();
         handlePriorityClick(note, e);
       }}
       onMouseEnter={(e) => { 
-        e.currentTarget.style.opacity = "0.9";
-        e.currentTarget.style.transform = "scale(1.1)";
+        e.currentTarget.style.opacity = "0.3"; 
+        e.currentTarget.style.filter = "drop-shadow(0 0 1px #bdc3c7b1) drop-shadow(0 0 1px #bdc3c7b1)";
       }}
       onMouseLeave={(e) => { 
-        e.currentTarget.style.opacity = priorityValue > 1 ? 1 : 0;
-        e.currentTarget.style.transform = "scale(1)";
+        e.currentTarget.style.opacity = 0; 
+        e.currentTarget.style.filter = "none";
       }}
     />
   );
@@ -2879,12 +2907,9 @@ const renderCardPriorityIndicator = (priorityValue, note) => {
                                 opacity: priorityValue > 1 ? 1 : 0,
                                 transition: "all 0.2s ease",
                                 fontSize: "12px",
-                                color: priorityValue === 4 ? "#ef5350" : 
-                                      priorityValue === 3 ? "#e8f628" : "#ccc"
+                                color: priorityValue === 3 ? "#e8f628" : priorityValue === 4 ? "#ef5350" : "#28a745"
                               }}
-                              title={priorityValue === 1 ? 'No Priority - Click to set' : 
-                                    priorityValue === 3 ? 'Medium Priority - Click to change' : 
-                                    'High Priority - Click to change'}
+                              title={priorityValue === 3 ? "Medium Priority (3) - Click to change" : priorityValue === 4 ? "High Priority (4) - Click to change" : "Completed (5) - Click to change"}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handlePriorityClick(note, e);

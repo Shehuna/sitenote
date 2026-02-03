@@ -2412,10 +2412,10 @@ button:disabled {
     color: #ffc107;
 }
 
-.priority-flag-button.priority-4 {
-    background: #fff5f5;
-    border: 1px solid #dc3545;
-    color: #dc3545;
+.priority-flag-button.priority-5 {
+  color: #28a745; /* Green */
+  border-color: #28a745;
+  background-color: rgba(40, 167, 69, 0.1);
 }
 
 .priority-flag-dot {
@@ -2435,7 +2435,9 @@ button:disabled {
 .priority-flag-dot.priority-4 {
     background: #dc3545;
 }
-
+.priority-flag-dot.priority-5 {
+  background-color: #28a745;
+}
 .priority-flag-button:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(0,0,0,0.1);
