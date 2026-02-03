@@ -9,6 +9,7 @@ import PropTypes from "prop-types";
 import ReactDOM from "react-dom";
 import "./NotesTab.css";
 import ReplyModal from "../Modals/ReplyModal";
+import AiChatDialog from "../ai/AiChatDialog";
 import toast from "react-hot-toast";
 
 // Portal component for tooltips
@@ -267,6 +268,10 @@ const NotesTab = ({
   const [notePopupPosition, setNotePopupPosition] = useState({ x: 0, y: 0 });
   const [noteElementRect, setNoteElementRect] = useState(null);
 
+  // AI chat dialog state
+  const [showAiDialog, setShowAiDialog] = useState(false);
+  const [aiJobContext, setAiJobContext] = useState(null);
+
   const loadingRef = useRef(false);
   const observerRef = useRef(null);
   const lastRowRef = useRef(null);
@@ -385,6 +390,16 @@ const NotesTab = ({
     } finally {
       setLoadingLinkedNote((prev) => ({ ...prev, [originalNoteId]: false }));
     }
+  };
+
+  const openAiDialogForJob = (job) => {
+    setAiJobContext({ jobId: job.jobId, jobName: job.jobName });
+    setShowAiDialog(true);
+  };
+
+  const closeAiDialog = () => {
+    setShowAiDialog(false);
+    setAiJobContext(null);
   };
 
   // Handle mouse enter on link button
@@ -2189,21 +2204,35 @@ const renderPriorityDot = (priorityValue, note) => {
                         </span>
                       </div>
                     </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        background: "#14A2B6",
-                        color: "white",
-                        padding: "4px 10px",
-                        borderRadius: "20px",
-                        fontSize: "12px",
-                        fontWeight: 600,
-                      }}
-                    >
-                      <i className="fas fa-layer-group" />
-                      <span>{noteCount} notes</span>
+                    <div style={{display:'flex', alignItems:'center', gap:8}}>
+                      <button
+                        className="attachment-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openAiDialogForJob(job);
+                        }}
+                        title="Summarize notes (AI)"
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#1976d2' }}
+                      >
+                        <i className="fas fa-robot" />
+                      </button>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          background: "#14A2B6",
+                          color: "white",
+                          padding: "4px 10px",
+                          borderRadius: "20px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                        }}
+                      >
+                        <i className="fas fa-layer-group" />
+                        <span>{noteCount} notes</span>
+                      </div>
                     </div>
                   </div>
                   <div
@@ -2394,12 +2423,26 @@ const renderPriorityDot = (priorityValue, note) => {
                 {jobName}
               </div>
             </div>
-            <div className="expanded-stack-count">
+                <div style={{display:'flex', alignItems:'center', gap:8}}>
+                  <button
+                    className="attachment-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openAiDialogForJob(job);
+                    }}
+                    title="Summarize notes (AI)"
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#1976d2' }}
+                  >
+                    <i className="fas fa-robot" />
+                  </button>
+
+                  <div className="expanded-stack-count">
               <i className="fas fa-layer-group" />
               <span>
                 {displayNoteCount} of {noteCount} notes
               </span>
-            </div>
+                  </div>
+                </div>
           </div>
 
           {/* Loading state */}
@@ -3315,6 +3358,16 @@ const renderPriorityDot = (priorityValue, note) => {
       )}
 
       {/* Reply Modal */}
+      {/* AI Chat Dialog */}
+      {showAiDialog && aiJobContext && (
+        <AiChatDialog
+          open={showAiDialog}
+          onClose={closeAiDialog}
+          job={aiJobContext}
+          userId={userId}
+        />
+      )}
+
       {showReplyModal && selectedNoteForReply && (
         <ReplyModal
           note={selectedNoteForReply}
