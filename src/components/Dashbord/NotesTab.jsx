@@ -20,69 +20,69 @@ const TooltipPortal = ({ children }) => {
 // Function to process HTML content for URLs
 const processHtmlForUrls = (html) => {
   if (!html) return html;
-  
+
   try {
     // Create a temporary element
-    const tempDiv = document.createElement('div');
+    const tempDiv = document.createElement("div");
     tempDiv.innerHTML = html;
-    
+
     // Find all text nodes that aren't already inside links
     const walker = document.createTreeWalker(
       tempDiv,
       NodeFilter.SHOW_TEXT,
       null,
-      false
+      false,
     );
-    
+
     const textNodes = [];
     let node;
     while ((node = walker.nextNode())) {
       // Skip if parent is already an anchor tag
-      if (node.parentNode.nodeName !== 'A') {
+      if (node.parentNode.nodeName !== "A") {
         textNodes.push(node);
       }
     }
-    
+
     // Process each text node
     textNodes.forEach((textNode) => {
       const text = textNode.textContent;
       if (text && text.match(/(https?:\/\/|www\.)/gi)) {
-        const span = document.createElement('span');
+        const span = document.createElement("span");
         span.innerHTML = text.replace(
           /(https?:\/\/[^\s<>"]+|www\.[^\s<>"]+)/gi,
           (url) => {
             let href = url;
-            if (!href.startsWith('http://') && !href.startsWith('https://')) {
-              href = 'https://' + href;
+            if (!href.startsWith("http://") && !href.startsWith("https://")) {
+              href = "https://" + href;
             }
             return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="note-url-link" onclick="event.stopPropagation()">${url}</a>`;
-          }
+          },
         );
         textNode.parentNode.replaceChild(span, textNode);
       }
     });
-    
+
     return tempDiv.innerHTML;
   } catch (error) {
-    console.error('Error processing HTML for URLs:', error);
+    console.error("Error processing HTML for URLs:", error);
     return html;
   }
 };
 
 // Unified Note Text Popup Component - SIMPLIFIED VERSION
-const NoteTextPopup = ({ 
-  content, 
-  position, 
-  elementRect, 
-  searchTerm, 
+const NoteTextPopup = ({
+  content,
+  position,
+  elementRect,
+  searchTerm,
   onClose,
-  viewMode
+  viewMode,
 }) => {
   if (!content || !position) return null;
 
   // Process HTML content
   const processedContent = processHtmlForUrls(content);
-  
+
   // Highlight search terms
   const highlightHtmlContent = (html, highlight) => {
     if (!html || typeof html !== "string") {
@@ -146,7 +146,7 @@ const NoteTextPopup = ({
 
   // Get popup width based on view mode
   const getPopupWidth = () => {
-    switch(viewMode) {
+    switch (viewMode) {
       case "table":
         return "400px";
       case "cards":
@@ -250,7 +250,7 @@ const NotesTab = ({
   const [loadingMore, setLoadingMore] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isLoadingInitial, setIsLoadingInitial] = useState(false);
-  
+
   // New state for stacked view loading
   const [isStackedViewLoading, setIsStackedViewLoading] = useState(false);
   const [isFilteringStacked, setIsFilteringStacked] = useState(false);
@@ -271,7 +271,15 @@ const NotesTab = ({
   // AI chat dialog state
   const [showAiDialog, setShowAiDialog] = useState(false);
   const [aiJobContext, setAiJobContext] = useState(null);
-  const [manuallyUpdatedPriorities, setManuallyUpdatedPriorities] = useState({});
+  const [manuallyUpdatedPriorities, setManuallyUpdatedPriorities] = useState(
+    {},
+  );
+
+  // Priority hover tooltip states
+  const [hoveredPriorityNote, setHoveredPriorityNote] = useState(null);
+  const [priorityTooltipData, setPriorityTooltipData] = useState({});
+  const [loadingPriorityData, setLoadingPriorityData] = useState({});
+
   const loadingRef = useRef(false);
   const observerRef = useRef(null);
   const lastRowRef = useRef(null);
@@ -279,6 +287,7 @@ const NotesTab = ({
   const containerRef = useRef(null);
   const hoverTimeoutRef = useRef(null);
   const noteHoverTimeoutRef = useRef(null);
+  const priorityHoverTimeoutRef = useRef(null);
   const viewModeRef = useRef(viewMode);
   const hasActiveFiltersRef = useRef(hasActiveFilters);
 
@@ -286,11 +295,26 @@ const NotesTab = ({
   const [hoveredOriginalNote, setHoveredOriginalNote] = useState(null);
   const [originalNoteContent, setOriginalNoteContent] = useState({});
   const [loadingOriginalNote, setLoadingOriginalNote] = useState({});
-  const linkHoverTimeoutRef = useRef(null); 
-  
-    
+  const linkHoverTimeoutRef = useRef(null);
+
   const pageSize = 25;
   const initialPageNumber = 1;
+
+  // Helper function to format priority date
+  const formatPriorityDate = (dateString) => {
+    if (!dateString) return "N/A";
+
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "Invalid date";
+
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
 
   // Track view mode changes
   useEffect(() => {
@@ -299,7 +323,7 @@ const NotesTab = ({
       const timer = setTimeout(() => {
         setIsStackedViewLoading(false);
       }, 500);
-      
+
       return () => clearTimeout(timer);
     }
     viewModeRef.current = viewMode;
@@ -307,12 +331,15 @@ const NotesTab = ({
 
   // Track filter changes in stacked view
   useEffect(() => {
-    if (viewMode === "stacked" && hasActiveFiltersRef.current !== hasActiveFilters) {
+    if (
+      viewMode === "stacked" &&
+      hasActiveFiltersRef.current !== hasActiveFilters
+    ) {
       setIsFilteringStacked(true);
       const timer = setTimeout(() => {
         setIsFilteringStacked(false);
       }, 500);
-      
+
       return () => clearTimeout(timer);
     }
     hasActiveFiltersRef.current = hasActiveFilters;
@@ -323,7 +350,7 @@ const NotesTab = ({
     setLoadingReplies(true);
     try {
       const response = await fetch(
-        `${apiUrl}/SiteNote/GetAllReplies?pageNumber=1&pageSize=1000&userId=${userId}`
+        `${apiUrl}/SiteNote/GetAllReplies?pageNumber=1&pageSize=1000&userId=${userId}`,
       );
       if (response.ok) {
         const data = await response.json();
@@ -348,7 +375,7 @@ const NotesTab = ({
     (noteId) => {
       return noteReplies.some((reply) => reply.id === noteId);
     },
-    [noteReplies]
+    [noteReplies],
   );
 
   // Get the original note ID for a reply note - UPDATED logic
@@ -357,7 +384,7 @@ const NotesTab = ({
       const reply = noteReplies.find((reply) => reply.id === replyNoteId);
       return reply ? reply.reply : null;
     },
-    [noteReplies]
+    [noteReplies],
   );
 
   // Fetch original note content for hover tooltip
@@ -367,7 +394,7 @@ const NotesTab = ({
     try {
       setLoadingLinkedNote((prev) => ({ ...prev, [originalNoteId]: true }));
       const response = await fetch(
-        `${apiUrl}/SiteNote/GetSiteNoteById/${originalNoteId}`
+        `${apiUrl}/SiteNote/GetSiteNoteById/${originalNoteId}`,
       );
       if (response.ok) {
         const data = await response.json();
@@ -390,6 +417,96 @@ const NotesTab = ({
       console.error(`Error fetching original note ${originalNoteId}:`, error);
     } finally {
       setLoadingLinkedNote((prev) => ({ ...prev, [originalNoteId]: false }));
+    }
+  };
+
+  // Function to fetch priority data for a note
+  const fetchPriorityData = async (noteId) => {
+    if (!noteId || priorityTooltipData[noteId]) return;
+
+    try {
+      setLoadingPriorityData((prev) => ({ ...prev, [noteId]: true }));
+      const response = await fetch(
+        `${process.env.REACT_APP_API_BASE_URL}/api/Priority/GetPriorityByNoteId/${noteId}`,
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+
+        if (data && data.priority) {
+          const priorityValue = data.priority.priorityValue;
+          let priorityText = "";
+
+          switch (priorityValue) {
+            case 3:
+              priorityText = "Medium";
+              break;
+            case 4:
+              priorityText = "High";
+              break;
+            case 5:
+              priorityText = "Completed";
+              break;
+            default:
+              priorityText = "No priority";
+          }
+
+          setPriorityTooltipData((prev) => ({
+            ...prev,
+            [noteId]: {
+              priorityValue: priorityValue,
+              priorityText: priorityText,
+              userName:
+                data.priority.userName || data.priority.name || "Unknown",
+              createdAt: data.priority.createdAt,
+              updatedAt: data.priority.updatedAt,
+              hasPriority: priorityValue > 1,
+            },
+          }));
+        } else {
+          // If no priority exists (value is 1 or null)
+          setPriorityTooltipData((prev) => ({
+            ...prev,
+            [noteId]: {
+              priorityValue: 1,
+              priorityText: "No priority",
+              userName: "",
+              createdAt: "",
+              updatedAt: "",
+              hasPriority: false,
+            },
+          }));
+        }
+      } else {
+        // If API returns error, assume no priority
+        setPriorityTooltipData((prev) => ({
+          ...prev,
+          [noteId]: {
+            priorityValue: 1,
+            priorityText: "No priority",
+            userName: "",
+            createdAt: "",
+            updatedAt: "",
+            hasPriority: false,
+          },
+        }));
+      }
+    } catch (error) {
+      console.error(`Error fetching priority data for note ${noteId}:`, error);
+      setPriorityTooltipData((prev) => ({
+        ...prev,
+        [noteId]: {
+          priorityValue: 1,
+          priorityText: "No priority",
+          userName: "",
+          createdAt: "",
+          updatedAt: "",
+          hasPriority: false,
+          error: true,
+        },
+      }));
+    } finally {
+      setLoadingPriorityData((prev) => ({ ...prev, [noteId]: false }));
     }
   };
 
@@ -476,17 +593,81 @@ const NotesTab = ({
     setHoveredLinkedNote(null);
   };
 
+  // Handle mouse enter on priority flag
+  const handlePriorityMouseEnter = (note, e) => {
+    if (e) {
+      const mouseX = e.clientX;
+      const mouseY = e.clientY;
+
+      // Get viewport dimensions
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      // Tooltip dimensions
+      const tooltipWidth = 300;
+      const tooltipHeight = 150;
+
+      let x, y;
+
+      // Check if there's enough space on the right of the mouse
+      if (mouseX + tooltipWidth + 10 <= viewportWidth) {
+        x = mouseX + 10;
+      } else if (mouseX - tooltipWidth - 10 >= 0) {
+        x = mouseX - tooltipWidth - 10;
+      } else {
+        x = Math.max(10, viewportWidth - tooltipWidth - 10);
+      }
+
+      // Vertical positioning
+      y = mouseY + 15;
+
+      // Adjust if tooltip goes off screen vertically
+      if (y + tooltipHeight > viewportHeight) {
+        y = mouseY - tooltipHeight - 10;
+      }
+
+      // Ensure positions are within bounds
+      x = Math.max(10, Math.min(x, viewportWidth - tooltipWidth - 10));
+      y = Math.max(10, Math.min(y, viewportHeight - tooltipHeight - 10));
+
+      setTooltipPosition({ x, y });
+    }
+
+    // Clear any existing timeout
+    if (priorityHoverTimeoutRef.current) {
+      clearTimeout(priorityHoverTimeoutRef.current);
+    }
+
+    // Set timeout for hover delay (500ms)
+    priorityHoverTimeoutRef.current = setTimeout(() => {
+      setHoveredPriorityNote(note.id);
+
+      // Fetch priority data if not already loaded
+      if (!priorityTooltipData[note.id]) {
+        fetchPriorityData(note.id);
+      }
+    }, 500);
+  };
+
+  // Handle mouse leave on priority flag
+  const handlePriorityMouseLeave = () => {
+    if (priorityHoverTimeoutRef.current) {
+      clearTimeout(priorityHoverTimeoutRef.current);
+    }
+    setHoveredPriorityNote(null);
+  };
+
   // Check if should show popup for note text
   const shouldShowNotePopup = (note) => {
     if (!note || !note.note) return false;
-    
+
     // Different thresholds for different view modes
     if (viewMode === "table") {
       return note.note.length > 69;
     } else if (viewMode === "cards" || viewMode === "stacked") {
       return note.note.length > 120;
     }
-    
+
     return false;
   };
 
@@ -504,7 +685,7 @@ const NotesTab = ({
     // Get the element and its position
     const noteTextElement = e.currentTarget;
     const rect = noteTextElement.getBoundingClientRect();
-    
+
     // Store element rect for positioning
     setNoteElementRect(rect);
 
@@ -519,13 +700,13 @@ const NotesTab = ({
     // Calculate position to start INSIDE the notes container
     // Position popup inside the note element, not outside
     let popupX, popupY;
-    
+
     // For table view, position inside the table cell
     if (viewMode === "table") {
       // Position inside the table cell, aligned with the text
       popupX = rect.left + 5;
       popupY = rect.top + 5;
-    } 
+    }
     // For card view, position inside the card
     else if (viewMode === "cards" || viewMode === "stacked") {
       // Position inside the card, slightly offset from the top
@@ -555,7 +736,7 @@ const NotesTab = ({
 
     setNotePopupPosition({
       x: popupX,
-      y: popupY
+      y: popupY,
     });
 
     // Set timeout for hover delay (300ms)
@@ -563,11 +744,12 @@ const NotesTab = ({
       setHoveredNoteContent(note.note);
     }, 300);
   };
+
   const getPriorityValue = (note) => {
-  return manuallyUpdatedPriorities[note.id] !== undefined 
-    ? manuallyUpdatedPriorities[note.id] 
-    : (note.priority || 1);
-};
+    return manuallyUpdatedPriorities[note.id] !== undefined
+      ? manuallyUpdatedPriorities[note.id]
+      : note.priority || 1;
+  };
 
   // Handle mouse leave from note text
   const handleNoteTextMouseLeave = () => {
@@ -587,6 +769,9 @@ const NotesTab = ({
       if (noteHoverTimeoutRef.current) {
         clearTimeout(noteHoverTimeoutRef.current);
       }
+      if (priorityHoverTimeoutRef.current) {
+        clearTimeout(priorityHoverTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -605,7 +790,7 @@ const NotesTab = ({
 
     // Find the original note in displayNotes
     const originalNote = displayNotes.find(
-      (note) => note.id === originalNoteId
+      (note) => note.id === originalNoteId,
     );
 
     if (originalNote) {
@@ -619,11 +804,11 @@ const NotesTab = ({
         // Try different selectors based on view mode
         if (viewMode === "table") {
           noteElement = document.querySelector(
-            `tr[data-note-id="${originalNoteId}"]`
+            `tr[data-note-id="${originalNoteId}"]`,
           );
         } else if (viewMode === "cards" || viewMode === "stacked") {
           noteElement = document.querySelector(
-            `.note-card[data-note-id="${originalNoteId}"]`
+            `.note-card[data-note-id="${originalNoteId}"]`,
           );
         }
 
@@ -643,62 +828,80 @@ const NotesTab = ({
           }, 2000);
         } else {
           toast.error(
-            `Note (ID: ${originalNoteId}) not found in current view.`
+            `Note (ID: ${originalNoteId}) not found in current view.`,
           );
         }
       }, 100);
     } else {
       toast.error(
-        `Original note (ID: ${originalNoteId}) not found in current view.`
+        `Original note (ID: ${originalNoteId}) not found in current view.`,
       );
     }
   };
+
   const handlePriorityClick = (note, e) => {
-  e.stopPropagation();
-  e.preventDefault();
-  
-  const currentPriority = manuallyUpdatedPriorities[note.id] || note.priority || 1;
-  let nextPriority;
-  
-  console.log(`Current priority for note ${note.id}: ${currentPriority}`);
-  
-  if (currentPriority === 1) {
-    nextPriority = 3; 
-  } else if (currentPriority === 3) {
-    nextPriority = 4; 
-  }else if (currentPriority === 4) {
-    nextPriority = 5; 
-  }
-   else {
-    nextPriority = 1; 
-  }
-  
-  console.log(`Next priority for note ${note.id}: ${nextPriority}`);
-  
-  updateNotePriority(note.id, nextPriority);
-};
+    e.stopPropagation();
+    e.preventDefault();
+
+    const currentPriority =
+      manuallyUpdatedPriorities[note.id] || note.priority || 1;
+    let nextPriority;
+
+    console.log(`Current priority for note ${note.id}: ${currentPriority}`);
+
+    if (currentPriority === 1) {
+      nextPriority = 3;
+    } else if (currentPriority === 3) {
+      nextPriority = 4;
+    } else if (currentPriority === 4) {
+      nextPriority = 5;
+    } else {
+      nextPriority = 1;
+    }
+
+    console.log(`Next priority for note ${note.id}: ${nextPriority}`);
+
+    updateNotePriority(note.id, nextPriority);
+  };
 
 const updateNotePriority = async (noteId, priorityValue) => {
   try {
     const user = JSON.parse(localStorage.getItem("user"));
-    
+
     console.log(`API: Updating note ${noteId} to priority ${priorityValue}`);
-    
+
     const checkResponse = await fetch(
-      `${process.env.REACT_APP_API_BASE_URL}/api/Priority/GetPriorityByNoteId/${noteId}`
+      `${process.env.REACT_APP_API_BASE_URL}/api/Priority/GetPriorityByNoteId/${noteId}`,
     );
-    
+
     let priorityId = null;
     if (checkResponse.ok) {
       const data = await checkResponse.json();
-      console.log('Priority check response:', data);
+      console.log("Priority check response:", data);
       if (data.priority || (Array.isArray(data) && data.length > 0)) {
-        priorityId = data.priority?.id || (Array.isArray(data) ? data[0]?.id : null);
+        priorityId =
+          data.priority?.id || (Array.isArray(data) ? data[0]?.id : null);
       }
     }
-    
+
     console.log(`Found priorityId: ${priorityId} for note ${noteId}`);
-    
+
+    // Determine priority text
+    let priorityText = "";
+    switch (priorityValue) {
+      case 3:
+        priorityText = "Medium";
+        break;
+      case 4:
+        priorityText = "High";
+        break;
+      case 5:
+        priorityText = "Completed";
+        break;
+      default:
+        priorityText = "No priority";
+    }
+
     if (priorityId) {
       const response = await fetch(
         `${process.env.REACT_APP_API_BASE_URL}/api/Priority/UpdatePriority/${priorityId}`,
@@ -707,20 +910,19 @@ const updateNotePriority = async (noteId, priorityValue) => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             priorityValue: priorityValue,
-            userId: user.id
-          })
-        }
+            userId: user.id,
+          }),
+        },
       );
-      
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Update priority error:', errorText);
+        console.error("Update priority error:", errorText);
         throw new Error("Failed to update priority");
       }
-      
+
       const result = await response.json();
-      console.log('Update priority result:', result);
-      
+      console.log("Update priority result:", result);
     } else if (priorityValue > 1) {
       const response = await fetch(
         `${process.env.REACT_APP_API_BASE_URL}/api/Priority/AddPriority`,
@@ -730,36 +932,51 @@ const updateNotePriority = async (noteId, priorityValue) => {
           body: JSON.stringify({
             priorityValue: priorityValue,
             userId: user.id,
-            noteId: noteId
-          })
-        }
+            noteId: noteId,
+          }),
+        },
       );
-      
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Add priority error:', errorText);
+        console.error("Add priority error:", errorText);
         throw new Error("Failed to add priority");
       }
-      
+
       const result = await response.json();
-      console.log('Add priority result:', result);
-      toast.success(`Priority set to ${priorityValue === 4 ? 'High' : 'Medium'}`);
+      console.log("Add priority result:", result);
+      toast.success(
+        `Priority set to ${priorityValue === 4 ? "High" : "Medium"}`,
+      );
     } else {
-      console.log('No priority exists and setting to 1, no API call needed');
+      console.log("No priority exists and setting to 1, no API call needed");
       toast.success("Priority reset to default");
     }
-    
+
+    // Update priority in all local states
     updateNotePriorityEverywhere(noteId, priorityValue);
-    
-    setTimeout(() => {
+
+    // ALSO update the priorityTooltipData state immediately
+    setPriorityTooltipData((prev) => ({
+      ...prev,
+      [noteId]: {
+        priorityValue: priorityValue,
+        priorityText: priorityText,
+        userName: user.name || user.userName || "Current User",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        hasPriority: priorityValue > 1,
+      },
+    }));
+
+   /*  setTimeout(() => {
       refreshNotesAfterReply();
-    }, 300);
-    
+    }, 300); */
   } catch (error) {
     console.error("Error updating priority:", error);
     toast.error("Failed to update priority: " + error.message);
-    
-    setManuallyUpdatedPriorities(prev => {
+
+    setManuallyUpdatedPriorities((prev) => {
       const newState = { ...prev };
       delete newState[noteId];
       return newState;
@@ -767,30 +984,38 @@ const updateNotePriority = async (noteId, priorityValue) => {
   }
 };
 
-const updateNotePriorityInState = (noteId, newPriority) => {
-  
-  setLocalNotes(prev => prev.map(note => 
-    note.id === noteId ? { ...note, priority: newPriority } : note
-  ));
-  
-  if (finalDisplayNotes && finalDisplayNotes.some(note => note.id === noteId)) {
-  }
-};
+  const updateNotePriorityInState = (noteId, newPriority) => {
+    setLocalNotes((prev) =>
+      prev.map((note) =>
+        note.id === noteId ? { ...note, priority: newPriority } : note,
+      ),
+    );
 
-const updateNotePriorityEverywhere = (noteId, newPriority) => {
-  console.log(`Updating priority for note ${noteId} to ${newPriority} everywhere`);
-  
-  setManuallyUpdatedPriorities(prev => ({
-    ...prev,
-    [noteId]: newPriority
-  }));
-  
-  setLocalNotes(prev => prev.map(note => 
-    note.id === noteId ? { ...note, priority: newPriority } : note
-  ));
-  
-  console.log('Priority update applied locally');
-};
+    if (
+      finalDisplayNotes &&
+      finalDisplayNotes.some((note) => note.id === noteId)
+    ) {
+    }
+  };
+
+  const updateNotePriorityEverywhere = (noteId, newPriority) => {
+    console.log(
+      `Updating priority for note ${noteId} to ${newPriority} everywhere`,
+    );
+
+    setManuallyUpdatedPriorities((prev) => ({
+      ...prev,
+      [noteId]: newPriority,
+    }));
+
+    setLocalNotes((prev) =>
+      prev.map((note) =>
+        note.id === noteId ? { ...note, priority: newPriority } : note,
+      ),
+    );
+
+    console.log("Priority update applied locally");
+  };
 
   // Format tooltip content
   const formatTooltipContent = (content) => {
@@ -815,32 +1040,31 @@ const updateNotePriorityEverywhere = (noteId, newPriority) => {
     setShowReplyModal(true);
   };
 
-const refreshNotesAfterReply = async () => {
-  try {
-    console.log("🔄 Starting refresh...");
-    
-    await fetchNoteReplies();
-    
-    if (fetchNotes && typeof fetchNotes === 'function') {
-      const result = await fetchNotes(1, pageSize);
-      
-      if (result && result.notes) {
-        console.log(`✅ Loaded ${result.notes.length} fresh notes`);
-        
-        setLocalNotes([...result.notes].sort((a, b) => b.id - a.id));
-        setHasMore(result.hasMore);
-        setPage(2); 
-        setIsInitialLoad(false);
+  const refreshNotesAfterReply = async () => {
+    try {
+      console.log("🔄 Starting refresh...");
+
+      await fetchNoteReplies();
+
+      if (fetchNotes && typeof fetchNotes === "function") {
+        const result = await fetchNotes(1, pageSize);
+
+        if (result && result.notes) {
+          console.log(`✅ Loaded ${result.notes.length} fresh notes`);
+
+          setLocalNotes([...result.notes].sort((a, b) => b.id - a.id));
+          setHasMore(result.hasMore);
+          setPage(2);
+          setIsInitialLoad(false);
+        }
       }
+
+      console.log("✅ Refresh completed");
+    } catch (error) {
+      console.error("❌ Error refreshing notes:", error);
+      toast.error("Failed to refresh notes");
     }
-    
-    console.log("✅ Refresh completed");
-    
-  } catch (error) {
-    console.error("❌ Error refreshing notes:", error);
-    toast.error("Failed to refresh notes");
-  }
-};
+  };
 
   // Determine which notes to display based on filters/search
   const displayNotes = useMemo(() => {
@@ -903,7 +1127,7 @@ const refreshNotesAfterReply = async () => {
 
     console.log("Stacked jobs available:", stackedJobs?.length || 0);
     console.log("Has active filters:", hasActiveFilters);
-    
+
     // Always use stackedJobs prop (it will be filteredStackedJobs when hasActiveFilters is true)
     return stackedJobs || [];
   }, [viewMode, stackedJobs, hasActiveFilters]);
@@ -958,7 +1182,7 @@ const refreshNotesAfterReply = async () => {
     try {
       // First process URLs
       const withUrls = processHtmlForUrls(html);
-      
+
       // If no search highlight, just return with URLs
       if (!highlight) {
         return withUrls;
@@ -1027,24 +1251,24 @@ const refreshNotesAfterReply = async () => {
       } else {
         const existingIds = new Set(localNotes.map((note) => note.id));
         const newNotesFromParent = finalDisplayNotes.filter(
-          (note) => !existingIds.has(note.id)
+          (note) => !existingIds.has(note.id),
         );
 
         if (newNotesFromParent.length > 0) {
           const sortedNewNotes = [...newNotesFromParent].sort(
-            (a, b) => b.id - a.id
+            (a, b) => b.id - a.id,
           );
           setLocalNotes((prev) => [...sortedNewNotes, ...prev]);
 
           const updatedNotes = finalDisplayNotes.filter((note) =>
-            existingIds.has(note.id)
+            existingIds.has(note.id),
           );
           if (updatedNotes.length > 0) {
             setLocalNotes((prev) =>
               prev.map((note) => {
                 const updatedNote = updatedNotes.find((u) => u.id === note.id);
                 return updatedNote || note;
-              })
+              }),
             );
           }
         }
@@ -1086,7 +1310,7 @@ const refreshNotesAfterReply = async () => {
     try {
       setLoadingUsers((prev) => ({ ...prev, [userId]: true }));
       const response = await fetch(
-        `${apiUrl}/UserManagement/GetUserById/${userId}`
+        `${apiUrl}/UserManagement/GetUserById/${userId}`,
       );
       if (response.ok) {
         const data = await response.json();
@@ -1155,7 +1379,7 @@ const refreshNotesAfterReply = async () => {
         setLocalNotes((prev) => {
           const existingIds = new Set(prev.map((note) => note.id));
           const newNotes = result.notes.filter(
-            (note) => !existingIds.has(note.id)
+            (note) => !existingIds.has(note.id),
           );
           const sortedNewNotes = [...newNotes].sort((a, b) => b.id - a.id);
           return [...prev, ...sortedNewNotes];
@@ -1215,7 +1439,7 @@ const refreshNotesAfterReply = async () => {
 
     if (note.repliedSiteNoteId) {
       const originalNote = displayNotes.find(
-        (n) => n.id === note.repliedSiteNoteId
+        (n) => n.id === note.repliedSiteNoteId,
       );
 
       if (originalNote) {
@@ -1223,7 +1447,7 @@ const refreshNotesAfterReply = async () => {
 
         setTimeout(() => {
           const originalNoteElement = document.querySelector(
-            `[data-note-id="${originalNote.id}"]`
+            `[data-note-id="${originalNote.id}"]`,
           );
           if (originalNoteElement) {
             originalNoteElement.scrollIntoView({
@@ -1238,7 +1462,7 @@ const refreshNotesAfterReply = async () => {
         }, 100);
       } else {
         alert(
-          `Original note (ID: ${note.repliedSiteNoteId}) not found in current view.`
+          `Original note (ID: ${note.repliedSiteNoteId}) not found in current view.`,
         );
       }
     }
@@ -1359,7 +1583,7 @@ const refreshNotesAfterReply = async () => {
     if (displayNotes && displayNotes.length > 0) {
       const uniqueUserIds = [
         ...new Set(
-          displayNotes.filter((note) => note.userId).map((note) => note.userId)
+          displayNotes.filter((note) => note.userId).map((note) => note.userId),
         ),
       ];
 
@@ -1528,8 +1752,8 @@ const refreshNotesAfterReply = async () => {
                 {searchTerm.trim()
                   ? "No notes match your search"
                   : getActiveFilterCount() > 0
-                  ? "No notes match your filters"
-                  : "No notes available"}
+                    ? "No notes match your filters"
+                    : "No notes available"}
               </div>
             </>
           ) : null}
@@ -1558,15 +1782,15 @@ const refreshNotesAfterReply = async () => {
           {searchTerm.trim()
             ? "No notes match your search"
             : getActiveFilterCount() > 0
-            ? "No notes match your filters"
-            : "No notes available"}
+              ? "No notes match your filters"
+              : "No notes available"}
         </h3>
         <p>
           {searchTerm.trim()
             ? "Try adjusting your search terms"
             : getActiveFilterCount() > 0
-            ? "Try clearing some filters"
-            : "Create your first note to get started"}
+              ? "Try clearing some filters"
+              : "Create your first note to get started"}
         </p>
       </div>
     );
@@ -1574,7 +1798,7 @@ const refreshNotesAfterReply = async () => {
 
   const renderTableRow = (note, index, isLast = false) => {
     const priorityValue = getPriorityValue(note);
-   
+
     const uniqueKey = `${note.id}-${index}`;
     const isReply = isNoteReply(note.id);
     const originalNoteId = isReply ? getReplyNoteId(note.id) : null;
@@ -1587,7 +1811,7 @@ const refreshNotesAfterReply = async () => {
         onDoubleClick={() => {
           handleRowDoubleClick(note);
           const job = jobs.find(
-            (j) => String(j.id) === String(note.job) || j.name === note.job
+            (j) => String(j.id) === String(note.job) || j.name === note.job,
           );
           setViewNote({
             id: note.id,
@@ -1602,11 +1826,11 @@ const refreshNotesAfterReply = async () => {
         ref={isLast ? lastRowRef : null}
         onMouseEnter={(e) => {
           const inactiveWrapper = e.currentTarget.querySelector(
-            ".inactive-user-wrapper"
+            ".inactive-user-wrapper",
           );
           if (inactiveWrapper) {
             const tooltip = inactiveWrapper.querySelector(
-              ".inactive-user-tooltip"
+              ".inactive-user-tooltip",
             );
             tooltip.style.opacity = "1";
             tooltip.style.visibility = "visible";
@@ -1614,11 +1838,11 @@ const refreshNotesAfterReply = async () => {
         }}
         onMouseLeave={(e) => {
           const inactiveWrapper = e.currentTarget.querySelector(
-            ".inactive-user-wrapper"
+            ".inactive-user-wrapper",
           );
           if (inactiveWrapper) {
             const tooltip = inactiveWrapper.querySelector(
-              ".inactive-user-tooltip"
+              ".inactive-user-tooltip",
             );
             if (tooltip) {
               tooltip.style.opacity = "0";
@@ -1654,12 +1878,19 @@ const refreshNotesAfterReply = async () => {
             }}
             onClick={(e) => {
               // If a link was clicked, don't trigger row selection
-              if (e.target.tagName === 'A' && e.target.classList.contains('note-url-link')) {
+              if (
+                e.target.tagName === "A" &&
+                e.target.classList.contains("note-url-link")
+              ) {
                 e.stopPropagation();
               }
             }}
-            onMouseEnter={(e) => shouldShowNotePopup(note) && handleNoteTextMouseEnter(note, e)}
-            onMouseLeave={() => shouldShowNotePopup(note) && handleNoteTextMouseLeave()}
+            onMouseEnter={(e) =>
+              shouldShowNotePopup(note) && handleNoteTextMouseEnter(note, e)
+            }
+            onMouseLeave={() =>
+              shouldShowNotePopup(note) && handleNoteTextMouseLeave()
+            }
           >
             <span
               style={{
@@ -1675,7 +1906,7 @@ const refreshNotesAfterReply = async () => {
                   note.note && note.note.length > 69
                     ? highlightHtmlContent(
                         note.note.substring(0, 69) + "...",
-                        searchTerm
+                        searchTerm,
                       )
                     : highlightHtmlContent(note.note || "", searchTerm),
               }}
@@ -1686,7 +1917,6 @@ const refreshNotesAfterReply = async () => {
                 __html: highlightHtmlContent(note.note, searchTerm),
               }}
             />
-           
           </div>
         </td>
         <td>
@@ -1784,19 +2014,24 @@ const refreshNotesAfterReply = async () => {
           </a>
           <a
             onClick={(e) => handlePriorityClick(note, e)}
-            title={`${priorityValue === 1 ? 'No Priority - Click to set' : 
-                    priorityValue === 3 ? 'Medium Priority - Click to change' : priorityValue === 4 ?  
-                    'High Priority - Click to change' : 'Completed - Click to change'}`}
+            onMouseEnter={(e) => handlePriorityMouseEnter(note, e)}
+            onMouseLeave={handlePriorityMouseLeave}
             style={{
-              cursor: 'pointer',
-              color: priorityValue === 5 ? "#28a745" : priorityValue === 4 ? '#ef5350' : 
-                    priorityValue === 3 ? '#e8f628' : '#ccc',
+              cursor: "pointer",
+              color:
+                priorityValue === 5
+                  ? "#28a745"
+                  : priorityValue === 4
+                    ? "#ef5350"
+                    : priorityValue === 3
+                      ? "#e8f628"
+                      : "#ccc",
               opacity: priorityValue > 1 ? 1 : 0.5,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '20px',
-              height: '20px'
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "20px",
+              height: "20px",
             }}
           >
             <i className="fas fa-flag" />
@@ -1806,53 +2041,63 @@ const refreshNotesAfterReply = async () => {
     );
   };
 
- // Render priority dot for table view
-const renderPriorityDot = (priorityValue, note) => {
-  if (priorityValue > 1) {
-    const dotColor = priorityValue === 3 ? "#e8f628" : priorityValue === 4 ? "#ef5350" : "#28a745"; 
-    
+  // Render priority dot for table view
+  const renderPriorityDot = (priorityValue, note) => {
+    if (priorityValue > 1) {
+      const dotColor =
+        priorityValue === 3
+          ? "#e8f628"
+          : priorityValue === 4
+            ? "#ef5350"
+            : "#28a745";
+
+      return (
+        <div
+          className={`priority-dot priority-dot-${priorityValue}`}
+          style={{
+            width: "10px",
+            height: "10px",
+            borderRadius: "50%",
+            position: "absolute",
+            top: "4px",
+            right: "4px",
+            zIndex: 10,
+            backgroundColor: dotColor,
+          }}
+          title={
+            priorityValue === 3
+              ? "Medium Priority"
+              : priorityValue === 4
+                ? "High Priority"
+                : "Completed"
+          }
+        />
+      );
+    }
+
     return (
       <div
-        className={`priority-dot priority-dot-${priorityValue}`}
-        style={{ 
-          width: "10px", 
-          height: "10px", 
-          borderRadius: "50%", 
-          position: "absolute", 
-          top: "4px", 
-          right: "4px", 
+        className="priority-dot priority-dot-placeholder"
+        style={{
+          width: "10px",
+          height: "10px",
+          borderRadius: "50%",
+          position: "absolute",
+          top: "4px",
+          right: "4px",
           zIndex: 10,
-          backgroundColor: dotColor
+          opacity: 0.2,
+          border: "1px dashed #bdc3c7",
+          backgroundColor: "transparent",
+          transition: "all 0.2s ease",
         }}
-        title={priorityValue === 3 ? "Medium Priority" : priorityValue === 4 ? "High Priority" : "Completed"}
+        title="No priority set"
       />
     );
-  }
-  
-  return (
-    <div
-      className="priority-dot priority-dot-placeholder"
-      style={{ 
-        width: "10px", 
-        height: "10px", 
-        borderRadius: "50%", 
-        position: "absolute", 
-        top: "4px", 
-        right: "4px", 
-        zIndex: 10, 
-        opacity: 0.2, 
-        border: "1px dashed #bdc3c7", 
-        backgroundColor: "transparent", 
-        transition: "all 0.2s ease" 
-      }}
-      title="No priority set"
-    />
-  );
-};
+  };
 
   const renderNoteCard = (note, index, isLast = false) => {
-    
-  const priorityValue = getPriorityValue(note);
+    const priorityValue = getPriorityValue(note);
     const isInactive =
       userStatusMap[note.userId] && !userStatusMap[note.userId].active;
     const uniqueKey = `${note.id}-${index}`;
@@ -1870,7 +2115,7 @@ const renderPriorityDot = (priorityValue, note) => {
         onMouseEnter={(e) => {
           if (isInactive) {
             const tooltip = e.currentTarget.querySelector(
-              ".inactive-user-tooltip"
+              ".inactive-user-tooltip",
             );
             if (tooltip) {
               tooltip.style.opacity = "1";
@@ -1881,7 +2126,7 @@ const renderPriorityDot = (priorityValue, note) => {
         onMouseLeave={(e) => {
           if (isInactive) {
             const tooltip = e.currentTarget.querySelector(
-              ".inactive-user-tooltip"
+              ".inactive-user-tooltip",
             );
             if (tooltip) {
               tooltip.style.opacity = "0";
@@ -1992,12 +2237,19 @@ const renderPriorityDot = (priorityValue, note) => {
             style={{ position: "relative", height: "100%" }}
             onClick={(e) => {
               // If a link was clicked, don't trigger card selection
-              if (e.target.tagName === 'A' && e.target.classList.contains('note-url-link')) {
+              if (
+                e.target.tagName === "A" &&
+                e.target.classList.contains("note-url-link")
+              ) {
                 e.stopPropagation();
               }
             }}
-            onMouseEnter={(e) => shouldShowNotePopup(note) && handleNoteTextMouseEnter(note, e)}
-            onMouseLeave={() => shouldShowNotePopup(note) && handleNoteTextMouseLeave()}
+            onMouseEnter={(e) =>
+              shouldShowNotePopup(note) && handleNoteTextMouseEnter(note, e)
+            }
+            onMouseLeave={() =>
+              shouldShowNotePopup(note) && handleNoteTextMouseLeave()
+            }
           >
             <div
               className="note-text"
@@ -2116,62 +2368,72 @@ const renderPriorityDot = (priorityValue, note) => {
 
   // Render priority indicator for card view
   const renderCardPriorityIndicator = (priorityValue, note) => {
-  if (priorityValue > 1) {
-    const flagColor = priorityValue === 3 ? "#e8f628" : priorityValue === 4 ? "#ef5350" : "#28a745"; 
-    
+    const flagColor =
+      priorityValue === 3
+        ? "#e8f628"
+        : priorityValue === 4
+          ? "#ef5350"
+          : priorityValue === 5
+            ? "#28a745"
+            : "#ccc";
+
     return (
-      <i 
+      <i
         className="fas fa-flag"
-        style={{ 
-          cursor: "pointer", 
+        style={{
+          cursor: "pointer",
           opacity: 1,
           transition: "all 0.2s ease",
           fontSize: "12px",
-          color: flagColor
+          color: flagColor,
         }}
-        title={priorityValue === 3 ? "Medium Priority (3) - Click to change" :  priorityValue === 4 ? "High Priority (4) - Click to change" : "Completed (5) - Click to change"}
+        //title={priorityValue === 3 ? "Medium Priority (3) - Click to change" :  priorityValue === 4 ? "High Priority (4) - Click to change" : "Completed (5) - Click to change"}
         onClick={(e) => {
           e.stopPropagation();
           handlePriorityClick(note, e);
         }}
-        onMouseEnter={(e) => { 
+        onMouseEnter={(e) => {
           e.currentTarget.style.opacity = "0.9";
           e.currentTarget.style.transform = "scale(1.1)";
+          handlePriorityMouseEnter(note, e);
         }}
-        onMouseLeave={(e) => { 
+        onMouseLeave={(e) => {
           e.currentTarget.style.opacity = 1;
           e.currentTarget.style.transform = "scale(1)";
+          handlePriorityMouseLeave();
         }}
       />
     );
-  }
-  
-  return (
-    <i 
-      className="fas fa-flag"
-      style={{ 
-        cursor: "pointer", 
-        opacity: 0,
-        transition: "all 0.2s ease",
-        fontSize: "12px",
-        color: "#ffffff"
-      }}
-      title="Click to set priority"
-      onClick={(e) => {
-        e.stopPropagation();
-        handlePriorityClick(note, e);
-      }}
-      onMouseEnter={(e) => { 
-        e.currentTarget.style.opacity = "0.3"; 
-        e.currentTarget.style.filter = "drop-shadow(0 0 1px #bdc3c7b1) drop-shadow(0 0 1px #bdc3c7b1)";
-      }}
-      onMouseLeave={(e) => { 
-        e.currentTarget.style.opacity = 0; 
-        e.currentTarget.style.filter = "none";
-      }}
-    />
-  );
-};
+
+    return (
+      <i
+        className="fas fa-flag"
+        style={{
+          cursor: "pointer",
+          opacity: 0,
+          transition: "all 0.2s ease",
+          fontSize: "12px",
+          color: "#ffffff",
+        }}
+        //title="Click to set priority"
+        onClick={(e) => {
+          e.stopPropagation();
+          handlePriorityClick(note, e);
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.opacity = "0.3";
+          e.currentTarget.style.filter =
+            "drop-shadow(0 0 1px #bdc3c7b1) drop-shadow(0 0 1px #bdc3c7b1)";
+          handlePriorityMouseEnter(note, e);
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.opacity = 0;
+          e.currentTarget.style.filter = "none";
+          handlePriorityMouseLeave();
+        }}
+      />
+    );
+  };
 
   // Handle stacked jobs logic
   const notesByJob = {};
@@ -2197,27 +2459,33 @@ const renderPriorityDot = (priorityValue, note) => {
   const sortedJobs =
     viewMode === "stacked"
       ? jobsToDisplay && jobsToDisplay.length > 0
-        ? [...jobsToDisplay].filter(job => job).sort((a, b) => {
-            // Sort by latestTimeStamp (most recent first), then by noteCount as fallback
-            const timeA = a.latestTimeStamp ? new Date(a.latestTimeStamp).getTime() : 0;
-            const timeB = b.latestTimeStamp ? new Date(b.latestTimeStamp).getTime() : 0;
-            
-            // If timestamps are equal or not available, sort by note count
-            if (timeB !== timeA) {
-              return timeB - timeA; // Most recent first
-            }
-            return (b.noteCount || 0) - (a.noteCount || 0);
-          })
+        ? [...jobsToDisplay]
+            .filter((job) => job)
+            .sort((a, b) => {
+              // Sort by latestTimeStamp (most recent first), then by noteCount as fallback
+              const timeA = a.latestTimeStamp
+                ? new Date(a.latestTimeStamp).getTime()
+                : 0;
+              const timeB = b.latestTimeStamp
+                ? new Date(b.latestTimeStamp).getTime()
+                : 0;
+
+              // If timestamps are equal or not available, sort by note count
+              if (timeB !== timeA) {
+                return timeB - timeA; // Most recent first
+              }
+              return (b.noteCount || 0) - (a.noteCount || 0);
+            })
         : []
       : Object.keys(notesByJob).sort((a, b) => {
           const mostRecentA = notesByJob[a][0]
             ? new Date(
-                notesByJob[a][0].timeStamp || notesByJob[a][0].date || 0
+                notesByJob[a][0].timeStamp || notesByJob[a][0].date || 0,
               ).getTime()
             : 0;
           const mostRecentB = notesByJob[b][0]
             ? new Date(
-                notesByJob[b][0].timeStamp || notesByJob[b][0].date || 0
+                notesByJob[b][0].timeStamp || notesByJob[b][0].date || 0,
               ).getTime()
             : 0;
           return mostRecentB - mostRecentA;
@@ -2228,7 +2496,7 @@ const renderPriorityDot = (priorityValue, note) => {
   // Render collapsed stack (without loading notes yet)
   const renderCollapsedStack = (job) => {
     if (!job) return null;
-    
+
     const jobName = job.jobName;
     const noteCount = job.noteCount || 0;
     const isLoading = job.isLoadingNotes;
@@ -2239,7 +2507,7 @@ const renderPriorityDot = (priorityValue, note) => {
         className={`collapsed-stack ${isLoading ? "loading" : ""}`}
         onClick={() => toggleStackExpansion(jobName, job.jobId)}
         style={{
-          cursor: 'pointer',
+          cursor: "pointer",
           position: "relative",
           height: "280px",
           width: "100%",
@@ -2344,7 +2612,9 @@ const renderPriorityDot = (priorityValue, note) => {
                         </span>
                       </div>
                     </div>
-                    <div style={{display:'flex', alignItems:'center', gap:8}}>
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    >
                       
 
                       <div
@@ -2443,11 +2713,11 @@ const renderPriorityDot = (priorityValue, note) => {
                             job.lastSiteNote
                               ? job.lastSiteNote
                               : job.notes && job.notes.length > 0
-                              ? job.notes[0].note || "No note content"
-                              : hasActiveFilters && job.hasLoadedNotes
-                              ? "No notes match current filters"
-                              : "Click to load notes",
-                            searchTerm
+                                ? job.notes[0].note || "No note content"
+                                : hasActiveFilters && job.hasLoadedNotes
+                                  ? "No notes match current filters"
+                                  : "Click to load notes",
+                            searchTerm,
                           ),
                         }}
                       />
@@ -2535,10 +2805,10 @@ const renderPriorityDot = (priorityValue, note) => {
   // Render expanded stack with notes - UPDATED to sort notes by timestamp
   const renderExpandedStack = (job) => {
     if (!job) return null;
-    
+
     const jobName = job.jobName;
     // Sort notes by timestamp (most recent first) when displaying
-    const jobNotes = job.notes 
+    const jobNotes = job.notes
       ? [...job.notes].sort((a, b) => {
           const timeA = new Date(a.timeStamp || a.date || 0).getTime();
           const timeB = new Date(b.timeStamp || b.date || 0).getTime();
@@ -2564,27 +2834,32 @@ const renderPriorityDot = (priorityValue, note) => {
                 {jobName}
               </div>
             </div>
-                <div style={{display:'flex', alignItems:'center', gap:8}}>
-                  <button
-                    className="attachment-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openAiDialogForJob(job);
-                    }}
-                    title="Summarize notes (AI)"
-                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#1976d2' }}
-                  >
-                    <i className="fas fa-robot" />
-                  </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button
+                className="attachment-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openAiDialogForJob(job);
+                }}
+                title="Summarize notes (AI)"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#1976d2",
+                }}
+              >
+                <i className="fas fa-robot" />
+              </button>
 
-                  <div className="expanded-stack-count">
-              <i className="fas fa-layer-group" />
-              <span>
-                {displayNoteCount} of {noteCount} notes
-              </span>
+              <div className="expanded-stack-count">
+                <i className="fas fa-layer-group" />
+                <span>
+                  {displayNoteCount} of {noteCount} notes
+                </span>
               
-                  </div>
-                </div>
+              </div>
+            </div>
           </div>
 
           {/* Loading state */}
@@ -2771,7 +3046,7 @@ const renderPriorityDot = (priorityValue, note) => {
                                     year: "numeric",
                                     month: "short",
                                     day: "numeric",
-                                  }
+                                  },
                                 )}
                               >
                                 {formatRelativeTime(note.timeStamp)}
@@ -2810,17 +3085,29 @@ const renderPriorityDot = (priorityValue, note) => {
                               style={{ position: "relative", height: "100%" }}
                               onClick={(e) => {
                                 // If a link was clicked, don't trigger card selection
-                                if (e.target.tagName === 'A' && e.target.classList.contains('note-url-link')) {
+                                if (
+                                  e.target.tagName === "A" &&
+                                  e.target.classList.contains("note-url-link")
+                                ) {
                                   e.stopPropagation();
                                 }
                               }}
-                              onMouseEnter={(e) => shouldShowNotePopup(note) && handleNoteTextMouseEnter(note, e)}
-                              onMouseLeave={() => shouldShowNotePopup(note) && handleNoteTextMouseLeave()}
+                              onMouseEnter={(e) =>
+                                shouldShowNotePopup(note) &&
+                                handleNoteTextMouseEnter(note, e)
+                              }
+                              onMouseLeave={() =>
+                                shouldShowNotePopup(note) &&
+                                handleNoteTextMouseLeave()
+                              }
                             >
                               <div
                                 className="note-text"
                                 dangerouslySetInnerHTML={{
-                                  __html: highlightHtmlContent(note.note, searchTerm),
+                                  __html: highlightHtmlContent(
+                                    note.note,
+                                    searchTerm,
+                                  ),
                                 }}
                               />
                             </div>
@@ -2901,61 +3188,88 @@ const renderPriorityDot = (priorityValue, note) => {
                                 </button>
                               )}
                             </div>
-                            <div className="note-actions">
-                              <i 
-                              className="fas fa-flag"
-                              style={{ 
-                                cursor: "pointer", 
-                                opacity: priorityValue > 1 ? 1 : 0,
-                                transition: "all 0.2s ease",
-                                fontSize: "12px",
-                                color: priorityValue === 3 ? "#e8f628" : priorityValue === 4 ? "#ef5350" : "#28a745"
-                              }}
-                              title={priorityValue === 3 ? "Medium Priority (3) - Click to change" : priorityValue === 4 ? "High Priority (4) - Click to change" : "Completed (5) - Click to change"}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handlePriorityClick(note, e);
-                              }}
-                              onMouseEnter={(e) => { 
-                                e.currentTarget.style.opacity = "0.9";
-                                e.currentTarget.style.transform = "scale(1.1)";
-                              }}
-                              onMouseLeave={(e) => { 
-                                e.currentTarget.style.opacity = priorityValue > 1 ? 1 : 0;
-                                e.currentTarget.style.transform = "scale(1)";
-                              }}
-                            />
-                              <button
-                                className="action-btn"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleAddFromRow(note);
-                                }}
-                                title="Add New Note"
-                              >
-                                <i className="fas fa-plus" />
-                              </button>
-                              <button
-                                className="action-btn"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEdit(note);
-                                }}
-                                title="Edit Note"
-                              >
-                                <i className="fas fa-edit" />
-                              </button>
-                              <button
-                                className="action-btn delete"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDelete(note);
-                                }}
-                                title="Delete Note"
-                              >
-                                <i className="fas fa-trash" />
-                              </button>
-                            </div>
+                         
+
+<div className="note-actions">
+  
+  <i
+    className="fas fa-flag"
+    style={{
+      cursor: "pointer",
+      color:
+        priorityValue === 5
+          ? "#28a745"
+          : priorityValue === 4
+            ? "#ef5350"
+            : priorityValue === 3
+              ? "#e8f628"
+              : "#ccc",
+      opacity: priorityValue > 1 ? 1 : 0.5,
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      width: "20px",
+      height: "20px",
+      fontSize: "12px",
+      transition: "all 0.2s ease",
+    }}
+    /* title={
+      priorityValue === 1
+        ? "No Priority - Click to set"
+        : priorityValue === 3
+          ? "Medium Priority - Click to change"
+          : priorityValue === 4
+            ? "High Priority - Click to change"
+            : "Completed - Click to change"
+    } */
+    onClick={(e) => {
+      e.stopPropagation();
+      handlePriorityClick(note, e);
+    }}
+    onMouseEnter={(e) => {
+      handlePriorityMouseEnter(note, e);
+      if (priorityValue > 1) {
+        e.currentTarget.style.opacity = "0.9";
+        e.currentTarget.style.transform = "scale(1.1)";
+      }
+    }}
+    onMouseLeave={(e) => {
+      handlePriorityMouseLeave();
+      e.currentTarget.style.opacity = priorityValue > 1 ? 1 : 0.5;
+      e.currentTarget.style.transform = "scale(1)";
+    }}
+  />
+  <button
+    className="action-btn"
+    onClick={(e) => {
+      e.stopPropagation();
+      handleAddFromRow(note);
+    }}
+    title="Add New Note"
+  >
+    <i className="fas fa-plus" />
+  </button>
+  <button
+    className="action-btn"
+    onClick={(e) => {
+      e.stopPropagation();
+      handleEdit(note);
+    }}
+    title="Edit Note"
+  >
+    <i className="fas fa-edit" />
+  </button>
+  <button
+    className="action-btn delete"
+    onClick={(e) => {
+      e.stopPropagation();
+      handleDelete(note);
+    }}
+    title="Delete Note"
+  >
+    <i className="fas fa-trash" />
+  </button>
+</div>
                           </div>
                         </div>
                       );
@@ -3034,7 +3348,9 @@ const renderPriorityDot = (priorityValue, note) => {
             fontWeight: "500",
           }}
         >
-          {isStackedViewLoading ? "Loading stacked view..." : "Applying filters..."}
+          {isStackedViewLoading
+            ? "Loading stacked view..."
+            : "Applying filters..."}
         </div>
         <div
           style={{
@@ -3102,8 +3418,8 @@ const renderPriorityDot = (priorityValue, note) => {
                     renderTableRow(
                       note,
                       index,
-                      index === displayNotes.length - 1
-                    )
+                      index === displayNotes.length - 1,
+                    ),
                   )}
                   {loadingMore && (
                     <tr>
@@ -3152,7 +3468,7 @@ const renderPriorityDot = (priorityValue, note) => {
       ) : viewMode === "stacked" ? (
         <div className="stacked-notes-horizontal">
           {/* Show loading spinner when switching to stacked view or filtering */}
-          {(isStackedViewLoading || isFilteringStacked) ? (
+          {isStackedViewLoading || isFilteringStacked ? (
             renderStackedViewLoading()
           ) : loadingStackedJobs && !hasActiveFilters ? (
             // Show skeleton only when loading initial stacked jobs (not during filtering)
@@ -3172,15 +3488,15 @@ const renderPriorityDot = (priorityValue, note) => {
                 {loadingStackedJobs || loadingFiltered
                   ? "Loading jobs..."
                   : hasActiveFilters
-                  ? "No jobs match your filters"
-                  : "No stacked jobs available"}
+                    ? "No jobs match your filters"
+                    : "No stacked jobs available"}
               </h3>
               <p>
                 {loadingStackedJobs || loadingFiltered
                   ? "Please wait while we load your jobs..."
                   : hasActiveFilters
-                  ? "Try adjusting your filters to see matching jobs"
-                  : "No jobs with notes found."}
+                    ? "Try adjusting your filters to see matching jobs"
+                    : "No jobs with notes found."}
               </p>
             </div>
           ) : (
@@ -3193,7 +3509,7 @@ const renderPriorityDot = (priorityValue, note) => {
                       Object.keys(expandedStacks).forEach((jobName) => {
                         if (expandedStacks[jobName]) {
                           const job = jobsToDisplay.find(
-                            (j) => j && j.jobName === jobName
+                            (j) => j && j.jobName === jobName,
                           );
                           if (job) {
                             toggleStackExpansion(jobName, job.jobId);
@@ -3208,7 +3524,7 @@ const renderPriorityDot = (priorityValue, note) => {
               )}
               {sortedJobs.map((job) => {
                 if (!job) return null;
-                
+
                 const jobName = job.jobName;
                 const isExpanded = expandedStacks[jobName];
 
@@ -3236,7 +3552,7 @@ const renderPriorityDot = (priorityValue, note) => {
           ) : (
             <>
               {displayNotes.map((note, index) =>
-                renderNoteCard(note, index, index === displayNotes.length - 1)
+                renderNoteCard(note, index, index === displayNotes.length - 1),
               )}
               {loadingMore && (
                 <div className="loading-more-cards">
@@ -3359,7 +3675,7 @@ const renderPriorityDot = (priorityValue, note) => {
                 >
                   <strong>Content:</strong>{" "}
                   {formatTooltipContent(
-                    linkedNoteContent[hoveredOriginalNoteId].content
+                    linkedNoteContent[hoveredOriginalNoteId].content,
                   )}
                 </div>
                 <div
@@ -3386,10 +3702,10 @@ const renderPriorityDot = (priorityValue, note) => {
                     />
                     <strong>Date:</strong>{" "}
                     {new Date(
-                      linkedNoteContent[hoveredOriginalNoteId].date
+                      linkedNoteContent[hoveredOriginalNoteId].date,
                     ).toLocaleDateString()}{" "}
                     {new Date(
-                      linkedNoteContent[hoveredOriginalNoteId].date
+                      linkedNoteContent[hoveredOriginalNoteId].date,
                     ).toLocaleTimeString([], {
                       hour: "2-digit",
                       minute: "2-digit",
@@ -3462,6 +3778,158 @@ const renderPriorityDot = (priorityValue, note) => {
                 zIndex: 1,
               }}
             />
+          </div>
+        </TooltipPortal>
+      )}
+
+      {/* Priority Tooltip */}
+
+      {hoveredPriorityNote && (
+        <TooltipPortal>
+          <div
+            className="priority-tooltip"
+            style={{
+              position: "fixed",
+              top: `${tooltipPosition.y}px`,
+              left: `${tooltipPosition.x}px`,
+              zIndex: 999999,
+              backgroundColor: "white",
+              border: "1px solid #ddd",
+              borderRadius: "4px",
+              padding: "12px",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+              maxWidth: "300px",
+              minWidth: "250px",
+              fontSize: "12px",
+              pointerEvents: "none",
+            }}
+          >
+            <div
+              style={{
+                fontWeight: "bold",
+                marginBottom: "8px",
+                color: "#2c3e50",
+                borderBottom: "2px solid #3498db",
+                paddingBottom: "6px",
+                fontSize: "13px",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <i
+                className="fas fa-flag"
+                style={{
+                  color:
+                    priorityTooltipData[hoveredPriorityNote]?.priorityValue ===
+                    3
+                      ? "#e8f628"
+                      : priorityTooltipData[hoveredPriorityNote]
+                            ?.priorityValue === 4
+                        ? "#ef5350"
+                        : priorityTooltipData[hoveredPriorityNote]
+                              ?.priorityValue === 5
+                          ? "#28a745"
+                          : "#ccc",
+                }}
+              />
+              {loadingPriorityData[hoveredPriorityNote]
+                ? "Loading priority info..."
+                : `Priority: ${priorityTooltipData[hoveredPriorityNote]?.priorityText || "No priority"}`}
+            </div>
+
+            {loadingPriorityData[hoveredPriorityNote] ? (
+              <div
+                style={{
+                  color: "#3498db",
+                  fontStyle: "italic",
+                  padding: "16px",
+                  textAlign: "center",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                }}
+              >
+                <i className="fas fa-spinner fa-spin" />
+                Loading priority information...
+              </div>
+            ) : priorityTooltipData[hoveredPriorityNote]?.hasPriority ? (
+              <>
+                <div
+                  style={{
+                    margin: "8px 0",
+                    color: "#555",
+                    lineHeight: 1.5,
+                    backgroundColor: "#f8f9fa",
+                    padding: "8px",
+                    borderRadius: "4px",
+                  }}
+                >
+                  <div style={{ marginBottom: "4px" }}>
+                    <i
+                      className="fas fa-user"
+                      style={{
+                        marginRight: "6px",
+                        width: "12px",
+                        color: "#7f8c8d",
+                      }}
+                    />
+                    <strong>Set by:</strong>{" "}
+                    {priorityTooltipData[hoveredPriorityNote]?.userName ||
+                      "Unknown"}
+                  </div>
+                  <div style={{ marginBottom: "4px" }}>
+                    <i
+                      className="fas fa-calendar-alt"
+                      style={{
+                        marginRight: "6px",
+                        width: "12px",
+                        color: "#7f8c8d",
+                      }}
+                    />
+                    <strong>Date:</strong>{" "}
+                    {formatPriorityDate(
+                      priorityTooltipData[hoveredPriorityNote]?.createdAt,
+                    )}
+                  </div>
+                  {/* {priorityTooltipData[hoveredPriorityNote]?.priorityValue && (
+              <div style={{ marginTop: "8px", padding: "4px 8px", backgroundColor: "#e3f2fd", borderRadius: "4px" }}>
+                <strong>Priority Value:</strong> {priorityTooltipData[hoveredPriorityNote].priorityValue}
+                <div style={{ fontSize: "11px", color: "#1565c0", marginTop: "2px" }}>
+                  (3 = Medium, 4 = High, 5 = Completed)
+                </div>
+              </div>
+            )} */}
+                </div>
+              </>
+            ) : (
+              <div
+                style={{
+                  color: "#95a5a6",
+                  fontStyle: "italic",
+                  padding: "16px",
+                  textAlign: "center",
+                  backgroundColor: "#f8f9fa",
+                  borderRadius: "4px",
+                }}
+              >
+                <i
+                  className="fas fa-info-circle"
+                  style={{ marginRight: "8px", fontSize: "14px" }}
+                />
+                No priority set for this note
+                <div
+                  style={{
+                    fontSize: "11px",
+                    marginTop: "4px",
+                    color: "#7f8c8d",
+                  }}
+                >
+                  Click to set priority
+                </div>
+              </div>
+            )}
           </div>
         </TooltipPortal>
       )}
