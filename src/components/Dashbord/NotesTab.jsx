@@ -2345,17 +2345,7 @@ const renderPriorityDot = (priorityValue, note) => {
                       </div>
                     </div>
                     <div style={{display:'flex', alignItems:'center', gap:8}}>
-                      <button
-                        className="attachment-btn"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openAiDialogForJob(job);
-                        }}
-                        title="Summarize notes (AI)"
-                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#1976d2' }}
-                      >
-                        <i className="fas fa-robot" />
-                      </button>
+                      
 
                       <div
                         style={{
@@ -2484,6 +2474,17 @@ const renderPriorityDot = (priorityValue, note) => {
                           ? formatRelativeTime(job.latestTimeStamp)
                           : "No updates"}
                       </span>
+                          <button
+                        className="attachment-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openAiDialogForJob(job);
+                        }}
+                        title="Summarize notes (AI)"
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#1976d2', marginLeft: '8px'  }}
+                      >
+                        <i className="fas fa-comments" />   
+                      </button>
                     </div>
                   </div>
                   <div
@@ -2581,6 +2582,7 @@ const renderPriorityDot = (priorityValue, note) => {
               <span>
                 {displayNoteCount} of {noteCount} notes
               </span>
+              
                   </div>
                 </div>
           </div>
