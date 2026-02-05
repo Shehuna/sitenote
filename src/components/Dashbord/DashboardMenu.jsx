@@ -14,7 +14,6 @@ import JobPermissionManagement from '../JobPermission/JobPermissionManagement';
 import JobStatusManagement from '../JobStatus/JobStatusManagement';
 import WorkspaceManagement from '../Workspaces/WorkspaceManagement';
 import ProjectPermissionManagement from '../ProjectPermission/ProjectPermissionManagement';
-import WorkspacePermissionManagement from '../WorkspacePermission/WorkspacePermissionManagement';
 
 const DashboardMenu = ({
     defaultUserWorkspaceID,
@@ -439,13 +438,6 @@ const DashboardMenu = ({
           defId={defaultUserWorkspaceID}
         />;
         title = 'Job Status Update';
-        break;
-      case 'workspacePermission':
-        component = <WorkspacePermissionManagement 
-          defId={defaultUserWorkspaceID}
-          userId={userid}
-        />;
-        title = 'Workspace Permissions';
         break;
       case 'workspaceSettings':
         component = <WorkspaceManagement 
@@ -1326,14 +1318,6 @@ const DashboardMenu = ({
                 </div>
 
                 <div className="submenu-divider"></div>
-
-                <button
-                  className="submenu-item"
-                  onClick={() => handleSubmenuItemClick('workspacePermission')}
-                >
-                  <i className="fas fa-user-shield submenu-icon" />
-                  <span className="submenu-text">Workspace Permissions</span>
-                </button>
 
                 <button
                   className="submenu-item"

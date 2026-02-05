@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import WorkspacePermissionManagement from './WorkspacePermission/WorkspacePermissionManagement';
+import Modal from './Modals/Modal';
 import './AdminDashboard.css';
 
 const AdminDashboard = () => {
@@ -8,7 +10,8 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [dashboardData, setDashboardData] = useState(null);
-  const navigate = useNavigate();
+  const [showWorkspacePermissionModal, setShowWorkspacePermissionModal] = useState(false);
+  const navigate = useNavigate();  
 
 const formatFileSize = (bytes) => {
   console.log('formatFileSize called with:', bytes); 
@@ -27,6 +30,29 @@ const formatFileSize = (bytes) => {
     return bytes + ' Bytes';
   }
 };
+const getFirstWorkspaceId = () => {
+    if (dashboardData?.workspaceOverview?.allWorkspacesWithUsers?.length > 0) {
+      return dashboardData.workspaceOverview.allWorkspacesWithUsers[0].id || 
+             dashboardData.workspaceOverview.allWorkspacesWithUsers[0].workspaceID;
+    }
+    return null;
+  };
+
+ const getCurrentUser = () => {
+    const user = JSON.parse(localStorage.getItem("user"));
+    return {
+      id: user?.userId || '0',
+      name: user?.userName || 'Admin'
+    };
+  };
+
+  const closeWorkspacePermissionModal = () => {
+    setShowWorkspacePermissionModal(false);
+  };
+
+  const handleWorkspacePermissionsClick = () => {
+    setShowWorkspacePermissionModal(true);
+  };
 
   const calculateStoragePercentage = (storageUsed) => {
     if (!storageUsed) return 0;
@@ -218,6 +244,12 @@ const formatFileSize = (bytes) => {
               <button className="admin-btn-primary">
                 <i className="fas fa-plus" /> Add New Workspace
               </button>
+              <button 
+                className="admin-btn-secondary" 
+                onClick={handleWorkspacePermissionsClick}
+              >
+                <i className="fas fa-user-shield" /> Workspace Permissions
+              </button>
               <button className="admin-btn-secondary">
                 <i className="fas fa-download" /> Generate Report
               </button>
@@ -401,6 +433,21 @@ const formatFileSize = (bytes) => {
           </div>
         </div>
       </div>
+      {showWorkspacePermissionModal && (
+      <Modal
+        isOpen={showWorkspacePermissionModal}
+        onClose={closeWorkspacePermissionModal}
+        title="Workspace Permissions"
+        className="modal-lg" 
+      >
+        <WorkspacePermissionManagement 
+          defId={getFirstWorkspaceId()} 
+        userId={getCurrentUser().id}
+        isAdminDashboard={true}
+        dashboardData={dashboardData} 
+        />
+      </Modal>
+    )}
     </div>
   );
 };

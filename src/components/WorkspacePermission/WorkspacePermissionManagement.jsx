@@ -12,7 +12,7 @@ const WorkspacePermissionManagement = ({ defId, users, userId }) => {
 
     useEffect(() => { fetchInitialData(); }, [defId]);
 
-    const fetchInitialData = async () => {
+   /*  const fetchInitialData = async () => {
         setLoading(true); setError(null);
         try {
             const API_URL = process.env.REACT_APP_API_BASE_URL;
@@ -39,6 +39,48 @@ const WorkspacePermissionManagement = ({ defId, users, userId }) => {
         } catch (err) {
             setError(err.message); console.error('API Error:', err);
         } finally { setLoading(false); }
+    };*/
+    const fetchInitialData = async () => {
+        setLoading(true); 
+        setError(null);
+        try {
+            const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://localhost:7204';
+            const workspacesUrl = `${API_URL}/api/Workspace/GetWorkspace`;
+            
+            let userData = [];
+            
+            const wsRes = await fetch(workspacesUrl, { 
+                method: 'GET', 
+                headers: { 'Content-Type': 'application/json' } 
+            });
+
+            if (!wsRes.ok) throw new Error(`Workspace API error: ${wsRes.status}`);
+            
+            let wsData = await wsRes.json();
+            wsData = wsData.workspaces || wsData || [];
+            setWorkspaces(wsData);
+
+            if (defId) {
+                const userURL = `${API_URL}/api/UserWorkspace/GetUsersByWorkspaceId/${defId}`;
+                const userRes = await fetch(userURL, { 
+                    method: 'GET', 
+                    headers: { 'Content-Type': 'application/json' } 
+                });
+
+                if (!userRes.ok) throw new Error(`UserWorkspacePermission API error: ${userRes.status}`);
+
+                userData = await userRes.json();
+                userData = userData.users || userData.userWorkspaces || userData.userWorkspacePermissions || userData || [];
+            }
+
+            const normalizedUsers = Array.isArray(userData) ? userData : [];
+            setFilteredUsers(normalizedUsers);
+        } catch (err) {
+            setError(err.message); 
+            console.error('API Error:', err);
+        } finally { 
+            setLoading(false); 
+        }
     };
 
     if (error) return <div className="error-message">Error: {error}</div>;
