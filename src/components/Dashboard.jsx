@@ -848,8 +848,10 @@ const Dashboard = ({
             if (combination.project) comboParams.append("projectId", combination.project);
             if (combination.userName) comboParams.append("siteNoteUserId", combination.userName);
             
+            // Ensure text-filter endpoint is used and include current search term
+            comboParams.append("searchText", searchTerm || "");
             return fetch(
-              `${apiUrl}/SiteNote/GetSiteNotesByJobId?${comboParams.toString()}`
+              `${apiUrl}/SiteNote/GetSiteNotesByJobIdWithTextFilter?${comboParams.toString()}`
             ).then(res => res.ok ? res.json() : { siteNotes: [] });
           });
           
@@ -889,8 +891,10 @@ const Dashboard = ({
         }
       }
       
+      // Use text-filter endpoint for consistency and include search term
+      params.append("searchText", searchTerm || "");
       const notesResponse = await fetch(
-        `${apiUrl}/SiteNote/GetSiteNotesByJobId?${params.toString()}`
+        `${apiUrl}/SiteNote/GetSiteNotesByJobIdWithTextFilter?${params.toString()}`
       );
 
       if (!notesResponse.ok) {

@@ -17,7 +17,7 @@ const UserWorkspaceManagement = ({ defWorkID, fetchedUsers = [] }) => {
         if (normalized.length && !selectedUserId) setSelectedUserId(normalized[0].userId);
     }, [fetchedUsers]);
 
-    const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://localhost:7204';
+    const API_URL = process.env.REACT_APP_API_BASE_UR;
 
     useEffect(() => {
         const load = async () => {
