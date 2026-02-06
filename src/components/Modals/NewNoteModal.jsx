@@ -410,65 +410,98 @@ const NewNoteModal = forwardRef(
       });
     };
 
-    const handlePaste = useCallback(
-      (e) => {
-        if (!editorRef.current || isReadOnly) return; // Disable paste if read-only
+const handlePaste = useCallback(
+  (e) => {
+    if (!editorRef.current || isReadOnly) return;
 
-        e.preventDefault();
-        const clipboardData = e.clipboardData || window.Clipboard;
+    e.preventDefault();
+    const clipboardData = e.clipboardData || window.clipboardData;
 
-        // Check for pasted images
-        if (clipboardData.files && clipboardData.files.length > 0) {
-          const file = clipboardData.files[0];
+    if (clipboardData.files && clipboardData.files.length > 0) {
+      const file = clipboardData.files[0];
 
-          // Check if it's an image
-          if (file.type.startsWith("image/")) {
-            processPastedImage(file)
-              .then((imgElement) => {
-                // Insert image at cursor position
-                const selection = window.getSelection();
-                if (selection.rangeCount > 0) {
-                  const range = selection.getRangeAt(0);
+      if (file.type.startsWith("image/")) {
+        processPastedImage(file)
+          .then((imgElement) => {
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+              const range = selection.getRangeAt(0);
+              range.deleteContents();
+              range.insertNode(imgElement);
+              
+              const space = document.createTextNode(' ');
+              range.insertNode(space);
+              
+              range.setStartAfter(space);
+              range.collapse(true);
+            }
+            setRichTextContent(editorRef.current.innerHTML);
+          })
+          .catch((error) => {
+            console.error("Error processing pasted image:", error);
+            const plainText = clipboardData.getData('text/plain');
+            if (plainText) {
+              document.execCommand('insertText', false, plainText);
+            }
+          });
+        return;
+      }
+    }
 
-                  // Check if we're at the end of a block element
-                  const container = range.commonAncestorContainer;
+    let htmlContent = clipboardData.getData("text/html");
+    
+    if (htmlContent) {
+      htmlContent = cleanHtmlContent(htmlContent);
+      insertHtmlSafely(htmlContent);
+      return;
+    }
 
-                  // Insert the image
-                  range.deleteContents();
-                  range.insertNode(imgElement);
+    const plainText = clipboardData.getData("text/plain");
+    if (plainText) {
+      document.execCommand('insertText', false, plainText);
+      setRichTextContent(editorRef.current.innerHTML);
+    }
+  },
+  [isReadOnly],
+);
 
-                  // Add a single space after the image for better editing
-                  const space = document.createTextNode(" ");
-                  range.insertNode(space);
+const cleanHtmlContent = (html) => {
+  html = html.replace(/<o:p>|<\/o:p>/gi, '');
+  html = html.replace(/<w:.*?>|<\/w:.*?>/gi, '');
+  html = html.replace(/<xml.*?>.*?<\/xml>/gi, '');
+  
+  html = html.replace(/ style="[^"]*"/gi, '');
+  
+  html = html.replace(/ class="[^"]*"/gi, '');
+  
+  html = html.replace(/ id="[^"]*"/gi, '');
+  
+  html = html.replace(/<b(\s[^>]*)?>/gi, '<strong>').replace(/<\/b>/gi, '</strong>');
+  
+  html = html.replace(/<i(\s[^>]*)?>/gi, '<em>').replace(/<\/i>/gi, '</em>');
+  
+  html = html.replace(/<p>\s*<\/p>/gi, '');
+  html = html.replace(/<div>\s*<\/div>/gi, '');
+  html = html.replace(/<span>\s*<\/span>/gi, '');
+  
+  html = html.replace(/\s+/g, ' ').trim();
+  
+  return html;
+};
 
-                  // Move cursor after the space
-                  range.setStartAfter(space);
-                  range.setEndAfter(space);
-                  selection.removeAllRanges();
-                  selection.addRange(range);
-                }
-
-                // Update content
-                setRichTextContent(editorRef.current.innerHTML);
-              })
-              .catch((error) => {
-                console.error("Error processing pasted image:", error);
-                // Fallback: insert plain text
-                document.execCommand("insertText", false, "");
-              });
-            return;
-          }
-        }
-
-        // Handle plain text paste
-        const pastedText = clipboardData.getData("text");
-        if (pastedText) {
-          document.execCommand("insertText", false, pastedText);
-          setRichTextContent(editorRef.current.innerHTML);
-        }
-      },
-      [isReadOnly],
-    );
+const insertHtmlSafely = (htmlContent) => {
+  try {
+    document.execCommand('insertHTML', false, htmlContent);
+  } catch (error) {
+    console.error("Failed to insert HTML:", error);
+    const plainText = htmlContent.replace(/<[^>]*>/g, '');
+    document.execCommand('insertText', false, plainText);
+  }
+  
+  if (editorRef.current) {
+    setRichTextContent(editorRef.current.innerHTML);
+  }
+};
 
     const handleImageUpload = useCallback(
       (e) => {
