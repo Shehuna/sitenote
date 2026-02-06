@@ -439,10 +439,10 @@ const NotesTab = ({
 
           switch (priorityValue) {
             case 3:
-              priorityText = "Medium";
+              priorityText = "High";
               break;
             case 4:
-              priorityText = "High";
+              priorityText = "Medium";
               break;
             case 5:
               priorityText = "Completed";
@@ -890,10 +890,10 @@ const updateNotePriority = async (noteId, priorityValue) => {
     let priorityText = "";
     switch (priorityValue) {
       case 3:
-        priorityText = "Medium";
+        priorityText = "High";
         break;
       case 4:
-        priorityText = "High";
+        priorityText = "Medium";
         break;
       case 5:
         priorityText = "Completed";
@@ -946,7 +946,7 @@ const updateNotePriority = async (noteId, priorityValue) => {
       const result = await response.json();
       console.log("Add priority result:", result);
       toast.success(
-        `Priority set to ${priorityValue === 4 ? "High" : "Medium"}`,
+        `Priority set to ${priorityValue === 4 ? "Medium" : "High"}`,
       );
     } else {
       console.log("No priority exists and setting to 1, no API call needed");
@@ -2021,9 +2021,9 @@ const updateNotePriority = async (noteId, priorityValue) => {
               color:
                 priorityValue === 5
                   ? "#28a745"
-                  : priorityValue === 4
+                  : priorityValue === 3
                     ? "#ef5350"
-                    : priorityValue === 3
+                    : priorityValue === 4
                       ? "#e8f628"
                       : "#ccc",
               opacity: priorityValue > 1 ? 1 : 0.5,
@@ -2066,9 +2066,9 @@ const updateNotePriority = async (noteId, priorityValue) => {
           }}
           title={
             priorityValue === 3
-              ? "Medium Priority"
+              ? "High Priority"
               : priorityValue === 4
-                ? "High Priority"
+                ? "Medium Priority"
                 : "Completed"
           }
         />
@@ -2369,9 +2369,9 @@ const updateNotePriority = async (noteId, priorityValue) => {
   // Render priority indicator for card view
   const renderCardPriorityIndicator = (priorityValue, note) => {
     const flagColor =
-      priorityValue === 3
+      priorityValue === 4
         ? "#e8f628"
-        : priorityValue === 4
+        : priorityValue === 3
           ? "#ef5350"
           : priorityValue === 5
             ? "#28a745"
@@ -3199,9 +3199,9 @@ const updateNotePriority = async (noteId, priorityValue) => {
       color:
         priorityValue === 5
           ? "#28a745"
-          : priorityValue === 4
+          : priorityValue === 3
             ? "#ef5350"
-            : priorityValue === 3
+            : priorityValue === 4
               ? "#e8f628"
               : "#ccc",
       opacity: priorityValue > 1 ? 1 : 0.5,
@@ -3822,10 +3822,10 @@ const updateNotePriority = async (noteId, priorityValue) => {
                 style={{
                   color:
                     priorityTooltipData[hoveredPriorityNote]?.priorityValue ===
-                    3
+                    4
                       ? "#e8f628"
                       : priorityTooltipData[hoveredPriorityNote]
-                            ?.priorityValue === 4
+                            ?.priorityValue === 3
                         ? "#ef5350"
                         : priorityTooltipData[hoveredPriorityNote]
                               ?.priorityValue === 5
@@ -3897,7 +3897,7 @@ const updateNotePriority = async (noteId, priorityValue) => {
               <div style={{ marginTop: "8px", padding: "4px 8px", backgroundColor: "#e3f2fd", borderRadius: "4px" }}>
                 <strong>Priority Value:</strong> {priorityTooltipData[hoveredPriorityNote].priorityValue}
                 <div style={{ fontSize: "11px", color: "#1565c0", marginTop: "2px" }}>
-                  (3 = Medium, 4 = High, 5 = Completed)
+                  (3 = High, 4 = Medium, 5 = Completed)
                 </div>
               </div>
             )} */}
