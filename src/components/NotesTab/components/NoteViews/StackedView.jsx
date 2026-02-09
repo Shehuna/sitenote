@@ -4,6 +4,7 @@ import { formatRelativeTime } from "../../utils/formatUtils";
 import { highlightHtmlContent } from "../../utils/htmlUtils";
 import { CardSkeleton } from "../Skeleton";
 import { NoteCard } from "../Note";
+import EditJobModal from "./EditJobModal";
 import { PRIORITY_VALUES, PRIORITY_LABELS, PRIORITY_COLORS } from "../../utils/constants";
 
 const StackedView = ({
@@ -45,6 +46,8 @@ const StackedView = ({
   jobsToDisplay,
 }) => {
   const [localExpandedStacks, setLocalExpandedStacks] = useState({});
+  const [editJobModalOpen, setEditJobModalOpen] = useState(false);
+  const [jobToEdit, setJobToEdit] = useState(null);
 
   // Track view mode changes
   useEffect(() => {
@@ -183,6 +186,10 @@ const StackedView = ({
                 manuallyUpdatedPriorities,
                 shouldShowNotePopup,
                 toggleStackExpansion,
+                onOpenEdit: (j) => {
+                  setJobToEdit(j);
+                  setEditJobModalOpen(true);
+                },
               })
             : renderCollapsedStack({
                 job,
@@ -190,8 +197,31 @@ const StackedView = ({
                 hasActiveFilters,
                 openAiDialogForJob,
                 toggleStackExpansion,
+                onOpenEdit: (j) => {
+                  setJobToEdit(j);
+                  setEditJobModalOpen(true);
+                },
               });
         })}
+
+        {editJobModalOpen && jobToEdit && (
+          <EditJobModal
+            isOpen={editJobModalOpen}
+            onClose={() => {
+              setEditJobModalOpen(false);
+              setJobToEdit(null);
+            }}
+            jobId={jobToEdit.jobId || jobToEdit.id || jobToEdit.jobID}
+            workspaceId={jobToEdit.workspaceId || jobToEdit.workspace || jobToEdit.defWorkId || null}
+            projectId={jobToEdit.projectId || jobToEdit.project?.id || null}
+            projectName={jobToEdit.projectName || jobToEdit.project?.name || ''}
+            userId={jobToEdit.userId}
+            onJobUpdated={() => {
+              setEditJobModalOpen(false);
+              setJobToEdit(null);
+            }}
+          />
+        )}
       </div>
     </div>
   );
@@ -242,12 +272,13 @@ const renderStackedViewLoading = () => (
   </div>
 );
 
-const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogForJob, toggleStackExpansion }) => {
+const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogForJob, toggleStackExpansion, onOpenEdit }) => {
   if (!job) return null;
 
   const jobName = job.jobName;
   const noteCount = job.noteCount || 0;
   const isLoading = job.isLoadingNotes;
+  const projectName = job.projectName || job.project?.name || job.project?.projectName || job.project?.project?.name || job.projectName;
 
   return (
     <div
@@ -345,15 +376,31 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                         className="fas fa-briefcase"
                         style={{ color: "#14A2B6" }}
                       />
-                      <span
+                      <div
                         style={{
                           fontWeight: 600,
                           color: "#2c3e50",
                           fontSize: "16px",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "flex-start",
+                          gap: "2px",
                         }}
                       >
-                        {job.jobName}
-                      </span>
+                        <span style={{ lineHeight: 1 }}>{job.jobName}</span>
+                        {projectName && (
+                          <span title={projectName}
+                            style={{
+                              fontSize: "12px",
+                              color: "#7f8c8d",
+                              fontWeight: 400,
+                              marginTop: "2px",
+                            }}
+                          >
+                            {projectName}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -373,6 +420,7 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                       <i className="fas fa-layer-group" />
                       <span>{noteCount} notes</span>
                     </div>
+                  {/* Edit button moved to footer (next to chat) - icon changed to gear */}
                   </div>
                 </div>
                 <div
@@ -496,6 +544,23 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                     >
                       <i className="fas fa-comments" />   
                     </button>
+                    <button
+                      className="attachment-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (typeof onOpenEdit === 'function') onOpenEdit(job);
+                      }}
+                      title="Edit job"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: '#444',
+                        marginLeft: '6px'
+                      }}
+                    >
+                      <i className="fas fa-cog" />
+                    </button>
                   </div>
                 </div>
                 <div
@@ -574,10 +639,12 @@ const renderExpandedStack = ({
   manuallyUpdatedPriorities,
   shouldShowNotePopup,
   toggleStackExpansion,
+  onOpenEdit,
 }) => {
   if (!job) return null;
 
   const jobName = job.jobName;
+  const projectName = job.projectName || job.project?.name || job.project?.projectName || job.project?.project?.name || job.projectName;
   // Sort notes by timestamp (most recent first) when displaying
   const jobNotes = job.notes
     ? [...job.notes].sort((a, b) => {
@@ -602,7 +669,14 @@ const renderExpandedStack = ({
           <div className="expanded-stack-title-section">
             <div className="expanded-stack-title">
               <i className="fas fa-briefcase" />
-              {jobName}
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+                <span style={{ fontSize: 16, fontWeight: 600 }}>{jobName}</span>
+                {projectName && (
+                  <small title={projectName} style={{ fontSize: 12, color: '#7f8c8d', fontWeight: 400 }}>
+                    {projectName}
+                  </small>
+                )}
+              </div>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -621,6 +695,23 @@ const renderExpandedStack = ({
               }}
             >
               <i className="fas fa-robot" />
+            </button>
+            {/* Edit job shortcut */}
+            <button
+              className="attachment-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (typeof onOpenEdit === 'function') onOpenEdit(job);
+              }}
+              title="Edit job"
+              style={{
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                color: "#444",
+              }}
+            >
+              <i className="fas fa-cog" />
             </button>
 
             <div className="expanded-stack-count">
