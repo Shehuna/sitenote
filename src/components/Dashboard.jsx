@@ -13,7 +13,7 @@ import AttachedFileModal from "./Modals/AttachedfileModal.jsx";
 import ViewNoteModal from "./Modals/ViewNoteModal";
 import toast from "react-hot-toast";
 import InlineImageViewer from "./Modals/InlineImageViewer";
-import NotesTab from "./Dashbord/NotesTab";
+import NotesTab from "./NotesTab/NotesTab.jsx";
 import DashboardMenu from "./Dashbord/DashboardMenu.jsx";
 import DashboardHeader from "./Dashbord/DashboardHeader.jsx";
 

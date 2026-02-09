@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import PropTypes from 'prop-types';
 import './ReplyModal.css';
 import toast from 'react-hot-toast';
 import 'emoji-picker-element';
@@ -23,15 +24,23 @@ const ReplyModal = ({
   const [pastedImages, setPastedImages] = useState([]);
   const [isContentExpanded, setIsContentExpanded] = useState(false);
 
-  // Emoji picker states - ADDED
+  // Emoji picker states
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const emojiPickerRef = useRef(null);
   const emojiButtonRef = useRef(null);
 
+  // Draggable modal states
+  const [isDragging, setIsDragging] = useState(false);
+  const [modalPosition, setModalPosition] = useState({ x: 0, y: 0 });
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [hasUserDragged, setHasUserDragged] = useState(false);
+
+  // Refs
   const editorRef = useRef(null);
   const fileInputRef = useRef(null);
   const modalRef = useRef(null);
   const popupRef = useRef(null);
+  const modalHeaderRef = useRef(null);
 
   const ALLOWED_FILE_TYPES = {
     'image/jpeg': ['.jpg', '.jpeg'], 'image/png': ['.png'], 'image/gif': ['.gif'],
@@ -45,72 +54,66 @@ const ReplyModal = ({
     'video/quicktime': ['.mov'], 'video/x-msvideo': ['.avi']
   };
 
-  // Initialize emoji picker - ADDED
+  // Initialize modal position
+  useEffect(() => {
+    if (modalRef.current) {
+      const modalWidth = modalRef.current.offsetWidth;
+      const modalHeight = modalRef.current.offsetHeight;
+      const windowWidth = window.innerWidth;
+      const windowHeight = window.innerHeight;
+      
+      const x = (windowWidth - modalWidth) / 2;
+      const y = Math.max(20, (windowHeight - modalHeight) / 4);
+      
+      setModalPosition({ x, y });
+    }
+  }, []);
+
+  // Initialize emoji picker
   useEffect(() => {
     if (emojiPickerRef.current) {
       let handleClickOutside;
       
       if (emojiPickerRef.current) {
         const handleEmojiClick = (event) => {
-          console.log('Emoji click event received:', event);
-          console.log('Event type:', event.type);
-          console.log('Event detail:', event.detail);
-          console.log('Event target:', event.target);
-          
           if (!editorRef.current) return;
           
           let emojiChar = '';
           
           if (event.detail) {
-            console.log('event.detail structure:', event.detail);
-            
             if (typeof event.detail === 'string') {
               emojiChar = event.detail;
-              console.log('Found string emoji:', emojiChar);
             } else if (event.detail.unicode) {
               emojiChar = event.detail.unicode;
-              console.log('Found unicode emoji:', emojiChar);
             } else if (event.detail.native) {
               emojiChar = event.detail.native;
-              console.log('Found native emoji:', emojiChar);
             } else if (event.detail.emoji) {
               emojiChar = event.detail.emoji;
-              console.log('Found emoji property:', emojiChar);
             } else {
               const str = JSON.stringify(event.detail);
-              console.log('Stringified detail:', str);
-              
               const emojiMatch = str.match(/["']?([\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}])["']?/u);
               if (emojiMatch) {
                 emojiChar = emojiMatch[1];
-                console.log('Extracted emoji from string:', emojiChar);
               }
             }
           }
           
           if (!emojiChar && event.target) {
-            console.log('Trying to get emoji from target:', event.target);
-            
             if (event.target.getAttribute('data-emoji')) {
               emojiChar = event.target.getAttribute('data-emoji');
-              console.log('Found emoji in data-emoji:', emojiChar);
             } else if (event.target.textContent) {
               const text = event.target.textContent.trim();
               const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/u;
               const match = text.match(emojiRegex);
               if (match) {
                 emojiChar = match[0];
-                console.log('Found emoji in textContent:', emojiChar);
               }
             }
           }
           
           if (!emojiChar) {
             emojiChar = '❓';
-            console.log('Using fallback emoji');
           }
-          
-          console.log('Final emoji character to insert:', emojiChar);
           
           const selection = window.getSelection();
           if (selection.rangeCount > 0) {
@@ -135,7 +138,6 @@ const ReplyModal = ({
         };
         
         emojiPickerRef.current.addEventListener('emoji-click', handleEmojiClick);
-        
         emojiPickerRef.current._handleEmojiClick = handleEmojiClick;
         
         handleClickOutside = (event) => {
@@ -164,41 +166,166 @@ const ReplyModal = ({
     }
   }, [showEmojiPicker]);
 
+  // Dragging handlers
+  const handleMouseDown = useCallback((e) => {
+    const isDragHandle = e.target.closest('.modal-drag-handle');
+    
+    if (!isDragHandle) return;
+    
+    e.preventDefault();
+    setIsDragging(true);
+    
+    const modalRect = modalRef.current.getBoundingClientRect();
+    const offsetX = e.clientX - modalRect.left;
+    const offsetY = e.clientY - modalRect.top;
+    
+    setDragOffset({ x: offsetX, y: offsetY });
+    setHasUserDragged(true);
+  }, []);
+
+  const handleMouseMove = useCallback((e) => {
+    if (!isDragging) return;
+    
+    e.preventDefault();
+    
+    const x = e.clientX - dragOffset.x;
+    const y = e.clientY - dragOffset.y;
+    
+    const modalWidth = modalRef.current.offsetWidth;
+    const modalHeight = modalRef.current.offsetHeight;
+    const windowWidth = window.innerWidth;
+    const windowHeight = window.innerHeight;
+    
+    const boundedX = Math.max(0, Math.min(x, windowWidth - modalWidth));
+    const boundedY = Math.max(0, Math.min(y, windowHeight - modalHeight));
+    
+    setModalPosition({ x: boundedX, y: boundedY });
+  }, [isDragging, dragOffset]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // Touch handlers for mobile
+  const handleTouchStart = useCallback((e) => {
+    const touch = e.touches[0];
+    const isDragHandle = e.target.closest('.modal-drag-handle');
+    
+    if (!isDragHandle) return;
+    
+    e.preventDefault();
+    setIsDragging(true);
+    
+    const modalRect = modalRef.current.getBoundingClientRect();
+    const offsetX = touch.clientX - modalRect.left;
+    const offsetY = touch.clientY - modalRect.top;
+    
+    setDragOffset({ x: offsetX, y: offsetY });
+    setHasUserDragged(true);
+  }, []);
+
+  const handleTouchMove = useCallback((e) => {
+    if (!isDragging) return;
+    
+    e.preventDefault();
+    const touch = e.touches[0];
+    
+    const x = touch.clientX - dragOffset.x;
+    const y = touch.clientY - dragOffset.y;
+    
+    const modalWidth = modalRef.current.offsetWidth;
+    const modalHeight = modalRef.current.offsetHeight;
+    const windowWidth = window.innerWidth;
+    const windowHeight = window.innerHeight;
+    
+    const boundedX = Math.max(0, Math.min(x, windowWidth - modalWidth));
+    const boundedY = Math.max(0, Math.min(y, windowHeight - modalHeight));
+    
+    setModalPosition({ x: boundedX, y: boundedY });
+  }, [isDragging, dragOffset]);
+
+  const handleTouchEnd = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // Event listeners for dragging
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      document.addEventListener('touchend', handleTouchEnd);
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'grabbing';
+    } else {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    }
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+  }, [isDragging, handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
+
+  // Center modal on double click
+  const handleHeaderDoubleClick = useCallback(() => {
+    if (modalRef.current) {
+      const modalWidth = modalRef.current.offsetWidth;
+      const modalHeight = modalRef.current.offsetHeight;
+      const windowWidth = window.innerWidth;
+      const windowHeight = window.innerHeight;
+      
+      const x = (windowWidth - modalWidth) / 2;
+      const y = Math.max(20, (windowHeight - modalHeight) / 4);
+      
+      setModalPosition({ x, y });
+      setHasUserDragged(false);
+      toast.success('Modal centered');
+    }
+  }, []);
+
   const getCurrentUser = () => {
     const user = JSON.parse(localStorage.getItem('user'));
     return user || { id: 1, name: 'Current User', userName: 'Current User' };
   };
 
-const handlePriorityClick = () => {
-  let nextPriority;
-  
-  // Cycle through priority levels: 1 → 3 → 4 → 5 → 1
-  if (selectedPriority === '1') {
-    nextPriority = '3'; // Medium
-  } else if (selectedPriority === '3') {
-    nextPriority = '4'; // High
-  } else if (selectedPriority === '4') {
-    nextPriority = '5'; // Completed
-  } else {
-    nextPriority = '1'; // No priority
-  }
-  
-  setSelectedPriority(nextPriority);
-  
-  // Update toast message for completed priority
-  let priorityText;
-  if (nextPriority === '5') {
-    priorityText = 'Completed';
-  } else if (nextPriority === '4') {
-    priorityText = 'High';
-  } else if (nextPriority === '3') {
-    priorityText = 'Medium';
-  } else {
-    priorityText = 'No Priority';
-  }
-  
-  toast.success(`Priority set to ${priorityText}`);
-};
+  const handlePriorityClick = () => {
+    let nextPriority;
+    
+    if (selectedPriority === '1') {
+      nextPriority = '3';
+    } else if (selectedPriority === '3') {
+      nextPriority = '4';
+    } else if (selectedPriority === '4') {
+      nextPriority = '5';
+    } else {
+      nextPriority = '1';
+    }
+    
+    setSelectedPriority(nextPriority);
+    
+    let priorityText;
+    if (nextPriority === '5') {
+      priorityText = 'Completed';
+    } else if (nextPriority === '4') {
+      priorityText = 'High';
+    } else if (nextPriority === '3') {
+      priorityText = 'Medium';
+    } else {
+      priorityText = 'No Priority';
+    }
+    
+    toast.success(`Priority set to ${priorityText}`);
+  };
 
   const stripHtml = (html) => {
     if (!html) return '';
@@ -256,7 +383,7 @@ const handlePriorityClick = () => {
   const needsTruncation = (html) => {
     if (!html) return false;
     const plainText = stripHtml(html);
-    return plainText.split(/\s+/).length > 20; 
+    return plainText.split(/\s+/).length > 20;
   };
 
   const processPastedImage = (file) => {
@@ -322,7 +449,7 @@ const handlePriorityClick = () => {
     if (!note?.note) return { __html: '' };
     
     if (!isContentExpanded) {
-      const truncatedHtml = truncateHtml(note.note, 20); 
+      const truncatedHtml = truncateHtml(note.note, 20);
       return safelyRenderHTML(truncatedHtml);
     }
     
@@ -421,6 +548,7 @@ const handlePriorityClick = () => {
     }
   };
 
+  // Escape key handler
   useEffect(() => {
     const handleEscape = (event) => {
       if (event.key === 'Escape') {
@@ -432,6 +560,7 @@ const handlePriorityClick = () => {
     return () => document.removeEventListener('keydown', handleEscape);
   }, [onClose]);
 
+  // Focus editor on mount
   useEffect(() => {
     if (editorRef.current) {
       setTimeout(() => {
@@ -440,6 +569,7 @@ const handlePriorityClick = () => {
     }
   }, []);
 
+  // Click outside to close
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (popupRef.current && !popupRef.current.contains(event.target)) {
@@ -572,8 +702,8 @@ const handlePriorityClick = () => {
     }
 
     const formData = new FormData();
-    formData.append('Name', doc.name); 
-    formData.append('File', doc.file);      
+    formData.append('Name', doc.name);
+    formData.append('File', doc.file);
     formData.append('SiteNoteId', siteNoteId);
     formData.append('UserId', userId);
 
@@ -871,7 +1001,7 @@ const handlePriorityClick = () => {
     setErrors({});
   };
 
-  // Editor toolbar component with emoji picker - UPDATED
+  // Editor toolbar component
   const renderEditorToolbar = () => (
     <div className="editor-toolbar">
       <div className="editor-formatting-tools">
@@ -911,7 +1041,7 @@ const handlePriorityClick = () => {
           <i className="fas fa-list-ol"></i>
         </button>
         
-        {/* Emoji Picker Button - ADDED */}
+        {/* Emoji Picker Button */}
         <div className="emoji-picker-wrapper" style={{ position: 'relative' }}>
           <button 
             ref={emojiButtonRef}
@@ -988,28 +1118,28 @@ const handlePriorityClick = () => {
         </div>
         
         <div className="priority-flag-container">
-  <button 
-    onClick={(e) => {
-      e.stopPropagation();
-      handlePriorityClick();
-    }}
-    title={`${selectedPriority === '1' ? 'No Priority - Click to set' : 
-            selectedPriority === '3' ? 'Medium Priority - Click to change' : 
-            selectedPriority === '4' ? 'High Priority - Click to change' :
-            selectedPriority === '5' ? 'Completed - Click to change' : 
-            'Click to set priority'}`}
-    className={`priority-flag-button priority-${selectedPriority} ${selectedPriority > 1 ? 'has-priority' : ''}`}
-    type="button"
-  >
-    <i className="fas fa-flag"></i> {/* Always use flag icon */}
-    
-    {selectedPriority > 1 && (
-      <div
-        className={`priority-flag-dot priority-${selectedPriority}`}
-      />
-    )}
-  </button>
-</div>
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              handlePriorityClick();
+            }}
+            title={`${selectedPriority === '1' ? 'No Priority - Click to set' : 
+                    selectedPriority === '3' ? 'Medium Priority - Click to change' : 
+                    selectedPriority === '4' ? 'High Priority - Click to change' :
+                    selectedPriority === '5' ? 'Completed - Click to change' : 
+                    'Click to set priority'}`}
+            className={`priority-flag-button priority-${selectedPriority} ${selectedPriority > 1 ? 'has-priority' : ''}`}
+            type="button"
+          >
+            <i className="fas fa-flag"></i>
+            
+            {selectedPriority > 1 && (
+              <div
+                className={`priority-flag-dot priority-${selectedPriority}`}
+              />
+            )}
+          </button>
+        </div>
         
         <button 
           onClick={clearEditor} 
@@ -1035,7 +1165,6 @@ const handlePriorityClick = () => {
         <div className="form-group">
           <label>
             Reply {errors.note && <span className="error-message-inline">{errors.note}</span>}
-            
           </label>
           
           {renderEditorToolbar()}
@@ -1155,9 +1284,29 @@ const handlePriorityClick = () => {
       <div 
         className="modal-content" 
         ref={modalRef}
+        style={{
+          position: 'fixed',
+          left: `${modalPosition.x}px`,
+          top: `${modalPosition.y}px`,
+          transform: 'none',
+          margin: 0,
+          cursor: isDragging ? 'grabbing' : 'default',
+          touchAction: 'none'
+        }}
       >
         <div className="modal-content-wrapper">
-          <div className="original-note-preview compact">
+          {/* Draggable header area */}
+          <div 
+            className="original-note-preview compact modal-drag-handle"
+            style={{
+              cursor: isDragging ? 'grabbing' : 'grab',
+              userSelect: 'none'
+            }}
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+            onDoubleClick={handleHeaderDoubleClick}
+            title="Drag to move, double-click to center"
+          >
             <div className="original-note-header">
               <div className="original-note-user-info">
                 <div className="original-note-user">
@@ -1181,6 +1330,7 @@ const handlePriorityClick = () => {
                   <i className="fas fa-tasks" /> {note.job || '—'}
                 </span>
               </div>
+            
             </div>
             
             <div className="original-note-content">
@@ -1300,6 +1450,12 @@ const handlePriorityClick = () => {
       </div>
     </div>
   );
+};
+
+ReplyModal.propTypes = {
+  note: PropTypes.object.isRequired,
+  onClose: PropTypes.func.isRequired,
+  refreshNotes: PropTypes.func.isRequired,
 };
 
 export default ReplyModal;

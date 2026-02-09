@@ -12,12 +12,12 @@ const WorkspacePermissionManagement = ({ defId, users, userId }) => {
 
     useEffect(() => { fetchInitialData(); }, [defId]);
 
-   /*  const fetchInitialData = async () => {
+    const fetchInitialData = async () => {
         setLoading(true); setError(null);
         try {
             const API_URL = process.env.REACT_APP_API_BASE_URL;
             const workspacesUrl = `${API_URL}/api/Workspace/GetWorkspace`;
-            const userURL = `https://localhost:7204/api/UserWorkspace/GetUsersByWorkspaceId/${defId}`;
+            const userURL = `${API_URL}/api/UserWorkspace/GetUsersByWorkspaceId/${defId}`;
 
             const [wsRes, userRes] = await Promise.all([
                 fetch(workspacesUrl, { method: 'GET', headers: { 'Content-Type': 'application/json' } }),
@@ -39,8 +39,8 @@ const WorkspacePermissionManagement = ({ defId, users, userId }) => {
         } catch (err) {
             setError(err.message); console.error('API Error:', err);
         } finally { setLoading(false); }
-    };*/
-    const fetchInitialData = async () => {
+    };
+   /*  const fetchInitialData = async () => {
         setLoading(true); 
         setError(null);
         try {
@@ -81,7 +81,7 @@ const WorkspacePermissionManagement = ({ defId, users, userId }) => {
         } finally { 
             setLoading(false); 
         }
-    };
+    }; */
 
     if (error) return <div className="error-message">Error: {error}</div>;
 

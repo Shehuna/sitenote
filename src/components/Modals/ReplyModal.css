@@ -1277,3 +1277,71 @@ emoji-picker {
     flex-wrap: wrap;
     align-items: center;
 }
+/* Draggable Modal Styles */
+.modal-drag-handle {
+  position: relative;
+  transition: background-color 0.2s ease;
+}
+
+.modal-drag-handle:hover {
+  background-color: #f8f9fa;
+}
+
+.modal-drag-handle:active {
+  cursor: grabbing !important;
+}
+
+.drag-indicator {
+  padding: 4px 8px;
+  color: #6c757d;
+  transition: color 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-drag-handle:hover .drag-indicator {
+  color: #495057;
+}
+
+.reset-position-btn {
+  background: none;
+  border: none;
+  color: #6c757d;
+  cursor: pointer;
+  font-size: 12px;
+  opacity: 0.6;
+  transition: all 0.2s ease;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.reset-position-btn:hover {
+  opacity: 1;
+  color: #007bff;
+  background-color: #f0f0f0;
+}
+
+/* Ensure modal stays on top when dragging */
+.reply-modal-overlay {
+  z-index: 10000;
+}
+
+.modal-content {
+  transition: box-shadow 0.2s ease;
+}
+
+.modal-content:active {
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* Touch device improvements */
+@media (hover: none) and (pointer: coarse) {
+  .modal-drag-handle {
+    padding: 10px;
+  }
+  
+  .drag-indicator {
+    font-size: 16px;
+  }
+}

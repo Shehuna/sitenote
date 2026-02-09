@@ -1,0 +1,923 @@
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import PropTypes from "prop-types";
+import ReactDOM from "react-dom";
+import toast from "react-hot-toast";
+import './NotesTab.css';
+
+// Hooks
+import { useNotesData } from "./hooks/useNotesData";
+import { usePriorityManagement } from "./hooks/usePriorityManagement";
+import { useNoteReplies } from "./hooks/useNoteReplies";
+import { useInfiniteScroll } from "./hooks/useInfiniteScroll";
+import { useNoteHover } from "./hooks/useNoteHover";
+import { useUserStatus } from "./hooks/useUserStatus";
+import { useLinkedNoteTooltip } from "./hooks/useLinkedNoteTooltip";
+import { usePriorityHover } from "./hooks/usePriorityHover";
+import { useStackedView } from "./hooks/useStackedView";
+
+// Components
+import { TableView, CardView, StackedView } from "./components/NoteViews";
+import { NoteTextPopup } from "./components/Note";
+import { PriorityTooltip, LinkedNoteTooltip } from "./components/Tooltips";
+import ReplyModal from "../Modals/ReplyModal";
+import AiChatDialog from "../ai/AiChatDialog";
+
+// Utils
+import { PAGE_SIZE, INITIAL_PAGE_NUMBER } from "./utils/constants";
+import { formatTooltipContent, formatPriorityDate } from "./utils/formatUtils";
+
+// Portal component for tooltips
+const TooltipPortal = ({ children }) => {
+  return ReactDOM.createPortal(children, document.body);
+};
+
+const NotesTab = ({
+  viewMode,
+  finalDisplayNotes,
+  isDataLoaded,
+  initialLoading,
+  searchLoading,
+  loadingFiltered,
+  loadingUniques,
+  searchTerm,
+  getActiveFilterCount,
+  handleRowClick,
+  handleRowDoubleClick,
+  handleAddFromRow,
+  handleEdit,
+  handleDelete,
+  handleViewAttachments,
+  selectedRow,
+  focusedRow,
+  renderTableImageIcon,
+  renderCardImageIcon,
+  renderStackedImageIcon,
+  expandedStacks,
+  toggleStackExpansion,
+  jobs,
+  setViewNote,
+  setShowViewModal,
+  stackedJobs,
+  loadingStackedJobs,
+  fetchNotes,
+  userId,
+  hasActiveFilters,
+  filteredNotesFromApi,
+  searchResults,
+}) => {
+  // State
+  const [localNotes, setLocalNotes] = useState([]);
+  const [page, setPage] = useState(INITIAL_PAGE_NUMBER);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [isLoadingInitial, setIsLoadingInitial] = useState(false);
+  const [showReplyModal, setShowReplyModal] = useState(false);
+  const [selectedNoteForReply, setSelectedNoteForReply] = useState(null);
+  const [showAiDialog, setShowAiDialog] = useState(false);
+  const [aiJobContext, setAiJobContext] = useState(null);
+
+  // Refs
+  const containerRef = useRef(null);
+  const loadingRef = useRef(false);
+
+  // Custom hooks - Initialize usePriorityManagement first
+  const {
+    priorityTooltipData = {},
+    loadingPriorityData = {},
+    manuallyUpdatedPriorities = {},
+    fetchPriorityData, // This might be undefined if not exported from usePriorityManagement
+    handlePriorityClick,
+    getPriorityValue,
+  } = usePriorityManagement();
+
+  // Now useNotesData can safely access manuallyUpdatedPriorities
+  const { displayNotes } = useNotesData({
+    searchTerm,
+    hasActiveFilters,
+    searchResults,
+    filteredNotesFromApi,
+    localNotes,
+    finalDisplayNotes,
+    manuallyUpdatedPriorities,
+  });
+
+  const {
+    noteReplies,
+    loadingReplies,
+    fetchNoteReplies,
+    isNoteReply,
+    getReplyNoteId,
+  } = useNoteReplies({ userId });
+
+  const {
+    hoveredNoteContent,
+    notePopupPosition,
+    noteElementRect,
+    shouldShowNotePopup,
+    handleNoteTextMouseEnter,
+    handleNoteTextMouseLeave,
+  } = useNoteHover({ viewMode });
+
+  const {
+    userStatusMap,
+    loadingUsers,
+    fetchUserStatus,
+    getUserStatusStyle,
+  } = useUserStatus();
+
+  const {
+    hoveredLinkedNote,
+    tooltipPosition,
+    linkedNoteContent,
+    loadingLinkedNote,
+    handleLinkedNoteMouseEnter,
+    handleLinkedNoteMouseLeave,
+    handleLinkedNoteClick: handleLinkedNoteClickHook,
+  } = useLinkedNoteTooltip({ getReplyNoteId });
+
+  // Create a safe fetchPriorityData function if it doesn't exist
+  const safeFetchPriorityData = useCallback((noteId) => {
+    if (fetchPriorityData && typeof fetchPriorityData === 'function') {
+      return fetchPriorityData(noteId);
+    }
+    // Return a promise that resolves to nothing if fetchPriorityData is not available
+    return Promise.resolve();
+  }, [fetchPriorityData]);
+
+  // Initialize usePriorityHover with the safe function
+  const {
+    hoveredPriorityNote,
+    priorityTooltipPosition,
+    handlePriorityMouseEnter,
+    handlePriorityMouseLeave,
+  } = usePriorityHover({ 
+    fetchPriorityData: safeFetchPriorityData, 
+    priorityTooltipData: priorityTooltipData || {} 
+  });
+
+  const {
+    isStackedViewLoading,
+    isFilteringStacked,
+  } = useStackedView({ viewMode, hasActiveFilters });
+
+  // Memoized display notes logic (fallback if useNotesData doesn't work)
+  const memoizedDisplayNotes = useMemo(() => {
+    return displayNotes; // Use the displayNotes from useNotesData hook
+  }, [displayNotes]);
+
+  // Determine which jobs to display in stacked view
+  const jobsToDisplay = useMemo(() => {
+    if (viewMode !== "stacked") return [];
+    return stackedJobs || [];
+  }, [viewMode, stackedJobs, hasActiveFilters]);
+
+  // Effect to sync finalDisplayNotes from parent
+  useEffect(() => {
+    if (
+      finalDisplayNotes &&
+      finalDisplayNotes.length > 0 &&
+      !hasActiveFilters &&
+      !searchTerm.trim()
+    ) {
+      if (isInitialLoad) {
+        setLocalNotes([...finalDisplayNotes].sort((a, b) => b.id - a.id));
+        setHasMore(finalDisplayNotes.length >= PAGE_SIZE);
+        setIsInitialLoad(false);
+      } else {
+        const existingIds = new Set(localNotes.map((note) => note.id));
+        const newNotesFromParent = finalDisplayNotes.filter(
+          (note) => !existingIds.has(note.id),
+        );
+
+        if (newNotesFromParent.length > 0) {
+          const sortedNewNotes = [...newNotesFromParent].sort(
+            (a, b) => b.id - a.id,
+          );
+          setLocalNotes((prev) => [...sortedNewNotes, ...prev]);
+
+          const updatedNotes = finalDisplayNotes.filter((note) =>
+            existingIds.has(note.id),
+          );
+          if (updatedNotes.length > 0) {
+            setLocalNotes((prev) =>
+              prev.map((note) => {
+                const updatedNote = updatedNotes.find((u) => u.id === note.id);
+                return updatedNote || note;
+              }),
+            );
+          }
+        }
+      }
+    }
+  }, [finalDisplayNotes, hasActiveFilters, searchTerm, isInitialLoad, localNotes]);
+
+  // Reset infinite scroll when filters/search are cleared
+  useEffect(() => {
+    if (!hasActiveFilters && !searchTerm.trim() && !isInitialLoad) {
+      setHasMore(true);
+      setPage(1);
+
+      if (finalDisplayNotes && finalDisplayNotes.length > 0) {
+        setLocalNotes([...finalDisplayNotes].sort((a, b) => b.id - a.id));
+        setPage(2);
+        setHasMore(finalDisplayNotes.length >= PAGE_SIZE);
+      }
+    }
+  }, [hasActiveFilters, searchTerm, isInitialLoad, finalDisplayNotes]);
+
+  // Load initial notes
+  const loadInitialNotes = useCallback(async () => {
+    if (
+      loadingRef.current ||
+      (finalDisplayNotes && finalDisplayNotes.length > 0)
+    ) return;
+
+    loadingRef.current = true;
+    setIsLoadingInitial(true);
+
+    try {
+      const result = await fetchNotes(INITIAL_PAGE_NUMBER, PAGE_SIZE);
+      if (result && result.notes) {
+        setLocalNotes([...result.notes].sort((a, b) => b.id - a.id));
+        setHasMore(result.hasMore);
+        setPage(INITIAL_PAGE_NUMBER + 1);
+      }
+    } catch (error) {
+      console.error("Error loading initial notes:", error);
+    } finally {
+      loadingRef.current = false;
+      setIsLoadingInitial(false);
+      setIsInitialLoad(false);
+    }
+  }, [fetchNotes, finalDisplayNotes]);
+
+  // Load more notes - MOVE THIS BEFORE useInfiniteScroll
+  const loadMoreNotes = useCallback(async () => {
+    if (
+      loadingRef.current ||
+      !hasMore ||
+      hasActiveFilters ||
+      searchTerm.trim()
+    ) {
+      return;
+    }
+
+    loadingRef.current = true;
+    setLoadingMore(true);
+
+    try {
+      const result = await fetchNotes(page, PAGE_SIZE);
+      if (result && result.notes && result.notes.length > 0) {
+        setLocalNotes((prev) => {
+          const existingIds = new Set(prev.map((note) => note.id));
+          const newNotes = result.notes.filter(
+            (note) => !existingIds.has(note.id),
+          );
+          const sortedNewNotes = [...newNotes].sort((a, b) => b.id - a.id);
+          return [...prev, ...sortedNewNotes];
+        });
+        setHasMore(result.hasMore);
+        setPage((prev) => prev + 1);
+      } else {
+        setHasMore(false);
+      }
+    } catch (error) {
+      console.error("Error loading more notes:", error);
+    } finally {
+      loadingRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [fetchNotes, page, hasMore, hasActiveFilters, searchTerm]);
+
+  // Initialize useInfiniteScroll AFTER loadMoreNotes is defined
+  const {
+    lastRowRef,
+    lastCardRef,
+  } = useInfiniteScroll({
+    viewMode,
+    hasMore,
+    loadingMore,
+    hasActiveFilters,
+    searchTerm,
+    loadMoreNotes, // Now this can be safely passed
+    displayNotes,
+  });
+
+  // Load initial notes on mount
+  useEffect(() => {
+    if (
+      isDataLoaded &&
+      !hasActiveFilters &&
+      !searchTerm.trim() &&
+      isInitialLoad
+    ) {
+      if (!finalDisplayNotes || finalDisplayNotes.length === 0) {
+        loadInitialNotes();
+      } else {
+        setIsInitialLoad(false);
+      }
+    }
+  }, [isDataLoaded, hasActiveFilters, searchTerm, isInitialLoad, loadInitialNotes, finalDisplayNotes]);
+
+  // Event handlers
+  const handleReplyToNote = useCallback((note) => {
+    setSelectedNoteForReply(note);
+    setShowReplyModal(true);
+  }, []);
+
+  const refreshNotesAfterReply = useCallback(async () => {
+    try {
+      console.log("🔄 Starting refresh...");
+
+      await fetchNoteReplies();
+
+      if (fetchNotes && typeof fetchNotes === "function") {
+        const result = await fetchNotes(1, PAGE_SIZE);
+
+        if (result && result.notes) {
+          console.log(`✅ Loaded ${result.notes.length} fresh notes`);
+
+          setLocalNotes([...result.notes].sort((a, b) => b.id - a.id));
+          setHasMore(result.hasMore);
+          setPage(2);
+          setIsInitialLoad(false);
+        }
+      }
+
+      console.log("✅ Refresh completed");
+    } catch (error) {
+      console.error("❌ Error refreshing notes:", error);
+      toast.error("Failed to refresh notes");
+    }
+  }, [fetchNoteReplies, fetchNotes]);
+
+  const handleOpenAiDialogForJob = useCallback((job) => {
+    setAiJobContext({ jobId: job.jobId, jobName: job.jobName });
+    setShowAiDialog(true);
+  }, []);
+
+  const closeAiDialog = useCallback(() => {
+    setShowAiDialog(false);
+    setAiJobContext(null);
+  }, []);
+
+  const handleLinkedNoteClick = useCallback((replyNoteId, e) => {
+    const result = handleLinkedNoteClickHook(replyNoteId, e);
+    if (!result || !result.originalNoteId) return;
+
+    const originalNoteId = result.originalNoteId;
+    const originalNote = memoizedDisplayNotes.find((n) => n.id === originalNoteId);
+
+    if (originalNote) {
+      handleRowClick(originalNote);
+
+      setTimeout(() => {
+        let noteElement = null;
+
+        if (viewMode === "table") {
+          noteElement = document.querySelector(
+            `tr[data-note-id="${originalNoteId}"]`,
+          );
+        } else if (viewMode === "cards" || viewMode === "stacked") {
+          noteElement = document.querySelector(
+            `.note-card[data-note-id="${originalNoteId}"]`,
+          );
+        }
+
+        if (noteElement) {
+          noteElement.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+
+          noteElement.classList.add("highlight-original-note");
+
+          setTimeout(() => {
+            noteElement.classList.remove("highlight-original-note");
+          }, 2000);
+        } else {
+          toast.error(
+            `Note (ID: ${originalNoteId}) not found in current view.`,
+          );
+        }
+      }, 100);
+    } else {
+      toast.error(
+        `Original note (ID: ${originalNoteId}) not found in current view.`,
+      );
+    }
+  }, [handleLinkedNoteClickHook, memoizedDisplayNotes, handleRowClick, viewMode]);
+
+  // Determine loading state
+  const isLoading = !isDataLoaded ||
+    initialLoading ||
+    searchLoading ||
+    loadingFiltered ||
+    loadingUniques ||
+    isLoadingInitial;
+
+  // Render the appropriate view
+  const renderView = () => {
+    const commonProps = {
+      displayNotes: memoizedDisplayNotes,
+      selectedRow,
+      searchTerm,
+      handleRowClick,
+      handleRowDoubleClick: (note) => {
+        handleRowDoubleClick(note);
+        if (viewMode === "table") {
+          const job = jobs.find(
+            (j) => String(j.id) === String(note.job) || j.name === note.job,
+          );
+          setViewNote({
+            id: note.id,
+            jobId: job?.id ?? null,
+          });
+          setShowViewModal(true);
+        }
+      },
+      handleAddFromRow,
+      handleEdit,
+      handleDelete,
+      handleViewAttachments,
+      handleReplyToNote,
+      handlePriorityClick,
+      handlePriorityMouseEnter,
+      handlePriorityMouseLeave,
+      handleNoteTextMouseEnter,
+      handleNoteTextMouseLeave,
+      handleLinkedNoteClick,
+      handleLinkedNoteMouseEnter,
+      handleLinkedNoteMouseLeave,
+      isNoteReply,
+      getReplyNoteId,
+      userStatusMap,
+      loadingUsers,
+      getPriorityValue,
+      manuallyUpdatedPriorities,
+      shouldShowNotePopup,
+    };
+
+    switch (viewMode) {
+      case "table":
+        return (
+          <TableView
+            {...commonProps}
+            isLoading={isLoading}
+            loadingMore={loadingMore}
+            hasMore={hasMore}
+            hasActiveFilters={hasActiveFilters}
+            lastRowRef={lastRowRef}
+            jobs={jobs}
+            setViewNote={setViewNote}
+            setShowViewModal={setShowViewModal}
+            renderTableImageIcon={renderTableImageIcon}
+            focusedRow={focusedRow}
+          />
+        );
+        
+      case "stacked":
+        return (
+          <StackedView
+            {...commonProps}
+            stackedJobs={stackedJobs}
+            loadingStackedJobs={loadingStackedJobs}
+            expandedStacks={expandedStacks}
+            toggleStackExpansion={toggleStackExpansion}
+            hasActiveFilters={hasActiveFilters}
+            searchTerm={searchTerm}
+            openAiDialogForJob={handleOpenAiDialogForJob}
+            renderStackedImageIcon={renderStackedImageIcon}
+            isStackedViewLoading={isStackedViewLoading}
+            isFilteringStacked={isFilteringStacked}
+            jobsToDisplay={jobsToDisplay}
+          />
+        );
+        
+      default: // cards
+        return (
+          <CardView
+            {...commonProps}
+            isLoading={isLoading}
+            loadingMore={loadingMore}
+            hasMore={hasMore}
+            hasActiveFilters={hasActiveFilters}
+            lastCardRef={lastCardRef}
+            renderCardImageIcon={renderCardImageIcon}
+            viewMode={viewMode}
+          />
+        );
+    }
+  };
+
+  // Find the hovered note for tooltip
+  const hoveredNote = memoizedDisplayNotes.find((n) => n.id === hoveredLinkedNote);
+  const hoveredOriginalNoteId = hoveredNote
+    ? getReplyNoteId(hoveredNote.id)
+    : null;
+
+  return (
+    <div className="grid-scroll-container" ref={containerRef}>
+      {renderView()}
+
+      {/* Unified Note Text Popup - SIMPLIFIED */}
+      {hoveredNoteContent && (
+        <NoteTextPopup
+          content={hoveredNoteContent}
+          position={notePopupPosition}
+          elementRect={noteElementRect}
+          searchTerm={searchTerm}
+          viewMode={viewMode}
+          onClose={() => {}}
+        />
+      )}
+
+      {/* Global tooltip portal for linked notes */}
+      {hoveredLinkedNote && hoveredOriginalNoteId && (
+        <TooltipPortal>
+          <div
+            className="linked-note-tooltip"
+            style={{
+              position: "fixed",
+              top: `${tooltipPosition.y}px`,
+              left: `${tooltipPosition.x}px`,
+              zIndex: 999999,
+              backgroundColor: "white",
+              border: "1px solid #ddd",
+              borderRadius: "4px",
+              padding: "12px",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+              maxWidth: "350px",
+              minWidth: "300px",
+              fontSize: "12px",
+              pointerEvents: "none",
+            }}
+          >
+            <div
+              style={{
+                fontWeight: "bold",
+                marginBottom: "8px",
+                color: "#2c3e50",
+                borderBottom: "2px solid #3498db",
+                paddingBottom: "6px",
+                fontSize: "13px",
+              }}
+            >
+              <i
+                className="fas fa-link"
+                style={{ marginRight: "6px", color: "#3498db" }}
+              />
+              Linked to Original Note #{hoveredOriginalNoteId}
+            </div>
+
+            {loadingLinkedNote[hoveredOriginalNoteId] ? (
+              <div
+                style={{
+                  color: "#3498db",
+                  fontStyle: "italic",
+                  padding: "16px",
+                  textAlign: "center",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                }}
+              >
+                <i className="fas fa-spinner fa-spin" />
+                Loading original note...
+              </div>
+            ) : linkedNoteContent[hoveredOriginalNoteId] ? (
+              <>
+                <div
+                  style={{
+                    margin: "8px 0 12px 0",
+                    color: "#555",
+                    lineHeight: 1.5,
+                    maxHeight: "80px",
+                    overflow: "hidden",
+                    backgroundColor: "#f8f9fa",
+                    padding: "8px",
+                    borderRadius: "4px",
+                    borderLeft: "3px solid #3498db",
+                  }}
+                >
+                  <strong>Content:</strong>{" "}
+                  {formatTooltipContent(
+                    linkedNoteContent[hoveredOriginalNoteId].content,
+                  )}
+                </div>
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "#7f8c8d",
+                    backgroundColor: "#f5f5f5",
+                    padding: "8px",
+                    borderRadius: "4px",
+                  }}
+                >
+                  <div style={{ marginBottom: "4px" }}>
+                    <i
+                      className="fas fa-user"
+                      style={{ marginRight: "6px", width: "12px" }}
+                    />
+                    <strong>By:</strong>{" "}
+                    {linkedNoteContent[hoveredOriginalNoteId].userName}
+                  </div>
+                  <div style={{ marginBottom: "4px" }}>
+                    <i
+                      className="far fa-clock"
+                      style={{ marginRight: "6px", width: "12px" }}
+                    />
+                    <strong>Date:</strong>{" "}
+                    {new Date(
+                      linkedNoteContent[hoveredOriginalNoteId].date,
+                    ).toLocaleDateString()}{" "}
+                    {new Date(
+                      linkedNoteContent[hoveredOriginalNoteId].date,
+                    ).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </div>
+                  {(linkedNoteContent[hoveredOriginalNoteId].workspace ||
+                    linkedNoteContent[hoveredOriginalNoteId].project ||
+                    linkedNoteContent[hoveredOriginalNoteId].job) && (
+                    <div>
+                      <i
+                        className="fas fa-map-marker-alt"
+                        style={{ marginRight: "6px", width: "12px" }}
+                      />
+                      <strong>Location:</strong>{" "}
+                      {linkedNoteContent[hoveredOriginalNoteId].workspace} /{" "}
+                      {linkedNoteContent[hoveredOriginalNoteId].project} /{" "}
+                      {linkedNoteContent[hoveredOriginalNoteId].job}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div
+                style={{
+                  color: "#3498db",
+                  fontStyle: "italic",
+                  padding: "16px",
+                  textAlign: "center",
+                  backgroundColor: "#f8f9fa",
+                  borderRadius: "4px",
+                }}
+              >
+                <i
+                  className="fas fa-info-circle"
+                  style={{ marginRight: "8px" }}
+                />
+                Hover to load original note preview
+              </div>
+            )}
+
+            <div
+              style={{
+                fontSize: "11px",
+                color: "#3498db",
+                marginTop: "8px",
+                fontStyle: "italic",
+                paddingTop: "8px",
+                borderTop: "1px solid #eee",
+              }}
+            >
+              <i
+                className="fas fa-mouse-pointer"
+                style={{ marginRight: "6px" }}
+              />
+              Click to jump to original note
+            </div>
+
+            {/* Add a small arrow pointing to the mouse/cursor */}
+            <div
+              style={{
+                position: "absolute",
+                top: "-8px",
+                left: "20px",
+                width: "16px",
+                height: "16px",
+                backgroundColor: "white",
+                borderLeft: "1px solid #ddd",
+                borderTop: "1px solid #ddd",
+                transform: "rotate(45deg)",
+                zIndex: 1,
+              }}
+            />
+          </div>
+        </TooltipPortal>
+      )}
+
+      {/* Priority Tooltip */}
+      {hoveredPriorityNote && (
+        <TooltipPortal>
+          <div
+            className="priority-tooltip"
+            style={{
+              position: "fixed",
+              top: `${priorityTooltipPosition.y}px`,
+              left: `${priorityTooltipPosition.x}px`,
+              zIndex: 999999,
+              backgroundColor: "white",
+              border: "1px solid #ddd",
+              borderRadius: "4px",
+              padding: "12px",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+              maxWidth: "300px",
+              minWidth: "250px",
+              fontSize: "12px",
+              pointerEvents: "none",
+            }}
+          >
+            <div
+              style={{
+                fontWeight: "bold",
+                marginBottom: "8px",
+                color: "#2c3e50",
+                borderBottom: "2px solid #3498db",
+                paddingBottom: "6px",
+                fontSize: "13px",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              <i
+                className="fas fa-flag"
+                style={{
+                  color:
+                    priorityTooltipData[hoveredPriorityNote]?.priorityValue === 4
+                      ? "#e8f628"
+                      : priorityTooltipData[hoveredPriorityNote]
+                            ?.priorityValue === 3
+                        ? "#ef5350"
+                        : priorityTooltipData[hoveredPriorityNote]
+                              ?.priorityValue === 5
+                          ? "#28a745"
+                          : "#ccc",
+                }}
+              />
+              {loadingPriorityData[hoveredPriorityNote]
+                ? "Loading priority info..."
+                : `Priority: ${priorityTooltipData[hoveredPriorityNote]?.priorityText || "No priority"}`}
+            </div>
+
+            {loadingPriorityData[hoveredPriorityNote] ? (
+              <div
+                style={{
+                  color: "#3498db",
+                  fontStyle: "italic",
+                  padding: "16px",
+                  textAlign: "center",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                }}
+              >
+                <i className="fas fa-spinner fa-spin" />
+                Loading priority information...
+              </div>
+            ) : priorityTooltipData[hoveredPriorityNote]?.hasPriority ? (
+              <>
+                <div
+                  style={{
+                    margin: "8px 0",
+                    color: "#555",
+                    lineHeight: 1.5,
+                    backgroundColor: "#f8f9fa",
+                    padding: "8px",
+                    borderRadius: "4px",
+                  }}
+                >
+                  <div style={{ marginBottom: "4px" }}>
+                    <i
+                      className="fas fa-user"
+                      style={{
+                        marginRight: "6px",
+                        width: "12px",
+                        color: "#7f8c8d",
+                      }}
+                    />
+                    <strong>Set by:</strong>{" "}
+                    {priorityTooltipData[hoveredPriorityNote]?.userName ||
+                      "Unknown"}
+                  </div>
+                  <div style={{ marginBottom: "4px" }}>
+                    <i
+                      className="fas fa-calendar-alt"
+                      style={{
+                        marginRight: "6px",
+                        width: "12px",
+                        color: "#7f8c8d",
+                      }}
+                    />
+                    <strong>Date:</strong>{" "}
+                    {formatPriorityDate(
+                      priorityTooltipData[hoveredPriorityNote]?.createdAt,
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div
+                style={{
+                  color: "#95a5a6",
+                  fontStyle: "italic",
+                  padding: "16px",
+                  textAlign: "center",
+                  backgroundColor: "#f8f9fa",
+                  borderRadius: "4px",
+                }}
+              >
+                <i
+                  className="fas fa-info-circle"
+                  style={{ marginRight: "8px", fontSize: "14px" }}
+                />
+                No priority set for this note
+                <div
+                  style={{
+                    fontSize: "11px",
+                    marginTop: "4px",
+                    color: "#7f8c8d",
+                  }}
+                >
+                  Click to set priority
+                </div>
+              </div>
+            )}
+          </div>
+        </TooltipPortal>
+      )}
+
+      {/* Modals */}
+      {showAiDialog && aiJobContext && (
+        <AiChatDialog
+          open={showAiDialog}
+          onClose={closeAiDialog}
+          job={aiJobContext}
+          userId={userId}
+        />
+      )}
+
+      {showReplyModal && selectedNoteForReply && (
+        <ReplyModal
+          note={selectedNoteForReply}
+          onClose={() => {
+            setShowReplyModal(false);
+            setSelectedNoteForReply(null);
+          }}
+          refreshNotes={refreshNotesAfterReply}
+        />
+      )}
+    </div>
+  );
+};
+
+NotesTab.propTypes = {
+  viewMode: PropTypes.string.isRequired,
+  finalDisplayNotes: PropTypes.array,
+  isDataLoaded: PropTypes.bool.isRequired,
+  initialLoading: PropTypes.bool.isRequired,
+  searchLoading: PropTypes.bool.isRequired,
+  loadingFiltered: PropTypes.bool.isRequired,
+  loadingUniques: PropTypes.bool.isRequired,
+  searchTerm: PropTypes.string.isRequired,
+  getActiveFilterCount: PropTypes.func.isRequired,
+  handleRowClick: PropTypes.func.isRequired,
+  handleRowDoubleClick: PropTypes.func.isRequired,
+  handleAddFromRow: PropTypes.func.isRequired,
+  handleEdit: PropTypes.func.isRequired,
+  handleDelete: PropTypes.func.isRequired,
+  handleViewAttachments: PropTypes.func.isRequired,
+  selectedRow: PropTypes.any,
+  focusedRow: PropTypes.any,
+  renderTableImageIcon: PropTypes.func.isRequired,
+  renderCardImageIcon: PropTypes.func.isRequired,
+  renderStackedImageIcon: PropTypes.func.isRequired,
+  expandedStacks: PropTypes.object.isRequired,
+  toggleStackExpansion: PropTypes.func.isRequired,
+  jobs: PropTypes.array.isRequired,
+  setViewNote: PropTypes.func.isRequired,
+  setShowViewModal: PropTypes.func.isRequired,
+  stackedJobs: PropTypes.array,
+  loadingStackedJobs: PropTypes.bool,
+  fetchNotes: PropTypes.func.isRequired,
+  userId: PropTypes.number.isRequired,
+  hasActiveFilters: PropTypes.bool.isRequired,
+  filteredNotesFromApi: PropTypes.array.isRequired,
+  searchResults: PropTypes.array.isRequired,
+};
+
+NotesTab.defaultProps = {
+  finalDisplayNotes: [],
+  stackedJobs: [],
+  loadingStackedJobs: false,
+  filteredNotesFromApi: [],
+  searchResults: [],
+};
+
+export default NotesTab;
