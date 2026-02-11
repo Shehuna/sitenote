@@ -164,7 +164,7 @@ const ReplyModal = ({
         }
       };
     }
-  }, [showEmojiPicker]);
+  }, [showEmojiPicker]); 
 
   // Dragging handlers
   const handleMouseDown = useCallback((e) => {
@@ -954,6 +954,36 @@ const insertHtmlSafely = (htmlContent) => {
     }
   };
 
+useEffect(() => {
+  const handleSaveShortcut = (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+      event.preventDefault();
+      
+      if (!isSaving) {
+        handleSaveReply();
+      }
+    }
+  };
+
+  document.addEventListener('keydown', handleSaveShortcut);
+  
+  return () => {
+    document.removeEventListener('keydown', handleSaveShortcut);
+  };
+}, [handleSaveReply, isSaving]); 
+
+useEffect(() => {
+  const handleEscape = (event) => {
+    if (event.key === 'Escape') {
+      onClose();
+    }
+  };
+
+  document.addEventListener('keydown', handleEscape);
+  return () => document.removeEventListener('keydown', handleEscape);
+}, [onClose]);
+
+
   const handleAddPriority = async (noteId, userId) => {
     try {
       const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Priority/AddPriority`, {
@@ -1425,8 +1455,8 @@ const insertHtmlSafely = (htmlContent) => {
             <button className="cancel-button" onClick={onClose} disabled={isSaving} type="button">
               Cancel
             </button>
-            <button className="save-button" onClick={handleSaveReply} disabled={isSaving} type="button">
-              {isSaving ? "Sending..." : "Send"}
+            <button className="save-button" onClick={handleSaveReply} disabled={isSaving} type="button" title="Ctrl+S to save" >
+              {isSaving ? "Saving..." : "Save"}
             </button>
           </div>
         </div>
