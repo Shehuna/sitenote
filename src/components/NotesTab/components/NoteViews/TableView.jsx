@@ -27,6 +27,7 @@ const TableView = ({
   renderTableImageIcon,
   isNoteReply,
   getReplyNoteId,
+  isOriginalNoteExists,
   userStatusMap,
   loadingUsers,
   getPriorityValue,
@@ -134,6 +135,7 @@ const TableView = ({
               renderTableImageIcon={renderTableImageIcon}
               isNoteReply={isNoteReply}
               getReplyNoteId={getReplyNoteId}
+              isOriginalNoteExists={isOriginalNoteExists}
               userStatusMap={userStatusMap}
               loadingUsers={loadingUsers}
               getPriorityValue={getPriorityValue}
@@ -214,6 +216,7 @@ TableView.propTypes = {
   renderTableImageIcon: PropTypes.func,
   isNoteReply: PropTypes.func.isRequired,
   getReplyNoteId: PropTypes.func.isRequired,
+  isOriginalNoteExists: PropTypes.func.isRequired,
   userStatusMap: PropTypes.object.isRequired,
   loadingUsers: PropTypes.object.isRequired,
   getPriorityValue: PropTypes.func.isRequired,
@@ -237,6 +240,7 @@ TableView.defaultProps = {
   hasActiveFilters: false,
   lastRowRef: null,
   focusedRow: null,
+  isOriginalNoteExists: () => false,
 };
 
 export default TableView;

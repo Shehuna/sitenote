@@ -28,6 +28,7 @@ const CardView = ({
   renderCardImageIcon,
   isNoteReply,
   getReplyNoteId,
+  isOriginalNoteExists, // ADD THIS
   userStatusMap,
   loadingUsers,
   getPriorityValue,
@@ -63,6 +64,7 @@ const CardView = ({
         <NoteCard
           key={`${note.id}-${index}`}
           note={note}
+          displayNotes={displayNotes}
           selectedRow={selectedRow}
           searchTerm={searchTerm}
           viewMode={viewMode}
@@ -84,6 +86,7 @@ const CardView = ({
           renderCardImageIcon={renderCardImageIcon}
           isNoteReply={isNoteReply}
           getReplyNoteId={getReplyNoteId}
+          isOriginalNoteExists={isOriginalNoteExists} // ADD THIS
           userStatusMap={userStatusMap}
           loadingUsers={loadingUsers}
           getPriorityValue={getPriorityValue}
@@ -105,7 +108,6 @@ const renderLoadingMore = (loadingMore) => {
   return (
     <div className="loading-more-cards">
       <i className="fas fa-spinner fa-spin" style={{ marginRight: "8px" }} />
-     
     </div>
   );
 };
@@ -158,6 +160,7 @@ CardView.propTypes = {
   renderCardImageIcon: PropTypes.func,
   isNoteReply: PropTypes.func.isRequired,
   getReplyNoteId: PropTypes.func.isRequired,
+  isOriginalNoteExists: PropTypes.func.isRequired, // ADD THIS
   userStatusMap: PropTypes.object.isRequired,
   loadingUsers: PropTypes.object.isRequired,
   getPriorityValue: PropTypes.func.isRequired,
@@ -166,7 +169,7 @@ CardView.propTypes = {
   hasMore: PropTypes.bool,
   hasActiveFilters: PropTypes.bool,
   lastCardRef: PropTypes.object,
-  shouldShowNotePopup: PropTypes.func.isRequired, // Fixed: Added isRequired
+  shouldShowNotePopup: PropTypes.func.isRequired,
 };
 
 CardView.defaultProps = {
@@ -178,7 +181,8 @@ CardView.defaultProps = {
   hasMore: true,
   hasActiveFilters: false,
   lastCardRef: null,
-  shouldShowNotePopup: () => false, // Added default function
+  shouldShowNotePopup: () => false,
+  isOriginalNoteExists: () => false, // ADD THIS
 };
 
 export default CardView;

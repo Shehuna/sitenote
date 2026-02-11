@@ -37,6 +37,7 @@ const NoteRow = forwardRef(({
   renderTableImageIcon,
   isNoteReply,
   getReplyNoteId,
+  isOriginalNoteExists,
   userStatusMap,
   loadingUsers,
   getPriorityValue,
@@ -46,6 +47,12 @@ const NoteRow = forwardRef(({
   const priorityValue = getPriorityValue(note, manuallyUpdatedPriorities);
   const isReply = isNoteReply(note.id);
   const originalNoteId = isReply ? getReplyNoteId(note.id) : null;
+
+  const originalNoteExists = isReply && originalNoteId 
+    ? isOriginalNoteExists(originalNoteId)
+    : false;
+
+  const shouldShowLink = isReply && originalNoteId && originalNoteExists;
   const isInactive = userStatusMap[note.userId] && !userStatusMap[note.userId].active;
 
   return (
@@ -156,7 +163,7 @@ const NoteRow = forwardRef(({
           />
 
           {/* Link button - only for reply notes */}
-          {isReply && originalNoteId && (
+          {shouldShowLink && ( 
             <button
               className="link-to-note-btn"
               onClick={(e) => handleLinkedNoteClick(note.id, e)}
@@ -253,6 +260,7 @@ NoteRow.propTypes = {
   renderTableImageIcon: PropTypes.func,
   isNoteReply: PropTypes.func.isRequired,
   getReplyNoteId: PropTypes.func.isRequired,
+  isOriginalNoteExists: PropTypes.func.isRequired,
   userStatusMap: PropTypes.object.isRequired,
   loadingUsers: PropTypes.object.isRequired,
   getPriorityValue: PropTypes.func.isRequired,
@@ -266,6 +274,7 @@ NoteRow.defaultProps = {
   searchTerm: "",
   renderTableImageIcon: () => null,
   focusedRow: null,
+  isOriginalNoteExists: () => false,
 };
 
 export default NoteRow;

@@ -81,17 +81,17 @@ const NotesTab = ({
   const containerRef = useRef(null);
   const loadingRef = useRef(false);
 
-  // Custom hooks - Initialize usePriorityManagement first
+  // 1. Priority management hook
   const {
     priorityTooltipData = {},
     loadingPriorityData = {},
     manuallyUpdatedPriorities = {},
-    fetchPriorityData, // This might be undefined if not exported from usePriorityManagement
+    fetchPriorityData,
     handlePriorityClick,
     getPriorityValue,
   } = usePriorityManagement();
 
-  // Now useNotesData can safely access manuallyUpdatedPriorities
+  // 2. Get base notes data
   const { displayNotes } = useNotesData({
     searchTerm,
     hasActiveFilters,
@@ -102,14 +102,22 @@ const NotesTab = ({
     manuallyUpdatedPriorities,
   });
 
+  // 3. Create memoized display notes BEFORE useNoteReplies
+  const memoizedDisplayNotes = useMemo(() => {
+    return displayNotes || [];
+  }, [displayNotes]);
+
+  // 4. Note replies hook with memoizedDisplayNotes
   const {
     noteReplies,
     loadingReplies,
     fetchNoteReplies,
     isNoteReply,
     getReplyNoteId,
-  } = useNoteReplies({ userId });
+    isOriginalNoteExists,
+  } = useNoteReplies({ userId, displayNotes: memoizedDisplayNotes });
 
+  // 5. All other hooks
   const {
     hoveredNoteContent,
     notePopupPosition,
@@ -141,11 +149,10 @@ const NotesTab = ({
     if (fetchPriorityData && typeof fetchPriorityData === 'function') {
       return fetchPriorityData(noteId);
     }
-    // Return a promise that resolves to nothing if fetchPriorityData is not available
     return Promise.resolve();
   }, [fetchPriorityData]);
 
-  // Initialize usePriorityHover with the safe function
+  // Priority hover hook
   const {
     hoveredPriorityNote,
     priorityTooltipPosition,
@@ -160,11 +167,6 @@ const NotesTab = ({
     isStackedViewLoading,
     isFilteringStacked,
   } = useStackedView({ viewMode, hasActiveFilters });
-
-  // Memoized display notes logic (fallback if useNotesData doesn't work)
-  const memoizedDisplayNotes = useMemo(() => {
-    return displayNotes; // Use the displayNotes from useNotesData hook
-  }, [displayNotes]);
 
   // Determine which jobs to display in stacked view
   const jobsToDisplay = useMemo(() => {
@@ -252,7 +254,7 @@ const NotesTab = ({
     }
   }, [fetchNotes, finalDisplayNotes]);
 
-  // Load more notes - MOVE THIS BEFORE useInfiniteScroll
+  // Load more notes
   const loadMoreNotes = useCallback(async () => {
     if (
       loadingRef.current ||
@@ -290,7 +292,7 @@ const NotesTab = ({
     }
   }, [fetchNotes, page, hasMore, hasActiveFilters, searchTerm]);
 
-  // Initialize useInfiniteScroll AFTER loadMoreNotes is defined
+  // Initialize useInfiniteScroll
   const {
     lastRowRef,
     lastCardRef,
@@ -300,8 +302,8 @@ const NotesTab = ({
     loadingMore,
     hasActiveFilters,
     searchTerm,
-    loadMoreNotes, // Now this can be safely passed
-    displayNotes,
+    loadMoreNotes,
+    displayNotes: memoizedDisplayNotes,
   });
 
   // Load initial notes on mount
@@ -452,6 +454,7 @@ const NotesTab = ({
       handleLinkedNoteMouseLeave,
       isNoteReply,
       getReplyNoteId,
+      isOriginalNoteExists, // ADD THIS LINE
       userStatusMap,
       loadingUsers,
       getPriorityValue,

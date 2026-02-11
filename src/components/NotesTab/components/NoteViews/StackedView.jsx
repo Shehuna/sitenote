@@ -16,7 +16,6 @@ const StackedView = ({
   searchTerm,
   openAiDialogForJob,
   renderStackedImageIcon,
-  // Note card props (passed through)
   displayNotes,
   selectedRow,
   handleRowClick,
@@ -36,6 +35,7 @@ const StackedView = ({
   handleLinkedNoteMouseLeave,
   isNoteReply,
   getReplyNoteId,
+  isOriginalNoteExists,
   userStatusMap,
   loadingUsers,
   getPriorityValue,
@@ -180,6 +180,7 @@ const StackedView = ({
                 handleLinkedNoteMouseLeave,
                 isNoteReply,
                 getReplyNoteId,
+                isOriginalNoteExists,
                 userStatusMap,
                 loadingUsers,
                 getPriorityValue,
@@ -614,7 +615,6 @@ const renderExpandedStack = ({
   hasActiveFilters,
   openAiDialogForJob,
   renderStackedImageIcon,
-  // Note card props
   selectedRow,
   handleRowClick,
   handleRowDoubleClick,
@@ -633,6 +633,7 @@ const renderExpandedStack = ({
   handleLinkedNoteMouseLeave,
   isNoteReply,
   getReplyNoteId,
+  isOriginalNoteExists,
   userStatusMap,
   loadingUsers,
   getPriorityValue,
@@ -880,6 +881,7 @@ const renderExpandedStack = ({
                         renderCardImageIcon={renderStackedImageIcon}
                         isNoteReply={isNoteReply}
                         getReplyNoteId={getReplyNoteId}
+                        isOriginalNoteExists={isOriginalNoteExists}
                         userStatusMap={userStatusMap}
                         loadingUsers={loadingUsers}
                         getPriorityValue={getPriorityValue}
@@ -933,7 +935,6 @@ StackedView.propTypes = {
   searchTerm: PropTypes.string,
   openAiDialogForJob: PropTypes.func.isRequired,
   renderStackedImageIcon: PropTypes.func,
-  // Note card props
   displayNotes: PropTypes.array,
   selectedRow: PropTypes.any,
   handleRowClick: PropTypes.func,
@@ -953,6 +954,7 @@ StackedView.propTypes = {
   handleLinkedNoteMouseLeave: PropTypes.func,
   isNoteReply: PropTypes.func,
   getReplyNoteId: PropTypes.func,
+  isOriginalNoteExists: PropTypes.func,
   userStatusMap: PropTypes.object,
   loadingUsers: PropTypes.object,
   getPriorityValue: PropTypes.func,
@@ -974,6 +976,7 @@ StackedView.defaultProps = {
   isStackedViewLoading: false,
   isFilteringStacked: false,
   jobsToDisplay: [],
+  isOriginalNoteExists: () => false,
 };
 
 export default StackedView;

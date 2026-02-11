@@ -1,9 +1,18 @@
 import { useState, useCallback, useEffect } from "react";
 import { API_BASE_URL } from "../utils/constants";
 
-export const useNoteReplies = ({ userId }) => {
+export const useNoteReplies = ({ userId, displayNotes = [] }) => {
   const [noteReplies, setNoteReplies] = useState([]);
   const [loadingReplies, setLoadingReplies] = useState(false);
+  const [existingOriginalNotes, setExistingOriginalNotes] = useState(new Set());
+
+  // Update existing original notes when displayNotes changes
+  useEffect(() => {
+    if (displayNotes && Array.isArray(displayNotes) && displayNotes.length > 0) {
+      const existingIds = new Set(displayNotes.map(note => String(note.id)));
+      setExistingOriginalNotes(existingIds);
+    }
+  }, [displayNotes]);
 
   const fetchNoteReplies = useCallback(async () => {
     setLoadingReplies(true);
@@ -24,17 +33,26 @@ export const useNoteReplies = ({ userId }) => {
 
   const isNoteReply = useCallback(
     (noteId) => {
-      return noteReplies.some((reply) => reply.id === noteId);
+      return noteReplies.some((reply) => String(reply.id) === String(noteId));
     },
     [noteReplies],
   );
 
   const getReplyNoteId = useCallback(
     (replyNoteId) => {
-      const reply = noteReplies.find((reply) => reply.id === replyNoteId);
+      const reply = noteReplies.find((reply) => String(reply.id) === String(replyNoteId));
       return reply ? reply.reply : null;
     },
     [noteReplies],
+  );
+
+  // Check if original note still exists in displayNotes
+  const isOriginalNoteExists = useCallback(
+    (originalNoteId) => {
+      if (!originalNoteId) return false;
+      return existingOriginalNotes.has(String(originalNoteId));
+    },
+    [existingOriginalNotes],
   );
 
   // Fetch replies on mount
@@ -50,5 +68,6 @@ export const useNoteReplies = ({ userId }) => {
     fetchNoteReplies,
     isNoteReply,
     getReplyNoteId,
+    isOriginalNoteExists,
   };
 };

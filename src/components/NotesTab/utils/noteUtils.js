@@ -34,6 +34,20 @@ export const sortNotesByDate = (notes, descending = true) => {
   });
 };
 
+export const checkNoteExistsInList = (noteId, notesList) => {
+  if (!noteId || !notesList || !Array.isArray(notesList)) return false;
+  return notesList.some(note => String(note.id) === String(noteId));
+};
+
+export const getOriginalNote = (noteId, notesList, noteReplies = []) => {
+  if (!noteId || !notesList || !noteReplies) return null;
+  
+  const reply = noteReplies.find(reply => reply.id === noteId);
+  if (!reply || !reply.reply) return null;
+  
+  return notesList.find(note => String(note.id) === String(reply.reply));
+};
+
 export const deduplicateNotes = (notes) => {
   const seen = new Map();
   const deduplicated = [];

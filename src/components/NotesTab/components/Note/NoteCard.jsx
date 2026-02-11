@@ -16,6 +16,8 @@ import UserStatusIndicator from "../Tooltips/UserStatusIndicator";
 const NoteCard = forwardRef((props, ref) => {
   const {
     note,
+    displayNotes, 
+    isOriginalNoteExists,
     selectedRow,
     searchTerm,
     viewMode,
@@ -48,9 +50,15 @@ const NoteCard = forwardRef((props, ref) => {
   const isReply = isNoteReply(note.id);
   const originalNoteId = isReply ? getReplyNoteId(note.id) : null;
 
+  const originalNoteExists = isReply && originalNoteId 
+    ? isOriginalNoteExists(originalNoteId)
+    : false;
+
+  const shouldShowLink = isReply && originalNoteId && originalNoteExists;
+
   return (
     <div
-      ref={ref}  // ATTACH THE REF HERE
+      ref={ref}  
       data-note-id={note.id}
       className={`note-card ${selectedRow === note.id ? "selected" : ""}`}
       onClick={() => handleRowClick(note)}
@@ -76,7 +84,7 @@ const NoteCard = forwardRef((props, ref) => {
       <NoteFooter
         note={note}
         priorityValue={priorityValue}
-        isReply={isReply}
+        shouldShowLink={shouldShowLink} 
         originalNoteId={originalNoteId}
         onViewAttachments={handleViewAttachments}
         onReply={handleReplyToNote}
@@ -188,7 +196,7 @@ const NoteContent = ({ note, searchTerm, viewMode, onMouseEnter, onMouseLeave, s
 const NoteFooter = ({
   note,
   priorityValue,
-  isReply,
+  shouldShowLink,
   originalNoteId,
   onViewAttachments,
   onReply,
@@ -208,7 +216,7 @@ const NoteFooter = ({
       {renderImageIcon && renderImageIcon(note)}
       <AttachmentButton note={note} onClick={onViewAttachments} />
       <ReplyButton note={note} onClick={onReply} />
-      {isReply && originalNoteId && (
+      {shouldShowLink && originalNoteId && ( // Conditionally render based on shouldShowLink
         <LinkButton
           noteId={note.id}
           onClick={onLinkedNoteClick}
@@ -307,6 +315,8 @@ const ActionButton = ({ icon, title, onClick }) => (
 
 NoteCard.propTypes = {
   note: PropTypes.object.isRequired,
+  displayNotes: PropTypes.array, 
+  isOriginalNoteExists: PropTypes.func,
   selectedRow: PropTypes.any,
   searchTerm: PropTypes.string,
   viewMode: PropTypes.string,
@@ -336,6 +346,8 @@ NoteCard.propTypes = {
 };
 
 NoteCard.defaultProps = {
+  displayNotes: [],
+  isOriginalNoteExists: () => false,
   selectedRow: null,
   searchTerm: "",
   viewMode: "cards",
