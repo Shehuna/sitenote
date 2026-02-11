@@ -1,4 +1,4 @@
-import React, { forwardRef } from "react";
+import React, { forwardRef, useState } from "react";
 import PropTypes from "prop-types";
 import {
   formatRelativeTime,
@@ -44,17 +44,24 @@ const NoteCard = forwardRef((props, ref) => {
     getPriorityValue,
     manuallyUpdatedPriorities,
     shouldShowNotePopup,
+    handleProjectClick,
+    handleJobClick,
+    handleUserNameClick,
+    isProjectFiltered,
+    isJobFiltered,
+    isUserNameFiltered, 
   } = props;
 
   const priorityValue = getPriorityValue(note, manuallyUpdatedPriorities);
   const isReply = isNoteReply(note.id);
   const originalNoteId = isReply ? getReplyNoteId(note.id) : null;
-
   const originalNoteExists = isReply && originalNoteId 
     ? isOriginalNoteExists(originalNoteId)
     : false;
 
   const shouldShowLink = isReply && originalNoteId && originalNoteExists;
+  const [showJobTooltip, setShowJobTooltip] = useState(false);
+  const [showProjectTooltip, setShowProjectTooltip] = useState(false);  
 
   return (
     <div
@@ -70,6 +77,16 @@ const NoteCard = forwardRef((props, ref) => {
         searchTerm={searchTerm}
         userStatusMap={userStatusMap}
         loadingUsers={loadingUsers}
+        handleProjectClick={handleProjectClick}
+        handleJobClick={handleJobClick}
+        handleUserNameClick={handleUserNameClick}
+        isProjectFiltered={isProjectFiltered}
+        isJobFiltered={isJobFiltered}
+        isUserNameFiltered={isUserNameFiltered}
+        showJobTooltip={showJobTooltip}
+        setShowJobTooltip={setShowJobTooltip}
+        showProjectTooltip={showProjectTooltip}
+        setShowProjectTooltip={setShowProjectTooltip}
       />
       
       <NoteContent
@@ -105,54 +122,198 @@ const NoteCard = forwardRef((props, ref) => {
 
 
 
-const NoteHeader = ({ note, searchTerm, userStatusMap, loadingUsers }) => (
+const NoteHeader = ({ note, searchTerm, userStatusMap, loadingUsers,
+  handleProjectClick,
+  handleJobClick,
+  handleUserNameClick,
+  isProjectFiltered,
+  isJobFiltered,
+  isUserNameFiltered,
+  showJobTooltip,
+  setShowJobTooltip,
+  showProjectTooltip,
+  setShowProjectTooltip }) => (
   <div className="note-header">
-    <UserAvatar note={note} />
-    <NoteMeta note={note} userStatusMap={userStatusMap} loadingUsers={loadingUsers} />
-    <NoteContext note={note} searchTerm={searchTerm} />
+    <UserAvatar note={note} 
+      handleUserNameClick={handleUserNameClick} 
+      isUserNameFiltered={isUserNameFiltered}
+      />
+    <NoteMeta 
+      note={note} 
+      userStatusMap={userStatusMap} 
+      loadingUsers={loadingUsers} 
+      handleUserNameClick={handleUserNameClick} 
+      isUserNameFiltered={isUserNameFiltered}
+      />
+    <NoteContext 
+      note={note}
+      searchTerm={searchTerm}
+      handleProjectClick={handleProjectClick}
+      handleJobClick={handleJobClick}
+      isProjectFiltered={isProjectFiltered}
+      isJobFiltered={isJobFiltered}
+      showJobTooltip={showJobTooltip}
+      setShowJobTooltip={setShowJobTooltip}
+      showProjectTooltip={showProjectTooltip}
+      setShowProjectTooltip={setShowProjectTooltip}
+      />
   </div>
 );
 
-const UserAvatar = ({ note }) => {
+const UserAvatar = ({ note, handleUserNameClick, isUserNameFiltered }) => {
   const initials = getNoteInitials(note.userName);
   
+  const userNameFiltered = isUserNameFiltered && typeof isUserNameFiltered === 'function' 
+    ? isUserNameFiltered(note.userName) 
+    : false;
+  
+  const handleClick = (e) => {
+    e.stopPropagation();
+    if (handleUserNameClick && note.userName) {
+      handleUserNameClick(note.userName);
+    }
+  };
+  
   return (
-    <div className="user-avatar-wrapper">
-      <div className="user-avatar">
+    <div 
+      className="user-avatar-wrapper"
+      onClick={handleClick}
+      style={{
+        cursor: handleUserNameClick ? 'pointer' : 'default',
+        position: 'relative'
+      }}
+      title={`Click to filter by user: ${note.userName || "Unknown User"}`}
+    >
+      <div 
+        className="user-avatar"
+        style={{
+          border: userNameFiltered ? '2px solid #3498db' : 'none',
+          boxShadow: userNameFiltered ? '0 0 0 2px rgba(52, 152, 219, 0.3)' : 'none',
+          transition: 'all 0.2s ease'
+        }}
+      >
         {initials ? initials : <i className="fas fa-user" />}
       </div>
-      <div className="user-tooltip">{note.userName || "Unknown User"}</div>
+      <div className="user-tooltip">
+        {note.userName || "Unknown User"}
+        {userNameFiltered }
+      </div>
     </div>
   );
 };
 
-const NoteMeta = ({ note, userStatusMap, loadingUsers }) => (
-  <div className="note-meta">
-    <div className="note-author" title={note.userName || "Unknown User"}>
-      <UserStatusIndicator
-        userId={note.userId}
-        userName={note.userName}
-        userStatusMap={userStatusMap}
-        loadingUsers={loadingUsers}
-      />
+const NoteMeta = ({ 
+  note, 
+  userStatusMap, 
+  loadingUsers,
+  handleUserNameClick,
+  isUserNameFiltered 
+}) => {
+  const userNameFiltered = isUserNameFiltered && typeof isUserNameFiltered === 'function' 
+    ? isUserNameFiltered(note.userName) 
+    : false;
+  
+  const handleUserNameClickHandler = (e) => {
+    e.stopPropagation();
+    if (handleUserNameClick && note.userName) {
+      handleUserNameClick(note.userName);
+    }
+  };
+  
+  return (
+    <div className="note-meta">
+      <div 
+        className="note-author" 
+        title={note.userName || "Unknown User"}
+        onClick={handleUserNameClickHandler}
+        style={{
+          cursor: handleUserNameClick ? 'pointer' : 'default',
+          color: userNameFiltered ? '#3498db' : 'inherit',
+          fontWeight: userNameFiltered ? '600' : '700',
+          textDecoration: userNameFiltered ? 'underline' : 'none',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px',
+          padding: '2px 4px',
+          marginLeft: '-4px', 
+          borderRadius: '3px',
+          backgroundColor: userNameFiltered ? 'rgba(52, 152, 219, 0.1)' : 'transparent',
+          transition: 'all 0.2s ease'
+        }}
+      >
+        <UserStatusIndicator
+          userId={note.userId}
+          userName={note.userName}
+          userStatusMap={userStatusMap}
+          loadingUsers={loadingUsers}
+        />
+        {userNameFiltered }
+      </div>
+      <div className="note-date" title={getFullDate(note.timeStamp)}>
+        {formatRelativeTime(note.timeStamp)}
+      </div>
     </div>
-    <div className="note-date" title={getFullDate(note.timeStamp)}>
-      {formatRelativeTime(note.timeStamp)}
-    </div>
-  </div>
-);
+  );
+};
 
-const NoteContext = ({ note, searchTerm }) => (
-  <div className="note-context">
-    <div className="context-item job" title={note.job}>
-      {note.job || "—"}
+const NoteContext = ({ 
+  note, 
+  searchTerm,
+  handleProjectClick,
+  handleJobClick,
+  isProjectFiltered,
+  isJobFiltered
+}) => {
+  const projectFiltered = isProjectFiltered && typeof isProjectFiltered === 'function' 
+    ? isProjectFiltered(note.project) 
+    : false;
+  
+  const jobFiltered = isJobFiltered && typeof isJobFiltered === 'function' 
+    ? isJobFiltered(note.job) 
+    : false;
+
+  return (
+    <div className="note-context">
+      <div 
+        className="context-item job"
+        title={`Click to filter by job: ${note.job}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (handleJobClick && note.job) {
+            handleJobClick(note.job);
+          }
+        }}
+        style={{
+          cursor: 'pointer',
+          color: jobFiltered ? '#3498db' : 'inherit',
+          fontWeight: jobFiltered ? '600' : 'normal',
+          textDecoration: jobFiltered ? 'underline' : 'none'
+        }}
+      >
+        {note.job || "—"}
+      </div>
+      <div className="context-item workspace-project">
+        <span title={note.workspace}>{note.workspace || "—"}</span>/
+        <span 
+          title={`Click to filter by project: ${note.project}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (handleProjectClick && note.project) {
+              handleProjectClick(note.project);
+            }
+          }}
+          style={{
+            cursor: 'pointer',
+            fontWeight: projectFiltered ? '650' : 'normal',
+            textDecoration: projectFiltered ? 'underline' : 'none'
+          }}
+        >
+          {note.project || "—"}
+        </span>
+      </div>
     </div>
-    <div className="context-item workspace-project">
-      <span title={note.workspace}>{note.workspace || "—"}</span>/
-      <span title={note.project}>{note.project || "—"}</span>
-    </div>
-  </div>
-);
+  );
+};
 
 const NoteContent = ({ note, searchTerm, viewMode, onMouseEnter, onMouseLeave, shouldShowNotePopup }) => {
   // Check if shouldShowNotePopup is a function before calling it
@@ -343,6 +504,13 @@ NoteCard.propTypes = {
   getPriorityValue: PropTypes.func.isRequired,
   manuallyUpdatedPriorities: PropTypes.object.isRequired,
   shouldShowNotePopup: PropTypes.func.isRequired,
+  handleProjectClick: PropTypes.func,
+  handleJobClick: PropTypes.func,
+  handleUserNameClick: PropTypes.func, 
+  isUserNameFiltered: PropTypes.func,
+  isProjectFiltered: PropTypes.func,
+  isJobFiltered: PropTypes.func,
+
 };
 
 NoteCard.defaultProps = {
@@ -352,6 +520,12 @@ NoteCard.defaultProps = {
   searchTerm: "",
   viewMode: "cards",
   renderCardImageIcon: () => null,
+  handleProjectClick: () => {},
+  handleJobClick: () => {},
+  handleUserNameClick: () => {},
+  isProjectFiltered: () => false, 
+  isJobFiltered: () => false,
+  isUserNameFiltered: () => false, 
 };
 
 export default NoteCard;

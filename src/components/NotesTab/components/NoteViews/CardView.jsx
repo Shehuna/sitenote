@@ -38,6 +38,12 @@ const CardView = ({
   hasActiveFilters,
   lastCardRef,
   shouldShowNotePopup,
+  handleProjectClick,
+  handleJobClick,
+  handleUserNameClick,
+  isProjectFiltered,
+  isJobFiltered,
+  isUserNameFiltered,
 }) => {
   if (isLoading) {
     return (
@@ -85,6 +91,12 @@ const CardView = ({
           handleLinkedNoteMouseLeave={handleLinkedNoteMouseLeave}
           renderCardImageIcon={renderCardImageIcon}
           isNoteReply={isNoteReply}
+          handleProjectClick={handleProjectClick}
+          handleJobClick={handleJobClick}
+          handleUserNameClick={handleUserNameClick}
+          isProjectFiltered={isProjectFiltered}
+          isJobFiltered={isJobFiltered}
+          isUserNameFiltered={isUserNameFiltered}
           getReplyNoteId={getReplyNoteId}
           isOriginalNoteExists={isOriginalNoteExists} // ADD THIS
           userStatusMap={userStatusMap}
@@ -169,7 +181,9 @@ CardView.propTypes = {
   hasMore: PropTypes.bool,
   hasActiveFilters: PropTypes.bool,
   lastCardRef: PropTypes.object,
-  shouldShowNotePopup: PropTypes.func.isRequired,
+  handleUserNameClick: PropTypes.func, 
+  isUserNameFiltered: PropTypes.func, 
+  shouldShowNotePopup: PropTypes.func.isRequired, // Fixed: Added isRequired
 };
 
 CardView.defaultProps = {
@@ -180,6 +194,8 @@ CardView.defaultProps = {
   loadingMore: false,
   hasMore: true,
   hasActiveFilters: false,
+  handleUserNameClick: () => {}, 
+  isUserNameFiltered: () => false,
   lastCardRef: null,
   shouldShowNotePopup: () => false,
   isOriginalNoteExists: () => false, // ADD THIS

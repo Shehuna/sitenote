@@ -55,6 +55,9 @@ const NotesTab = ({
   expandedStacks,
   toggleStackExpansion,
   jobs,
+  projects,
+  handleFilterCheckboxChange, 
+  removeFilter, 
   setViewNote,
   setShowViewModal,
   stackedJobs,
@@ -64,6 +67,8 @@ const NotesTab = ({
   hasActiveFilters,
   filteredNotesFromApi,
   searchResults,
+  handleFilterChange, 
+  selectedFilters,
 }) => {
   // State
   const [localNotes, setLocalNotes] = useState([]);
@@ -254,6 +259,190 @@ const NotesTab = ({
     }
   }, [fetchNotes, finalDisplayNotes]);
 
+// Handler for clicking on project context
+const handleProjectClick = (projectName) => {
+  console.log('🔵 handleProjectClick called with:', projectName);
+  
+  const project = (projects || []).find(p => 
+    p.name === projectName || 
+    p.projectName === projectName ||
+    p.text === projectName
+  );
+  
+  if (!project) {
+    console.error('Project not found:', projectName);
+    return;
+  }
+  
+  const projectId = project.id || project.projectId;
+  const projectDisplayText = project.displayName || project.displayText || projectName;
+  
+  console.log('Found project:', {
+    id: projectId,
+    name: projectName,
+    displayText: projectDisplayText
+  });
+  
+  if (handleFilterCheckboxChange && typeof handleFilterCheckboxChange === 'function') {
+    handleFilterCheckboxChange('project', projectId, {
+      id: projectId,
+      text: projectName,
+      displayText: projectDisplayText
+    });
+  } else {
+    console.error('handleFilterCheckboxChange is not available');
+    toast.error('Filter functionality is not available');
+  }
+};
+
+const handleJobClick = (jobName) => {
+  console.log('🔵 handleJobClick called with:', jobName);
+  
+  const job = (jobs || []).find(j => 
+    j.name === jobName || 
+    j.jobName === jobName ||
+    j.text === jobName
+  );
+  
+  if (!job) {
+    console.error('Job not found:', jobName);
+    return;
+  }
+  
+  const jobId = job.id || job.jobId;
+  const jobDisplayText = job.displayName || job.displayText || jobName;
+  
+  console.log('Found job:', {
+    id: jobId,
+    name: jobName,
+    displayText: jobDisplayText
+  });
+  
+  if (handleFilterCheckboxChange && typeof handleFilterCheckboxChange === 'function') {
+    handleFilterCheckboxChange('job', jobId, {
+      id: jobId,
+      text: jobName,
+      displayText: jobDisplayText
+    });
+  } else {
+    console.error('handleFilterCheckboxChange is not available');
+    toast.error('Filter functionality is not available');
+  }
+};
+
+const isProjectFiltered = (projectName) => {
+  console.log('Checking if project is filtered:', projectName);
+  console.log('selectedFilters:', selectedFilters);
+  console.log('projects:', projects);
+  
+  if (!selectedFilters || !selectedFilters.project) {
+    console.log('No project filters found');
+    return false;
+  }
+  
+  const project = (projects || []).find(p => 
+    p.name === projectName || 
+    p.projectName === projectName ||
+    p.text === projectName
+  );
+  
+  console.log('Found project:', project);
+  
+  if (!project) {
+    console.log('Project not found in projects list');
+    return false;
+  }
+  
+  const projectId = project.id || project.projectId;
+  const isFiltered = selectedFilters.project.includes(projectId);
+  console.log('Project ID:', projectId, 'Is filtered?', isFiltered);
+  
+  return isFiltered;
+};
+
+const isJobFiltered = (jobName) => {
+  console.log('Checking if job is filtered:', jobName);
+  console.log('selectedFilters:', selectedFilters);
+  console.log('jobs:', jobs);
+  
+  if (!selectedFilters || !selectedFilters.job) {
+    console.log('No job filters found');
+    return false;
+  }
+  
+  const job = (jobs || []).find(j => 
+    j.name === jobName || 
+    j.jobName === jobName ||
+    j.text === jobName
+  );
+  
+  console.log('Found job:', job);
+  
+  if (!job) {
+    console.log('Job not found in jobs list');
+    return false;
+  }
+  
+  const jobId = job.id || job.jobId;
+  const isFiltered = selectedFilters.job.includes(jobId);
+  console.log('Job ID:', jobId, 'Is filtered?', isFiltered);
+  
+  return isFiltered;
+};
+
+const handleUserNameClick = (userName) => {
+  
+  if (handleFilterCheckboxChange && typeof handleFilterCheckboxChange === 'function') {
+    const userNote = memoizedDisplayNotes.find(note => 
+      note.userName === userName || 
+      note.UserName === userName
+    );
+    
+    let userId = userName; 
+    
+    if (userNote) {
+      userId = userNote.userId || userNote.UserId || userName;
+      console.log('Found user note with ID:', userId);
+    }
+    
+    
+    
+    handleFilterCheckboxChange('userName', userId, {
+      id: userId,
+      text: userName,
+      displayText: userName
+    });
+  } else {
+    console.error('handleFilterCheckboxChange is not available');
+    toast.error('Filter functionality is not available');
+  }
+};
+
+const isUserNameFiltered = (userName) => {
+  if (!selectedFilters?.userName) {
+    console.log('No username filters in selectedFilters');
+    return false;
+  }
+  
+  
+  const userNote = memoizedDisplayNotes.find(note => 
+    note.userName === userName || 
+    note.UserName === userName
+  );
+  
+  let userId = userName; 
+  
+  if (userNote) {
+    userId = userNote.userId || userNote.UserId || userName;
+  }
+  
+  const isFiltered = selectedFilters.userName.includes(userId) || 
+                    selectedFilters.userName.includes(userName);
+  
+  console.log('User ID:', userId, 'Is filtered?', isFiltered);
+  return isFiltered;
+};
+
   // Load more notes
   const loadMoreNotes = useCallback(async () => {
     if (
@@ -424,7 +613,7 @@ const NotesTab = ({
     const commonProps = {
       displayNotes: memoizedDisplayNotes,
       selectedRow,
-      searchTerm,
+      searchTerm,      
       handleRowClick,
       handleRowDoubleClick: (note) => {
         handleRowDoubleClick(note);
@@ -460,6 +649,12 @@ const NotesTab = ({
       getPriorityValue,
       manuallyUpdatedPriorities,
       shouldShowNotePopup,
+      handleProjectClick,
+      handleJobClick,
+      handleUserNameClick,
+      isProjectFiltered,
+      isJobFiltered,
+      isUserNameFiltered,
     };
 
     switch (viewMode) {
@@ -913,6 +1108,11 @@ NotesTab.propTypes = {
   hasActiveFilters: PropTypes.bool.isRequired,
   filteredNotesFromApi: PropTypes.array.isRequired,
   searchResults: PropTypes.array.isRequired,
+  handleFilterCheckboxChange: PropTypes.func, 
+  removeFilter: PropTypes.func, 
+  projects: PropTypes.array, 
+  selectedFilters: PropTypes.object, 
+  handleFilterChange: PropTypes.func,
 };
 
 NotesTab.defaultProps = {
@@ -921,6 +1121,17 @@ NotesTab.defaultProps = {
   loadingStackedJobs: false,
   filteredNotesFromApi: [],
   searchResults: [],
+  handleFilterCheckboxChange: () => {
+    console.warn('handleFilterCheckboxChange not implemented');
+  },
+  removeFilter: () => {
+    console.warn('removeFilter not implemented');
+  },
+  selectedFilters: {},
+  projects: [],
+  handleFilterChange: () => {
+    console.warn('handleFilterChange not implemented');
+  },
 };
 
 export default NotesTab;

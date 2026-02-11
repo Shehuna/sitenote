@@ -3080,6 +3080,10 @@ const Dashboard = ({
           hasActiveFilters={hasActiveFilters}
           filteredNotesFromApi={filteredNotesFromApi}
           searchResults={searchResults}
+          handleFilterCheckboxChange={handleFilterCheckboxChange}
+          removeFilter={removeFilter}
+          selectedFilters={selectedFilters}
+          handleFilterChange={handleFilterCheckboxChange} 
           projects={projects}
           workspaces={workspaces}
         />
