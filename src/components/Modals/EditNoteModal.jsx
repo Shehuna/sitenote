@@ -661,16 +661,17 @@ const EditNoteModal = ({
 
   // Handle paste
   const handlePaste = useCallback((e) => {
-    if (!editorRef.current || !canEditNote || !isEditable) return;
-    
-    e.preventDefault();
-    const clipboardData = e.clipboardData || window.clipboardData;
-    
-    if (clipboardData.files && clipboardData.files.length > 0) {
-      const file = clipboardData.files[0];
-      
-      if (file.type.startsWith('image/')) {
-        processPastedImage(file).then((imageHtml) => {
+  if (!editorRef.current || !canEditNote || !isEditable) return;
+
+  e.preventDefault();
+  const clipboardData = e.clipboardData || window.clipboardData;
+
+  if (clipboardData.files && clipboardData.files.length > 0) {
+    const file = clipboardData.files[0];
+
+    if (file.type.startsWith("image/")) {
+      processPastedImage(file)
+        .then((imageHtml) => {
           const selection = window.getSelection();
           if (selection.rangeCount > 0) {
             const range = selection.getRangeAt(0);
@@ -702,26 +703,77 @@ const EditNoteModal = ({
           setTimeout(() => addImageClickHandlers(), 100);
           
           toast.success('Image added - will be saved separately');
-        }).catch(error => {
-          console.error('Error processing pasted image:', error);
-          document.execCommand('insertText', false, '');
+        })
+        .catch((error) => {
+          console.error("Error processing pasted image:", error);
+          const plainText = clipboardData.getData('text/plain');
+          if (plainText) {
+            document.execCommand('insertText', false, plainText);
+          }
           const newContent = editorRef.current.innerHTML;
           setRichTextContent(newContent);
           lastRichTextContent.current = newContent;
         });
-        return;
-      }
+      return;
     }
-    
-    const pastedText = clipboardData.getData('text');
-    if (pastedText) {
-      document.execCommand('insertText', false, pastedText);
-      const newContent = editorRef.current.innerHTML;
-      setRichTextContent(newContent);
-      lastRichTextContent.current = newContent;
-    }
-  }, [canEditNote, isEditable, addImageClickHandlers]);
+  }
 
+  let htmlContent = clipboardData.getData("text/html");
+  
+  if (htmlContent) {
+    htmlContent = cleanHtmlContent(htmlContent);
+    insertHtmlSafely(htmlContent);
+    return;
+  }
+
+  const plainText = clipboardData.getData("text/plain");
+  if (plainText) {
+    document.execCommand('insertText', false, plainText);
+    const newContent = editorRef.current.innerHTML;
+    setRichTextContent(newContent);
+    lastRichTextContent.current = newContent;
+  }
+}, [canEditNote, isEditable, addImageClickHandlers]);
+
+const cleanHtmlContent = (html) => {
+  html = html.replace(/<o:p>|<\/o:p>/gi, '');
+  html = html.replace(/<w:.*?>|<\/w:.*?>/gi, '');
+  html = html.replace(/<xml.*?>.*?<\/xml>/gi, '');
+  
+  html = html.replace(/ style="[^"]*"/gi, '');
+  
+  html = html.replace(/ class="[^"]*"/gi, '');
+  
+  html = html.replace(/ id="[^"]*"/gi, '');
+  
+  html = html.replace(/<b(\s[^>]*)?>/gi, '<strong>').replace(/<\/b>/gi, '</strong>');
+  
+  html = html.replace(/<i(\s[^>]*)?>/gi, '<em>').replace(/<\/i>/gi, '</em>');
+  
+  html = html.replace(/<p>\s*<\/p>/gi, '');
+  html = html.replace(/<div>\s*<\/div>/gi, '');
+  html = html.replace(/<span>\s*<\/span>/gi, '');
+  
+  html = html.replace(/\s+/g, ' ').trim();
+  
+  return html;
+};
+
+const insertHtmlSafely = (htmlContent) => {
+  try {
+    document.execCommand('insertHTML', false, htmlContent);
+  } catch (error) {
+    console.error("Failed to insert HTML:", error);
+    const plainText = htmlContent.replace(/<[^>]*>/g, '');
+    document.execCommand('insertText', false, plainText);
+  }
+  
+  if (editorRef.current) {
+    const newContent = editorRef.current.innerHTML;
+    setRichTextContent(newContent);
+    lastRichTextContent.current = newContent;
+  }
+};
   // Handle editor input
   const handleEditorInput = useCallback((e) => {
     if (editorRef.current) {
