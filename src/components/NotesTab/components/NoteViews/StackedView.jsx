@@ -5,7 +5,9 @@ import { highlightHtmlContent } from "../../utils/htmlUtils";
 import { CardSkeleton } from "../Skeleton";
 import { NoteCard } from "../Note";
 import EditJobModal from "./EditJobModal";
+import TaskModal from "../../../Modals/TaskModal";
 import { PRIORITY_VALUES, PRIORITY_LABELS, PRIORITY_COLORS } from "../../utils/constants";
+import toast from "react-hot-toast";
 
 const StackedView = ({
   stackedJobs,
@@ -44,10 +46,14 @@ const StackedView = ({
   isStackedViewLoading,
   isFilteringStacked,
   jobsToDisplay,
+  onSaveTask,
 }) => {
   const [localExpandedStacks, setLocalExpandedStacks] = useState({});
   const [editJobModalOpen, setEditJobModalOpen] = useState(false);
   const [jobToEdit, setJobToEdit] = useState(null);
+  const [taskModalOpen, setTaskModalOpen] = useState(false);
+  const [selectedJobForTask, setSelectedJobForTask] = useState(null);
+  const [isSavingTask, setIsSavingTask] = useState(false);
 
   // Track view mode changes
   useEffect(() => {
@@ -62,6 +68,38 @@ const StackedView = ({
       return () => clearTimeout(timer);
     }
   }, [hasActiveFilters]);
+
+  // Function to handle task creation
+  const handleCreateTask = (job) => {
+    setSelectedJobForTask({
+      id: job.jobId || job.id || job.jobID,
+      name: job.jobName,
+    });
+    setTaskModalOpen(true);
+  };
+
+  // Function to handle task save
+  const handleSaveTask = async (taskData) => {
+    setIsSavingTask(true);
+    try {
+      // Call the provided onSaveTask function
+      if (onSaveTask) {
+        await onSaveTask(taskData);
+        
+        // Show success message
+        toast.success(`Task "${taskData.taskName}" created successfully!`);
+        
+        // Close the modal
+        setTaskModalOpen(false);
+        setSelectedJobForTask(null);
+      }
+    } catch (error) {
+      console.error("Failed to save task:", error);
+      toast.error(`Failed to create task: ${error.message}`);
+    } finally {
+      setIsSavingTask(false);
+    }
+  };
 
   // Show loading spinner when switching to stacked view or filtering
   if (isStackedViewLoading || isFilteringStacked) {
@@ -161,7 +199,6 @@ const StackedView = ({
                 hasActiveFilters,
                 openAiDialogForJob,
                 renderStackedImageIcon,
-                // Note card props
                 selectedRow,
                 handleRowClick,
                 handleRowDoubleClick,
@@ -191,6 +228,7 @@ const StackedView = ({
                   setJobToEdit(j);
                   setEditJobModalOpen(true);
                 },
+                onCreateTask: handleCreateTask,
               })
             : renderCollapsedStack({
                 job,
@@ -202,6 +240,7 @@ const StackedView = ({
                   setJobToEdit(j);
                   setEditJobModalOpen(true);
                 },
+                onCreateTask: handleCreateTask,
               });
         })}
 
@@ -221,6 +260,21 @@ const StackedView = ({
               setEditJobModalOpen(false);
               setJobToEdit(null);
             }}
+          />
+        )}
+
+        {/* Task Modal */}
+        {taskModalOpen && selectedJobForTask && (
+          <TaskModal
+            isOpen={taskModalOpen}
+            onClose={() => {
+              setTaskModalOpen(false);
+              setSelectedJobForTask(null);
+            }}
+            jobId={selectedJobForTask.id}
+            jobName={selectedJobForTask.name}
+            onSaveTask={handleSaveTask}
+            isLoading={isSavingTask}
           />
         )}
       </div>
@@ -273,7 +327,15 @@ const renderStackedViewLoading = () => (
   </div>
 );
 
-const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogForJob, toggleStackExpansion, onOpenEdit }) => {
+const renderCollapsedStack = ({ 
+  job, 
+  searchTerm, 
+  hasActiveFilters, 
+  openAiDialogForJob, 
+  toggleStackExpansion, 
+  onOpenEdit,
+  onCreateTask 
+}) => {
   if (!job) return null;
 
   const jobName = job.jobName;
@@ -421,7 +483,6 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                       <i className="fas fa-layer-group" />
                       <span>{noteCount} notes</span>
                     </div>
-                  {/* Edit button moved to footer (next to chat) - icon changed to gear */}
                   </div>
                 </div>
                 <div
@@ -520,48 +581,77 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                       display: "flex",
                       alignItems: "center",
                       gap: "6px",
+                      justifyContent: "space-between",
                     }}
                   >
-                    <i className="fas fa-clock" style={{ fontSize: "10px" }} />
-                    <span>
-                      {job.latestTimeStamp
-                        ? formatRelativeTime(job.latestTimeStamp)
-                        : "No updates"}
-                    </span>
-                    <button
-                      className="attachment-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openAiDialogForJob(job);
-                      }}
-                      title="Summarize notes (AI)"
-                      style={{ 
-                        background: 'transparent', 
-                        border: 'none', 
-                        cursor: 'pointer', 
-                        color: '#1976d2', 
-                        marginLeft: '8px'  
-                      }}
-                    >
-                      <i className="fas fa-comments" />   
-                    </button>
-                    <button
-                      className="attachment-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (typeof onOpenEdit === 'function') onOpenEdit(job);
-                      }}
-                      title="Edit job"
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: '#444',
-                        marginLeft: '6px'
-                      }}
-                    >
-                      <i className="fas fa-cog" />
-                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <i className="fas fa-clock" style={{ fontSize: "10px" }} />
+                      <span>
+                        {job.latestTimeStamp
+                          ? formatRelativeTime(job.latestTimeStamp)
+                          : "No updates"}
+                      </span>
+                    </div>
+                    
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <button
+                        className="attachment-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openAiDialogForJob(job);
+                        }}
+                        title="Summarize notes (AI)"
+                        style={{ 
+                          background: 'transparent', 
+                          border: 'none', 
+                          cursor: 'pointer', 
+                          color: '#1976d2', 
+                          fontSize: '14px'
+                        }}
+                      >
+                        <i className="fas fa-comments" />   
+                      </button>
+                      
+                      <button
+                        className="create-task-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (typeof onCreateTask === 'function') onCreateTask(job);
+                        }}
+                        title="Create Task"
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          
+                          fontSize: '14px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <i className="fas fa-plus-circle" />
+                        
+                      </button>
+                      
+                      <button
+                        className="attachment-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (typeof onOpenEdit === 'function') onOpenEdit(job);
+                        }}
+                        title="Edit job"
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: '#444',
+                          fontSize: '14px'
+                        }}
+                      >
+                        <i className="fas fa-cog" />
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div
@@ -641,17 +731,17 @@ const renderExpandedStack = ({
   shouldShowNotePopup,
   toggleStackExpansion,
   onOpenEdit,
+  onCreateTask,
 }) => {
   if (!job) return null;
 
   const jobName = job.jobName;
   const projectName = job.projectName || job.project?.name || job.project?.projectName || job.project?.project?.name || job.projectName;
-  // Sort notes by timestamp (most recent first) when displaying
   const jobNotes = job.notes
     ? [...job.notes].sort((a, b) => {
         const timeA = new Date(a.timeStamp || a.date || 0).getTime();
         const timeB = new Date(b.timeStamp || b.date || 0).getTime();
-        return timeB - timeA; // Most recent first
+        return timeB - timeA;
       })
     : [];
   const isLoading = job.isLoadingNotes;
@@ -682,6 +772,38 @@ const renderExpandedStack = ({
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <button
+              className="create-task-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (typeof onCreateTask === 'function') onCreateTask(job);
+              }}
+              title="Create Task"
+              style={{
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                
+                fontSize: "14px",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "6px 12px",
+                borderRadius: "4px",
+                
+                transition: "background-color 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "rgba(40, 167, 69, 0.2)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "rgba(40, 167, 69, 0.1)";
+              }}
+            >
+              <i className="fas fa-plus-circle" />
+             
+            </button>
+            
+            <button
               className="attachment-btn"
               onClick={(e) => {
                 e.stopPropagation();
@@ -697,7 +819,7 @@ const renderExpandedStack = ({
             >
               <i className="fas fa-robot" />
             </button>
-            {/* Edit job shortcut */}
+            
             <button
               className="attachment-btn"
               onClick={(e) => {
@@ -963,6 +1085,7 @@ StackedView.propTypes = {
   isStackedViewLoading: PropTypes.bool,
   isFilteringStacked: PropTypes.bool,
   jobsToDisplay: PropTypes.array,
+  onSaveTask: PropTypes.func,
 };
 
 StackedView.defaultProps = {
@@ -977,6 +1100,7 @@ StackedView.defaultProps = {
   isFilteringStacked: false,
   jobsToDisplay: [],
   isOriginalNoteExists: () => false,
+  onSaveTask: () => {},
 };
 
 export default StackedView;

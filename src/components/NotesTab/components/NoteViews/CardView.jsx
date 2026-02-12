@@ -28,7 +28,7 @@ const CardView = ({
   renderCardImageIcon,
   isNoteReply,
   getReplyNoteId,
-  isOriginalNoteExists, // ADD THIS
+  isOriginalNoteExists,
   userStatusMap,
   loadingUsers,
   getPriorityValue,
