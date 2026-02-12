@@ -317,14 +317,13 @@ const ReplyModal = ({
     if (nextPriority === '5') {
       priorityText = 'Completed';
     } else if (nextPriority === '4') {
-      priorityText = 'High';
-    } else if (nextPriority === '3') {
       priorityText = 'Medium';
+    } else if (nextPriority === '3') {
+      priorityText = 'High';
     } else {
       priorityText = 'No Priority';
     }
     
-    toast.success(`Priority set to ${priorityText}`);
   };
 
   const stripHtml = (html) => {
@@ -1201,8 +1200,8 @@ useEffect(() => {
               handlePriorityClick();
             }}
             title={`${selectedPriority === '1' ? 'No Priority - Click to set' : 
-                    selectedPriority === '3' ? 'Medium Priority - Click to change' : 
-                    selectedPriority === '4' ? 'High Priority - Click to change' :
+                    selectedPriority === '3' ? 'High Priority - Click to change' : 
+                    selectedPriority === '4' ? 'Medium Priority - Click to change' :
                     selectedPriority === '5' ? 'Completed - Click to change' : 
                     'Click to set priority'}`}
             className={`priority-flag-button priority-${selectedPriority} ${selectedPriority > 1 ? 'has-priority' : ''}`}
