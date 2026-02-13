@@ -1125,7 +1125,7 @@ const generatePDF = async () => {
 
           const replyIconText = document.createElement('div');
           replyIconText.style.cssText = `
-            font-weight: 600;
+            font-weight: 400;
             color: #000;
             font-size: 12px;
             display: flex;
@@ -1140,9 +1140,7 @@ const generatePDF = async () => {
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = reply.note || '';
             const replyPlainText = tempDiv.textContent || tempDiv.innerText || '';
-            const displayText = replyPlainText.length > 150 
-              ? replyPlainText.substring(0, 150) + '...' 
-              : replyPlainText;
+            const displayText = replyPlainText;
             replyIconText.innerHTML = '↩️ ' + displayText;
           } else {
             replyIconText.innerHTML = '↩️ [No text]';

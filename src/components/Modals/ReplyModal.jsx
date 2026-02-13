@@ -164,7 +164,7 @@ const ReplyModal = ({
         }
       };
     }
-  }, [showEmojiPicker]);
+  }, [showEmojiPicker]); 
 
   // Dragging handlers
   const handleMouseDown = useCallback((e) => {
@@ -317,14 +317,13 @@ const ReplyModal = ({
     if (nextPriority === '5') {
       priorityText = 'Completed';
     } else if (nextPriority === '4') {
-      priorityText = 'High';
-    } else if (nextPriority === '3') {
       priorityText = 'Medium';
+    } else if (nextPriority === '3') {
+      priorityText = 'High';
     } else {
       priorityText = 'No Priority';
     }
     
-    toast.success(`Priority set to ${priorityText}`);
   };
 
   const stripHtml = (html) => {
@@ -954,6 +953,36 @@ const insertHtmlSafely = (htmlContent) => {
     }
   };
 
+useEffect(() => {
+  const handleSaveShortcut = (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+      event.preventDefault();
+      
+      if (!isSaving) {
+        handleSaveReply();
+      }
+    }
+  };
+
+  document.addEventListener('keydown', handleSaveShortcut);
+  
+  return () => {
+    document.removeEventListener('keydown', handleSaveShortcut);
+  };
+}, [handleSaveReply, isSaving]); 
+
+useEffect(() => {
+  const handleEscape = (event) => {
+    if (event.key === 'Escape') {
+      onClose();
+    }
+  };
+
+  document.addEventListener('keydown', handleEscape);
+  return () => document.removeEventListener('keydown', handleEscape);
+}, [onClose]);
+
+
   const handleAddPriority = async (noteId, userId) => {
     try {
       const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/Priority/AddPriority`, {
@@ -1171,8 +1200,8 @@ const insertHtmlSafely = (htmlContent) => {
               handlePriorityClick();
             }}
             title={`${selectedPriority === '1' ? 'No Priority - Click to set' : 
-                    selectedPriority === '3' ? 'Medium Priority - Click to change' : 
-                    selectedPriority === '4' ? 'High Priority - Click to change' :
+                    selectedPriority === '3' ? 'High Priority - Click to change' : 
+                    selectedPriority === '4' ? 'Medium Priority - Click to change' :
                     selectedPriority === '5' ? 'Completed - Click to change' : 
                     'Click to set priority'}`}
             className={`priority-flag-button priority-${selectedPriority} ${selectedPriority > 1 ? 'has-priority' : ''}`}
@@ -1425,8 +1454,8 @@ const insertHtmlSafely = (htmlContent) => {
             <button className="cancel-button" onClick={onClose} disabled={isSaving} type="button">
               Cancel
             </button>
-            <button className="save-button" onClick={handleSaveReply} disabled={isSaving} type="button">
-              {isSaving ? "Sending..." : "Send"}
+            <button className="save-button" onClick={handleSaveReply} disabled={isSaving} type="button" title="Ctrl+S to save" >
+              {isSaving ? "Saving..." : "Save"}
             </button>
           </div>
         </div>

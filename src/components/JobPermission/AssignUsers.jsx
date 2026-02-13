@@ -210,11 +210,17 @@ const AssignUsers = ({ filteredUsers, projects, jobs, loading, setLoading, defId
                         }}
                     >
                         <option value="">Select User</option>
-                        {filteredUsers.map(user => (
-                            <option key={user.userId} value={user.userId}>
-                                {user.userName} ({user.fname} {user.lname})
-                            </option>
-                        ))}
+                        {filteredUsers
+                            .sort((a, b) => {
+                                const nameA = (a.userName || `${a.fname} ${a.lname}`).toLowerCase();
+                                const nameB = (b.userName || `${b.fname} ${b.lname}`).toLowerCase();
+                                return nameA.localeCompare(nameB);
+                            })
+                            .map(user => (
+                                <option key={user.userId} value={user.userId}>
+                                    {user.userName} ({user.fname} {user.lname})
+                                </option>
+                            ))}
                     </select>
                     {loadingUserJobs && (
                         <div className="loading-indicator" style={{ fontSize: '12px', marginTop: '4px' }}>Loading user jobs...</div>

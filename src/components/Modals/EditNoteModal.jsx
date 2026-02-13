@@ -1424,33 +1424,32 @@ const insertHtmlSafely = (htmlContent) => {
 const handlePriorityClick = () => {
   if (!canEditNote || !isEditable) return;
   
-  // Cycle through priority levels: 1 → 3 → 4 → 5 → 1
+  // CORRECTED: Cycle through priority levels: 1 → 3 (High) → 4 (Medium) → 5 (Completed) → 1
   let nextPriority;
   if (selectedPriority === '1') {
-    nextPriority = '3'; // Medium
+    nextPriority = '3'; // High (red)
   } else if (selectedPriority === '3') {
-    nextPriority = '4'; // High
+    nextPriority = '4'; // Medium (yellow)
   } else if (selectedPriority === '4') {
-    nextPriority = '5'; // Completed
+    nextPriority = '5'; // Completed (green)
   } else {
     nextPriority = '1'; // No priority
   }
   
   setSelectedPriority(nextPriority);
   
-  // Update toast message for completed priority
+  // CORRECTED: Update toast message with correct priority mapping
   let priorityText;
-  if (nextPriority === '5') {
-    priorityText = 'Completed';
-  } else if (nextPriority === '4') {
+  if (nextPriority === '3') {
     priorityText = 'High';
-  } else if (nextPriority === '3') {
+  } else if (nextPriority === '4') {
     priorityText = 'Medium';
+  } else if (nextPriority === '5') {
+    priorityText = 'Completed';
   } else {
     priorityText = 'No Priority';
   }
   
-  toast.success(`Priority set to ${priorityText}`);
 };
 
   // Editor toolbar component with emoji picker - UPDATED
@@ -1583,8 +1582,8 @@ const handlePriorityClick = () => {
       handlePriorityClick();
     }}
     title={`${selectedPriority === '1' ? 'No Priority - Click to set' : 
-            selectedPriority === '3' ? 'Medium Priority - Click to change' : 
-            selectedPriority === '4' ? 'High Priority - Click to change' :
+            selectedPriority === '3' ? 'High Priority - Click to change' : 
+            selectedPriority === '4' ? 'Medium Priority - Click to change' :
             selectedPriority === '5' ? 'Completed - Click to change' : 
             'Click to set priority'}`}
     className={`priority-flag-button priority-${selectedPriority} ${selectedPriority > 1 ? 'has-priority' : ''} ${!isEditable || !canEditNote ? 'disabled' : ''}`}
@@ -1974,8 +1973,8 @@ const handlePriorityClick = () => {
                     className={`priority-select ${selectedPriority ? `priority-${selectedPriority}` : "priority-default"}`}
                   >
                     <option value="1" className="priority-option-1">No Priority (Default)</option>
-                    <option value="3" className="priority-option-3">Medium</option>
-                    <option value="4" className="priority-option-4">High</option>
+                    <option value="3" className="priority-option-3">High</option>
+                    <option value="4" className="priority-option-4">Medium</option>
                   </select>
                   {!priorityId && (
                     <div className="priority-note">
