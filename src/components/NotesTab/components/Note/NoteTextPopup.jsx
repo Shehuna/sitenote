@@ -1,6 +1,6 @@
 import React from "react";
 import PropTypes from "prop-types";
-import TooltipPortal from "../Shared/TooltipPortal"; // Changed from named import
+import TooltipPortal from "../Shared/TooltipPortal";
 import { highlightHtmlContent } from "../../utils/htmlUtils";
 
 const NoteTextPopup = ({
@@ -21,9 +21,9 @@ const NoteTextPopup = ({
       case "cards":
         return "300px";
       case "stacked":
-        return "300px";
+        return "350px";
       default:
-        return "300px";
+        return "350px";
     }
   };
 
@@ -47,8 +47,9 @@ const NoteTextPopup = ({
           maxWidth: popupWidth,
           fontSize: "13px",
           pointerEvents: "none",
-          maxHeight: "250px",
-          overflowY: "hidden",
+          maxHeight: "200px", 
+          overflowY: "auto", 
+          opacity: "0.97"
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -57,6 +58,7 @@ const NoteTextPopup = ({
             color: "#333",
             lineHeight: 1.5,
             wordBreak: "break-word",
+            whiteSpace: "pre-wrap", // Preserve whitespace and wrap text
           }}
           dangerouslySetInnerHTML={{
             __html: highlightHtmlContent(content, searchTerm),
