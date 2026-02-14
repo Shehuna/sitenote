@@ -362,9 +362,10 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                     marginBottom: "10px",
                     paddingBottom: "10px",
                     borderBottom: "1px solid #f0f0f0",
+                    flexShrink: 0, 
                   }}
                 >
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{
                         display: "flex",
@@ -375,7 +376,7 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                     >
                       <i
                         className="fas fa-briefcase"
-                        style={{ color: "#14A2B6" }}
+                        style={{ color: "#14A2B6", flexShrink: 0 }}
                       />
                       <div
                         style={{
@@ -386,16 +387,37 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                           flexDirection: "column",
                           alignItems: "flex-start",
                           gap: "2px",
+                          minWidth: 0, 
+                          width: "100%",
                         }}
                       >
-                        <span style={{ lineHeight: 1 }}>{job.jobName}</span>
+                        {/*truncation to job name */}
+                        <span 
+                          style={{ 
+                            lineHeight: 1,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            maxWidth: "160px", 
+                            display: "block",
+                          }}
+                          title={job.jobName}
+                        >
+                          {job.jobName}
+                        </span>
                         {projectName && (
-                          <span title={projectName}
+                          <span 
+                            title={projectName}
                             style={{
                               fontSize: "12px",
                               color: "#7f8c8d",
                               fontWeight: 400,
                               marginTop: "2px",
+                              whiteSpace: "nowrap", 
+                              overflow: "hidden", 
+                              textOverflow: "ellipsis", 
+                              maxWidth: "140px", 
+                              display: "block",
                             }}
                           >
                             {projectName}
@@ -404,7 +426,7 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                       </div>
                     </div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                     <div
                       style={{
                         display: "flex",
@@ -416,20 +438,24 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                         borderRadius: "20px",
                         fontSize: "12px",
                         fontWeight: 600,
+                        whiteSpace: "nowrap", 
+                        flexShrink: 0,
                       }}
                     >
                       <i className="fas fa-layer-group" />
                       <span>{noteCount} notes</span>
                     </div>
-                  {/* Edit button moved to footer (next to chat) - icon changed to gear */}
                   </div>
                 </div>
+                
                 <div
                   style={{
                     flex: 1,
                     display: "flex",
                     flexDirection: "column",
                     gap: "10px",
+                    minHeight: 0, 
+                    overflow: "hidden",
                   }}
                 >
                   <div
@@ -437,6 +463,7 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                       display: "flex",
                       alignItems: "center",
                       gap: "10px",
+                      flexShrink: 0, 
                     }}
                   >
                     <div
@@ -451,25 +478,26 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                         justifyContent: "center",
                         fontSize: "12px",
                         fontWeight: "bold",
+                        flexShrink: 0,
                       }}
                     >
                       {job.lastSiteNoteUserName
                         ? job.lastSiteNoteUserName.charAt(0).toUpperCase()
                         : job.jobName?.charAt(0)?.toUpperCase() || "J"}
                     </div>
-                    <span style={{ fontSize: "14px", color: "#555" }}>
+                    <span style={{ fontSize: "14px", color: "#555", flexShrink: 0 }}>
                       {job.lastSiteNoteUserName ||
                         (job.notes && job.notes.length > 0 && job.notes[0].userName) ||
                         "Loading..."}
                     </span>
                   </div>
 
+                 
                   <div
                     style={{
                       fontSize: "13px",
                       color: "#666",
                       lineHeight: 1.4,
-                      flex: 1,
                       overflow: "hidden",
                       display: "-webkit-box",
                       WebkitLineClamp: 3,
@@ -480,6 +508,8 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                       borderLeft: "3px solid #21f869ff",
                       marginTop: "8px",
                       position: "relative",
+                      maxHeight: "70px", 
+                      flexShrink: 0, 
                     }}
                   >
                     <div
@@ -514,16 +544,17 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                     style={{
                       fontSize: "11px",
                       color: "#888",
-                      marginTop: "auto",
+                      marginTop: "auto", 
                       paddingTop: "8px",
                       borderTop: "1px dashed #e9ecef",
                       display: "flex",
                       alignItems: "center",
                       gap: "6px",
+                      flexShrink: 0, 
                     }}
                   >
-                    <i className="fas fa-clock" style={{ fontSize: "10px" }} />
-                    <span>
+                    <i className="fas fa-clock" style={{ fontSize: "10px", flexShrink: 0 }} />
+                    <span style={{ flexShrink: 0, whiteSpace: "nowrap" }}>
                       {job.latestTimeStamp
                         ? formatRelativeTime(job.latestTimeStamp)
                         : "No updates"}
@@ -540,7 +571,9 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                         border: 'none', 
                         cursor: 'pointer', 
                         color: '#1976d2', 
-                        marginLeft: '8px'  
+                        marginLeft: '8px',
+                        flexShrink: 0,
+                        padding: '2px 4px',
                       }}
                     >
                       <i className="fas fa-comments" />   
@@ -557,19 +590,23 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                         border: 'none',
                         cursor: 'pointer',
                         color: '#444',
-                        marginLeft: '6px'
+                        marginLeft: '6px',
+                        flexShrink: 0,
+                        padding: '2px 4px',
                       }}
                     >
                       <i className="fas fa-cog" />
                     </button>
                   </div>
                 </div>
+                
                 <div
                   style={{
                     textAlign: "center",
                     paddingTop: "10px",
                     borderTop: "1px dashed #e9ecef",
                     marginTop: "10px",
+                    flexShrink: 0,
                   }}
                 >
                   <div
@@ -588,18 +625,14 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
               <div
                 style={{
                   height: "100%",
-                  background:
-                    "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)",
+                  background: "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   color: "#bdc3c7",
                 }}
               >
-                <i
-                  className="fas fa-sticky-note"
-                  style={{ fontSize: "24px" }}
-                />
+                <i className="fas fa-sticky-note" style={{ fontSize: "24px" }} />
               </div>
             )}
           </div>
@@ -695,7 +728,7 @@ const renderExpandedStack = ({
                 color: "#1976d2",
               }}
             >
-              <i className="fas fa-robot" />
+              <i className="fas fa-comments" />
             </button>
             {/* Edit job shortcut */}
             <button

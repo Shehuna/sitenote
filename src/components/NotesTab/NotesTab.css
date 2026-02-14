@@ -1424,6 +1424,14 @@ tr.selected-row.priority-4 {
   padding: 10px 0 !important;
 }
 
+.expanded-notes-grid:has(> :nth-child(1):last-child) {
+  grid-template-columns: 350px;
+}
+
+.expanded-notes-grid:has(> :nth-child(2):last-child) {
+  grid-template-columns: repeat(2, 350px); 
+}
+
 .fixed-collapse-btn-wrapper {
   position: fixed;
   top: 40%;
