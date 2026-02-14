@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import "./TaskModal.css";
+import toast from "react-hot-toast";
 
 const TaskModal = ({
   isOpen,
@@ -28,6 +29,9 @@ const TaskModal = ({
   const [userPopupPosition, setUserPopupPosition] = useState({ top: 0, left: 0 });
   const [statusPopupPosition, setStatusPopupPosition] = useState({ top: 0, left: 0 });
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [users, setUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [loggedInUserId, setLoggedInUserId] = useState(null);
   
   const modalRef = useRef(null);
   const headerRef = useRef(null);
@@ -38,17 +42,7 @@ const TaskModal = ({
   const statusIconRef = useRef(null);
   const statusPopupRef = useRef(null);
 
-  // Dummy users data
-  const dummyUsers = [
-    { id: 1, name: "Binyam Daniel", avatar: "BD", color: "#1976d2" },
-    { id: 2, name: "Daniel Leul", avatar: "DL", color: "#dc3545" },
-    { id: 3, name: "Shimeles String", avatar: "SS", color: "#28a745" },
-    { id: 4, name: "Shehun Ayele", avatar: "SA", color: "#fd7e14" },
-    { id: 5, name: "Bitanya Nigussie", avatar: "BN", color: "#6f42c1" },
-    { id: 6, name: "Test User", avatar: "TU", color: "#20c997" },
-  ];
-
-  // Dummy status data
+  const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`
   const dummyStatuses = [
     { id: 1, name: "To Do", icon: "fa-circle", color: "#6c757d", bgColor: "#e9ecef" },
     { id: 2, name: "In Progress", icon: "fa-spinner", color: "#fd7e14", bgColor: "#fff3e0" },
@@ -57,12 +51,24 @@ const TaskModal = ({
     { id: 5, name: "Approved", icon: "fa-check-double", color: "#1976d2", bgColor: "#e3f2fd" },
   ];
 
-  // Initialize modal position
+  // Get logged in user from localStorage when component mounts
   useEffect(() => {
-    if (isOpen) {
-      const centerX = window.innerWidth / 2 - 200;
-      const centerY = window.innerHeight / 2 - 150;
-      setPosition({ x: centerX, y: centerY });
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        // Assuming the user object has an id property
+        setLoggedInUserId(user.id || user.userId);
+      } catch (error) {
+        console.error('Error parsing user from localStorage:', error);
+      }
+    }
+  }, []);
+
+  // Fetch users when modal opens and jobId is available
+  useEffect(() => {
+    if (isOpen && jobId && loggedInUserId) {
+      fetchUsers();
       
       setTaskData({
         taskId: "",
@@ -77,24 +83,59 @@ const TaskModal = ({
       setCurrentMonth(new Date());
       setErrors({});
     }
+  }, [isOpen, jobId, loggedInUserId]);
+
+  // Initialize modal position
+  useEffect(() => {
+    if (isOpen) {
+      const centerX = window.innerWidth / 2 - 200;
+      const centerY = window.innerHeight / 2 - 150;
+      setPosition({ x: centerX, y: centerY });
+    }
   }, [isOpen]);
+
+  const fetchUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const response = await fetch(`${apiUrl}/Filters/GetFilteredSiteNoteUser/${loggedInUserId}?JobId=${jobId}`);
+      const data = await response.json();
+      
+      if (data && data.jobs) {
+        // Transform the API response to match the expected user format
+        const transformedUsers = data.jobs.map(user => ({
+          id: user.siteNoteUserId,
+          name: user.siteNoteUserName,
+          avatar: user.siteNoteUserName.split(' ').map(n => n[0]).join('').toUpperCase() || user.siteNoteUserName.substring(0, 2).toUpperCase(),
+          color: getRandomColor(user.siteNoteUserId) // Generate consistent color based on user ID
+        }));
+        setUsers(transformedUsers);
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  // Helper function to generate consistent colors for avatars
+  const getRandomColor = (id) => {
+    const colors = ['#1976d2', '#dc3545', '#28a745', '#fd7e14', '#6f42c1', '#20c997', '#e83e8c', '#007bff'];
+    return colors[id % colors.length];
+  };
 
   // Handle click outside to close popups
   useEffect(() => {
     const handleClickOutside = (e) => {
-      // Calendar click outside
       if (calendarRef.current && !calendarRef.current.contains(e.target) && 
           calendarIconRef.current && !calendarIconRef.current.contains(e.target)) {
         setShowCalendar(false);
       }
       
-      // User popup click outside
       if (userPopupRef.current && !userPopupRef.current.contains(e.target) && 
           userIconRef.current && !userIconRef.current.contains(e.target)) {
         setShowUserPopup(false);
       }
       
-      // Status popup click outside
       if (statusPopupRef.current && !statusPopupRef.current.contains(e.target) && 
           statusIconRef.current && !statusIconRef.current.contains(e.target)) {
         setShowStatusPopup(false);
@@ -159,10 +200,7 @@ const TaskModal = ({
   const validateForm = () => {
     const newErrors = {};
     
-    if (!taskData.taskId.trim()) {
-      newErrors.taskId = "Task ID is required";
-    }
-    
+    // Task Name is required
     if (!taskData.taskName.trim()) {
       newErrors.taskName = "Task Name is required";
     }
@@ -185,23 +223,53 @@ const TaskModal = ({
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const validationErrors = validateForm();
     
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
-    
-    if (onSaveTask) {
-      onSaveTask({
-        ...taskData,
-        jobId: jobId,
-        jobName: jobName,
-        dueDate: selectedDueDate,
-        assignee: selectedUser,
-        status: selectedStatus
+
+    // Prepare the payload for the API
+    const payload = {
+      title: taskData.taskName,
+      assigneeId: selectedUser?.id || null,
+      jobId: parseInt(jobId),
+      status: selectedStatus?.id || 1 // Default to "To Do" if no status selected
+    };
+
+    try {
+      const response = await fetch(`${apiUrl}/JobTasks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to save task');
+      }
+
+      const savedTask = await response.json();
+      
+      if (onSaveTask) {
+        onSaveTask({
+          ...savedTask,
+          taskId: taskData.taskId, 
+          taskName: taskData.taskName,
+          jobId: jobId,
+          jobName: jobName,
+          dueDate: selectedDueDate,
+          assignee: selectedUser,
+          status: selectedStatus
+        });
+      }
+      toast.success(`Task for ${jobName} is created successfully`)
+      onClose(); 
+    } catch (error) {
+      console.error('Error saving task:', error);
     }
   };
 
@@ -214,7 +282,6 @@ const TaskModal = ({
     }
   };
 
-  // Calendar positioning - exactly above the icon
   const toggleCalendar = (e) => {
     e.stopPropagation();
     
@@ -235,7 +302,6 @@ const TaskModal = ({
     setShowCalendar(!showCalendar);
   };
 
-  // User popup positioning - exactly like calendar (above the icon)
   const toggleUserPopup = (e) => {
     e.stopPropagation();
     
@@ -256,7 +322,6 @@ const TaskModal = ({
     setShowUserPopup(!showUserPopup);
   };
 
-  // Status popup positioning - exactly like calendar and user popup
   const toggleStatusPopup = (e) => {
     e.stopPropagation();
     
@@ -398,10 +463,7 @@ const TaskModal = ({
         <div className="task-modal-content">
           <div className="form-group">
             <label htmlFor="taskId">
-              Task ID *
-              {errors.taskId && (
-                <span className="error-message"> - {errors.taskId}</span>
-              )}
+              Task ID
             </label>
             <input
               type="text"
@@ -409,9 +471,9 @@ const TaskModal = ({
               name="taskId"
               value={taskData.taskId}
               onChange={handleInputChange}
-              placeholder="Enter Task ID"
-              disabled={isLoading}
-              autoFocus
+              placeholder="Task ID (disabled)"
+              disabled={true}
+              className="disabled-input"
             />
           </div>
 
@@ -430,6 +492,7 @@ const TaskModal = ({
               onChange={handleInputChange}
               placeholder="Enter Task Name"
               disabled={isLoading}
+              autoFocus
             />
           </div>
 
@@ -450,12 +513,12 @@ const TaskModal = ({
             </div>
             
             <div 
-              className={`task-icon-item ${selectedUser ? 'has-value' : ''}`}
+              className={`task-icon-item ${selectedUser ? 'has-value' : ''} ${loadingUsers ? 'loading' : ''}`}
               title="Assignee"
               onClick={toggleUserPopup}
               ref={userIconRef}
             >
-              <i className="fas fa-user"></i>
+              <i className={`fas ${loadingUsers ? 'fa-spinner fa-spin' : 'fa-user'}`}></i>
               {selectedUser && (
                 <span className="icon-value user-avatar-small" style={{ backgroundColor: selectedUser.color }}>
                   {selectedUser.avatar}
@@ -553,21 +616,29 @@ const TaskModal = ({
               </div>
               
               <div className="user-list-container">
-                {dummyUsers.map(user => (
-                  <div 
-                    key={user.id}
-                    className={`user-item ${selectedUser?.id === user.id ? 'selected' : ''}`}
-                    onClick={() => handleUserSelect(user)}
-                  >
-                    <div className="user-avatar" style={{ backgroundColor: user.color }}>
-                      {user.avatar}
-                    </div>
-                    <div className="user-name">{user.name}</div>
-                    {selectedUser?.id === user.id && (
-                      <i className="fas fa-check user-check-icon"></i>
-                    )}
+                {loadingUsers ? (
+                  <div className="loading-users">
+                    <i className="fas fa-spinner fa-spin"></i> Loading users...
                   </div>
-                ))}
+                ) : users.length > 0 ? (
+                  users.map(user => (
+                    <div 
+                      key={user.id}
+                      className={`user-item ${selectedUser?.id === user.id ? 'selected' : ''}`}
+                      onClick={() => handleUserSelect(user)}
+                    >
+                      <div className="user-avatar" style={{ backgroundColor: user.color }}>
+                        {user.avatar}
+                      </div>
+                      <div className="user-name">{user.name}</div>
+                      {selectedUser?.id === user.id && (
+                        <i className="fas fa-check user-check-icon"></i>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="no-users">No users available</div>
+                )}
               </div>
               
               {selectedUser && (
@@ -653,7 +724,7 @@ const TaskModal = ({
           <button
             className="save-button"
             onClick={handleSave}
-            disabled={isLoading}
+            disabled={isLoading || !taskData.taskName.trim()}
           >
             {isLoading ? (
               <>
