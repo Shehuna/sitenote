@@ -46,7 +46,7 @@ const NoteTextPopup = ({
           width: popupWidth,
           maxWidth: popupWidth,
           fontSize: "13px",
-          pointerEvents: "none",
+          pointerEvents: "auto",
           maxHeight: "200px", 
           overflowY: "auto", 
           opacity: "0.97"
