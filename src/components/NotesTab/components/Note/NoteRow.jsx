@@ -60,7 +60,7 @@ const NoteRow = forwardRef(({
       ref={isLast ? ref : null}
       data-note-id={note.id}
       onClick={() => handleRowClick(note)}
-      onDoubleClick={() => handleRowDoubleClick(note)}
+      onDoubleClick={() => handleEdit(note)}
       className={`${selectedRow === note.id ? "selected-row" : ""} ${
         focusedRow === note.id ? "focused-row" : ""
       }`}
@@ -202,11 +202,11 @@ const NoteRow = forwardRef(({
           }}
         />
         <ActionButton
-          icon="fas fa-edit"
-          title="Edit"
+          icon="fas fa-external-link-alt"
+          title="View"
           onClick={(e) => {
             e.stopPropagation();
-            handleEdit(note);
+            handleRowDoubleClick(note);
           }}
         />
         <ActionButton

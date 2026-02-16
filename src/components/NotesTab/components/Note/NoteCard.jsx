@@ -69,7 +69,7 @@ const NoteCard = forwardRef((props, ref) => {
       data-note-id={note.id}
       className={`note-card ${selectedRow === note.id ? "selected" : ""}`}
       onClick={() => handleRowClick(note)}
-      onDoubleClick={() => handleRowDoubleClick(note)}
+      onDoubleClick={() => handleEdit(note)}
     >
       {/* Rest of your NoteCard component remains the same */}
       <NoteHeader 
@@ -106,7 +106,7 @@ const NoteCard = forwardRef((props, ref) => {
         onViewAttachments={handleViewAttachments}
         onReply={handleReplyToNote}
         onAdd={handleAddFromRow}
-        onEdit={handleEdit}
+        onEdit={handleRowDoubleClick}
         onDelete={handleDelete}
         onPriorityClick={handlePriorityClick}
         onPriorityMouseEnter={handlePriorityMouseEnter}
@@ -395,7 +395,7 @@ const NoteFooter = ({
         onMouseLeave={onPriorityMouseLeave}
       />
       <ActionButton icon="fas fa-plus" title="Add New Note" onClick={() => onAdd(note)} />
-      <ActionButton icon="fas fa-edit" title="Edit Note" onClick={() => onEdit(note)} />
+      <ActionButton icon="fas fa-external-link-alt" title="View Note" onClick={() => onEdit(note)} />
       <ActionButton icon="fas fa-trash" title="Delete Note" onClick={() => onDelete(note)} />
     </div>
   </div>
