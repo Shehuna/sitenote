@@ -1,11 +1,14 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import Modal from '../Modals/Modal';
+import ConfirmationModal from '../Modals/ConfirmationModal';
 import toast from 'react-hot-toast';
-import '../Modals/SettingsModal.css'
+import '../Modals/SettingsModal.css';
+import './ProjectManagement.css'; // Add this import
 
 const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
     const [projects, setProjects] = useState([])
     const [filteredProjects, setFilteredProjects] = useState([])
+    const [archivedProjects, setArchivedProjects] = useState([])
     const [selectedProject, setSelectedProject] = useState('')
     const [newProjectName, setNewProjectName] = useState('');
     const [user, setUser] = useState('');
@@ -14,8 +17,10 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
     const [newProjectDescription, setNewProjectDescription] = useState('');
     const [selectedWorkspace, setSelectedWorkspace] = useState('');
     const [newProjectStatus, setNewProjectStatus] = useState(1);
+    const [newProjectCodePrefix, setNewProjectCodePrefix] = useState("");
     const [workspaceName, setWorkspaceName] = useState('');
     const [loading, setLoading] = useState(true);
+    const [archivedLoading, setArchivedLoading] = useState(false);
     const [error, setError] = useState(null);
     const [previousProjectName, setPreviousProjectName] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
@@ -25,6 +30,11 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [suggestionIndex, setSuggestionIndex] = useState(0);
     const [showAllProjects, setShowAllProjects] = useState(false);
+    const [showArchived, setShowArchived] = useState(false);
+    const [archivedSearchQuery, setArchivedSearchQuery] = useState('');
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+    const [projectToActivate, setProjectToActivate] = useState(null);
+    const [activatingProjectId, setActivatingProjectId] = useState(null);
     const inputRef = useRef(null);
 
     const API_URL = process.env.REACT_APP_API_BASE_URL
@@ -48,12 +58,19 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
     }, [handleKeyDown]);
 
     useEffect(() => {
+        const storedUser = JSON.parse(localStorage.getItem('user'));
+        setUser(storedUser?.id || '');
         fetchWorkspacesById();
         fetchWorkspaces();
         fetchProjects();
-        const user = JSON.parse(localStorage.getItem('user'));
-        setUser(user.id)
     }, []);
+    
+    // Fetch archived projects when switching to archived view
+    useEffect(() => {
+        if (showArchived && user) {
+            fetchArchivedProjects();
+        }
+    }, [showArchived, user]);
     
     const fetchWorkspacesById = async () => {
         setLoading(true);
@@ -91,6 +108,33 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
         } catch (err) {
             setError(err.message);
             console.error('Error fetching workspaces:', err);
+        }
+    };
+    
+    const fetchArchivedProjects = async () => {
+        if (!user) return;
+        
+        setArchivedLoading(true);
+        try {
+            const response = await fetch(
+                `${API_URL}/api/Project/GetMyProjectsByStatus?userId=${user}&status=3`
+            );
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch archived projects');
+            }
+            
+            const data = await response.json();
+            // Filter to only show projects from current workspace
+            const workspaceArchivedProjects = (data.projects || []).filter(
+                project => project.workspaceId === parseInt(workspaceId)
+            );
+            setArchivedProjects(workspaceArchivedProjects);
+        } catch (err) {
+            console.error('Error fetching archived projects:', err);
+            toast.error('Failed to load archived projects');
+        } finally {
+            setArchivedLoading(false);
         }
     };
     
@@ -157,6 +201,21 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
                    workspaceName.includes(query);
         });
     }, [filteredProjects, searchQuery, workspaces]);
+
+    // Filter archived projects based on search query
+    const filteredArchivedProjects = useMemo(() => {
+        if (!archivedSearchQuery.trim()) {
+            return archivedProjects;
+        }
+        
+        const query = archivedSearchQuery.toLowerCase().trim();
+        return archivedProjects.filter(project => {
+            const projectName = project.name?.toLowerCase() || '';
+            const projectDescription = project.description?.toLowerCase() || '';
+            
+            return projectName.includes(query) || projectDescription.includes(query);
+        });
+    }, [archivedProjects, archivedSearchQuery]);
 
     // Update project suggestions when input is clicked or value changes
     useEffect(() => {
@@ -322,7 +381,8 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
                     id: selectedProject,
                     name: newProjectName,
                     description: finalDescription,
-                    status: newProjectStatus
+                    status: newProjectStatus,
+                    codePrefix: newProjectCodePrefix
                 })
             });
 
@@ -347,9 +407,66 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
         }
     };
 
+    const handleActivateClick = (project) => {
+        setProjectToActivate(project);
+        setIsConfirmModalOpen(true);
+    };
+
+    const handleConfirmActivate = async () => {
+        if (!projectToActivate) return;
+        
+        setIsConfirmModalOpen(false);
+        setActivatingProjectId(projectToActivate.id);
+        
+        try {
+            const updatePayload = {
+                id: projectToActivate.id,
+                name: projectToActivate.name,
+                description: projectToActivate.description || '',
+                status: 1, // Set to Active
+                codePrefix: projectToActivate.codePrefix || ''
+            };
+            
+            const response = await fetch(`${API_URL}/api/Project/UpdateProject/${projectToActivate.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updatePayload)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Failed to activate project');
+            }
+            
+            toast.success("Project activated successfully");
+            
+            // Refresh both project lists
+            await fetchProjects();
+            await fetchArchivedProjects();
+            
+        } catch (err) {
+            toast.error(err.message || "Failed to activate project");
+            console.error('Error activating project:', err);
+        } finally {
+            setActivatingProjectId(null);
+            setProjectToActivate(null);
+        }
+    };
+
+    const handleCancelActivate = () => {
+        setIsConfirmModalOpen(false);
+        setProjectToActivate(null);
+    };
+
     // Clear search query
     const handleClearSearch = () => {
         setSearchQuery('');
+    };
+
+    const handleClearArchivedSearch = () => {
+        setArchivedSearchQuery('');
     };
 
     const closeAddModal = () => {
@@ -364,68 +481,163 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
 
     return (
         <div className="settings-content">
+            {/* Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={isConfirmModalOpen}
+                onClose={handleCancelActivate}
+                onConfirm={handleConfirmActivate}
+                title="Activate Project"
+                message={`Are you sure you want to activate "${projectToActivate?.name}"?`}
+                confirmText="Activate"
+                cancelText="Cancel"
+            />
+            
             <div className="settings-action-buttons">
                 <button className="btn-primary" onClick={() => setIsAddProjectOpen(true)}>
                     Add Project
                 </button>
-                <button className="btn-secondary" onClick={() => setIsEditProjectOpen(true)} disabled={!selectedProject}>
+                <button 
+                    className="btn-secondary" 
+                    onClick={() => setIsEditProjectOpen(true)} 
+                    disabled={!selectedProject && !showArchived}
+                >
                     Edit Project
+                </button>
+                <button 
+                    className={`btn ${showArchived ? 'btn-primary' : 'btn-secondary'}`} 
+                    onClick={() => setShowArchived(!showArchived)}
+                >
+                    {showArchived ? 'Show Active Projects' : 'Archived Projects'}
                 </button>
             </div>
 
-            <div className="settings-lookup-list">
-                <div className="project-search-container">
-                    <div className="search-input-wrapper">
-                        <input
-                            type="text"
-                            placeholder="Search projects..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="project-search-input"
-                        />
+            {!showArchived ? (
+                /* Active Projects View */
+                <div className="settings-lookup-list">
+                    <div className="project-search-container">
+                        <div className="search-input-wrapper">
+                            <input
+                                type="text"
+                                placeholder="Search projects..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="project-search-input"
+                            />
+                            {searchQuery && (
+                                <button 
+                                    className="clear-search-btn" 
+                                    onClick={handleClearSearch}
+                                    title="Clear search"
+                                >
+                                    <i className="fas fa-times"></i>
+                                </button>
+                            )}
+                        </div>
                         {searchQuery && (
-                            <button 
-                                className="clear-search-btn" 
-                                onClick={handleClearSearch}
-                                title="Clear search"
-                            >
-                                <i className="fas fa-times"></i>
-                            </button>
+                            <div className="search-results-info">
+                                Found {searchedProjects.length} project(s)
+                            </div>
                         )}
                     </div>
-                    {searchQuery && (
-                        <div className="search-results-info">
-                            Found {searchedProjects.length} project(s)
+
+                    <select
+                        size="5"
+                        className="lookup-select"
+                        value={selectedProject}
+                        onChange={(e) => setSelectedProject(e.target.value)}
+                    >
+                        <option value="">Select a Project</option>
+                        {searchedProjects.length > 0 ? (
+                            searchedProjects
+                            .filter(project => project.status !== 3)
+                            .map(project => (
+                                <option
+                                key={project.id}
+                                value={project.id}
+                                className={project.status !== 1 ? 'inactive-project' : ''}
+                                >
+                                {workspaceName} → {project.name} {project.status !== 1 ? '(Inactive)' : ''}
+                                </option>
+                            ))
+                        ) : (
+                            <option value="" disabled>
+                                {searchQuery ? 'No projects found' : 'No projects available'}
+                            </option>
+                        )}
+                    </select>
+                </div>
+            ) : (
+                /* Archived Projects View */
+                <div className="settings-lookup-list">
+                    <div className="project-search-container">
+                        <div className="search-input-wrapper">
+                            <input
+                                type="text"
+                                placeholder="Search archived projects..."
+                                value={archivedSearchQuery}
+                                onChange={(e) => setArchivedSearchQuery(e.target.value)}
+                                className="project-search-input"
+                            />
+                            {archivedSearchQuery && (
+                                <button 
+                                    className="clear-search-btn" 
+                                    onClick={handleClearArchivedSearch}
+                                    title="Clear search"
+                                >
+                                    <i className="fas fa-times"></i>
+                                </button>
+                            )}
+                        </div>
+                        {archivedSearchQuery && (
+                            <div className="search-results-info">
+                                Found {filteredArchivedProjects.length} archived project(s)
+                            </div>
+                        )}
+                    </div>
+
+                    {archivedLoading ? (
+                        <div className="archived-loading">
+                            <i className="fas fa-spinner fa-spin"></i> Loading archived projects...
+                        </div>
+                    ) : filteredArchivedProjects.length > 0 ? (
+                        <div className="archived-projects-list">
+                            {filteredArchivedProjects.map(project => (
+                                <div key={project.id} className="archived-project-item">
+                                    <div className="archived-project-info">
+                                        <div className="archived-project-name">
+                                            {project.name}
+                                        </div>
+                                        {project.description && (
+                                            <div className="archived-project-description">
+                                                {project.description}
+                                            </div>
+                                        )}
+                                        <div className="archived-project-meta">
+                                            <span>ID: {project.id}</span>
+                                            {project.code && <span>Code: {project.code}</span>}
+                                        </div>
+                                    </div>
+                                    <button
+                                        className="activate-button"
+                                        onClick={() => handleActivateClick(project)}
+                                        disabled={activatingProjectId === project.id}
+                                    >
+                                        {activatingProjectId === project.id ? (
+                                            <>
+                                                <i className="fas fa-spinner fa-spin"></i> Activating...
+                                            </>
+                                        ) : 'Activate'}
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="no-archived-projects">
+                            {archivedSearchQuery ? 'No archived projects match your search' : 'No archived projects found'}
                         </div>
                     )}
                 </div>
-
-                <select
-                    size="5"
-                    className="lookup-select"
-                    value={selectedProject}
-                    onChange={(e) => setSelectedProject(e.target.value)}
-                >
-                    <option value="">Select a Project</option>
-                    {searchedProjects.length > 0 ? (
-                        searchedProjects
-                        .filter(project => project.status !== 3)
-                        .map(project => (
-                            <option
-                            key={project.id}
-                            value={project.id}
-                            className={project.status !== 1 ? 'inactive-project' : ''}
-                            >
-                            {workspaceName} → {project.name} {project.status !== 1 ? '(Inactive)' : ''}
-                            </option>
-                        ))
-                    ) : (
-                        <option value="" disabled>
-                            {searchQuery ? 'No projects found' : 'No projects available'}
-                        </option>
-                    )}
-                </select>
-            </div>
+            )}
 
             <Modal
                 isOpen={isAddProjectOpen}
@@ -454,14 +666,7 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
                             />
                             {showSuggestions && (
                                 <div className="autocomplete-suggestions">
-                                    <div className="suggestions-header">
-                                        <small>
-                                            {showAllProjects 
-                                                ? `All projects in ${workspaceName} (${projectSuggestions.length})` 
-                                                : `Matching projects in ${workspaceName} (${projectSuggestions.length})`
-                                            }
-                                        </small>
-                                    </div>
+                                    
                                     {projectSuggestions.map((project, index) => (
                                         <div
                                             key={project.id}
@@ -475,9 +680,7 @@ const ProjectManagement = ({workspaceId, updateProjectsAndJobs}) => {
                                                     <span className="suggestion-status"> (Inactive)</span>
                                                 )}
                                             </div>
-                                            {project.description && (
-                                                <div className="suggestion-description">{project.description}</div>
-                                            )}
+                                            
                                         </div>
                                     ))}
                                     {projectSuggestions.length === 0 && (
