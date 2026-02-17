@@ -83,6 +83,9 @@ const NewNoteModal = forwardRef(
     const editorRef = useRef(null);
     const hasFocusedRef = useRef(false);
     const searchInputRef = useRef(null);
+    const colorPickerRef = useRef(null);
+    const [showColorPicker, setShowColorPicker] = useState(false);
+    const [selectedColor, setSelectedColor] = useState("#000000");
     const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
 
     // Check if user has read-only access (role 3)
@@ -125,6 +128,28 @@ const NewNoteModal = forwardRef(
       "video/quicktime": [".mov"],
       "video/x-msvideo": [".avi"],
     };
+    const colorOptions = [
+  { name: "Black", value: "#000000" },
+  { name: "Dark Gray", value: "#666666" },
+  { name: "Gray", value: "#999999" },
+  { name: "Light Gray", value: "#cccccc" },
+  { name: "White", value: "#ffffff" },
+  { name: "Red", value: "#ff0000" },
+  { name: "Dark Red", value: "#8b0000" },
+  { name: "Orange", value: "#ff9900" },
+  { name: "Brown", value: "#8b4513" },
+  { name: "Yellow", value: "#ffff00" },
+  { name: "Green", value: "#008000" },
+  { name: "Light Green", value: "#90ee90" },
+  { name: "Blue", value: "#0000ff" },
+  { name: "Light Blue", value: "#add8e6" },
+  { name: "Dark Blue", value: "#00008b" },
+  { name: "Purple", value: "#800080" },
+  { name: "Pink", value: "#ffc0cb" },
+  { name: "Hot Pink", value: "#ff69b4" },
+  { name: "Cyan", value: "#00ffff" },
+  { name: "Teal", value: "#008080" },
+];
 
     // Initialize SignalR connection when modal opens
     useEffect(() => {
@@ -633,6 +658,7 @@ const insertHtmlSafely = (htmlContent) => {
         setPastedImages([]);
         setRichTextContent("");
         setShowEmojiPicker(false); // Close emoji picker when modal closes
+        setShowColorPicker(false);
       }
     }, [isOpen]);
 
@@ -917,6 +943,28 @@ const insertHtmlSafely = (htmlContent) => {
       );
     };
 
+    const handleColorSelect = (color) => {
+  if (isReadOnly) return;
+  
+  if (color) {
+    document.execCommand('foreColor', false, color);
+    setSelectedColor(color);
+  } else {
+    document.execCommand('removeFormat', false, null);
+    setSelectedColor("#000000");
+  }
+  
+  if (editorRef.current) {
+    setRichTextContent(editorRef.current.innerHTML);
+  }
+  
+  setShowColorPicker(false);
+  
+  if (editorRef.current) {
+    editorRef.current.focus();
+  }
+};
+
     // Get job options for dropdown
     const getJobOptions = () => {
       const options = [...filteredJobs];
@@ -1053,6 +1101,24 @@ const insertHtmlSafely = (htmlContent) => {
           document.removeEventListener("mousedown", handleClickOutside);
       }
     }, [showSearchResults]);
+    
+useEffect(() => {
+  const handleClickOutside = (event) => {
+    if (
+      showColorPicker &&
+      colorPickerRef.current &&
+      !colorPickerRef.current.contains(event.target) &&
+      !event.target.closest('.color-button')
+    ) {
+      setShowColorPicker(false);
+    }
+  };
+
+  if (showColorPicker) {
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }
+}, [showColorPicker]);
 
     // Prepare note content with images
     const prepareNoteContent = () => {
@@ -1738,6 +1804,53 @@ const insertHtmlSafely = (htmlContent) => {
           >
             <i className="fas fa-underline"></i>
           </button>
+
+        <div className="color-picker-wrapper" style={{ position: "relative", display: "inline-block" }}>
+          <button
+            onClick={() => !isReadOnly && setShowColorPicker(!showColorPicker)}
+            title={isReadOnly ? "Read-only mode" : "Text Color"}
+            className={`color-button ${showColorPicker ? "active" : ""} ${isReadOnly ? "disabled" : ""}`}
+            disabled={isReadOnly}
+            type="button"
+            style={{
+              border: `2px solid ${selectedColor}`,
+              backgroundColor: "white"
+            }}
+          >
+            <i className="fas fa-palette" style={{ color: selectedColor }}></i>
+          </button>
+          
+          {showColorPicker && !isReadOnly && (
+            <div className="color-picker-dropdown" ref={colorPickerRef}>
+              <div className="color-picker-header">
+                <span>Text Color</span>
+                <button onClick={() => setShowColorPicker(false)} className="close-color-picker">×</button>
+              </div>
+              <div className="color-grid">
+                {colorOptions.map((color) => (
+                  <button
+                    key={color.value}
+                    className={`color-option ${selectedColor === color.value ? "selected" : ""}`}
+                    style={{ 
+                      backgroundColor: color.value, 
+                      border: selectedColor === color.value ? '3px solid #333' : '2px solid transparent'
+                    }}
+                    onClick={() => handleColorSelect(color.value)}
+                    title={color.name}
+                  />
+                ))}
+              </div>
+              <div className="color-picker-footer">
+                <button 
+                  className="remove-color-button"
+                  onClick={() => handleColorSelect(null)}
+                >
+                  Remove Color
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
           <button
             onClick={() => formatText("insertUnorderedList")}
             title="Bullet List"

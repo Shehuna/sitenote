@@ -61,6 +61,10 @@ const EditNoteModal = ({
   const hasSetContent = useRef(false);
   const hasFocused = useRef(false);
   const hasScrolledToEditor = useRef(false);
+  const colorPickerRef = useRef(null);
+
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [selectedColor, setSelectedColor] = useState("#000000");
   
   // NEW: Add flags to track if data has been fetched
   const hasFetchedData = useRef(false);
@@ -107,6 +111,28 @@ const EditNoteModal = ({
     "video/quicktime": [".mov"],
     "video/x-msvideo": [".avi"],
   };
+  const colorOptions = [
+  { name: "Black", value: "#000000" },
+  { name: "Dark Gray", value: "#666666" },
+  { name: "Gray", value: "#999999" },
+  { name: "Light Gray", value: "#cccccc" },
+  { name: "White", value: "#ffffff" },
+  { name: "Red", value: "#ff0000" },
+  { name: "Dark Red", value: "#8b0000" },
+  { name: "Orange", value: "#ff9900" },
+  { name: "Brown", value: "#8b4513" },
+  { name: "Yellow", value: "#ffff00" },
+  { name: "Green", value: "#008000" },
+  { name: "Light Green", value: "#90ee90" },
+  { name: "Blue", value: "#0000ff" },
+  { name: "Light Blue", value: "#add8e6" },
+  { name: "Dark Blue", value: "#00008b" },
+  { name: "Purple", value: "#800080" },
+  { name: "Pink", value: "#ffc0cb" },
+  { name: "Hot Pink", value: "#ff69b4" },
+  { name: "Cyan", value: "#00ffff" },
+  { name: "Teal", value: "#008080" },
+];
 
   const isValidFileType = (file) => Object.keys(allowedFileTypes).includes(file.type);
 
@@ -230,6 +256,24 @@ const EditNoteModal = ({
     }
   }, [showEmojiPicker, canEditNote, isEditable]);
 
+  useEffect(() => {
+  const handleClickOutside = (event) => {
+    if (
+      showColorPicker &&
+      colorPickerRef.current &&
+      !colorPickerRef.current.contains(event.target) &&
+      !event.target.closest('.color-button')
+    ) {
+      setShowColorPicker(false);
+    }
+  };
+
+  if (showColorPicker) {
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }
+}, [showColorPicker]);
+
   // Fetch priority by note ID
   const fetchPriorityByNoteId = useCallback(async (noteId) => {
     if (!noteId) return null;
@@ -278,6 +322,90 @@ const EditNoteModal = ({
       setIsLoadingPriority(false);
     }
   }, []);
+  const handleColorSelect = (color) => {
+  if (!canEditNote || !isEditable) return;
+  
+  const selection = window.getSelection();
+  
+  if (color) {
+    document.execCommand('foreColor', false, color);
+    setSelectedColor(color);
+    
+    if (selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      if (range.collapsed) {
+        const span = document.createElement('span');
+        span.style.color = color;
+        span.innerHTML = '&#8203;'; 
+        range.insertNode(span);
+        
+        range.setStartAfter(span);
+        range.setEndAfter(span);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+    }
+  } else {
+    document.execCommand('removeFormat', false, null);
+    setSelectedColor("#000000");
+  }
+  
+  if (editorRef.current) {
+    const newContent = editorRef.current.innerHTML;
+    setRichTextContent(newContent);
+    lastRichTextContent.current = newContent;
+  }
+  
+  setShowColorPicker(false);
+  
+  if (editorRef.current) {
+    focusEditorAtEnd();
+  }
+};
+
+useEffect(() => {
+  const handleSelectionChange = () => {
+    if (!editorRef.current || !canEditNote || !isEditable) return;
+    
+    const selection = window.getSelection();
+    if (selection.rangeCount === 0) return;
+    
+    const range = selection.getRangeAt(0);
+    let node = range.startContainer;
+    
+    if (node.nodeType === Node.TEXT_NODE) {
+      node = node.parentNode;
+    }
+    
+    let color = "#000000";
+    let found = false;
+    
+    while (node && node !== editorRef.current && !found) {
+      if (node.style && node.style.color) {
+        color = node.style.color;
+        found = true;
+      }
+      node = node.parentNode;
+    }
+    
+    if (color.startsWith('rgb')) {
+      const rgb = color.match(/\d+/g);
+      if (rgb && rgb.length >= 3) {
+        color = '#' + rgb.map(x => {
+          const hex = parseInt(x).toString(16);
+          return hex.length === 1 ? '0' + hex : hex;
+        }).join('');
+      }
+    }
+    
+    setSelectedColor(color);
+  };
+
+  document.addEventListener('selectionchange', handleSelectionChange);
+  return () => {
+    document.removeEventListener('selectionchange', handleSelectionChange);
+  };
+}, [canEditNote, isEditable]);
 
   // Fetch inline images for the note
   const fetchInlineImages = useCallback(async (siteNoteId) => {
@@ -477,6 +605,7 @@ const EditNoteModal = ({
       
       setRichTextContent(content);
       lastRichTextContent.current = content;
+      setSelectedColor("#000000");
       
       const setEditorContent = () => {
         if (editorRef.current) {
@@ -1480,6 +1609,52 @@ const handlePriorityClick = () => {
         >
           <i className="fas fa-underline"></i>
         </button>
+      <div className="color-picker-wrapper" style={{ position: "relative", display: "inline-block" }}>
+        <button
+          onClick={() => canEditNote && isEditable && setShowColorPicker(!showColorPicker)}
+          title={!isEditable || !canEditNote ? "View only - Cannot change color" : "Text Color"}
+          className={`color-button ${showColorPicker ? 'active' : ''} ${!isEditable || !canEditNote ? 'disabled' : ''}`}
+          disabled={!isEditable || !canEditNote}
+          type="button"
+          style={{
+            border: `2px solid ${selectedColor}`,
+            backgroundColor: "white"
+          }}
+        >
+          <i className="fas fa-palette" style={{ color: selectedColor }}></i>
+        </button>
+        
+        {showColorPicker && canEditNote && isEditable && (
+          <div className="color-picker-dropdown" ref={colorPickerRef}>
+            <div className="color-picker-header">
+              <span>Text Color</span>
+              <button onClick={() => setShowColorPicker(false)} className="close-color-picker">×</button>
+            </div>
+            <div className="color-grid">
+              {colorOptions.map((color) => (
+                <button
+                  key={color.value}
+                  className={`color-option ${selectedColor === color.value ? "selected" : ""}`}
+                  style={{ 
+                    backgroundColor: color.value,
+                    border: selectedColor === color.value ? '3px solid #333' : '2px solid transparent'
+                  }}
+                  onClick={() => handleColorSelect(color.value)}
+                  title={color.name}
+                />
+              ))}
+            </div>
+            <div className="color-picker-footer">
+              <button 
+                className="remove-color-button"
+                onClick={() => handleColorSelect(null)}
+              >
+                Remove Color
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
         <button 
           onClick={() => formatText('insertUnorderedList')} 
           title="Bullet List"
