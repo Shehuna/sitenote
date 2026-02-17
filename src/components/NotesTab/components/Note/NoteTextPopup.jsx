@@ -1,17 +1,19 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import PropTypes from "prop-types";
-import TooltipPortal from "../Shared/TooltipPortal"; // Changed from named import
+import ReactDOM from "react-dom";
 import { highlightHtmlContent } from "../../utils/htmlUtils";
 
 const NoteTextPopup = ({
   content,
   position,
-  elementRect,
   searchTerm,
-  onClose,
   viewMode,
+  onMouseEnter,
+  onMouseLeave,
 }) => {
-  if (!content || !position) return null;
+  const popupRef = useRef(null);
+
+  if (!content) return null;
 
   // Get popup width based on view mode
   const getPopupWidth = () => {
@@ -21,49 +23,55 @@ const NoteTextPopup = ({
       case "cards":
         return "300px";
       case "stacked":
-        return "300px";
+        return "350px";
       default:
-        return "300px";
+        return "350px";
     }
   };
 
   const popupWidth = getPopupWidth();
 
-  return (
-    <TooltipPortal>
+  return ReactDOM.createPortal(
+    <div
+      ref={popupRef}
+      className="note-text-popup"
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={{
+        position: "fixed",
+        top: `${position.y}px`,
+        left: `${position.x}px`,
+        zIndex: 999999,
+        backgroundColor: "white",
+        border: "1px solid #e0e0e0",
+        borderRadius: "6px",
+        padding: "12px",
+        boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+        width: popupWidth,
+        maxWidth: popupWidth,
+        fontSize: "13px",
+        pointerEvents: "auto", // Important: allow interaction
+        maxHeight: "200px",
+        overflowY: "auto",
+        opacity: 1,
+        userSelect: "text", // Allow text selection
+        cursor: "text", // Show text cursor
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
       <div
-        className="note-text-popup"
         style={{
-          position: "fixed",
-          top: `${position.y}px`,
-          left: `${position.x}px`,
-          zIndex: 999999,
-          backgroundColor: "white",
-          border: "1px solid #e0e0e0",
-          borderRadius: "6px",
-          padding: "12px",
-          boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-          width: popupWidth,
-          maxWidth: popupWidth,
-          fontSize: "13px",
-          pointerEvents: "none",
-          maxHeight: "250px",
-          overflowY: "hidden",
+          color: "#333",
+          lineHeight: 1.5,
+          wordBreak: "break-word",
+          whiteSpace: "pre-wrap",
         }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div
-          style={{
-            color: "#333",
-            lineHeight: 1.5,
-            wordBreak: "break-word",
-          }}
-          dangerouslySetInnerHTML={{
-            __html: highlightHtmlContent(content, searchTerm),
-          }}
-        />
-      </div>
-    </TooltipPortal>
+        dangerouslySetInnerHTML={{
+          __html: highlightHtmlContent(content, searchTerm),
+        }}
+      />
+    </div>,
+    document.body
   );
 };
 
@@ -73,10 +81,10 @@ NoteTextPopup.propTypes = {
     x: PropTypes.number,
     y: PropTypes.number,
   }),
-  elementRect: PropTypes.object,
   searchTerm: PropTypes.string,
-  onClose: PropTypes.func,
   viewMode: PropTypes.string,
+  onMouseEnter: PropTypes.func,
+  onMouseLeave: PropTypes.func,
 };
 
 NoteTextPopup.defaultProps = {
@@ -84,6 +92,8 @@ NoteTextPopup.defaultProps = {
   position: { x: 0, y: 0 },
   searchTerm: "",
   viewMode: "table",
+  onMouseEnter: () => {},
+  onMouseLeave: () => {},
 };
 
 export default NoteTextPopup;

@@ -1,118 +1,136 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 
 export const useNoteHover = ({ viewMode }) => {
-  const [hoveredNoteContent, setHoveredNoteContent] = useState(null);
-  const [notePopupPosition, setNotePopupPosition] = useState({ x: 0, y: 0 });
-  const [noteElementRect, setNoteElementRect] = useState(null);
-  const noteHoverTimeoutRef = useRef(null);
+  const [popupState, setPopupState] = useState({
+    content: null,
+    position: { x: 0, y: 0 }
+  });
 
+  // Use a single ref to track if popup should be visible
+  const hoverRef = useRef({
+    active: false,
+    noteId: null,
+    content: null,
+    rect: null,
+    timer: null
+  });
+
+  // Check if should show popup
   const shouldShowNotePopup = useCallback((note) => {
     if (!note || !note.note) return false;
-
-    if (viewMode === "table") {
-      return note.note.length > 69;
-    } else if (viewMode === "cards" || viewMode === "stacked") {
-      return note.note.length > 120;
-    }
-
-    return false;
+    const noteLength = note.note.length;
+    return viewMode === "table" ? noteLength > 69 : noteLength > 120;
   }, [viewMode]);
 
-  const handleNoteTextMouseEnter = useCallback((note, e) => {
-    if (!note || !shouldShowNotePopup(note)) {
-      return;
-    }
-
-    // Clear any existing timeout
-    if (noteHoverTimeoutRef.current) {
-      clearTimeout(noteHoverTimeoutRef.current);
-    }
-
-    // Get the element and its position
-    const noteTextElement = e.currentTarget;
-    const rect = noteTextElement.getBoundingClientRect();
-
-    // Store element rect for positioning
-    setNoteElementRect(rect);
-
-    // Get viewport dimensions
+  // Calculate position
+  const calculatePosition = useCallback((rect) => {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-
-    // Popup dimensions - START INSIDE THE NOTES CONTAINER
     const popupWidth = viewMode === "table" ? 400 : 350;
-    const popupHeight = 200;
+    const popupHeight = 300;
 
-    // Calculate position to start INSIDE the notes container
-    // Position popup inside the note element, not outside
-    let popupX, popupY;
+    let x = rect.left + 20;
+    let y = rect.top + 20;
 
-    // For table view, position inside the table cell
-    if (viewMode === "table") {
-      // Position inside the table cell, aligned with the text
-      popupX = rect.left + 5;
-      popupY = rect.top + 5;
+    if (x + popupWidth > viewportWidth - 10) {
+      x = Math.max(10, rect.right - popupWidth - 20);
     }
-    // For card view, position inside the card
-    else if (viewMode === "cards" || viewMode === "stacked") {
-      // Position inside the card, slightly offset from the top
-      popupX = rect.left + 10;
-      popupY = rect.top + 10;
-    }
-    // Default fallback
-    else {
-      popupX = rect.left;
-      popupY = rect.top;
+    if (y + popupHeight > viewportHeight - 10) {
+      y = Math.max(10, rect.top - popupHeight + 200);
     }
 
-    // Ensure popup stays within the note element bounds
-    // Don't let it extend beyond the right edge of the note element
-    if (popupX + popupWidth > rect.right) {
-      popupX = rect.right - popupWidth - 10;
+    return { 
+      x: Math.max(10, Math.min(x, viewportWidth - popupWidth - 10)), 
+      y: Math.max(10, Math.min(y, viewportHeight - popupHeight - 10))
+    };
+  }, [viewMode]);
+
+  // Handle note mouse enter
+  const handleNoteTextMouseEnter = useCallback((note, event) => {
+    if (!note || !note.note) return;
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    
+    // Update hover ref
+    hoverRef.current.active = true;
+    hoverRef.current.noteId = note.id;
+    hoverRef.current.content = note.note;
+    hoverRef.current.rect = rect;
+
+    // Clear any existing timer
+    if (hoverRef.current.timer) {
+      clearTimeout(hoverRef.current.timer);
     }
 
-    // Ensure popup stays within the note element bounds vertically
-    if (popupY + popupHeight > rect.bottom) {
-      popupY = rect.bottom - popupHeight - 10;
-    }
+    // Set timer to show popup
+    hoverRef.current.timer = setTimeout(() => {
+      if (hoverRef.current.active) {
+        setPopupState({
+          content: hoverRef.current.content,
+          position: calculatePosition(hoverRef.current.rect)
+        });
+      }
+      hoverRef.current.timer = null;
+    }, 100);
+  }, [calculatePosition]);
 
-    // Final bounds check against viewport
-    popupX = Math.max(10, Math.min(popupX, viewportWidth - popupWidth - 10));
-    popupY = Math.max(10, Math.min(popupY, viewportHeight - popupHeight - 10));
-
-    setNotePopupPosition({
-      x: popupX,
-      y: popupY,
-    });
-
-    // Set timeout for hover delay (300ms)
-    noteHoverTimeoutRef.current = setTimeout(() => {
-      setHoveredNoteContent(note.note);
-    }, 300);
-  }, [viewMode, shouldShowNotePopup]);
-
+  // Handle note mouse leave
   const handleNoteTextMouseLeave = useCallback(() => {
-    if (noteHoverTimeoutRef.current) {
-      clearTimeout(noteHoverTimeoutRef.current);
+    // Mark as inactive but don't hide immediately
+    hoverRef.current.active = false;
+
+    // Clear show timer
+    if (hoverRef.current.timer) {
+      clearTimeout(hoverRef.current.timer);
+      hoverRef.current.timer = null;
     }
-    setHoveredNoteContent(null);
-    setNoteElementRect(null);
+
+    // Hide after a very short delay
+    setTimeout(() => {
+      if (!hoverRef.current.active) {
+        setPopupState({ content: null, position: { x: 0, y: 0 } });
+        hoverRef.current.noteId = null;
+        hoverRef.current.content = null;
+        hoverRef.current.rect = null;
+      }
+    }, 50);
   }, []);
 
-  // Cleanup on unmount
-  const cleanup = useCallback(() => {
-    if (noteHoverTimeoutRef.current) {
-      clearTimeout(noteHoverTimeoutRef.current);
-    }
+  // Handle popup mouse enter
+  const handlePopupMouseEnter = useCallback(() => {
+    hoverRef.current.active = true;
+  }, []);
+
+  // Handle popup mouse leave
+  const handlePopupMouseLeave = useCallback(() => {
+    hoverRef.current.active = false;
+    
+    setTimeout(() => {
+      if (!hoverRef.current.active) {
+        setPopupState({ content: null, position: { x: 0, y: 0 } });
+        hoverRef.current.noteId = null;
+        hoverRef.current.content = null;
+        hoverRef.current.rect = null;
+      }
+    }, 50);
+  }, []);
+
+  // Clean up
+  useEffect(() => {
+    return () => {
+      if (hoverRef.current.timer) {
+        clearTimeout(hoverRef.current.timer);
+      }
+    };
   }, []);
 
   return {
-    hoveredNoteContent,
-    notePopupPosition,
-    noteElementRect,
+    hoveredNoteContent: popupState.content,
+    notePopupPosition: popupState.position,
     shouldShowNotePopup,
     handleNoteTextMouseEnter,
     handleNoteTextMouseLeave,
-    cleanup,
+    handlePopupMouseEnter,
+    handlePopupMouseLeave
   };
 };

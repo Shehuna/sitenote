@@ -90,6 +90,7 @@ const Dashboard = ({
   const [initialLoading, setInitialLoading] = useState(true);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [role, setRole] = useState(null);
+  const [hasActiveSearchText, setHasActiveSearchText] = useState(false);
   const [isRoleLoading, setIsRoleLoading] = useState(false);
   const [userWorkspaces, setUserWorkspaces] = useState();
   const [userWorkspace, setUserWorkspace] = useState();
@@ -125,6 +126,7 @@ const Dashboard = ({
   const filterRef = useRef();
   const [isMobile, setIsMobile] = useState(false);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
 
   // New state for Excel-like filter logic
@@ -167,12 +169,6 @@ const Dashboard = ({
     if (!hasAnyFilters) {
       return [];
     }
-
-    // For each filter type, we want to create combinations where
-    // we select ONE value from EACH filter type that has values
-    // This gives us OR logic within filter types
-    
-    // Get arrays of values for each filter type (include null for no selection)
     const filterArrays = {};
     
     Object.keys(filters).forEach(filterType => {
@@ -223,6 +219,7 @@ const Dashboard = ({
 
     return combinations;
   }, []);
+
 
   // Helper function to fetch simple options (no filters)
   const fetchSimpleOptions = useCallback(
@@ -451,6 +448,10 @@ const Dashboard = ({
         return [];
     }
   }, []);
+
+  useEffect(() => {
+  setHasActiveSearchText(searchTerm.trim() !== "");
+}, [searchTerm]);
 
   // Fetch filter options - define this BEFORE any useEffect that uses it
   const fetchFilterOptions = useCallback(
@@ -1552,6 +1553,76 @@ const Dashboard = ({
     [selectedFilters, notes, fetchNotesWithFilters, fetchFilterOptions, viewMode, fetchStackedJobs]
   );
 
+// Replace or enhance your existing refreshStackedViewWithNewNote function
+const refreshStackedViewWithNewNote = useCallback(async (noteData, operation = 'add') => {
+  if (!noteData || viewMode !== "stacked") return;
+  
+  console.log(`🔄 Updating stacked view (${operation}) with note:`, noteData);
+  
+  if (hasActiveFilters) {
+    // For filtered view - just re-fetch with current filters
+    await fetchNotesWithFilters(selectedFilters);
+  } else {
+    // For normal stacked view - intelligent update
+    const jobId = noteData.jobId;
+    
+    setStackedJobs(prev => {
+      const jobIndex = prev.findIndex(j => j.jobId?.toString() === jobId?.toString());
+      
+      if (jobIndex === -1) {
+        // Job doesn't exist - can't update
+        return prev;
+      }
+      
+      // Job exists - update it
+      const updated = [...prev];
+      const job = { ...updated[jobIndex] };
+      
+      if (operation === 'add') {
+        // Adding a new note
+        job.noteCount += 1;
+        
+        // Check if this note is newer
+        const noteTime = new Date(noteData.timeStamp || noteData.date).getTime();
+        const currentLatest = new Date(job.latestTimeStamp || 0).getTime();
+        
+        if (noteTime > currentLatest) {
+          job.latestTimeStamp = noteData.timeStamp || noteData.date;
+          job.lastSiteNote = noteData.note || "";
+          job.lastSiteNoteUserName = noteData.userName || noteData.UserName;
+        }
+        
+        // If this job is expanded, add note to its notes array
+        if (expandedStacks[job.jobName] && job.hasLoadedNotes) {
+          job.notes = [noteData, ...(job.notes || [])];
+        }
+      } else if (operation === 'update') {
+        // Updating an existing note
+        // Update metadata if this note is the latest
+        if (job.lastSiteNoteUserName === noteData.userName) {
+          job.lastSiteNote = noteData.note || "";
+        }
+        
+        // If this job is expanded, update the note in its notes array
+        if (expandedStacks[job.jobName] && job.hasLoadedNotes && job.notes) {
+          const noteIndex = job.notes.findIndex(n => n.id === noteData.id);
+          if (noteIndex !== -1) {
+            // Replace the existing note with updated version
+            job.notes = [
+              ...job.notes.slice(0, noteIndex),
+              noteData,
+              ...job.notes.slice(noteIndex + 1)
+            ];
+          }
+        }
+      }
+      
+      updated[jobIndex] = job;
+      return updated;
+    });
+  }
+}, [viewMode, hasActiveFilters, selectedFilters, expandedStacks, fetchNotesWithFilters]);
+
   // FIXED: Update the removeFilter function
   const removeFilter = useCallback(
     async (filterType, value) => {
@@ -2160,42 +2231,102 @@ const Dashboard = ({
   }, [handleKeyDown]);
 
   // FIXED: handleRefresh function
-  const handleRefresh = async () => {
-    setInitialLoading(true);
-    try {
-      await refreshNotes();
-      setFilterOptionsLoaded({
-        date: false,
-        workspace: false,
-        project: false,
-        job: false,
-        userName: false,
-      });
-      
-      // Reload all filter options
-      await reloadAllFilters();
-      
-      if (viewMode === "stacked") {
-        if (hasActiveFilters) {
-          // Re-fetch with current filters
-          await fetchNotesWithFilters(selectedFilters);
-        } else {
-          await fetchStackedJobs();
-        }
+const handleRefresh = async () => {
+  setInitialLoading(true);
+  
+  // Save current expanded stacks before refresh
+  const currentExpandedStacks = { ...expandedStacks };
+  const currentViewMode = viewMode;
+  
+  try {
+    await refreshNotes();
+    
+    // Reset filter options
+    setFilterOptionsLoaded({
+      date: false,
+      workspace: false,
+      project: false,
+      job: false,
+      userName: false,
+    });
+    
+    // Reload all filter options
+    await reloadAllFilters();
+    
+    if (currentViewMode === "stacked") {
+      if (hasActiveFilters) {
+        // Re-fetch with current filters
+        await fetchNotesWithFilters(selectedFilters);
+        
+        // After filtered notes are loaded, we need to re-expand previously expanded stacks
+        // But filteredStackedJobs might have different structure, so we need to map
+        setTimeout(() => {
+          setFilteredStackedJobs(prev => {
+            // For each previously expanded job, mark it as expanded again
+            // but we need to find the matching job in the new data
+            const updated = prev.map(job => {
+              // Check if this job was expanded before
+              const wasExpanded = Object.keys(currentExpandedStacks).some(
+                jobName => jobName === job.jobName && currentExpandedStacks[jobName]
+              );
+              
+              if (wasExpanded) {
+                // This job was expanded, but we need to reload its notes
+                // We'll set a flag to trigger expansion with new data
+                setTimeout(() => {
+                  toggleStackExpansion(job.jobName, job.jobId);
+                }, 100);
+              }
+              
+              return job;
+            });
+            
+            return updated;
+          });
+        }, 300);
+      } else {
+        // For normal stacked view, fetch fresh stacked jobs
+        await fetchStackedJobs();
+        
+        // After stacked jobs are loaded, re-expand previously expanded stacks
+        setTimeout(() => {
+          setStackedJobs(prev => {
+            const updated = [...prev];
+            
+            // For each previously expanded job, re-expand it
+            Object.keys(currentExpandedStacks).forEach(jobName => {
+              if (currentExpandedStacks[jobName]) {
+                const jobIndex = updated.findIndex(j => j.jobName === jobName);
+                if (jobIndex !== -1) {
+                  const job = updated[jobIndex];
+                  // Trigger expansion to reload notes
+                  setTimeout(() => {
+                    toggleStackExpansion(job.jobName, job.jobId);
+                  }, 200);
+                }
+              }
+            });
+            
+            return updated;
+          });
+        }, 300);
       }
-      
-      // Also refresh filter options display
-      const filterTypes = ["date", "workspace", "project", "job", "userName"];
-      filterTypes.forEach(type => {
-        fetchFilterOptions(type);
-      });
-      
-    } catch {
-      toast.error("Refresh error");
-    } finally {
-      setInitialLoading(false);
     }
-  };
+    
+    // Also refresh filter options display
+    const filterTypes = ["date", "workspace", "project", "job", "userName"];
+    filterTypes.forEach(type => {
+      fetchFilterOptions(type);
+    });
+    
+    toast.success("Refreshed successfully");
+  } catch (error) {
+    console.error("Refresh error:", error);
+    toast.error("Refresh failed");
+  } finally {
+    setInitialLoading(false);
+  }
+};
 
   const handleAddFromRow = (note) => {
     const today = new Date();
@@ -2370,81 +2501,92 @@ const Dashboard = ({
     }
   };
 
-  useEffect(() => {
-    const run = async () => {
-      const t = searchTerm.trim();
-      if (!t || !userid) {
-        setSearchResults([]);
-        setSearchLoading(false);
-        return;
-      }
-      setSearchLoading(true);
-      try {
-        // If there are active selected filters, generate combinations and call
-        // GetSiteNotesWithTextFilter for each combination to preserve OR logic.
-        const hasFilters = Object.values(selectedFilters || {}).some((arr) => arr?.length > 0);
-        let combinedNotes = [];
-        const seen = new Set();
+// Extracted search function
+const performSearch = useCallback(async (searchText) => {
+  const trimmedSearch = searchText.trim();
+  
+  if (!trimmedSearch || !userid) {
+    setSearchResults([]);
+    setSearchLoading(false);
+    return;
+  }
+  
+  setSearchLoading(true);
+  
+  try {
+    // If there are active selected filters, generate combinations and call
+    // GetSiteNotesWithTextFilter for each combination to preserve OR logic.
+    const hasFilters = Object.values(selectedFilters || {}).some((arr) => arr?.length > 0);
+    let combinedNotes = [];
+    const seen = new Set();
 
-        if (hasFilters) {
-          const combinations = generateFilterCombinations(selectedFilters);
-          const promises = combinations.map((combo) => {
-            const params = new URLSearchParams({
-              pageNumber: "1",
-              pageSize: "50",
-              searchText: t,
-              userId: userid,
-            });
-            if (combo.date) params.append("date", combo.date);
-            if (combo.workspace) params.append("workspaceId", combo.workspace);
-            if (combo.project) params.append("projectId", combo.project);
-            if (combo.job) params.append("jobId", combo.job);
-            if (combo.userName) params.append("siteNoteUserId", combo.userName);
+    if (hasFilters) {
+      const combinations = generateFilterCombinations(selectedFilters);
+      const promises = combinations.map((combo) => {
+        const params = new URLSearchParams({
+          pageNumber: "1",
+          pageSize: "50",
+          searchText: trimmedSearch,
+          userId: userid,
+        });
+        
+        if (combo.date) params.append("date", combo.date);
+        if (combo.workspace) params.append("workspaceId", combo.workspace);
+        if (combo.project) params.append("projectId", combo.project);
+        if (combo.job) params.append("jobId", combo.job);
+        if (combo.userName) params.append("siteNoteUserId", combo.userName);
 
-            return fetch(`${apiUrl}/SiteNote/GetSiteNotesWithTextFilter?${params.toString()}`).then((res) =>
-              res.ok ? res.json() : { siteNotes: [] }
-            );
-          });
+        return fetch(`${apiUrl}/SiteNote/GetSiteNotesWithTextFilter?${params.toString()}`)
+          .then((res) => res.ok ? res.json() : { siteNotes: [] });
+      });
 
-          const results = await Promise.all(promises);
-          results.forEach((r) => {
-            (r.siteNotes || []).forEach((n) => {
-              if (!seen.has(n.id)) {
-                seen.add(n.id);
-                combinedNotes.push(n);
-              }
-            });
-          });
-        } else {
-          const params = new URLSearchParams({
-            pageNumber: "1",
-            pageSize: "50",
-            searchText: t,
-            userId: userid,
-          });
-          const r = await fetch(`${apiUrl}/SiteNote/GetSiteNotesWithTextFilter?${params.toString()}`);
-          if (!r.ok) throw new Error();
-          const d = await r.json();
-          combinedNotes = d.siteNotes || [];
-        }
+      const results = await Promise.all(promises);
+      
+      results.forEach((r) => {
+        (r.siteNotes || []).forEach((n) => {
+          if (!seen.has(n.id)) {
+            seen.add(n.id);
+            combinedNotes.push(n);
+          }
+        });
+      });
+    } else {
+      const params = new URLSearchParams({
+        pageNumber: "1",
+        pageSize: "50",
+        searchText: trimmedSearch,
+        userId: userid,
+      });
+      
+      const response = await fetch(`${apiUrl}/SiteNote/GetSiteNotesWithTextFilter?${params.toString()}`);
+      
+      if (!response.ok) throw new Error();
+      
+      const data = await response.json();
+      combinedNotes = data.siteNotes || [];
+    }
 
-        setSearchResults(
-          combinedNotes.map((n) => ({
-            ...n,
-            userName: n.UserName || n.userName,
-            documentCount: n.DocumentCount || n.documentCount || 0,
-            note: n.note || n.content || "",
-          }))
-        );
-      } catch {
-        toast.error("Search failed");
-        setSearchResults([]);
-      } finally {
-        setSearchLoading(false);
-      }
-    };
-    run();
-  }, [searchTerm, userid, apiUrl, selectedFilters]);
+    setSearchResults(
+      combinedNotes.map((n) => ({
+        ...n,
+        userName: n.UserName || n.userName,
+        documentCount: n.DocumentCount || n.documentCount || 0,
+        note: n.note || n.content || "",
+      }))
+    );
+  } catch (error) {
+    toast.error("Search failed");
+    setSearchResults([]);
+    console.error("Search error:", error);
+  } finally {
+    setSearchLoading(false);
+  }
+}, [apiUrl, userid, selectedFilters, generateFilterCombinations]);
+
+// Then in your component, you can replace the useEffect with this:
+useEffect(() => {
+  performSearch(searchTerm);
+}, [searchTerm, performSearch]); // Note: performSearch is now memoized with useCallback
 
   const fetchWorkspacesByUserId = async () => {
     try {
@@ -3228,6 +3370,11 @@ const Dashboard = ({
           fetchNotesWithFilters={fetchNotesWithFilters}
           selectedFilters={selectedFilters}
           hasActiveFilters={hasActiveFilters}
+          viewMode={viewMode}
+          refreshStackedView={refreshStackedViewWithNewNote}
+          hasActiveSearchText={hasActiveSearchText} 
+          performSearching={performSearch}
+          searchTerm={searchTerm}
         />
       )}
 
@@ -3250,6 +3397,8 @@ const Dashboard = ({
           fetchNotesWithFilters={fetchNotesWithFilters}
           selectedFilters={selectedFilters}
           hasActiveFilters={hasActiveFilters}
+          viewMode={viewMode}
+          refreshStackedView={refreshStackedViewWithNewNote}
         />
       )}
 

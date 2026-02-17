@@ -11,7 +11,9 @@ const EditNoteModal = ({
   defaultWorkspaceId,
   fetchNotesWithFilters,
   selectedFilters,
-  hasActiveFilters
+  hasActiveFilters,
+  viewMode = "cards",
+  refreshStackedView = null,
 }) => {
   const [isEditable, setIsEditable] = useState(true);
   const [journalData, setJournalData] = useState({
@@ -1364,11 +1366,35 @@ const insertHtmlSafely = (htmlContent) => {
         }
         onClose(noteIdToReturn);
         
-        if (hasActiveFilters && fetchNotesWithFilters) {
-          await fetchNotesWithFilters(selectedFilters);
-        } else {
-          await refreshNotes();
-        }
+        const updatedNoteObject = {
+  id: note.id,
+  note: noteText,
+  date: journalData.date,
+  timeStamp: new Date().toISOString(),
+  jobId: journalData.jobId,
+  job: note.job, // Keep original job name
+  projectId: journalData.projectId,
+  project: note.project, // Keep original project name
+  workspaceId: journalData.workspaceId,
+  workspace: note.workspace, // Keep original workspace name
+  userName: note.userName || note.UserName,
+  userId: journalData.userId,
+  documentCount: documents.length,
+  inlineImageCount: existingImages.length + pastedImages.length - imagesToDelete.length,
+};
+
+// INTELLIGENT REFRESH BASED ON VIEW MODE
+if (viewMode === 'stacked' && refreshStackedView) {
+  // Use the specialized stacked view refresh
+  console.log("🔄 Updating stacked view with edited note:", updatedNoteObject);
+  await refreshStackedView(updatedNoteObject, 'update');
+} else if (hasActiveFilters && fetchNotesWithFilters) {
+  // If filters are active, refresh filtered notes
+  await fetchNotesWithFilters(selectedFilters);
+} else {
+  // Otherwise, use normal refresh
+  await refreshNotes();
+}
         
         toast.success('Note updated successfully!');
       } else {
@@ -2024,31 +2050,32 @@ const handlePriorityClick = () => {
                 {renderEditorToolbar()}
                 
                 <div 
-                  ref={editorRef}
-                  contentEditable={isEditable && canEditNote}
-                  className="rich-text-editor"
-                  onPaste={handlePaste}
-                  onInput={handleEditorInput}
-                  onBlur={handleEditorInput}
-                  placeholder={hasSetContent.current ? "Edit your note here... You can add new images and they will be saved separately." : "Loading content..."}
-                  suppressContentEditableWarning={true}
-                  style={{
-                    pointerEvents: (isEditable && canEditNote && hasSetContent.current) ? 'auto' : 'none',
-                    opacity: (isEditable && canEditNote && hasSetContent.current) ? 1 : 0.7,
-                    flex: 1,
-                    minHeight: '300px',
-                    maxHeight: 'none',
-                    height: 'calc(100vh - 450px)',
-                    overflowY: 'auto',
-                    border: '1px solid #ccc',
-                    borderRadius: '4px',
-                    padding: '15px',
-                    backgroundColor: (isEditable && canEditNote && hasSetContent.current) ? '#fff' : '#f5f5f5',
-                    cursor: (isEditable && canEditNote && hasSetContent.current) ? 'text' : 'default',
-                    fontSize: '14px',
-                    lineHeight: '1.5'
-                  }}
-                />
+  ref={editorRef}
+  contentEditable={isEditable && canEditNote}
+  className="rich-text-editor"
+  onPaste={handlePaste}
+  onInput={handleEditorInput}
+  onBlur={handleEditorInput}
+  placeholder={hasSetContent.current ? "Edit your note here... You can add new images and they will be saved separately." : "Loading content..."}
+  suppressContentEditableWarning={true}
+  style={{
+    pointerEvents: (isEditable && canEditNote && hasSetContent.current) ? 'auto' : 'auto', // Changed from 'none' to 'auto' for read-only users
+    opacity: (isEditable && canEditNote && hasSetContent.current) ? 1 : 0.9, // Slightly reduced opacity for read-only
+    flex: 1,
+    minHeight: '300px',
+    maxHeight: 'none',
+    height: 'calc(100vh - 450px)',
+    overflowY: 'auto', // This ensures scrolling works
+    border: '1px solid #ccc',
+    borderRadius: '4px',
+    padding: '15px',
+    backgroundColor: (isEditable && canEditNote && hasSetContent.current) ? '#fff' : '#f9f9f9', // Slightly different background for read-only
+    cursor: (isEditable && canEditNote && hasSetContent.current) ? 'text' : 'default',
+    fontSize: '14px',
+    lineHeight: '1.5',
+    userSelect: 'text' // Ensure text can be selected/copied
+  }}
+/>
                 {!hasSetContent.current && (
                   <div className="editor-loading" style={{
                     position: 'absolute',

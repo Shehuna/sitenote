@@ -123,14 +123,17 @@ const NotesTab = ({
   } = useNoteReplies({ userId, displayNotes: memoizedDisplayNotes });
 
   // 5. All other hooks
-  const {
-    hoveredNoteContent,
-    notePopupPosition,
-    noteElementRect,
-    shouldShowNotePopup,
-    handleNoteTextMouseEnter,
-    handleNoteTextMouseLeave,
-  } = useNoteHover({ viewMode });
+const {
+  hoveredNoteContent,
+  hoveredNoteId,
+  notePopupPosition,
+  noteElementRect,
+  shouldShowNotePopup,
+  handleNoteTextMouseEnter,
+  handleNoteTextMouseLeave,
+  handlePopupMouseEnter, // Add this
+  handlePopupMouseLeave, // Add this
+} = useNoteHover({ viewMode });
 
   const {
     userStatusMap,
@@ -719,18 +722,17 @@ const isUserNameFiltered = (userName) => {
     <div className="grid-scroll-container" ref={containerRef}>
       {renderView()}
 
-      {/* Unified Note Text Popup - SIMPLIFIED */}
-      {hoveredNoteContent && (
-        <NoteTextPopup
-          content={hoveredNoteContent}
-          position={notePopupPosition}
-          elementRect={noteElementRect}
-          searchTerm={searchTerm}
-          viewMode={viewMode}
-          onClose={() => {}}
-        />
-      )}
-
+{/* Note Text Popup */}
+{hoveredNoteContent && (
+  <NoteTextPopup
+    content={hoveredNoteContent}
+    position={notePopupPosition}
+    searchTerm={searchTerm}
+    viewMode={viewMode}
+    onMouseEnter={handlePopupMouseEnter}
+    onMouseLeave={handlePopupMouseLeave}
+  />
+)}
       {/* Global tooltip portal for linked notes */}
       {hoveredLinkedNote && hoveredOriginalNoteId && (
         <TooltipPortal>
@@ -1135,3 +1137,4 @@ NotesTab.defaultProps = {
 };
 
 export default NotesTab;
+
