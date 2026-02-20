@@ -235,6 +235,7 @@ const TaskModal = ({
     const payload = {
       title: taskData.taskName,
       assigneeId: selectedUser?.id || null,
+      createdById: loggedInUserId,
       jobId: parseInt(jobId),
       status: selectedStatus?.id || 1 // Default to "To Do" if no status selected
     };

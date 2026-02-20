@@ -6,6 +6,7 @@ import { CardSkeleton } from "../Skeleton";
 import { NoteCard } from "../Note";
 import EditJobModal from "./EditJobModal";
 import TaskModal from "../../../Modals/TaskModal";
+import SlideshowModal from "./SlideshowModal";
 import { PRIORITY_VALUES, PRIORITY_LABELS, PRIORITY_COLORS } from "../../utils/constants";
 import toast from "react-hot-toast";
 
@@ -54,6 +55,12 @@ const StackedView = ({
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [selectedJobForTask, setSelectedJobForTask] = useState(null);
   const [isSavingTask, setIsSavingTask] = useState(false);
+  
+  // Slideshow state
+  const [slideshowOpen, setSlideshowOpen] = useState(false);
+  const [slideshowNotes, setSlideshowNotes] = useState([]);
+  const [slideshowJobName, setSlideshowJobName] = useState('');
+  const [slideshowStartIndex, setSlideshowStartIndex] = useState(0);
 
   // Track view mode changes
   useEffect(() => {
@@ -98,6 +105,18 @@ const StackedView = ({
       toast.error(`Failed to create task: ${error.message}`);
     } finally {
       setIsSavingTask(false);
+    }
+  };
+
+  // Function to handle opening slideshow
+  const handleOpenSlideshow = (job, startIndex = 0) => {
+    if (job.notes && job.notes.length > 0) {
+      setSlideshowNotes(job.notes);
+      setSlideshowJobName(job.jobName);
+      setSlideshowStartIndex(startIndex);
+      setSlideshowOpen(true);
+    } else {
+      toast.error('No notes available for slideshow');
     }
   };
 
@@ -229,6 +248,7 @@ const StackedView = ({
                   setEditJobModalOpen(true);
                 },
                 onCreateTask: handleCreateTask,
+                onOpenSlideshow: handleOpenSlideshow, // Pass slideshow handler
               })
             : renderCollapsedStack({
                 job,
@@ -241,6 +261,7 @@ const StackedView = ({
                   setEditJobModalOpen(true);
                 },
                 onCreateTask: handleCreateTask,
+                onOpenSlideshow: handleOpenSlideshow, // Pass slideshow handler
               });
         })}
 
@@ -277,6 +298,15 @@ const StackedView = ({
             isLoading={isSavingTask}
           />
         )}
+
+        {/* Slideshow Modal */}
+        <SlideshowModal
+          isOpen={slideshowOpen}
+          onClose={() => setSlideshowOpen(false)}
+          notes={slideshowNotes}
+          currentNoteIndex={slideshowStartIndex}
+          jobName={slideshowJobName}
+        />
       </div>
     </div>
   );
@@ -334,7 +364,8 @@ const renderCollapsedStack = ({
   openAiDialogForJob, 
   toggleStackExpansion, 
   onOpenEdit,
-  onCreateTask 
+  onCreateTask,
+  onOpenSlideshow 
 }) => {
   if (!job) return null;
 
@@ -594,6 +625,26 @@ const renderCollapsedStack = ({
                     </div>
                     
                     <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      {/* Slideshow button */}
+                      <button
+                        className="attachment-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenSlideshow(job, 0);
+                        }}
+                        title="View slideshow"
+                        style={{ 
+                          background: 'transparent', 
+                          border: 'none', 
+                          cursor: 'pointer', 
+                          color: '#9b59b6', 
+                          fontSize: '14px'
+                        }}
+                      >
+                        <i className="fas fa-images" />
+                      </button>
+
+                      {/* AI Summarize button */}
                       <button
                         className="attachment-btn"
                         onClick={(e) => {
@@ -612,6 +663,7 @@ const renderCollapsedStack = ({
                         <i className="fas fa-comments" />   
                       </button>
                       
+                      {/* Create Task button */}
                       <button
                         className="create-task-btn"
                         onClick={(e) => {
@@ -623,7 +675,6 @@ const renderCollapsedStack = ({
                           background: 'transparent',
                           border: 'none',
                           cursor: 'pointer',
-                          
                           fontSize: '14px',
                           display: 'flex',
                           alignItems: 'center',
@@ -631,9 +682,9 @@ const renderCollapsedStack = ({
                         }}
                       >
                         <i className="fas fa-plus-circle" />
-                        
                       </button>
                       
+                      {/* Settings button */}
                       <button
                         className="attachment-btn"
                         onClick={(e) => {
@@ -732,6 +783,7 @@ const renderExpandedStack = ({
   toggleStackExpansion,
   onOpenEdit,
   onCreateTask,
+  onOpenSlideshow,
 }) => {
   if (!job) return null;
 
@@ -771,6 +823,34 @@ const renderExpandedStack = ({
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {/* Slideshow button */}
+            <button
+              className="attachment-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenSlideshow(job, 0);
+              }}
+              title="View slideshow"
+              style={{
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                color: "#9b59b6",
+                fontSize: "14px",
+                padding: "6px 12px",
+                borderRadius: "4px",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "rgba(155, 89, 182, 0.1)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+              }}
+            >
+              <i className="fas fa-images" />
+            </button>
+
+            {/* Create Task button */}
             <button
               className="create-task-btn"
               onClick={(e) => {
@@ -782,15 +862,12 @@ const renderExpandedStack = ({
                 background: "transparent",
                 border: "none",
                 cursor: "pointer",
-                
                 fontSize: "14px",
                 display: "flex",
                 alignItems: "center",
                 gap: "6px",
                 padding: "6px 12px",
                 borderRadius: "4px",
-                
-                transition: "background-color 0.2s",
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = "rgba(40, 167, 69, 0.2)";
@@ -800,9 +877,9 @@ const renderExpandedStack = ({
               }}
             >
               <i className="fas fa-plus-circle" />
-             
             </button>
             
+            {/* AI Summarize button */}
             <button
               className="attachment-btn"
               onClick={(e) => {
@@ -820,6 +897,7 @@ const renderExpandedStack = ({
               <i className="fas fa-robot" />
             </button>
             
+            {/* Settings button */}
             <button
               className="attachment-btn"
               onClick={(e) => {
@@ -837,6 +915,7 @@ const renderExpandedStack = ({
               <i className="fas fa-cog" />
             </button>
 
+            {/* Note count display */}
             <div className="expanded-stack-count">
               <i className="fas fa-layer-group" />
               <span>

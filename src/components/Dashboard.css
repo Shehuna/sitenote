@@ -297,6 +297,7 @@ tr.selected-row.priority-4 {
   gap: 16px !important;
   padding: 20px 0 !important;
   width: 100% !important;
+  z-index: 10;
 }
 
 .note-card {
