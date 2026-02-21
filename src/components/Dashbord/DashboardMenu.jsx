@@ -25,6 +25,8 @@ const DashboardMenu = ({
   userRole,
   searchTerm,
   setSearchTerm,
+  handleSearchKeyDown, 
+  handleClearSearch, 
   searchColumn,
   setSearchColumn,
   viewMode,
@@ -703,15 +705,12 @@ const DashboardMenu = ({
                     onChange={(e) => {
                       setSearchTerm(e.target.value);
                     }}
+                    onKeyDown={handleSearchKeyDown}
                     className="search-input"
                   />
                   {searchTerm && (
                     <button
-                      onClick={() => {
-                        setSearchTerm("");
-
-                        handleRefresh();
-                      }}
+                      onClick={handleClearSearch}
                       className="clear-search-btn"
                       title="Clear search"
                     >
@@ -791,15 +790,12 @@ const DashboardMenu = ({
                   onChange={(e) => {
                     setSearchTerm(e.target.value);
                   }}
+                  onKeyDown={handleSearchKeyDown}
                   className="search-input"
                 />
                 {searchTerm && (
                   <button
-                    onClick={() => {
-                      setSearchTerm("");
-
-                      handleRefresh();
-                    }}
+                    onClick={handleClearSearch}
                     className="clear-search-btn"
                     title="Clear search"
                   >

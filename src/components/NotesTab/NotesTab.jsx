@@ -731,6 +731,7 @@ const isUserNameFiltered = (userName) => {
     viewMode={viewMode}
     onMouseEnter={handlePopupMouseEnter}
     onMouseLeave={handlePopupMouseLeave}
+    
   />
 )}
       {/* Global tooltip portal for linked notes */}

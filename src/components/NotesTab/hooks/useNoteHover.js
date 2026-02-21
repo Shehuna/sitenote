@@ -115,6 +115,20 @@ export const useNoteHover = ({ viewMode }) => {
     }, 50);
   }, []);
 
+  // Add new function to manually close popup
+  const handlePopupClose = useCallback(() => {
+    setPopupState({ content: null, position: { x: 0, y: 0 } });
+    hoverRef.current.active = false;
+    hoverRef.current.noteId = null;
+    hoverRef.current.content = null;
+    hoverRef.current.rect = null;
+    
+    if (hoverRef.current.timer) {
+      clearTimeout(hoverRef.current.timer);
+      hoverRef.current.timer = null;
+    }
+  }, []);
+
   // Clean up
   useEffect(() => {
     return () => {
@@ -131,6 +145,7 @@ export const useNoteHover = ({ viewMode }) => {
     handleNoteTextMouseEnter,
     handleNoteTextMouseLeave,
     handlePopupMouseEnter,
-    handlePopupMouseLeave
+    handlePopupMouseLeave,
+    handlePopupClose // Export the close handler
   };
 };

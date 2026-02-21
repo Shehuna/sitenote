@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import PropTypes from "prop-types";
 import ReactDOM from "react-dom";
 import { highlightHtmlContent } from "../../utils/htmlUtils";
@@ -11,9 +11,10 @@ const NoteTextPopup = ({
   onMouseEnter,
   onMouseLeave,
 }) => {
+  const [isVisible, setIsVisible] = useState(true);
   const popupRef = useRef(null);
 
-  if (!content) return null;
+  if (!content || !isVisible) return null;
 
   // Get popup width based on view mode
   const getPopupWidth = () => {
@@ -27,6 +28,16 @@ const NoteTextPopup = ({
       default:
         return "350px";
     }
+  };
+
+  const handleClose = (e) => {
+    e.stopPropagation();
+    setIsVisible(false);
+  };
+
+  // Check if device is mobile/small screen
+  const isSmallDevice = () => {
+    return window.innerWidth <= 768; // You can adjust this breakpoint
   };
 
   const popupWidth = getPopupWidth();
@@ -50,21 +61,61 @@ const NoteTextPopup = ({
         width: popupWidth,
         maxWidth: popupWidth,
         fontSize: "13px",
-        pointerEvents: "auto", // Important: allow interaction
+        pointerEvents: "auto", 
         maxHeight: "200px",
         overflowY: "auto",
         opacity: 1,
-        userSelect: "text", // Allow text selection
-        cursor: "text", // Show text cursor
+        userSelect: "text", 
+        cursor: "text", 
       }}
       onClick={(e) => e.stopPropagation()}
     >
+      {/* Close button - only shown on small devices */}
+      {isSmallDevice() && (
+        <button
+          onClick={handleClose}
+          style={{
+            position: "absolute",
+            top: "8px",
+            right: "8px",
+            width: "24px",
+            height: "24px",
+            borderRadius: "50%",
+            border: "none",
+            background: "transparent",
+            color: "#666",
+            fontSize: "18px",
+            lineHeight: 1,
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 0,
+            transition: "all 0.2s ease",
+            zIndex: 1000,
+            fontWeight: "bold",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "rgba(0, 0, 0, 0.2)";
+            e.currentTarget.style.color = "#000";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "transparent";
+            e.currentTarget.style.color = "#666";
+          }}
+          aria-label="Close popup"
+        >
+          ×
+        </button>
+      )}
+      
       <div
         style={{
           color: "#333",
           lineHeight: 1.5,
           wordBreak: "break-word",
           whiteSpace: "pre-wrap",
+          paddingRight: isSmallDevice() ? "24px" : "0", // Only add padding on small devices
         }}
         dangerouslySetInnerHTML={{
           __html: highlightHtmlContent(content, searchTerm),
