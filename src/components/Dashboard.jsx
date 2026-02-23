@@ -75,6 +75,7 @@ const Dashboard = ({
       project: [],
       job: [],
       userName: [],
+      priority: [],
     };
   });
   const [defaultWorkspaceRole, setDefaultWorkspaceRole] = useState(null);
@@ -144,6 +145,7 @@ const Dashboard = ({
     project: [],
     job: [],
     userName: [],
+    priority: [],
   });
 
   const [loadingFilterOptions, setLoadingFilterOptions] = useState({
@@ -152,6 +154,7 @@ const Dashboard = ({
     project: false,
     job: false,
     userName: false,
+    priority: false,
   });
 
   const [filterOptionsLoaded, setFilterOptionsLoaded] = useState({
@@ -160,6 +163,7 @@ const Dashboard = ({
     project: false,
     job: false,
     userName: false,
+    priority: false,
   });
 
   // Calculate hasActiveFilters early to avoid reference issues
@@ -201,7 +205,7 @@ const Dashboard = ({
       }, [[]]);
     };
 
-    const orderedKeys = ['date', 'workspace', 'project', 'job', 'userName'];
+    const orderedKeys = ['date', 'workspace', 'project', 'job', 'userName', 'priority'];
     const valueArrays = orderedKeys.map(key => filterArrays[key]);
     
     const allCombinations = cartesianProduct(valueArrays);
@@ -246,6 +250,10 @@ const Dashboard = ({
         case "userName":
           endpoint = `${apiUrl}/Filters/GetFilteredSiteNoteUser/${userid}`;
           break;
+        case "priority":
+          endpoint = `${apiUrl}/Filters/GetFilteredPriorities/${userid}`;
+          responseField = "priorities";
+          break;
         default:
           return [];
       }
@@ -283,6 +291,10 @@ const Dashboard = ({
         case "userName":
           endpoint = `${apiUrl}/Filters/GetFilteredSiteNoteUser/${userid}`;
           break;
+        case "priority":
+          endpoint = `${apiUrl}/Filters/GetFilteredPriorities/${userid}`;
+          responseField = "priorities";
+          break;
         default:
           return [];
       }
@@ -304,6 +316,9 @@ const Dashboard = ({
       }
       if (combination.userName) {
         queryParams.append("UserId", combination.userName);
+      }
+      if (combination.priority) {
+        queryParams.append("priority", combination.priority);
       }
 
       // Make the API call
@@ -447,6 +462,14 @@ const Dashboard = ({
           rawValue: item,
         }));
 
+      case "priority":
+        return items.map((item) => ({
+          id: item.priorityValue,
+          text: item.priorityName,
+          displayText: item.priorityName,
+          rawValue: item,
+        }));
+
       default:
         return [];
     }
@@ -545,7 +568,7 @@ const Dashboard = ({
 
   // Function to reload all filters based on current selections
   const reloadAllFilters = useCallback(async () => {
-    const filterTypes = ["date", "workspace", "project", "job", "userName"];
+    const filterTypes = ["date", "workspace", "project", "job", "userName", "priority"];
 
     const promises = filterTypes.map((filterType) =>
       fetchFilterOptions(filterType)
@@ -628,6 +651,9 @@ const Dashboard = ({
       }
       if (combination.userName) {
         params.append("siteNoteUserId", combination.userName);
+      }
+      if (combination.priority) {
+        params.append("priority", combination.priority);
       }
 
       // If there's an active search term, use the text-filter API
@@ -760,6 +786,7 @@ const Dashboard = ({
             if (combo.date) params.append("date", combo.date);
             if (combo.workspace) params.append("workspaceId", combo.workspace);
             if (combo.project) params.append("projectId", combo.project);
+            if (combo.priority) params.append("priority", combo.priority);
             if (combo.userName) params.append("siteNoteUserId", combo.userName);
             return fetch(`${apiUrl}/SiteNote/GetSiteNotesByJobIdWithTextFilter?${params.toString()}`).then(res => res.ok ? res.json() : { siteNotes: [] });
           });
@@ -850,6 +877,7 @@ const Dashboard = ({
             if (combination.date) comboParams.append("date", combination.date);
             if (combination.workspace) comboParams.append("workspaceId", combination.workspace);
             if (combination.project) comboParams.append("projectId", combination.project);
+            if (combination.priority) comboParams.append("priority", combination.priority);
             if (combination.userName) comboParams.append("siteNoteUserId", combination.userName);
             
             // Include current active search term if present
@@ -898,6 +926,7 @@ const Dashboard = ({
           if (combination.workspace) params.append("workspaceId", combination.workspace);
           if (combination.project) params.append("projectId", combination.project);
           if (combination.userName) params.append("siteNoteUserId", combination.userName);
+          if (combination.priority) params.append("priority", combination.priority);
         }
       }
       
@@ -1081,6 +1110,7 @@ const Dashboard = ({
             if (combo.project) params.append("projectId", combo.project);
             if (combo.job) params.append("jobId", combo.job);
             if (combo.userName) params.append("siteNoteUserId", combo.userName);
+            if (combo.priority) params.append("priority", combo.priority);
             return fetch(`${apiUrl}/SiteNote/GetJobsBySiteNoteText?${params.toString()}`).then(res => res.ok ? res.json() : { jobs: [] });
           });
 
@@ -1248,7 +1278,7 @@ const Dashboard = ({
     if (userid && isDataLoaded) {
       const loadAllOptions = async () => {
         try {
-          const filterTypes = ["date", "workspace", "project", "job", "userName"];
+          const filterTypes = ["date", "workspace", "project", "job", "userName", "priority"];
           for (const type of filterTypes) {
             await fetchFilterOptions(type);
           }
@@ -1530,6 +1560,7 @@ const Dashboard = ({
         "project",
         "job",
         "userName",
+        "priority",
       ].filter((type) => type !== filterType);
 
       try {
@@ -1663,6 +1694,7 @@ const refreshStackedViewWithNewNote = useCallback(async (noteData, operation = '
         "project",
         "job",
         "userName",
+        "priority",
       ].filter((type) => type !== filterType);
 
       try {
@@ -1707,6 +1739,7 @@ const refreshStackedViewWithNewNote = useCallback(async (noteData, operation = '
       project: [],
       job: [],
       userName: [],
+      priority: [],
     };
     
     console.log("Clearing all filters");
@@ -1761,6 +1794,7 @@ const refreshStackedViewWithNewNote = useCallback(async (noteData, operation = '
       project: "Project",
       job: "Job",
       userName: "User",
+      priority: "Priority",
     };
 
     const iconMap = {
@@ -1769,6 +1803,7 @@ const refreshStackedViewWithNewNote = useCallback(async (noteData, operation = '
       project: "project-diagram",
       job: "tasks",
       userName: "user",
+      priority: "flag",
     };
 
     const hasOtherFilters = Object.entries(selectedFilters).some(
@@ -1935,6 +1970,7 @@ const refreshStackedViewWithNewNote = useCallback(async (noteData, operation = '
       project: selectedFilters.project || [],
       job: selectedFilters.job || [],
       userName: selectedFilters.userName || [],
+      priority: selectedFilters.priority || [],
     };
     localStorage.setItem(
       "dashboardSelectedFilters",
@@ -2344,7 +2380,7 @@ const handleRefresh = async () => {
     }
     
     // Also refresh filter options display
-    const filterTypes = ["date", "workspace", "project", "job", "userName"];
+    const filterTypes = ["date", "workspace", "project", "job", "userName", "priority"];
     filterTypes.forEach(type => {
       fetchFilterOptions(type);
     });
