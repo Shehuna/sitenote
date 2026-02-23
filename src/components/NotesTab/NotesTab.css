@@ -517,7 +517,7 @@ tr.selected-row.priority-4 {
   min-height: 16px !important; /* Slightly taller to accommodate all icons */
   font-size: 11px !important;
   gap: 4px !important;
-  background: #def3f7 !important;
+  background: #fafafa;
   width: 100% !important;
   box-sizing: border-box !important;
 }
@@ -2063,30 +2063,41 @@ tr.highlight-original-note {
 .stacked-view .note-url-link {
   font-weight: 500;
 }
-/*
+/* Base note card styles - make sure position relative is set */
 .note-card {
   position: relative;
+  /* ... your existing note card styles ... */
 }
 
+/* Base note card styles - remove the orange left border */
 .note-card.task-card {
-  border-left: 4px solid #f39c12; 
+  /* Remove border-left: 4px solid #f39c12; */
 }
 
-
-.note-card.task-card.selected {
-  border-left: 4px solid #e67e22; 
+/* Task card specific styles - light cyan footer background */
+.note-card.task-card .note-footer {
+  background-color: #e0f7fa !important; /* Light cyan background */
+  border-top: 1px solid #b2ebf2 !important; /* Slightly darker cyan border */
 }
 
-.note-card.task-card:hover {
-  border-left-color: #e67e22;
-}*/
+/* Optional: Different shade for selected task cards */
+.note-card.task-card.selected .note-footer {
+  background-color: #b2ebf2 !important; /* Slightly darker cyan when selected */
+}
 
+/* Optional: Hover effect */
+.note-card.task-card:hover .note-footer {
+  background-color: #b2ebf2 !important;
+}
+
+/* Keep the rest of your task card styles if any */
+/* Task icon items - no borders */
 .task-icon-item {
   display: flex;
   align-items: center;
   gap: 2px;
   padding: 2px 4px; /* Reduced padding */
-  background: #def3f7 !important;
+  background: #e0f7fa !important;
   border: none !important; /* Force remove borders */
   border-radius: 4px;
   cursor: pointer;
@@ -2097,10 +2108,7 @@ tr.highlight-original-note {
   white-space: nowrap;
 }
 
-.task-icon-item:hover {
-  background-color: #e3f2fd;
-  color: #1976d2;
-}
+
 
 .task-icon-item.has-value {
   background-color: #e3f2fd;
@@ -2210,8 +2218,8 @@ tr.highlight-original-note {
 }
 
 .user-avatar-small {
-  width: 18px !important;
-  height: 18px !important;
+  width: 16px !important;
+  height: 16px !important;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -2252,9 +2260,9 @@ tr.highlight-original-note {
   border: 1px solid #e0e0e0;
   border-radius: 6px; /* Smaller border radius */
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); /* Smaller shadow */
-  z-index: 999999 !important;
+  z-index: 99999 !important;
   animation: popupFadeIn 0.2s ease;
-  font-size: 10px; /* Smaller base font */
+  font-size: 8px; /* Smaller base font */
 }
 
 .note-actions > div {
@@ -2319,21 +2327,21 @@ tr.highlight-original-note {
 
 .calendar-popup.task-popup {
   width: 220px; /* Reduced from 260px */
-  padding: 12px; /* Reduced from 16px */
+  padding: 6px; /* Reduced from 16px */
 }
 
 .calendar-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 4px !important; /* Reduced from 16px */
+  margin-bottom: 2px !important; /* Reduced from 16px */
 }
 
 .calendar-nav-button {
   background: none;
   border: none;
-  width: 24px; /* Reduced from 32px */
-  height: 24px; /* Reduced from 32px */
+  width: 18px; /* Reduced from 32px */
+  height: 18px; /* Reduced from 32px */
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -2436,7 +2444,7 @@ tr.highlight-original-note {
 }
 
 .calendar-footer {
-  margin-top: 8px !important;
+  margin-top: 2px !important;
   padding-top: 6px;
   border-top: 1px solid #eaeaea;
   display: flex;
@@ -2447,22 +2455,22 @@ tr.highlight-original-note {
 }
 .user-popup-header,
 .status-popup-header {
-  padding: 4px 6px; 
+  padding: 2px 6px; 
   border-bottom: 1px solid #e0e0e0;
 }
 
 .user-popup-title,
 .status-popup-title {
-  font-size: 10px; 
+  font-size: 8px; 
   font-weight: 600;
   color: #333;
 }
 
 .user-list-container,
 .status-list-container {
-  max-height: 160px; 
+  max-height: 120px; 
   overflow-y: auto;
-  padding: 3px; 
+  padding: 1px; 
 }
 
 .user-list-container::-webkit-scrollbar,
@@ -2549,7 +2557,7 @@ tr.highlight-original-note {
 .status-item {
   display: flex;
   align-items: center;
-  padding: 2px 4px; /* Reduced from 8px 10px */
+  padding: px 4px !important; /* Reduced from 8px 10px */
   cursor: pointer;
   border-radius: 4px; /* Smaller radius */
   transition: background-color 0.2s;
@@ -2566,8 +2574,8 @@ tr.highlight-original-note {
 }
 
 .status-icon-wrapper {
-  width: 18px; /* Reduced from 24px */
-  height: 18px; /* Reduced from 24px */
+  width: 14px; /* Reduced from 24px */
+  height: 14px; /* Reduced from 24px */
   border-radius: 6px; /* Smaller radius */
   display: flex;
   align-items: center;
@@ -2578,7 +2586,7 @@ tr.highlight-original-note {
 }
 
 .status-name {
-  font-size: 8px; /* Reduced from 14px */
+  font-size: 12px !important; /* Reduced from 14px */
   color: #333;
   flex: 1;
   font-weight: 500;
@@ -2644,7 +2652,7 @@ tr.highlight-original-note {
   align-items: center;
   padding: 2px 4px;
   border-radius: 12px;
-  font-size: 8px;
+  font-size: 8px !important;
   font-weight: 600;
   white-space: nowrap;
 }

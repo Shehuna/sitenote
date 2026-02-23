@@ -11,3 +11,27 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+/* Add to your main CSS file (index.css or App.css) */
+body > div:last-child {
+  position: relative;
+  z-index: 999999;
+}
+
+/* Ensure popups are visible */
+.calendar-popup.task-popup,
+.user-popup.task-popup,
+.status-popup.task-popup {
+  pointer-events: auto;
+  animation: popupFadeIn 0.2s ease;
+}
+
+@keyframes popupFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

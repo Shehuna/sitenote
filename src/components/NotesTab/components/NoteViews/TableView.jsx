@@ -40,6 +40,7 @@ const TableView = ({
   setViewNote,
   setShowViewModal,
   focusedRow,
+  userId,
 }) => {
   if (isLoading) {
     return (
@@ -142,6 +143,7 @@ const TableView = ({
               manuallyUpdatedPriorities={manuallyUpdatedPriorities}
               focusedRow={focusedRow}
               ref={index === displayNotes.length - 1 ? lastRowRef : null}
+              userId={userId}
             />
           ))}
           

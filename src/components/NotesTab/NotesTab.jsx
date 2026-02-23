@@ -675,6 +675,7 @@ const isUserNameFiltered = (userName) => {
             setShowViewModal={setShowViewModal}
             renderTableImageIcon={renderTableImageIcon}
             focusedRow={focusedRow}
+            userId={userId}
           />
         );
         
@@ -707,6 +708,7 @@ const isUserNameFiltered = (userName) => {
             lastCardRef={lastCardRef}
             renderCardImageIcon={renderCardImageIcon}
             viewMode={viewMode}
+            userId={userId}
           />
         );
     }

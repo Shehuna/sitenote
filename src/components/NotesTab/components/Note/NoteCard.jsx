@@ -1,5 +1,7 @@
-import React, { forwardRef, useState, useEffect, useRef } from "react";
+import React, { forwardRef, useState, useEffect, useRef, useCallback } from "react";
 import PropTypes from "prop-types";
+import ReactDOM from "react-dom";
+import toast from "react-hot-toast"; // Add this import
 import {
   formatRelativeTime,
   getFullDate,
@@ -12,6 +14,26 @@ import {
 } from "../../utils/noteUtils";
 import PriorityIndicator from "./PriorityIndicator";
 import UserStatusIndicator from "../Tooltips/UserStatusIndicator";
+
+// Create a root portal component
+const RootPortal = ({ children }) => {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  return mounted ? ReactDOM.createPortal(children, document.body) : null;
+};
+
+// Task Status Mapping
+const TASK_STATUS_MAP = {
+  1: { id: 1, name: "To Do", icon: "fa-circle", color: "#6c757d", bgColor: "#e9ecef" },
+  2: { id: 2, name: "In Progress", icon: "fa-spinner", color: "#fd7e14", bgColor: "#fff3e0" },
+  3: { id: 3, name: "Blocked", icon: "fa-exclamation-circle", color: "#dc3545", bgColor: "#f8d7da" },
+  4: { id: 4, name: "Done", icon: "fa-check-circle", color: "#28a745", bgColor: "#d4edda" },
+};
 
 const NoteCard = forwardRef((props, ref) => {
   const {
@@ -58,6 +80,8 @@ const NoteCard = forwardRef((props, ref) => {
     taskUsers = [],
     taskStatuses = [],
     loadingTaskUsers = false,
+    userId,
+    refreshNotes,
   } = props;
 
   const priorityValue = getPriorityValue(note, manuallyUpdatedPriorities);
@@ -76,46 +100,293 @@ const NoteCard = forwardRef((props, ref) => {
   const [showTaskAssigneePopup, setShowTaskAssigneePopup] = useState(false);
   const [showTaskStatusPopup, setShowTaskStatusPopup] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDueDate, setSelectedDueDate] = useState(taskData.dueDate || null);
   
-  // Refs for popups
-  const calendarRef = useRef(null);
+  // Initialize task data from note
+  const [selectedDueDate, setSelectedDueDate] = useState(note.dueDate || null);
+  const [selectedAssignee, setSelectedAssignee] = useState(
+    note.assigneeId ? { id: note.assigneeId, name: note.assigneeName } : null
+  );
+  const [selectedStatus, setSelectedStatus] = useState(
+    TASK_STATUS_MAP[note.taskStatus] || TASK_STATUS_MAP[1]
+  );
+  
+  // Users state
+  const [availableUsers, setAvailableUsers] = useState([]);
+  const [loadingUsersList, setLoadingUsersList] = useState(false);
+  const [usersError, setUsersError] = useState(null);
+  
+  // Loading state for updates
+  const [updatingTask, setUpdatingTask] = useState(false);
+  
+  // Popup position state
+  const [popupPosition, setPopupPosition] = useState({
+    dueDate: { top: 0, left: 0 },
+    assignee: { top: 0, left: 0 },
+    status: { top: 0, left: 0 }
+  });
+  
+  // Refs for the icons
   const calendarIconRef = useRef(null);
   const assigneeIconRef = useRef(null);
-  const assigneePopupRef = useRef(null);
   const statusIconRef = useRef(null);
-  const statusPopupRef = useRef(null);
+  
+  // API base URL
+  const apiUrl = process.env.REACT_APP_API_BASE_URL || '';
   
   // Determine if this is a task
   const isTask = note.itemType === "Task";
 
-  // Handle click outside to close popups
+  // Function to update task with toast notifications
+ // Function to update task with toast notifications - ONLY FUNCTIONALITY FIXED
+const updateTask = useCallback(async (updates) => {
+  if (!note.taskId) {
+    console.error("No taskId found for note:", note);
+    toast.error("Cannot update task: Task ID not found");
+    return;
+  }
+
+  setUpdatingTask(true);
+  
+  // Determine what's being updated for the toast message
+  let updateType = '';
+  if (updates.dueDate !== undefined) updateType = 'Due date';
+  else if (updates.assigneeId !== undefined) updateType = 'Assignee';
+  else if (updates.status !== undefined) updateType = 'Status';
+  
+  try {
+    // Get the current assignee ID (must be included in all updates)
+    const currentAssigneeId = selectedAssignee?.id;
+    
+    // If we're updating due date or status and there's no assignee, we have a problem
+    if ((updates.dueDate !== undefined || updates.status !== undefined) && !currentAssigneeId) {
+      toast.error("Please select an assignee first");
+      setUpdatingTask(false);
+      return;
+    }
+
+    // Build the complete task payload - ALWAYS include the current assigneeId
+    const payload = {
+      title: note.title || note.note || "",
+      description: note.note || "",
+      startDate: note.startDate || new Date().toISOString(),
+      endDate: note.endDate || null,
+      dueDate: selectedDueDate || null,
+      assigneeId: currentAssigneeId || 0, // Always include assigneeId (use 0 if none, but API will reject)
+      createdById: note.userId || userId,
+      jobId: note.jobId || 0,
+      status: selectedStatus?.id || 1,
+      ...updates // Override with any updates passed
+    };
+
+    // If this is an assignee update, use the new assigneeId
+    if (updates.assigneeId !== undefined) {
+      payload.assigneeId = updates.assigneeId;
+    }
+
+    console.log("Updating task with payload:", payload);
+
+    const response = await fetch(`${apiUrl}/api/JobTasks/${note.taskId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      
+      // Check for specific error about assigneeId
+      if (errorText.includes('assigneeId') || errorText.includes('foreign key')) {
+        throw new Error('Please select a valid assignee first.');
+      }
+      
+      throw new Error(`Failed to update task: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log("Task updated successfully:", result);
+    
+    // Show success toast
+    if (updateType) {
+      toast.success(`${updateType} updated successfully`);
+    } else {
+      toast.success("Task updated successfully");
+    }
+    
+    // Call the parent's callback if provided
+    if (updates.dueDate !== undefined && onTaskDueDateSelect) {
+      onTaskDueDateSelect(note, updates.dueDate);
+    }
+    if (updates.assigneeId !== undefined && onTaskAssigneeSelect) {
+      onTaskAssigneeSelect(note, { id: updates.assigneeId });
+    }
+    if (updates.status !== undefined && onTaskStatusSelect) {
+      onTaskStatusSelect(note, { id: updates.status });
+    }
+    
+    // Trigger refresh if available
+    if (refreshNotes) {
+      refreshNotes();
+    }
+    
+    return result;
+  } catch (error) {
+    console.error("Error updating task:", error);
+    
+    // Show error toast with specific message
+    let errorMessage = `Failed to update ${updateType.toLowerCase() || 'task'}`;
+    
+    if (error.message.includes('Failed to fetch')) {
+      errorMessage = "Network error. Please check your connection.";
+    } else if (error.message.includes('500')) {
+      errorMessage = "Server error. Please try again later.";
+    } else if (error.message.includes('foreign key') || error.message.includes('assigneeId')) {
+      errorMessage = "Please select a valid assignee first.";
+    } else {
+      errorMessage = error.message;
+    }
+    
+    toast.error(errorMessage);
+  } finally {
+    setUpdatingTask(false);
+  }
+}, [note, selectedDueDate, selectedAssignee, selectedStatus, userId, apiUrl, onTaskDueDateSelect, onTaskAssigneeSelect, onTaskStatusSelect, refreshNotes]);
+  // Function to fetch users with toast error
+  const fetchUsers = useCallback(async () => {
+    if (!userId) {
+      console.log("No userId provided");
+      setUsersError("User ID not available");
+      setLoadingUsersList(false);
+      return;
+    }
+    
+    setLoadingUsersList(true);
+    setUsersError(null);
+    
+    try {
+      const url = `${apiUrl}/api/SiteNote/GetUniqueUsernames?userId=${userId}`;
+      console.log("Fetching users from:", url);
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch users: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log("Users data received:", data);
+      
+      if (data && data.usernames && Array.isArray(data.usernames)) {
+        const transformedUsers = data.usernames.map(user => ({
+          id: user.id,
+          name: user.text,
+          value: user.value,
+          color: getRandomColor(user.id)
+        }));
+        console.log("Transformed users:", transformedUsers);
+        setAvailableUsers(transformedUsers);
+      } else {
+        console.log("No usernames array in response");
+        setAvailableUsers([]);
+        toast.error("No users found");
+      }
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      setUsersError(error.message);
+      setAvailableUsers([]);
+      toast.error("Failed to load users list");
+    } finally {
+      setLoadingUsersList(false);
+    }
+  }, [userId, apiUrl]);
+
+  // Fetch users when assignee popup is opened
+  useEffect(() => {
+    if (showTaskAssigneePopup) {
+      console.log("Assignee popup opened, fetching users...");
+      fetchUsers();
+    }
+  }, [showTaskAssigneePopup, fetchUsers]);
+
+  // Function to calculate popup position
+  const calculatePopupPosition = useCallback((elementRef) => {
+    if (!elementRef.current) return { top: 0, left: 0 };
+    
+    const rect = elementRef.current.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const popupHeight = 320;
+    const popupWidth = 240;
+    
+    let top = rect.bottom + 5;
+    let left = rect.left;
+    
+    if (top + popupHeight > viewportHeight) {
+      top = rect.top - popupHeight + 90;
+    }
+    
+    if (left + popupWidth > viewportWidth) {
+      left = viewportWidth - popupWidth - 10;
+    }
+    
+    if (top < 0) top = 10;
+    
+    return { top, left };
+  }, []);
+
+  // Handle click outside
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (calendarRef.current && !calendarRef.current.contains(e.target) && 
-          calendarIconRef.current && !calendarIconRef.current.contains(e.target)) {
-        setShowTaskDueDatePopup(false);
+      if (showTaskDueDatePopup || showTaskAssigneePopup || showTaskStatusPopup) {
+        const isClickOnCalendar = calendarIconRef.current?.contains(e.target);
+        const isClickOnAssignee = assigneeIconRef.current?.contains(e.target);
+        const isClickOnStatus = statusIconRef.current?.contains(e.target);
+        
+        const isClickInsideCalendar = e.target.closest?.('.calendar-popup-root');
+        const isClickInsideAssignee = e.target.closest?.('.user-popup-root');
+        const isClickInsideStatus = e.target.closest?.('.status-popup-root');
+        
+        if (!isClickOnCalendar && !isClickInsideCalendar) {
+          setShowTaskDueDatePopup(false);
+        }
+        if (!isClickOnAssignee && !isClickInsideAssignee) {
+          setShowTaskAssigneePopup(false);
+        }
+        if (!isClickOnStatus && !isClickInsideStatus) {
+          setShowTaskStatusPopup(false);
+        }
       }
-      
-      if (assigneePopupRef.current && !assigneePopupRef.current.contains(e.target) && 
-          assigneeIconRef.current && !assigneeIconRef.current.contains(e.target)) {
-        setShowTaskAssigneePopup(false);
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showTaskDueDatePopup, showTaskAssigneePopup, showTaskStatusPopup]);
+
+  // Update position on scroll/resize
+  useEffect(() => {
+    const updatePositions = () => {
+      if (showTaskDueDatePopup) {
+        setPopupPosition(prev => ({ ...prev, dueDate: calculatePopupPosition(calendarIconRef) }));
       }
-      
-      if (statusPopupRef.current && !statusPopupRef.current.contains(e.target) && 
-          statusIconRef.current && !statusIconRef.current.contains(e.target)) {
-        setShowTaskStatusPopup(false);
+      if (showTaskAssigneePopup) {
+        setPopupPosition(prev => ({ ...prev, assignee: calculatePopupPosition(assigneeIconRef) }));
+      }
+      if (showTaskStatusPopup) {
+        setPopupPosition(prev => ({ ...prev, status: calculatePopupPosition(statusIconRef) }));
       }
     };
 
     if (showTaskDueDatePopup || showTaskAssigneePopup || showTaskStatusPopup) {
-      document.addEventListener('mousedown', handleClickOutside);
+      window.addEventListener('scroll', updatePositions, true);
+      window.addEventListener('resize', updatePositions);
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('scroll', updatePositions, true);
+      window.removeEventListener('resize', updatePositions);
     };
-  }, [showTaskDueDatePopup, showTaskAssigneePopup, showTaskStatusPopup]);
+  }, [showTaskDueDatePopup, showTaskAssigneePopup, showTaskStatusPopup, calculatePopupPosition]);
 
   // Calendar functions
   const goToPreviousMonth = () => {
@@ -126,12 +397,46 @@ const NoteCard = forwardRef((props, ref) => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
   };
 
-  const handleDateSelect = (date) => {
+  const handleDateSelect = async (date) => {
     setSelectedDueDate(date);
-    if (onTaskDueDateSelect) {
-      onTaskDueDateSelect(note, date);
-    }
     setShowTaskDueDatePopup(false);
+    
+    // Show loading toast
+    const toastId = toast.loading(date ? 'Updating due date...' : 'Clearing due date...');
+    
+    // Update the task with new due date
+    await updateTask({ dueDate: date });
+    
+    // Dismiss loading toast (updateTask will show success/error)
+    toast.dismiss(toastId);
+  };
+
+  const handleAssigneeSelect = async (user) => {
+    setSelectedAssignee(user);
+    setShowTaskAssigneePopup(false);
+    
+    // Show loading toast
+    const toastId = toast.loading(user ? `Assigning to ${user.name}...` : 'Removing assignee...');
+    
+    // Update the task with new assignee
+    await updateTask({ assigneeId: user.id });
+    
+    // Dismiss loading toast
+    toast.dismiss(toastId);
+  };
+
+  const handleStatusSelect = async (status) => {
+    setSelectedStatus(status);
+    setShowTaskStatusPopup(false);
+    
+    // Show loading toast
+    const toastId = toast.loading(`Changing status to ${status.name}...`);
+    
+    // Update the task with new status
+    await updateTask({ status: status.id });
+    
+    // Dismiss loading toast
+    toast.dismiss(toastId);
   };
 
   const generateCalendarDays = () => {
@@ -153,7 +458,7 @@ const NoteCard = forwardRef((props, ref) => {
       const prevMonthDate = new Date(year, month - 1, daysInPrevMonth - i);
       prevMonthDate.setHours(0, 0, 0, 0);
       const isSelected = selectedDueDate && 
-        prevMonthDate.toDateString() === selectedDueDate.toDateString();
+        new Date(selectedDueDate).toDateString() === prevMonthDate.toDateString();
       const isDisabled = prevMonthDate < today;
       
       days.push(
@@ -172,7 +477,7 @@ const NoteCard = forwardRef((props, ref) => {
       const date = new Date(year, month, d);
       date.setHours(0, 0, 0, 0);
       const isSelected = selectedDueDate && 
-        date.toDateString() === selectedDueDate.toDateString();
+        new Date(selectedDueDate).toDateString() === date.toDateString();
       const isToday = date.toDateString() === today.toDateString();
       const isDisabled = date < today;
       
@@ -187,8 +492,6 @@ const NoteCard = forwardRef((props, ref) => {
       );
     }
     
-   
-    
     return days;
   };
 
@@ -197,7 +500,6 @@ const NoteCard = forwardRef((props, ref) => {
     "July", "August", "September", "October", "November", "December"
   ];
 
-  // Helper functions for assignee
   const getInitials = (name) => {
     if (!name) return '';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
@@ -208,95 +510,511 @@ const NoteCard = forwardRef((props, ref) => {
     return colors[(id || 0) % colors.length];
   };
 
+  const handleDueDateClick = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setShowTaskDueDatePopup(!showTaskDueDatePopup);
+    setShowTaskAssigneePopup(false);
+    setShowTaskStatusPopup(false);
+    setPopupPosition(prev => ({ ...prev, dueDate: calculatePopupPosition(calendarIconRef) }));
+  };
+
+  const handleAssigneeClick = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setShowTaskAssigneePopup(!showTaskAssigneePopup);
+    setShowTaskDueDatePopup(false);
+    setShowTaskStatusPopup(false);
+    setPopupPosition(prev => ({ ...prev, assignee: calculatePopupPosition(assigneeIconRef) }));
+  };
+
+  const handleStatusClick = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setShowTaskStatusPopup(!showTaskStatusPopup);
+    setShowTaskDueDatePopup(false);
+    setShowTaskAssigneePopup(false);
+    setPopupPosition(prev => ({ ...prev, status: calculatePopupPosition(statusIconRef) }));
+  };
+
   return (
-    <div
-      ref={ref}  
-      data-note-id={note.id}
-      data-item-type={note.itemType}
-      className={`note-card ${isTask ? 'task-card' : ''} ${selectedRow === note.id ? "selected" : ""}`}
-      onClick={() => handleRowClick(note)}
-      onDoubleClick={() => handleRowDoubleClick(note)}
-    >
-      <NoteHeader 
-        note={note}
-        searchTerm={searchTerm}
-        userStatusMap={userStatusMap}
-        loadingUsers={loadingUsers}
-        handleProjectClick={handleProjectClick}
-        handleJobClick={handleJobClick}
-        handleUserNameClick={handleUserNameClick}
-        isProjectFiltered={isProjectFiltered}
-        isJobFiltered={isJobFiltered}
-        isUserNameFiltered={isUserNameFiltered}
-        showJobTooltip={showJobTooltip}
-        setShowJobTooltip={setShowJobTooltip}
-        showProjectTooltip={showProjectTooltip}
-        setShowProjectTooltip={setShowProjectTooltip}
-      />
-      
-      <NoteContent
-        note={note}
-        searchTerm={searchTerm}
-        viewMode={viewMode}
-        onMouseEnter={handleNoteTextMouseEnter}
-        onMouseLeave={handleNoteTextMouseLeave}
-        shouldShowNotePopup={shouldShowNotePopup}
-      />
-      
-      <NoteFooter
-        note={note}
-        priorityValue={priorityValue}
-        shouldShowLink={shouldShowLink} 
-        originalNoteId={originalNoteId}
-        onViewAttachments={handleViewAttachments}
-        onReply={handleReplyToNote}
-        onAdd={handleAddFromRow}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        onPriorityClick={handlePriorityClick}
-        onPriorityMouseEnter={handlePriorityMouseEnter}
-        onPriorityMouseLeave={handlePriorityMouseLeave}
-        onLinkedNoteClick={handleLinkedNoteClick}
-        onLinkedNoteMouseEnter={handleLinkedNoteMouseEnter}
-        onLinkedNoteMouseLeave={handleLinkedNoteMouseLeave}
-        renderImageIcon={renderCardImageIcon}
-        isTask={isTask}
-        taskData={taskData}
-        selectedDueDate={selectedDueDate}
-        onTaskAssigneeSelect={onTaskAssigneeSelect}
-        onTaskStatusSelect={onTaskStatusSelect}
-        taskUsers={taskUsers}
-        taskStatuses={taskStatuses}
-        loadingTaskUsers={loadingTaskUsers}
-        // Popup states
-        showTaskDueDatePopup={showTaskDueDatePopup}
-        setShowTaskDueDatePopup={setShowTaskDueDatePopup}
-        showTaskAssigneePopup={showTaskAssigneePopup}
-        setShowTaskAssigneePopup={setShowTaskAssigneePopup}
-        showTaskStatusPopup={showTaskStatusPopup}
-        setShowTaskStatusPopup={setShowTaskStatusPopup}
-        // Refs
-        calendarRef={calendarRef}
-        calendarIconRef={calendarIconRef}
-        assigneeIconRef={assigneeIconRef}
-        assigneePopupRef={assigneePopupRef}
-        statusIconRef={statusIconRef}
-        statusPopupRef={statusPopupRef}
-        // Calendar functions
-        currentMonth={currentMonth}
-        setCurrentMonth={setCurrentMonth}
-        goToPreviousMonth={goToPreviousMonth}
-        goToNextMonth={goToNextMonth}
-        generateCalendarDays={generateCalendarDays}
-        monthNames={monthNames}
-        handleDateSelect={handleDateSelect}
-        // Helper functions
-        getInitials={getInitials}
-        getRandomColor={getRandomColor}
-      />
-    </div>
+    <>
+      <div
+        ref={ref}  
+        data-note-id={note.id}
+        data-item-type={note.itemType}
+        className={`note-card ${isTask ? 'task-card' : ''} ${selectedRow === note.id ? "selected" : ""}`}
+        onClick={() => handleRowClick(note)}
+        onDoubleClick={() => handleRowDoubleClick(note)}
+      >
+        <NoteHeader 
+          note={note}
+          searchTerm={searchTerm}
+          userStatusMap={userStatusMap}
+          loadingUsers={loadingUsers}
+          handleProjectClick={handleProjectClick}
+          handleJobClick={handleJobClick}
+          handleUserNameClick={handleUserNameClick}
+          isProjectFiltered={isProjectFiltered}
+          isJobFiltered={isJobFiltered}
+          isUserNameFiltered={isUserNameFiltered}
+          showJobTooltip={showJobTooltip}
+          setShowJobTooltip={setShowJobTooltip}
+          showProjectTooltip={showProjectTooltip}
+          setShowProjectTooltip={setShowProjectTooltip}
+        />
+        
+        <NoteContent
+          note={note}
+          searchTerm={searchTerm}
+          viewMode={viewMode}
+          onMouseEnter={handleNoteTextMouseEnter}
+          onMouseLeave={handleNoteTextMouseLeave}
+          shouldShowNotePopup={shouldShowNotePopup}
+        />
+        
+        <NoteFooter
+          note={note}
+          priorityValue={priorityValue}
+          shouldShowLink={shouldShowLink} 
+          originalNoteId={originalNoteId}
+          onViewAttachments={handleViewAttachments}
+          onReply={handleReplyToNote}
+          onAdd={handleAddFromRow}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onPriorityClick={handlePriorityClick}
+          onPriorityMouseEnter={handlePriorityMouseEnter}
+          onPriorityMouseLeave={handlePriorityMouseLeave}
+          onLinkedNoteClick={handleLinkedNoteClick}
+          onLinkedNoteMouseEnter={handleLinkedNoteMouseEnter}
+          onLinkedNoteMouseLeave={handleLinkedNoteMouseLeave}
+          renderImageIcon={renderCardImageIcon}
+          isTask={isTask}
+          selectedDueDate={selectedDueDate}
+          selectedAssignee={selectedAssignee}
+          selectedStatus={selectedStatus}
+          onDueDateClick={handleDueDateClick}
+          onAssigneeClick={handleAssigneeClick}
+          onStatusClick={handleStatusClick}
+          calendarIconRef={calendarIconRef}
+          assigneeIconRef={assigneeIconRef}
+          statusIconRef={statusIconRef}
+          updatingTask={updatingTask}
+        />
+      </div>
+
+      {/* Render popups at root level using portal */}
+      <RootPortal>
+        {showTaskDueDatePopup && (
+          <CalendarPopup
+            position={popupPosition.dueDate}
+            currentMonth={currentMonth}
+            goToPreviousMonth={goToPreviousMonth}
+            goToNextMonth={goToNextMonth}
+            generateCalendarDays={generateCalendarDays}
+            monthNames={monthNames}
+            selectedDueDate={selectedDueDate}
+            handleDateSelect={handleDateSelect}
+            updating={updatingTask}
+          />
+        )}
+
+        {showTaskAssigneePopup && (
+          <AssigneePopup
+            position={popupPosition.assignee}
+            users={availableUsers}
+            loading={loadingUsersList}
+            error={usersError}
+            selectedUser={selectedAssignee}
+            onTaskAssigneeSelect={handleAssigneeSelect}
+            getInitials={getInitials}
+            getRandomColor={getRandomColor}
+            updating={updatingTask}
+          />
+        )}
+
+        {showTaskStatusPopup && (
+          <StatusPopup
+            position={popupPosition.status}
+            taskStatuses={taskStatuses}
+            selectedStatus={selectedStatus}
+            onTaskStatusSelect={handleStatusSelect}
+            updating={updatingTask}
+          />
+        )}
+      </RootPortal>
+    </>
   );
 });
+
+// Calendar Popup Component
+const CalendarPopup = ({ 
+  position, 
+  currentMonth, 
+  goToPreviousMonth, 
+  goToNextMonth, 
+  generateCalendarDays, 
+  monthNames, 
+  selectedDueDate, 
+  handleDateSelect,
+  updating
+}) => {
+  return (
+    <div
+      className="calendar-popup-root"
+      style={{
+        position: "fixed",
+        top: `${position.top}px`,
+        left: `${position.left}px`,
+        zIndex: 999999,
+        backgroundColor: "#ffffff",
+        border: "1px solid #e0e0e0",
+        borderRadius: "8px",
+        boxShadow: "0 8px 30px rgba(0, 0, 0, 0.2)",
+        width: "240px",
+        padding: "12px",
+        opacity: 1,
+        color: "#333333",
+        pointerEvents: updating ? "none" : "auto",
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {updating && (
+        <div style={{ 
+          position: "absolute", 
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          bottom: 0, 
+          backgroundColor: "rgba(255, 255, 255, 0.7)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: "8px",
+          zIndex: 1
+        }}>
+          <i className="fas fa-spinner fa-spin" style={{ color: "#1976d2", fontSize: "24px" }}></i>
+        </div>
+      )}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+        <button 
+          onClick={goToPreviousMonth} 
+          disabled={updating}
+          style={{ 
+            background: "#f0f0f0", 
+            border: "1px solid #ddd", 
+            borderRadius: "4px", 
+            padding: "4px 8px", 
+            cursor: updating ? "not-allowed" : "pointer",
+            opacity: updating ? 0.5 : 1
+          }}
+        >
+          <i className="fas fa-chevron-left"></i>
+        </button>
+        <span style={{ fontWeight: "bold" }}>
+          {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+        </span>
+        <button 
+          onClick={goToNextMonth} 
+          disabled={updating}
+          style={{ 
+            background: "#f0f0f0", 
+            border: "1px solid #ddd", 
+            borderRadius: "4px", 
+            padding: "4px 8px", 
+            cursor: updating ? "not-allowed" : "pointer",
+            opacity: updating ? 0.5 : 1
+          }}
+        >
+          <i className="fas fa-chevron-right"></i>
+        </button>
+      </div>
+      
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px", marginBottom: "5px" }}>
+        {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(day => (
+          <div key={day} style={{ textAlign: "center", fontSize: "11px", fontWeight: "bold", color: "#666" }}>{day}</div>
+        ))}
+      </div>
+      
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "2px" }}>
+        {generateCalendarDays()}
+      </div>
+    
+    </div>
+  );
+};
+
+// Assignee Popup Component
+const AssigneePopup = ({ 
+  position, 
+  users, 
+  loading, 
+  error,
+  selectedUser, 
+  onTaskAssigneeSelect, 
+  getInitials,
+  getRandomColor,
+  updating
+}) => {
+  return (
+    <div
+      className="user-popup-root"
+      style={{
+        position: "fixed",
+        top: `${position.top}px`,
+        left: `${position.left}px`,
+        zIndex: 999999,
+        backgroundColor: "#ffffff",
+        border: "1px solid #e0e0e0",
+        borderRadius: "8px",
+        boxShadow: "0 8px 30px rgba(0, 0, 0, 0.2)",
+        width: "240px",
+        maxHeight: "350px", // Increased height for better visibility
+        display: "flex",
+        flexDirection: "column",
+        opacity: 1,
+        color: "#333333",
+        pointerEvents: updating ? "none" : "auto",
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {updating && (
+        <div style={{ 
+          position: "absolute", 
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          bottom: 0, 
+          backgroundColor: "rgba(255, 255, 255, 0.7)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: "8px",
+          zIndex: 1
+        }}>
+          <i className="fas fa-spinner fa-spin" style={{ color: "#1976d2", fontSize: "24px" }}></i>
+        </div>
+      )}
+      
+      {/* Fixed header - doesn't scroll */}
+      <div style={{ 
+        padding: "12px", 
+        borderBottom: "1px solid #eee", 
+        fontWeight: "bold",
+        flexShrink: 0,
+        backgroundColor: "#fff",
+        borderTopLeftRadius: "8px",
+        borderTopRightRadius: "8px"
+      }}>
+        Select Assignee
+        {users && users.length > 0 && (
+          <span style={{ 
+            marginLeft: "8px", 
+            fontSize: "12px", 
+            color: "#666",
+            fontWeight: "normal"
+          }}>
+            ({users.length})
+          </span>
+        )}
+      </div>
+      
+      {/* Scrollable content area - with proper max-height */}
+      <div style={{ 
+        maxHeight: "200px", 
+        overflowY: "auto",
+        overflowX: "hidden",
+        flex: 1
+      }}>
+        {loading ? (
+          <div style={{ padding: "20px", textAlign: "center", color: "#666" }}>
+            <i className="fas fa-spinner fa-spin" style={{ marginRight: "8px" }}></i>
+            Loading users...
+          </div>
+        ) : error ? (
+          <div style={{ padding: "20px", textAlign: "center", color: "#dc3545" }}>
+            <i className="fas fa-exclamation-circle" style={{ marginRight: "8px" }}></i>
+            {error}
+          </div>
+        ) : users && users.length > 0 ? (
+          <>
+            
+            {users.map(user => (
+              <div 
+                key={user.id}
+                onClick={() => !updating && onTaskAssigneeSelect(user)}
+                style={{
+                  padding: "10px 12px",
+                  cursor: updating ? "not-allowed" : "pointer",
+                  backgroundColor: selectedUser?.id === user.id ? "#e3f2fd" : "transparent",
+                  borderBottom: "1px solid #f5f5f5",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  opacity: updating ? 0.5 : 1,
+                  transition: "background-color 0.2s ease"
+                }}
+                onMouseEnter={(e) => {
+                  if (!updating) {
+                    e.currentTarget.style.backgroundColor = selectedUser?.id === user.id ? "#e3f2fd" : "#f5f5f5";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!updating) {
+                    e.currentTarget.style.backgroundColor = selectedUser?.id === user.id ? "#e3f2fd" : "transparent";
+                  }
+                }}
+              >
+                <div style={{ 
+                  width: "30px", 
+                  height: "30px", 
+                  borderRadius: "50%", 
+                  backgroundColor: user.color || getRandomColor(user.id),
+                  color: "white",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: "bold",
+                  fontSize: "12px",
+                  flexShrink: 0
+                }}>
+                  {getInitials(user.name)}
+                </div>
+                <span style={{ 
+                  overflow: "hidden", 
+                  textOverflow: "ellipsis", 
+                  whiteSpace: "nowrap",
+                  flex: 1
+                }}>
+                  {user.name}
+                </span>
+                {selectedUser?.id === user.id && (
+                  <i className="fas fa-check" style={{ marginLeft: "auto", color: "#1976d2", flexShrink: 0 }}></i>
+                )}
+              </div>
+            ))}
+          </>
+        ) : (
+          <div style={{ padding: "20px", textAlign: "center", color: "#999" }}>
+            <i className="fas fa-users" style={{ marginRight: "8px", fontSize: "24px", opacity: 0.5 }}></i>
+            <div style={{ marginTop: "8px" }}>No users available</div>
+          </div>
+        )}
+      </div>
+      
+    </div>
+  );
+};
+
+// Status Popup Component
+const StatusPopup = ({ 
+  position, 
+  taskStatuses, 
+  selectedStatus, 
+  onTaskStatusSelect,
+  updating
+}) => {
+  const defaultStatuses = [
+    { id: 1, name: "To Do", icon: "fa-circle", color: "#6c757d", bgColor: "#e9ecef" },
+    { id: 2, name: "In Progress", icon: "fa-spinner", color: "#fd7e14", bgColor: "#fff3e0" },
+    { id: 3, name: "Blocked", icon: "fa-exclamation-circle", color: "#dc3545", bgColor: "#f8d7da" },
+    { id: 4, name: "Done", icon: "fa-check-circle", color: "#28a745", bgColor: "#d4edda" },
+  ];
+
+  const statuses = taskStatuses.length > 0 ? taskStatuses : defaultStatuses;
+
+  return (
+    <div
+      className="status-popup-root"
+      style={{
+        position: "fixed",
+        top: `${position.top}px`,
+        left: `${position.left}px`,
+        zIndex: 999999,
+        backgroundColor: "#ffffff",
+        border: "1px solid #e0e0e0",
+        borderRadius: "8px",
+        boxShadow: "0 8px 30px rgba(0, 0, 0, 0.2)",
+        width: "200px",
+        opacity: 1,
+        color: "#333333",
+        pointerEvents: updating ? "none" : "auto",
+      }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {updating && (
+        <div style={{ 
+          position: "absolute", 
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          bottom: 0, 
+          backgroundColor: "rgba(255, 255, 255, 0.7)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: "8px",
+          zIndex: 1
+        }}>
+          <i className="fas fa-spinner fa-spin" style={{ color: "#1976d2", fontSize: "24px" }}></i>
+        </div>
+      )}
+      <div style={{ padding: "12px", borderBottom: "1px solid #eee", fontWeight: "bold" }}>
+        Select Status
+      </div>
+      
+      <div>
+        {statuses.map(status => (
+          <div 
+            key={status.id}
+            onClick={() => !updating && onTaskStatusSelect(status)}
+            style={{
+              padding: "10px 12px",
+              cursor: updating ? "not-allowed" : "pointer",
+              backgroundColor: selectedStatus?.id === status.id ? "#f8f9fa" : "transparent",
+              borderBottom: "1px solid #f5f5f5",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              borderLeft: selectedStatus?.id === status.id ? `3px solid ${status.color}` : "3px solid transparent",
+              opacity: updating ? 0.5 : 1,
+            }}
+            onMouseEnter={(e) => {
+              if (!updating) {
+                e.currentTarget.style.backgroundColor = "#f5f5f5";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!updating) {
+                e.currentTarget.style.backgroundColor = selectedStatus?.id === status.id ? "#f8f9fa" : "transparent";
+              }
+            }}
+          >
+            <div style={{ 
+              width: "20px", 
+              height: "20px", 
+              borderRadius: "4px", 
+              backgroundColor: status.bgColor,
+              color: status.color,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "10px",
+              flexShrink: 0
+            }}>
+              <i className={`fas ${status.icon}`}></i>
+            </div>
+            <span style={{ flex: 1 }}>{status.name}</span>
+            {selectedStatus?.id === status.id && (
+              <i className="fas fa-check" style={{ marginLeft: "auto", color: status.color, flexShrink: 0 }}></i>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const NoteHeader = ({ note, searchTerm, userStatusMap, loadingUsers,
   handleProjectClick,
@@ -372,7 +1090,6 @@ const UserAvatar = ({ note, handleUserNameClick, isUserNameFiltered }) => {
       </div>
       <div className="user-tooltip">
         {note.userName || "Unknown User"}
-        {userNameFiltered }
       </div>
     </div>
   );
@@ -423,7 +1140,6 @@ const NoteMeta = ({
           userStatusMap={userStatusMap}
           loadingUsers={loadingUsers}
         />
-        {userNameFiltered }
       </div>
       <div className="note-date" title={getFullDate(note.timeStamp)}>
         {formatRelativeTime(note.timeStamp)}
@@ -547,307 +1263,76 @@ const NoteFooter = ({
   onLinkedNoteMouseLeave,
   renderImageIcon,
   isTask,
-  taskData,
   selectedDueDate,
-  onTaskAssigneeSelect,
-  onTaskStatusSelect,
-  taskUsers,
-  taskStatuses,
-  loadingTaskUsers,
-  // Popup states
-  showTaskDueDatePopup,
-  setShowTaskDueDatePopup,
-  showTaskAssigneePopup,
-  setShowTaskAssigneePopup,
-  showTaskStatusPopup,
-  setShowTaskStatusPopup,
-  // Refs
-  calendarRef,
+  selectedAssignee,
+  selectedStatus,
+  onDueDateClick,
+  onAssigneeClick,
+  onStatusClick,
   calendarIconRef,
   assigneeIconRef,
-  assigneePopupRef,
   statusIconRef,
-  statusPopupRef,
-  // Calendar functions
-  currentMonth,
-  setCurrentMonth,
-  goToPreviousMonth,
-  goToNextMonth,
-  generateCalendarDays,
-  monthNames,
-  handleDateSelect,
-  // Helper functions
-  getInitials,
-  getRandomColor,
+  updatingTask,
 }) => {
-  const selectedUser = taskData.assignee;
-  const selectedStatus = taskData.status;
-
-  const defaultStatuses = [
-    { id: 1, name: "To Do", icon: "fa-circle", color: "#6c757d", bgColor: "#e9ecef" },
-    { id: 2, name: "In Progress", icon: "fa-spinner", color: "#fd7e14", bgColor: "#fff3e0" },
-    { id: 3, name: "Blocked", icon: "fa-exclamation-circle", color: "#dc3545", bgColor: "#f8d7da" },
-    { id: 4, name: "Done", icon: "fa-check-circle", color: "#28a745", bgColor: "#d4edda" },
-  ];
-
-  const statuses = taskStatuses.length > 0 ? taskStatuses : defaultStatuses;
-
   return (
     <div className="note-footer">
       <div className="note-attachments">
-        {renderImageIcon && renderImageIcon(note)}
-        <AttachmentButton note={note} onClick={onViewAttachments} />
-        <ReplyButton note={note} onClick={onReply} />
-        {shouldShowLink && originalNoteId && (
-          <LinkButton
-            noteId={note.id}
-            onClick={onLinkedNoteClick}
-            onMouseEnter={onLinkedNoteMouseEnter}
-            onMouseLeave={onLinkedNoteMouseLeave}
-          />
+        {/* For tasks: only show task-related icons */}
+        {isTask ? (
+          <>
+            <div ref={calendarIconRef} style={{ display: 'inline-block', position: 'relative' }}>
+              <div 
+                className={`task-icon-item ${selectedDueDate ? 'has-value' : ''} ${updatingTask ? 'updating' : ''}`}
+                title="Due Date"
+                onClick={onDueDateClick}
+                style={{ opacity: updatingTask ? 0.5 : 1, cursor: updatingTask ? 'not-allowed' : 'pointer' }}
+              >
+                <i className="fas fa-calendar"></i>
+              </div>
+            </div>
+
+            <div ref={assigneeIconRef} style={{ display: 'inline-block', position: 'relative' }}>
+              <div 
+                className={`task-icon-item ${selectedAssignee ? 'has-value' : ''} ${updatingTask ? 'updating' : ''}`}
+                title="Assignee"
+                onClick={onAssigneeClick}
+                style={{ opacity: updatingTask ? 0.5 : 1, cursor: updatingTask ? 'not-allowed' : 'pointer' }}
+              >
+                <i className="fas fa-user"></i>
+              </div>
+            </div>
+
+            <div ref={statusIconRef} style={{ display: 'inline-block', position: 'relative' }}>
+              <div 
+                className={`task-icon-item ${selectedStatus ? 'has-value' : ''} ${updatingTask ? 'updating' : ''}`}
+                title="Status"
+                onClick={onStatusClick}
+                style={{ opacity: updatingTask ? 0.5 : 1, cursor: updatingTask ? 'not-allowed' : 'pointer' }}
+              >
+                <i className="fas fa-tasks"></i>
+              </div>
+            </div>
+          </>
+        ) : (
+          /* For regular notes: show the original icons */
+          <>
+            {renderImageIcon && renderImageIcon(note)}
+            <AttachmentButton note={note} onClick={onViewAttachments} />
+            <ReplyButton note={note} onClick={onReply} />
+            {shouldShowLink && originalNoteId && (
+              <LinkButton
+                noteId={note.id}
+                onClick={onLinkedNoteClick}
+                onMouseEnter={onLinkedNoteMouseEnter}
+                onMouseLeave={onLinkedNoteMouseLeave}
+              />
+            )}
+          </>
         )}
       </div>
       
       <div className="note-actions">
-        {/* Task-specific buttons - only show for tasks */}
-        {isTask && (
-          <>
-            {/* Due Date Button */}
-            <div style={{ position: 'relative' }} ref={calendarIconRef}>
-              <div 
-                className={`task-icon-item ${selectedDueDate ? 'has-value' : ''}`}
-                title="Due Date"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowTaskDueDatePopup(!showTaskDueDatePopup);
-                  setShowTaskAssigneePopup(false);
-                  setShowTaskStatusPopup(false);
-                }}
-              >
-                <i className="fas fa-calendar"></i>
-                {selectedDueDate && (
-                  <span className="icon-value">
-                    {new Date(selectedDueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </span>
-                )}
-              </div>
-              
-              {/* Calendar Popup */}
-              {showTaskDueDatePopup && (
-                <div 
-                  className="calendar-popup task-popup" 
-                  ref={calendarRef}
-                >
-                  <div className="calendar-header">
-                    <button className="calendar-nav-button" onClick={goToPreviousMonth}>
-                      <i className="fas fa-chevron-left"></i>
-                    </button>
-                    <span className="calendar-month-year">
-                      {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
-                    </span>
-                    <button className="calendar-nav-button" onClick={goToNextMonth}>
-                      <i className="fas fa-chevron-right"></i>
-                    </button>
-                  </div>
-                  
-                  <div className="calendar-weekdays">
-                    <div className="weekday">Su</div>
-                    <div className="weekday">Mo</div>
-                    <div className="weekday">Tu</div>
-                    <div className="weekday">We</div>
-                    <div className="weekday">Th</div>
-                    <div className="weekday">Fr</div>
-                    <div className="weekday">Sa</div>
-                  </div>
-                  
-                  <div className="calendar-days">
-                    {generateCalendarDays()}
-                  </div>
-                  
-                  {selectedDueDate && (
-                    <div className="calendar-footer">
-                      <button 
-                        className="clear-button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDateSelect(null);
-                        }}
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Assignee Button */}
-            <div style={{ position: 'relative' }} ref={assigneeIconRef}>
-              <div 
-                className={`task-icon-item ${selectedUser ? 'has-value' : ''} ${loadingTaskUsers ? 'loading' : ''}`}
-                title="Assignee"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowTaskAssigneePopup(!showTaskAssigneePopup);
-                  setShowTaskDueDatePopup(false);
-                  setShowTaskStatusPopup(false);
-                }}
-              >
-                <i className={`fas ${loadingTaskUsers ? 'fa-spinner fa-spin' : 'fa-user'}`}></i>
-                {selectedUser && (
-                  <span className="icon-value user-avatar-small" style={{ backgroundColor: selectedUser.color || getRandomColor(selectedUser.id) }}>
-                    {selectedUser.avatar || getInitials(selectedUser.name)}
-                  </span>
-                )}
-              </div>
-              
-              {/* User Selection Popup */}
-              {showTaskAssigneePopup && (
-                <div 
-                  className="user-popup task-popup" 
-                  ref={assigneePopupRef}
-                >
-                  <div className="user-popup-header">
-                    <span className="user-popup-title">Select Assignee</span>
-                  </div>
-                  
-                  <div className="user-list-container">
-                    {loadingTaskUsers ? (
-                      <div className="loading-users">
-                        <i className="fas fa-spinner fa-spin"></i> Loading users...
-                      </div>
-                    ) : taskUsers.length > 0 ? (
-                      taskUsers.map(user => (
-                        <div 
-                          key={user.id}
-                          className={`user-item ${selectedUser?.id === user.id ? 'selected' : ''}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (onTaskAssigneeSelect) {
-                              onTaskAssigneeSelect(note, user);
-                            }
-                            setShowTaskAssigneePopup(false);
-                          }}
-                        >
-                          <div className="user-avatar" style={{ backgroundColor: user.color || getRandomColor(user.id) }}>
-                            {user.avatar || getInitials(user.name)}
-                          </div>
-                          <div className="user-name">{user.name}</div>
-                          {selectedUser?.id === user.id && (
-                            <i className="fas fa-check user-check-icon"></i>
-                          )}
-                        </div>
-                      ))
-                    ) : (
-                      <div className="no-users">No users available</div>
-                    )}
-                  </div>
-                  
-                  {selectedUser && (
-                    <div className="user-popup-footer">
-                      <button 
-                        className="clear-button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (onTaskAssigneeSelect) {
-                            onTaskAssigneeSelect(note, null);
-                          }
-                          setShowTaskAssigneePopup(false);
-                        }}
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Status Button */}
-            <div style={{ position: 'relative' }} ref={statusIconRef}>
-              <div 
-                className={`task-icon-item ${selectedStatus ? 'has-value' : ''}`}
-                title="Status"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowTaskStatusPopup(!showTaskStatusPopup);
-                  setShowTaskDueDatePopup(false);
-                  setShowTaskAssigneePopup(false);
-                }}
-              >
-                <i className="fas fa-tasks"></i>
-                {selectedStatus && (
-                  <span className="icon-value status-badge" style={{ 
-                    backgroundColor: selectedStatus.bgColor,
-                    color: selectedStatus.color,
-                    border: `1px solid ${selectedStatus.color}`
-                  }}>
-                    <i className={`fas ${selectedStatus.icon}`} style={{ marginRight: '4px' }}></i>
-                    {selectedStatus.name}
-                  </span>
-                )}
-              </div>
-              
-              {/* Status Selection Popup */}
-              {showTaskStatusPopup && (
-                <div 
-                  className="status-popup task-popup" 
-                  ref={statusPopupRef}
-                >
-                  <div className="status-popup-header">
-                    <span className="status-popup-title">Select Status</span>
-                  </div>
-                  
-                  <div className="status-list-container">
-                    {statuses.map(status => (
-                      <div 
-                        key={status.id}
-                        className={`status-item ${selectedStatus?.id === status.id ? 'selected' : ''}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (onTaskStatusSelect) {
-                            onTaskStatusSelect(note, status);
-                          }
-                          setShowTaskStatusPopup(false);
-                        }}
-                        style={selectedStatus?.id === status.id ? { borderLeftColor: status.color } : {}}
-                      >
-                        <div className="status-icon-wrapper" style={{ 
-                          backgroundColor: status.bgColor,
-                          color: status.color
-                        }}>
-                          <i className={`fas ${status.icon}`}></i>
-                        </div>
-                        <div className="status-name">{status.name}</div>
-                        {selectedStatus?.id === status.id && (
-                          <i className="fas fa-check status-check-icon" style={{ color: status.color }}></i>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {selectedStatus && (
-                    <div className="status-popup-footer">
-                      <button 
-                        className="clear-button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (onTaskStatusSelect) {
-                            onTaskStatusSelect(note, null);
-                          }
-                          setShowTaskStatusPopup(false);
-                        }}
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </>
-        )}
-        
+        {/* Priority indicator and action buttons are common for both types */}
         <PriorityIndicator
           priorityValue={priorityValue}
           note={note}
@@ -871,10 +1356,7 @@ const AttachmentButton = ({ note, onClick }) => (
       onClick(note); 
     }}
   >
-    <i 
-      className="fas fa-paperclip" 
-      style={{ opacity: note.documentCount > 0 ? 1 : 0.3 }} 
-    />
+    <i className="fas fa-paperclip" style={{ opacity: note.documentCount > 0 ? 1 : 0.3 }} />
     <span>({note.documentCount || 0})</span>
   </button>
 );
@@ -960,6 +1442,8 @@ NoteCard.propTypes = {
   taskUsers: PropTypes.array,
   taskStatuses: PropTypes.array,
   loadingTaskUsers: PropTypes.bool,
+  userId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+  refreshNotes: PropTypes.func,
 };
 
 NoteCard.defaultProps = {
@@ -983,6 +1467,7 @@ NoteCard.defaultProps = {
   taskUsers: [],
   taskStatuses: [],
   loadingTaskUsers: false,
+  refreshNotes: () => {},
 };
 
 export default NoteCard;
