@@ -18,8 +18,6 @@ const NewNoteModal = forwardRef(
     {
       isOpen,
       onClose,
-      /* projects = [],
-    jobs = [], */
       refreshNotes,
       refreshFilteredNotes,
       addSiteNote,
@@ -31,6 +29,11 @@ const NewNoteModal = forwardRef(
       fetchNotesWithFilters,
       selectedFilters,
       hasActiveFilters,
+      viewMode = "cards",
+      refreshStackedView = null,
+      hasActiveSearchText,
+      performSearching,
+      searchTerm
     },
     ref,
   ) => {
@@ -83,18 +86,15 @@ const NewNoteModal = forwardRef(
     const editorRef = useRef(null);
     const hasFocusedRef = useRef(false);
     const searchInputRef = useRef(null);
+    const colorPickerRef = useRef(null);
+    const [showColorPicker, setShowColorPicker] = useState(false);
+    const [selectedColor, setSelectedColor] = useState("#000000");
     const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
 
     // Check if user has read-only access (role 3)
     const isReadOnly = defaultWorkspaceRole === 3;
 
-    console.log(
-      "defaultWorkspaceRole:",
-      defaultWorkspaceRole,
-      "isReadOnly:",
-      isReadOnly,
-    );
-
+   console.log(hasActiveSearchText)
     // Constants
     const ALLOWED_FILE_TYPES = {
       "image/jpeg": [".jpg", ".jpeg"],
@@ -125,6 +125,28 @@ const NewNoteModal = forwardRef(
       "video/quicktime": [".mov"],
       "video/x-msvideo": [".avi"],
     };
+    const colorOptions = [
+  { name: "Black", value: "#000000" },
+  { name: "Dark Gray", value: "#666666" },
+  { name: "Gray", value: "#999999" },
+  { name: "Light Gray", value: "#cccccc" },
+  { name: "White", value: "#ffffff" },
+  { name: "Red", value: "#ff0000" },
+  { name: "Dark Red", value: "#8b0000" },
+  { name: "Orange", value: "#ff9900" },
+  { name: "Brown", value: "#8b4513" },
+  { name: "Yellow", value: "#ffff00" },
+  { name: "Green", value: "#008000" },
+  { name: "Light Green", value: "#90ee90" },
+  { name: "Blue", value: "#0000ff" },
+  { name: "Light Blue", value: "#add8e6" },
+  { name: "Dark Blue", value: "#00008b" },
+  { name: "Purple", value: "#800080" },
+  { name: "Pink", value: "#ffc0cb" },
+  { name: "Hot Pink", value: "#ff69b4" },
+  { name: "Cyan", value: "#00ffff" },
+  { name: "Teal", value: "#008080" },
+];
 
     // Initialize SignalR connection when modal opens
     useEffect(() => {
@@ -410,98 +432,102 @@ const NewNoteModal = forwardRef(
       });
     };
 
-const handlePaste = useCallback(
-  (e) => {
-    if (!editorRef.current || isReadOnly) return;
+    const handlePaste = useCallback(
+      (e) => {
+        if (!editorRef.current || isReadOnly) return;
 
-    e.preventDefault();
-    const clipboardData = e.clipboardData || window.clipboardData;
+        e.preventDefault();
+        const clipboardData = e.clipboardData || window.clipboardData;
 
-    if (clipboardData.files && clipboardData.files.length > 0) {
-      const file = clipboardData.files[0];
+        if (clipboardData.files && clipboardData.files.length > 0) {
+          const file = clipboardData.files[0];
 
-      if (file.type.startsWith("image/")) {
-        processPastedImage(file)
-          .then((imgElement) => {
-            const selection = window.getSelection();
-            if (selection.rangeCount > 0) {
-              const range = selection.getRangeAt(0);
-              range.deleteContents();
-              range.insertNode(imgElement);
-              
-              const space = document.createTextNode(' ');
-              range.insertNode(space);
-              
-              range.setStartAfter(space);
-              range.collapse(true);
-            }
-            setRichTextContent(editorRef.current.innerHTML);
-          })
-          .catch((error) => {
-            console.error("Error processing pasted image:", error);
-            const plainText = clipboardData.getData('text/plain');
-            if (plainText) {
-              document.execCommand('insertText', false, plainText);
-            }
-          });
-        return;
+          if (file.type.startsWith("image/")) {
+            processPastedImage(file)
+              .then((imgElement) => {
+                const selection = window.getSelection();
+                if (selection.rangeCount > 0) {
+                  const range = selection.getRangeAt(0);
+                  range.deleteContents();
+                  range.insertNode(imgElement);
+
+                  const space = document.createTextNode(" ");
+                  range.insertNode(space);
+
+                  range.setStartAfter(space);
+                  range.collapse(true);
+                }
+                setRichTextContent(editorRef.current.innerHTML);
+              })
+              .catch((error) => {
+                console.error("Error processing pasted image:", error);
+                const plainText = clipboardData.getData("text/plain");
+                if (plainText) {
+                  document.execCommand("insertText", false, plainText);
+                }
+              });
+            return;
+          }
+        }
+
+        let htmlContent = clipboardData.getData("text/html");
+
+        if (htmlContent) {
+          htmlContent = cleanHtmlContent(htmlContent);
+          insertHtmlSafely(htmlContent);
+          return;
+        }
+
+        const plainText = clipboardData.getData("text/plain");
+        if (plainText) {
+          document.execCommand("insertText", false, plainText);
+          setRichTextContent(editorRef.current.innerHTML);
+        }
+      },
+      [isReadOnly],
+    );
+
+    const cleanHtmlContent = (html) => {
+      html = html.replace(/<o:p>|<\/o:p>/gi, "");
+      html = html.replace(/<w:.*?>|<\/w:.*?>/gi, "");
+      html = html.replace(/<xml.*?>.*?<\/xml>/gi, "");
+
+      html = html.replace(/ style="[^"]*"/gi, "");
+
+      html = html.replace(/ class="[^"]*"/gi, "");
+
+      html = html.replace(/ id="[^"]*"/gi, "");
+
+      html = html
+        .replace(/<b(\s[^>]*)?>/gi, "<strong>")
+        .replace(/<\/b>/gi, "</strong>");
+
+      html = html
+        .replace(/<i(\s[^>]*)?>/gi, "<em>")
+        .replace(/<\/i>/gi, "</em>");
+
+      html = html.replace(/<p>\s*<\/p>/gi, "");
+      html = html.replace(/<div>\s*<\/div>/gi, "");
+      html = html.replace(/<span>\s*<\/span>/gi, "");
+
+      html = html.replace(/\s+/g, " ").trim();
+
+      return html;
+    };
+
+    const insertHtmlSafely = (htmlContent) => {
+      try {
+        document.execCommand("insertHTML", false, htmlContent);
+      } catch (error) {
+        console.error("Failed to insert HTML:", error);
+        const plainText = htmlContent.replace(/<[^>]*>/g, "");
+        document.execCommand("insertText", false, plainText);
       }
-    }
 
-    let htmlContent = clipboardData.getData("text/html");
-    
-    if (htmlContent) {
-      htmlContent = cleanHtmlContent(htmlContent);
-      insertHtmlSafely(htmlContent);
-      return;
-    }
-
-    const plainText = clipboardData.getData("text/plain");
-    if (plainText) {
-      document.execCommand('insertText', false, plainText);
-      setRichTextContent(editorRef.current.innerHTML);
-    }
-  },
-  [isReadOnly],
-);
-
-const cleanHtmlContent = (html) => {
-  html = html.replace(/<o:p>|<\/o:p>/gi, '');
-  html = html.replace(/<w:.*?>|<\/w:.*?>/gi, '');
-  html = html.replace(/<xml.*?>.*?<\/xml>/gi, '');
-  
-  html = html.replace(/ style="[^"]*"/gi, '');
-  
-  html = html.replace(/ class="[^"]*"/gi, '');
-  
-  html = html.replace(/ id="[^"]*"/gi, '');
-  
-  html = html.replace(/<b(\s[^>]*)?>/gi, '<strong>').replace(/<\/b>/gi, '</strong>');
-  
-  html = html.replace(/<i(\s[^>]*)?>/gi, '<em>').replace(/<\/i>/gi, '</em>');
-  
-  html = html.replace(/<p>\s*<\/p>/gi, '');
-  html = html.replace(/<div>\s*<\/div>/gi, '');
-  html = html.replace(/<span>\s*<\/span>/gi, '');
-  
-  html = html.replace(/\s+/g, ' ').trim();
-  
-  return html;
-};
-
-const insertHtmlSafely = (htmlContent) => {
-  try {
-    document.execCommand('insertHTML', false, htmlContent);
-  } catch (error) {
-    console.error("Failed to insert HTML:", error);
-    const plainText = htmlContent.replace(/<[^>]*>/g, '');
-    document.execCommand('insertText', false, plainText);
-  }
-  
-  if (editorRef.current) {
-    setRichTextContent(editorRef.current.innerHTML);
-  }
-};
+      if (editorRef.current) {
+        setRichTextContent(editorRef.current.innerHTML);
+      }
+    };
 
     const handleImageUpload = useCallback(
       (e) => {
@@ -633,6 +659,7 @@ const insertHtmlSafely = (htmlContent) => {
         setPastedImages([]);
         setRichTextContent("");
         setShowEmojiPicker(false); // Close emoji picker when modal closes
+        setShowColorPicker(false);
       }
     }, [isOpen]);
 
@@ -917,6 +944,28 @@ const insertHtmlSafely = (htmlContent) => {
       );
     };
 
+    const handleColorSelect = (color) => {
+  if (isReadOnly) return;
+  
+  if (color) {
+    document.execCommand('foreColor', false, color);
+    setSelectedColor(color);
+  } else {
+    document.execCommand('removeFormat', false, null);
+    setSelectedColor("#000000");
+  }
+  
+  if (editorRef.current) {
+    setRichTextContent(editorRef.current.innerHTML);
+  }
+  
+  setShowColorPicker(false);
+  
+  if (editorRef.current) {
+    editorRef.current.focus();
+  }
+};
+
     // Get job options for dropdown
     const getJobOptions = () => {
       const options = [...filteredJobs];
@@ -1053,6 +1102,24 @@ const insertHtmlSafely = (htmlContent) => {
           document.removeEventListener("mousedown", handleClickOutside);
       }
     }, [showSearchResults]);
+    
+useEffect(() => {
+  const handleClickOutside = (event) => {
+    if (
+      showColorPicker &&
+      colorPickerRef.current &&
+      !colorPickerRef.current.contains(event.target) &&
+      !event.target.closest('.color-button')
+    ) {
+      setShowColorPicker(false);
+    }
+  };
+
+  if (showColorPicker) {
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }
+}, [showColorPicker]);
 
     // Prepare note content with images
     const prepareNoteContent = () => {
@@ -1431,16 +1498,45 @@ const insertHtmlSafely = (htmlContent) => {
           }
         }
 
+        // After successfully saving the note and uploading documents/images
         await handleAddPriority(siteNoteId, user.id);
-        if (hasActiveFilters && fetchNotesWithFilters) {
+
+        // Construct the full note object for UI updates
+        const newNoteObject = {
+          id: siteNoteId,
+          note: noteHtmlContent,
+          date: selectedDate,
+          timeStamp: new Date().toISOString(),
+          jobId: selectedJob,
+          job: selectedJobData?.name || selectedJob,
+          projectId: selectedProject,
+          project: selectedProjectData?.name || selectedProject,
+          workspaceId: selectedWorkspace,
+          workspace: userworksaces.find(
+            (w) => w.id.toString() === selectedWorkspace,
+          )?.name,
+          userName: user.name || user.username,
+          userId: user.id,
+          documentCount: documents.length,
+          inlineImageCount: pastedImages.length,
+        };
+
+        // INTELLIGENT REFRESH BASED ON VIEW MODE
+        if (viewMode === "stacked" && refreshStackedView) {
+          // Use the specialized stacked view refresh
+          await refreshStackedView(newNoteObject);
+        } else if (hasActiveFilters && fetchNotesWithFilters) {
           // If filters are active, refresh filtered notes
           await fetchNotesWithFilters(selectedFilters);
-        } else {
-          // Otherwise, use the normal refresh
+        } else if (hasActiveSearchText) {
+          // If filters are active, refresh filtered notes
+          await performSearching(searchTerm);
+        }
+         else {
+          // Otherwise, use normal refresh
           await refreshNotes();
         }
 
-        if (refreshFilteredNotes) refreshFilteredNotes();
         onClose();
         toast.success("Note saved successfully!");
       } catch (error) {
@@ -1738,6 +1834,53 @@ const insertHtmlSafely = (htmlContent) => {
           >
             <i className="fas fa-underline"></i>
           </button>
+
+        <div className="color-picker-wrapper" style={{ position: "relative", display: "inline-block" }}>
+          <button
+            onClick={() => !isReadOnly && setShowColorPicker(!showColorPicker)}
+            title={isReadOnly ? "Read-only mode" : "Text Color"}
+            className={`color-button ${showColorPicker ? "active" : ""} ${isReadOnly ? "disabled" : ""}`}
+            disabled={isReadOnly}
+            type="button"
+            style={{
+              border: `2px solid ${selectedColor}`,
+              backgroundColor: "white"
+            }}
+          >
+            <i className="fas fa-palette" style={{ color: selectedColor }}></i>
+          </button>
+          
+          {showColorPicker && !isReadOnly && (
+            <div className="color-picker-dropdown" ref={colorPickerRef}>
+              <div className="color-picker-header">
+                <span>Text Color</span>
+                <button onClick={() => setShowColorPicker(false)} className="close-color-picker">×</button>
+              </div>
+              <div className="color-grid">
+                {colorOptions.map((color) => (
+                  <button
+                    key={color.value}
+                    className={`color-option ${selectedColor === color.value ? "selected" : ""}`}
+                    style={{ 
+                      backgroundColor: color.value, 
+                      border: selectedColor === color.value ? '3px solid #333' : '2px solid transparent'
+                    }}
+                    onClick={() => handleColorSelect(color.value)}
+                    title={color.name}
+                  />
+                ))}
+              </div>
+              <div className="color-picker-footer">
+                <button 
+                  className="remove-color-button"
+                  onClick={() => handleColorSelect(null)}
+                >
+                  Remove Color
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
           <button
             onClick={() => formatText("insertUnorderedList")}
             title="Bullet List"
@@ -1897,7 +2040,6 @@ const insertHtmlSafely = (htmlContent) => {
               {errors.note && (
                 <span className="error-message-inline">{errors.note}</span>
               )}
-              
             </label>
 
             {!isReadOnly && renderEditorToolbar()}
@@ -2442,6 +2584,8 @@ NewNoteModal.propTypes = {
   fetchNotesWithFilters: PropTypes.func,
   selectedFilters: PropTypes.object,
   hasActiveFilters: PropTypes.bool,
+  viewMode: PropTypes.string,
+  refreshStackedView: PropTypes.func,
 };
 
 NewNoteModal.defaultProps = {
@@ -2455,6 +2599,8 @@ NewNoteModal.defaultProps = {
   fetchNotesWithFilters: null,
   selectedFilters: {},
   hasActiveFilters: false,
+  viewMode: "cards",
+  refreshStackedView: null,
 };
 
 export default NewNoteModal;

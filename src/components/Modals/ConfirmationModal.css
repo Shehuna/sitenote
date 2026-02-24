@@ -1,0 +1,63 @@
+.confirmation-modal {
+    max-width: 400px !important;
+    width: 90%;
+}
+
+.confirmation-modal .modal-body {
+    padding: 20px;
+    text-align: center;
+}
+
+.confirmation-modal .modal-body p {
+    margin: 0;
+    font-size: 1rem;
+    color: #333;
+    line-height: 1.5;
+}
+
+.confirmation-modal .modal-footer {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    padding: 15px 20px;
+    border-top: 1px solid #eee;
+}
+
+.confirmation-modal .btn-primary,
+.confirmation-modal .btn-secondary {
+    min-width: 100px;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.confirmation-modal .btn-primary {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+}
+
+.confirmation-modal .btn-primary:hover {
+    background-color: #c82333;
+}
+
+.confirmation-modal .btn-secondary {
+    background-color: #6c757d;
+    color: white;
+    border: none;
+}
+
+.confirmation-modal .btn-secondary:hover {
+    background-color: #5a6268;
+}
+
+/* Optional: Style for success/activate button (if you want green instead of red) */
+.confirmation-modal.activate .btn-primary {
+    background-color: #28a745;
+}
+
+.confirmation-modal.activate .btn-primary:hover {
+    background-color: #218838;
+}

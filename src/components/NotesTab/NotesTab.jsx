@@ -134,6 +134,17 @@ const {
   handlePopupMouseEnter, // Add this
   handlePopupMouseLeave, // Add this
 } = useNoteHover({ viewMode });
+const {
+  hoveredNoteContent,
+  hoveredNoteId,
+  notePopupPosition,
+  noteElementRect,
+  shouldShowNotePopup,
+  handleNoteTextMouseEnter,
+  handleNoteTextMouseLeave,
+  handlePopupMouseEnter, // Add this
+  handlePopupMouseLeave, // Add this
+} = useNoteHover({ viewMode });
 
   const {
     userStatusMap,
@@ -1146,3 +1157,4 @@ NotesTab.defaultProps = {
 };
 
 export default NotesTab;
+

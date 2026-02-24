@@ -1,0 +1,224 @@
+/* ProjectManagement.css */
+
+/* Archived projects list styles */
+.archived-projects-list {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: white;
+}
+
+.archived-project-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+    transition: background-color 0.2s;
+}
+
+.archived-project-item:hover {
+    background-color: #f9f9f9;
+}
+
+.archived-project-item:last-child {
+    border-bottom: none;
+}
+
+.archived-project-info {
+    flex: 1;
+}
+
+.archived-project-name {
+    font-weight: 600;
+    font-size: 1rem;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.archived-project-description {
+    font-size: 0.9rem;
+    color: #666;
+    margin-bottom: 4px;
+}
+
+.archived-project-meta {
+    font-size: 0.8rem;
+    color: #999;
+    display: flex;
+    gap: 15px;
+}
+
+.activate-button {
+    background-color: #4caf50;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    min-width: 100px;
+    transition: background-color 0.2s;
+    margin-left: 15px;
+}
+
+.activate-button:hover:not(:disabled) {
+    background-color: #45a049;
+}
+
+.activate-button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
+
+.archived-loading {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+}
+
+.no-archived-projects {
+    text-align: center;
+    padding: 50px;
+    color: #888;
+    background: #f9f9f9;
+    border-radius: 4px;
+}
+
+/* Search input styles */
+.search-input-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.project-search-input {
+    width: 100%;
+    padding: 8px 12px;
+    padding-right: 35px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
+.clear-search-btn {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #999;
+    cursor: pointer;
+    padding: 4px 8px;
+    font-size: 1rem;
+}
+
+.clear-search-btn:hover {
+    color: #333;
+}
+
+.search-results-info {
+    margin-top: 5px;
+    font-size: 0.85rem;
+    color: #666;
+}
+
+.project-search-container {
+    margin-bottom: 15px;
+}
+
+/* Autocomplete styles */
+.autocomplete-container {
+    position: relative;
+    width: 100%;
+}
+
+.autocomplete-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    max-height: 300px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    z-index: 1000;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.suggestions-header {
+    padding: 8px 12px;
+    background: #f5f5f5;
+    border-bottom: 1px solid #eee;
+    color: #666;
+    font-size: 0.85rem;
+}
+
+.suggestion-item {
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+.suggestion-item:hover,
+.suggestion-active {
+    background-color: #f0f7ff;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-name {
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 2px;
+}
+
+.suggestion-status {
+    font-size: 0.85rem;
+    color: #999;
+    font-weight: normal;
+    margin-left: 5px;
+}
+
+.suggestion-description {
+    font-size: 0.85rem;
+    color: #666;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.no-suggestions {
+    color: #999;
+    text-align: center;
+    padding: 20px;
+    cursor: default;
+}
+
+.no-suggestions:hover {
+    background: white;
+}
+
+/* Inactive project style */
+.inactive-project {
+    color: #999;
+    font-style: italic;
+}
+
+/* Form error */
+.form-error {
+    color: #d32f2f;
+    background: #ffebee;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}

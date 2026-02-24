@@ -455,9 +455,10 @@ const renderCollapsedStack = ({
                     marginBottom: "10px",
                     paddingBottom: "10px",
                     borderBottom: "1px solid #f0f0f0",
+                    flexShrink: 0, 
                   }}
                 >
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{
                         display: "flex",
@@ -468,7 +469,7 @@ const renderCollapsedStack = ({
                     >
                       <i
                         className="fas fa-briefcase"
-                        style={{ color: "#14A2B6" }}
+                        style={{ color: "#14A2B6", flexShrink: 0 }}
                       />
                       <div
                         style={{
@@ -479,16 +480,37 @@ const renderCollapsedStack = ({
                           flexDirection: "column",
                           alignItems: "flex-start",
                           gap: "2px",
+                          minWidth: 0, 
+                          width: "100%",
                         }}
                       >
-                        <span style={{ lineHeight: 1 }}>{job.jobName}</span>
+                        {/*truncation to job name */}
+                        <span 
+                          style={{ 
+                            lineHeight: 1,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            maxWidth: "160px", 
+                            display: "block",
+                          }}
+                          title={job.jobName}
+                        >
+                          {job.jobName}
+                        </span>
                         {projectName && (
-                          <span title={projectName}
+                          <span 
+                            title={projectName}
                             style={{
                               fontSize: "12px",
                               color: "#7f8c8d",
                               fontWeight: 400,
                               marginTop: "2px",
+                              whiteSpace: "nowrap", 
+                              overflow: "hidden", 
+                              textOverflow: "ellipsis", 
+                              maxWidth: "140px", 
+                              display: "block",
                             }}
                           >
                             {projectName}
@@ -497,7 +519,7 @@ const renderCollapsedStack = ({
                       </div>
                     </div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                     <div
                       style={{
                         display: "flex",
@@ -509,6 +531,8 @@ const renderCollapsedStack = ({
                         borderRadius: "20px",
                         fontSize: "12px",
                         fontWeight: 600,
+                        whiteSpace: "nowrap", 
+                        flexShrink: 0,
                       }}
                     >
                       <i className="fas fa-layer-group" />
@@ -516,12 +540,15 @@ const renderCollapsedStack = ({
                     </div>
                   </div>
                 </div>
+                
                 <div
                   style={{
                     flex: 1,
                     display: "flex",
                     flexDirection: "column",
                     gap: "10px",
+                    minHeight: 0, 
+                    overflow: "hidden",
                   }}
                 >
                   <div
@@ -529,6 +556,7 @@ const renderCollapsedStack = ({
                       display: "flex",
                       alignItems: "center",
                       gap: "10px",
+                      flexShrink: 0, 
                     }}
                   >
                     <div
@@ -543,25 +571,26 @@ const renderCollapsedStack = ({
                         justifyContent: "center",
                         fontSize: "12px",
                         fontWeight: "bold",
+                        flexShrink: 0,
                       }}
                     >
                       {job.lastSiteNoteUserName
                         ? job.lastSiteNoteUserName.charAt(0).toUpperCase()
                         : job.jobName?.charAt(0)?.toUpperCase() || "J"}
                     </div>
-                    <span style={{ fontSize: "14px", color: "#555" }}>
+                    <span style={{ fontSize: "14px", color: "#555", flexShrink: 0 }}>
                       {job.lastSiteNoteUserName ||
                         (job.notes && job.notes.length > 0 && job.notes[0].userName) ||
                         "Loading..."}
                     </span>
                   </div>
 
+                 
                   <div
                     style={{
                       fontSize: "13px",
                       color: "#666",
                       lineHeight: 1.4,
-                      flex: 1,
                       overflow: "hidden",
                       display: "-webkit-box",
                       WebkitLineClamp: 3,
@@ -572,6 +601,8 @@ const renderCollapsedStack = ({
                       borderLeft: "3px solid #21f869ff",
                       marginTop: "8px",
                       position: "relative",
+                      maxHeight: "70px", 
+                      flexShrink: 0, 
                     }}
                   >
                     <div
@@ -606,7 +637,7 @@ const renderCollapsedStack = ({
                     style={{
                       fontSize: "11px",
                       color: "#888",
-                      marginTop: "auto",
+                      marginTop: "auto", 
                       paddingTop: "8px",
                       borderTop: "1px dashed #e9ecef",
                       display: "flex",
@@ -705,12 +736,14 @@ const renderCollapsedStack = ({
                     </div>
                   </div>
                 </div>
+                
                 <div
                   style={{
                     textAlign: "center",
                     paddingTop: "10px",
                     borderTop: "1px dashed #e9ecef",
                     marginTop: "10px",
+                    flexShrink: 0,
                   }}
                 >
                   <div
@@ -729,18 +762,14 @@ const renderCollapsedStack = ({
               <div
                 style={{
                   height: "100%",
-                  background:
-                    "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)",
+                  background: "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   color: "#bdc3c7",
                 }}
               >
-                <i
-                  className="fas fa-sticky-note"
-                  style={{ fontSize: "24px" }}
-                />
+                <i className="fas fa-sticky-note" style={{ fontSize: "24px" }} />
               </div>
             )}
           </div>
@@ -894,7 +923,7 @@ const renderExpandedStack = ({
                 color: "#1976d2",
               }}
             >
-              <i className="fas fa-robot" />
+              <i className="fas fa-comments" />
             </button>
             
             {/* Settings button */}

@@ -284,7 +284,7 @@ tr.selected-row.priority-4 {
 
 .notes-grid {
   display: grid !important;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 350px)) !important;
   gap: 16px !important;
   width: 100% !important;
   height: calc(121vh - 400px) !important;
@@ -296,6 +296,7 @@ tr.selected-row.priority-4 {
   margin: 0 !important;
   box-sizing: border-box !important;
   position: relative !important;
+  align-items: start;
 }
 
 .note-card {
@@ -309,11 +310,14 @@ tr.selected-row.priority-4 {
   position: relative;
   display: flex;
   flex-direction: column;
-  min-height: 200px;
+  height: 200px !important; 
+  min-height: 200px !important;
+  max-height: 200px !important;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow: hidden !important; 
   margin-bottom: 0 !important;
   z-index: 10 !important;
+  width: 100%; 
 }
 
 .note-card:hover {
@@ -1022,7 +1026,7 @@ tr.selected-row.priority-4 {
 }
 
 .note-card {
-  overflow: visible !important;
+  overflow: hidden !important;
 }
 
 .notes-grid {
@@ -1432,6 +1436,14 @@ tr.selected-row.priority-4 {
   max-height: calc(150vh - 450px) !important;
   overflow-y: auto !important;
   padding: 10px 0 !important;
+}
+
+.expanded-notes-grid:has(> :nth-child(1):last-child) {
+  grid-template-columns: 350px;
+}
+
+.expanded-notes-grid:has(> :nth-child(2):last-child) {
+  grid-template-columns: repeat(2, 350px); 
 }
 
 .fixed-collapse-btn-wrapper {

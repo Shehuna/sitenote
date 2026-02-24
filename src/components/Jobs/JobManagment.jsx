@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import Modal from '../Modals/Modal';
+import ConfirmationModal from '../Modals/ConfirmationModal';
 import toast from 'react-hot-toast';
-import '../Modals/SettingsModal.css'
+import '../Modals/SettingsModal.css';
+import './JobManagment.css'; // Add this import
 
 const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) => {
     const [selectedJob, setSelectedJob] = useState('');
@@ -21,11 +23,18 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
     const [bulkSelectedProject, setBulkSelectedProject] = useState('');
     const [isAddJobOpen, setIsAddJobOpen] = useState(false);
     const [isEditJobOpen, setIsEditJobOpen] = useState(false);
+    // Add state for confirmation modal
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+    const [jobToActivate, setJobToActivate] = useState(null);
     const [allProjects, setAllProjects] = useState([]);
     const [workspaceUsers, setWorkspaceUsers] = useState([]);
     const [jobs, setJobs] = useState([]);
+    const [archivedJobs, setArchivedJobs] = useState([]);
     const [modalProjectError, setModalProjectError] = useState(false);
     const [pageLoading, setPageLoading] = useState(true);
+    const [archivedJobsLoading, setArchivedJobsLoading] = useState(false);
+    // Add this to toggle between active and archived views
+    const [showArchived, setShowArchived] = useState(false);
     const [activeTab, setActiveTab] = useState('single');
     const [pasteContent, setPasteContent] = useState('');
     const [parsedJobs, setParsedJobs] = useState([]);
@@ -44,6 +53,8 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
     const [projectsLoading, setProjectsLoading] = useState(false);
     const [usersLoading, setUsersLoading] = useState(false);
     const [editLoading, setEditLoading] = useState(false);
+    const [archivedSearchTerm, setArchivedSearchTerm] = useState('');
+    const [activatingJobId, setActivatingJobId] = useState(null);
     
     // New states for project jobs dropdown
     const [projectJobs, setProjectJobs] = useState([]);
@@ -61,8 +72,10 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
     const bulkDebounceRef = useRef(null);
     const modalContentRef = useRef(null);
     const editModalContentRef = useRef(null);
+    const archivedContentRef = useRef(null);
     const editTopRef = useRef(null);
     const addTopRef = useRef(null);
+    const archivedTopRef = useRef(null);
     
     // Add state for workspace name
     const [workspaceName, setWorkspaceName] = useState(defaultworkspace);
@@ -138,6 +151,13 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
             fetchJobData();
         }
     }, [isEditJobOpen, selectedJob]);
+    
+    // Fetch archived jobs when switching to archived view
+    useEffect(() => {
+        if (showArchived) {
+            fetchArchivedJobs();
+        }
+    }, [showArchived, user]);
     
     useEffect(() => {
         if (singleDebounceRef.current) {
@@ -279,6 +299,7 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
         setShowJobDropdown(false);
         setJobNameSearch('');
         setLoadingProjectJobs(false);
+        setArchivedSearchTerm('');
     };
     
     const scrollToTopImmediate = () => {
@@ -384,6 +405,96 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
         } finally {
             setPageLoading(false);
         }
+    };
+    
+    const fetchArchivedJobs = async () => {
+        if (!user) return;
+        
+        setArchivedJobsLoading(true);
+        try {
+            const response = await fetch(
+                `${process.env.REACT_APP_API_BASE_URL}/api/Job/GetMyJobsByStatus?userId=${user}&status=3`
+            );
+            
+            if (response.ok) {
+                const data = await response.json();
+                // Enhance jobs with project information
+                const enhancedJobs = data.jobs.map(job => {
+                    const project = allProjects.find(p => p.id === job.projectId);
+                    return {
+                        ...job,
+                        projectName: project?.name || 'Unknown Project',
+                        workspaceName: workspaceName
+                    };
+                });
+                setArchivedJobs(enhancedJobs);
+            } else {
+                toast.error('Failed to load archived jobs');
+            }
+        } catch (error) {
+            toast.error('Network error while loading archived jobs');
+        } finally {
+            setArchivedJobsLoading(false);
+        }
+    };
+    
+    // Updated handleActivateJob to use confirmation modal
+    const handleActivateClick = (job) => {
+        setJobToActivate(job);
+        setIsConfirmModalOpen(true);
+    };
+    
+    const handleConfirmActivate = async () => {
+        if (!jobToActivate) return;
+        
+        setIsConfirmModalOpen(false);
+        setActivatingJobId(jobToActivate.id);
+        
+        try {
+            // Prepare the update payload
+            const updatePayload = {
+                name: jobToActivate.name,
+                description: jobToActivate.description || '',
+                status: 1, // Set to Active
+                type: jobToActivate.type || null,
+                jobPriority: jobToActivate.jobPriority !== null ? jobToActivate.jobPriority : null,
+                startDate: jobToActivate.startDate || null,
+                endDate: jobToActivate.endDate || null,
+                actualEndDate: jobToActivate.actualEndDate || null,
+                managerId: jobToActivate.managerId !== null ? jobToActivate.managerId : null,
+                createdDate: jobToActivate.createdDate || new Date().toISOString()
+            };
+            
+            const response = await fetch(
+                `${process.env.REACT_APP_API_BASE_URL}/api/Job/UpdateJob/${jobToActivate.id}`,
+                {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updatePayload)
+                }
+            );
+            
+            if (!response.ok) {
+                throw new Error('Failed to activate job');
+            }
+            
+            toast.success('Job activated successfully');
+            
+            // Refresh both job lists
+            await fetchInitialData();
+            await fetchArchivedJobs();
+            
+        } catch (error) {
+            toast.error('Failed to activate job');
+        } finally {
+            setActivatingJobId(null);
+            setJobToActivate(null);
+        }
+    };
+    
+    const handleCancelActivate = () => {
+        setIsConfirmModalOpen(false);
+        setJobToActivate(null);
     };
     
     const loadAllProjects = async () => {
@@ -811,222 +922,30 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
             });
     }, [jobs, allProjects, jobSearchTerm, workspaceName]);
     
+    // Filtered archived jobs
+    const filteredArchivedJobs = useMemo(() => {
+        const searchLower = archivedSearchTerm.toLowerCase().trim();
+        return archivedJobs.filter(job => {
+            return job.name.toLowerCase().includes(searchLower) || 
+                   (job.projectName && job.projectName.toLowerCase().includes(searchLower)) ||
+                   workspaceName.toLowerCase().includes(searchLower);
+        });
+    }, [archivedJobs, archivedSearchTerm, workspaceName]);
+    
     return (
         <div className="settings-content" style={{ position: 'relative', minHeight: '400px' }}>
-            <style jsx>{`
-                @keyframes spin { to { transform: rotate(360deg); } }
-                .full-overlay {
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    bottom: 0;
-                    background: rgba(255,255,255,0.97);
-                    backdrop-filter: blur(10px);
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: flex-start;
-                    z-index: 9999;
-                    border-radius: 12px;
-                    text-align: center;
-                    padding: 0;
-                    box-sizing: border-box;
-                    padding-top: 80px;
-                }
-                .spinner {
-                    width: 60px;
-                    height: 60px;
-                    border: 6px solid #f3f3f3;
-                    border-top: 6px solid #007bff;
-                    border-radius: 50%;
-                    animation: spin 1s linear infinite;
-                    margin: 0 auto 16px;
-                    display: block;
-                }
-                .error-box {
-                    padding: 12px;
-                    background: #fff3e0;
-                    border-radius: 6px;
-                    text-align: center;
-                    font-size: 0.95rem;
-                }
-                .search-wrapper {
-                    position: relative;
-                }
-                .job-name-search-wrapper {
-                    position: relative;
-                }
-                .project-search-list {
-                    position: absolute;
-                    top: 100%;
-                    left: 0;
-                    width: 100%;
-                    max-height: 200px;
-                    overflow-y: auto;
-                    border: 1px solid #ddd;
-                    border-radius: 4px;
-                    background: white;
-                    list-style: none;
-                    padding: 0;
-                    z-index: 10;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                }
-                .project-search-list li {
-                    padding: 10px 15px;
-                    cursor: pointer;
-                    transition: background 0.2s ease;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    user-select: none; /* Prevent text selection */
-                }
-                .project-search-list li:hover {
-                    background: #f5f5f5;
-                }
-                .project-search-list li.selected {
-                    background: #e3f2fd;
-                }
-                .project-search-list li.double-clickable {
-                    cursor: pointer;
-                }
-                .dropdown-message {
-                    position: absolute;
-                    top: 100%;
-                    left: 0;
-                    width: 100%;
-                    background: white;
-                    border: 1px solid #ddd;
-                    border-radius: 4px;
-                    padding: 10px;
-                    text-align: center;
-                    z-index: 10;
-                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-                    box-sizing: border-box;
-                }
-                input[type="text"], select, textarea {
-                    box-sizing: border-box;
-                }
-                .modal-md {
-                    width: 600px;
-                    max-width: 90vw;
-                    height: auto;
-                    max-height: 80vh;
-                    overflow-y: auto;
-                }
-                .modal-sm {
-                    width: 600px;
-                    max-width: 90vw;
-                    height: auto;
-                    max-height: 80vh;
-                    overflow-y: auto;
-                }
-                .form-container {
-                    display: grid;
-                    grid-template-columns: repeat(2, 1fr);
-                    gap: 20px;
-                }
-                .form-group.full-width {
-                    grid-column: span 2;
-                }
-                .form-group {
-                    margin-bottom: 0;
-                }
-                .form-group label {
-                    display: block;
-                    margin-bottom: 5px;
-                    font-weight: 600;
-                }
-                .form-group input, .form-group select, .form-group textarea {
-                    width: 100%;
-                    padding: 8px;
-                    border: 1px solid #ddd;
-                    border-radius: 4px;
-                    font-size: 1rem;
-                }
-                .form-group textarea {
-                    min-height: 100px;
-                    resize: vertical;
-                }
-                
-                /* New styles for hierarchical display */
-                .job-path {
-                    display: flex;
-                    align-items: center;
-                    font-size: 0.95rem;
-                    flex: 1;
-                }
-                .path-separator {
-                    margin: 0 6px;
-                    color: #999;
-                }
-                .workspace-name, .project-name {
-                    color: #666;
-                    font-style: normal;
-                }
-                .job-name {
-                    font-size: 14px;
-                    font-weight: 900;
-                    color: #282828ff;
-                    font-style: normal;
-                }
-                .job-status-badge {
-                    font-size: 0.8rem;
-                    padding: 2px 6px;
-                    border-radius: 10px;
-                    margin-left: 8px;
-                }
-                .status-active {
-                    background-color: #e8f5e9;
-                    color: #2e7d32;
-                }
-                .status-inactive {
-                    background-color: #fff3e0;
-                    color: #f57c00;
-                }
-                .status-archive {
-                    background-color: #ffebee;
-                    color: #c62828;
-                }
-                
-                @media (max-width: 600px) {
-                    .modal-md {
-                        width: 90vw;
-                        max-height: 90vh;
-                    }
-                    .modal-sm {
-                        width: 90vw;
-                        max-height: 90vh;
-                    }
-                    .form-container {
-                        grid-template-columns: 1fr;
-                    }
-                    .form-group.full-width {
-                        grid-column: span 1;
-                    }
-                    .settings-content {
-                        min-height: auto;
-                    }
-                    .settings-action-buttons {
-                        flex-direction: column;
-                        gap: 10px;
-                    }
-                    .tab-container {
-                        flex-direction: column;
-                    }
-                    .job-path {
-                        flex-direction: column;
-                        align-items: flex-start;
-                    }
-                    .path-separator {
-                        display: none;
-                    }
-                    .workspace-name, .project-name {
-                        font-size: 0.85rem;
-                        color: #888;
-                    }
-                }
-            `}</style>
+            
+            {/* Confirmation Modal */}
+            <ConfirmationModal
+                isOpen={isConfirmModalOpen}
+                onClose={handleCancelActivate}
+                onConfirm={handleConfirmActivate}
+                title="Activate Job"
+                message={`Are you sure you want to activate "${jobToActivate?.name}"?`}
+                confirmText="Activate"
+                cancelText="Cancel"
+            />
+            
             {pageLoading && (
                 <div className="full-overlay">
                     <div className="spinner" />
@@ -1039,79 +958,147 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
                         <button className="btn-primary" onClick={() => setIsAddJobOpen(true)}>
                             Add Job
                         </button>
-                        <button className="btn-secondary" onClick={() => setIsEditJobOpen(true)} disabled={!selectedJob}>
-                            Edit Job
+                        {/* Add Archived Jobs button right next to Add Job */}
+                        <button 
+                            className={`btn ${showArchived ? 'btn-primary' : 'btn-secondary'}`} 
+                            onClick={() => setShowArchived(!showArchived)}
+                        >
+                            {showArchived ? 'Show Active Jobs' : 'Archived Jobs'}
                         </button>
                     </div>
-                    <div className="settings-lookup-list">
-                        <h4>Job Lookups</h4>
-                        {jobs.length === 0 ? (
-                            <div style={{textAlign:'center',padding:'50px',color:'#888'}}>
-                                No jobs found
-                            </div>
-                        ) : (
-                            <div className="search-wrapper">
+                    
+                    {/* Show either Active Jobs or Archived Jobs based on state */}
+                    {!showArchived ? (
+                        /* Active Jobs View */
+                        <div className="settings-lookup-list">
+                            <h4>Job Lookups</h4>
+                            {jobs.length === 0 ? (
+                                <div style={{textAlign:'center',padding:'50px',color:'#888'}}>
+                                    No jobs found
+                                </div>
+                            ) : (
+                                <div className="search-wrapper">
+                                    <input
+                                        type="text"
+                                        value={jobSearchTerm}
+                                        onChange={(e) => setJobSearchTerm(e.target.value)}
+                                        placeholder="Search by workspace, project, or job name..."
+                                        style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
+                                    />
+                                    {jobSearchTerm.trim() && filteredJobs.length === 0 && (
+                                        <div className="dropdown-message error-box">
+                                            No jobs match your search
+                                        </div>
+                                    )}
+                                    {!jobSearchTerm.trim() && filteredJobs.length === 0 && (
+                                        <div className="error-box">
+                                            No jobs available
+                                        </div>
+                                    )}
+                                    {filteredJobs.length > 0 && (
+                                        <ul className="project-search-list">
+                                            {filteredJobs.map(job => {
+                                                const isInactive = job.status !== 1;
+                                                return (
+                                                    <li
+                                                        key={job.id}
+                                                        className={`double-clickable ${selectedJob === job.id ? 'selected' : ''}`}
+                                                        onClick={() => handleJobClick(job.id)}
+                                                        onDoubleClick={() => handleJobDoubleClick(job.id)}
+                                                        style={{ cursor: 'pointer' }}
+                                                        title="Click to select, double-click to edit"
+                                                    >
+                                                        <div className="job-path">
+                                                            <span className="workspace-name">{job.workspaceName}</span>
+                                                            <span className="path-separator">→</span>
+                                                            <span className="workspace-name">{job.projectName}</span>
+                                                            <span className="path-separator">→</span>
+                                                            <span className="job-name">{job.name}</span>
+                                                        </div>
+                                                        {isInactive && (
+                                                            <span className={`job-status-badge ${
+                                                                job.status === 2 ? 'status-inactive' : 'status-archive'
+                                                            }`}>
+                                                                {job.status === 2 ? 'Inactive' : 'Archived'}
+                                                            </span>
+                                                        )}
+                                                        {!isInactive && job.status === 1 && (
+                                                            <span className="job-status-badge status-active">
+                                                                Active
+                                                            </span>
+                                                        )}
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        /* Archived Jobs View */
+                        <div className="settings-lookup-list" ref={archivedContentRef}>
+                            <h4>Archived Jobs</h4>
+                            <div className="search-wrapper" style={{ marginBottom: '20px' }}>
                                 <input
                                     type="text"
-                                    value={jobSearchTerm}
-                                    onChange={(e) => setJobSearchTerm(e.target.value)}
-                                    placeholder="Search by workspace, project, or job name..."
+                                    value={archivedSearchTerm}
+                                    onChange={(e) => setArchivedSearchTerm(e.target.value)}
+                                    placeholder="Search archived jobs..."
                                     style={{ width: '100%', padding: '8px', boxSizing: 'border-box' }}
                                 />
-                                {jobSearchTerm.trim() && filteredJobs.length === 0 && (
-                                    <div className="dropdown-message error-box">
-                                        No jobs match your search
-                                    </div>
-                                )}
-                                {!jobSearchTerm.trim() && filteredJobs.length === 0 && (
-                                    <div className="error-box">
-                                        No jobs available
-                                    </div>
-                                )}
-                                {filteredJobs.length > 0 && (
-                                    <ul className="project-search-list">
-                                        {filteredJobs.map(job => {
-                                            const isInactive = job.status !== 1;
-                                            return (
-                                                <li
-                                                    key={job.id}
-                                                    className={`double-clickable ${selectedJob === job.id ? 'selected' : ''}`}
-                                                    onClick={() => handleJobClick(job.id)}
-                                                    onDoubleClick={() => handleJobDoubleClick(job.id)}
-                                                    style={{ cursor: 'pointer' }}
-                                                    title="Click to select, double-click to edit"
-                                                >
-                                                    <div className="job-path">
-                                                        <span className="workspace-name">{job.workspaceName}</span>
-                                                        <span className="path-separator">→</span>
-                                                        <span className="workspace-name">{job.projectName}</span>
-                                                        <span className="path-separator">→</span>
-                                                        <span className="job-name">{job.name}</span>
-                                                    </div>
-                                                    {isInactive && (
-                                                        <span className={`job-status-badge ${
-                                                            job.status === 2 ? 'status-inactive' : 'status-archive'
-                                                        }`}>
-                                                            {job.status === 2 ? 'Inactive' : 'Archived'}
-                                                        </span>
-                                                    )}
-                                                    {!isInactive && job.status === 1 && (
-                                                        <span className="job-status-badge status-active">
-                                                            Active
-                                                        </span>
-                                                    )}
-                                                </li>
-                                            );
-                                        })}
-                                    </ul>
-                                )}
                             </div>
-                        )}
-                    </div>
+                            
+                            {archivedJobsLoading && (
+                                <div className="full-overlay" style={{ position: 'relative', minHeight: '200px' }}>
+                                    <div className="spinner" style={{ width: '40px', height: '40px', borderWidth: '4px' }} />
+                                    <p style={{fontSize:'1rem',fontWeight:'600',margin:'10px 0 0'}}>Loading archived jobs...</p>
+                                </div>
+                            )}
+                            
+                            {!archivedJobsLoading && archivedJobs.length === 0 && (
+                                <div style={{ textAlign: 'center', padding: '50px', color: '#888' }}>
+                                    No archived jobs found
+                                </div>
+                            )}
+                            
+                            {!archivedJobsLoading && filteredArchivedJobs.length === 0 && archivedSearchTerm.trim() && (
+                                <div className="error-box" style={{ marginTop: '10px' }}>
+                                    No archived jobs match your search
+                                </div>
+                            )}
+                            
+                            {!archivedJobsLoading && filteredArchivedJobs.length > 0 && (
+                                <ul className="project-search-list" style={{ position: 'relative', maxHeight: '400px', overflowY: 'auto' }}>
+                                    {filteredArchivedJobs.map(job => (
+                                        <li key={job.id} style={{ padding: '12px 15px' }}>
+                                            <div className="archived-job-item">
+                                                <div className="archived-job-info">
+                                                    <span className="archived-job-name">{job.name}</span>
+                                                    <span className="archived-job-meta">
+                                                        {job.workspaceName} → {job.projectName}
+                                                        {job.managerId && ` • Manager ID: ${job.managerId}`}
+                                                        {job.jobPriority && ` • Priority: ${job.jobPriority}`}
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    className="activate-button"
+                                                    onClick={() => handleActivateClick(job)}
+                                                    disabled={activatingJobId === job.id}
+                                                >
+                                                    {activatingJobId === job.id ? 'Activating...' : 'Activate'}
+                                                </button>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    )}
                 </>
             )}
             
-            {/* Add Job Modal */}
+            {/* Add Job Modal (unchanged) */}
             <Modal isOpen={isAddJobOpen} onClose={closeAddModal} title="Add Job" customClass="modal-md">
                 <div ref={modalContentRef} style={{ padding: '20px', position: 'relative' }}>
                     <div ref={addTopRef}></div>
@@ -1617,4 +1604,5 @@ const JobManagment = ({ defWorkId, updateProjectsAndJobs, defaultworkspace }) =>
         </div>
     );
 };
+
 export default JobManagment;
