@@ -1397,17 +1397,27 @@ const NoteFooter = ({
       </div>
       
       <div className="note-actions">
-        {/* Priority indicator and action buttons are common for both types */}
-        <PriorityIndicator
-          priorityValue={priorityValue}
-          note={note}
-          onClick={onPriorityClick}
-          onMouseEnter={onPriorityMouseEnter}
-          onMouseLeave={onPriorityMouseLeave}
-        />
+        {/* Priority indicator - only show for non-tasks */}
+        {!isTask && (
+          <PriorityIndicator
+            priorityValue={priorityValue}
+            note={note}
+            onClick={onPriorityClick}
+            onMouseEnter={onPriorityMouseEnter}
+            onMouseLeave={onPriorityMouseLeave}
+          />
+        )}
+        
+        {/* Add button - common for both */}
         <ActionButton icon="fas fa-plus" title="Add New Note" onClick={() => onAdd(note)} />
-        <ActionButton icon="fas fa-edit" title="Edit Note" onClick={() => onEdit(note)} />
-        <ActionButton icon="fas fa-trash" title="Delete Note" onClick={() => onDelete(note)} />
+        
+        {/* Edit button - common for both */}
+        <ActionButton icon="fas fa-edit" title={isTask ? "Edit Task" : "Edit Note"} onClick={() => onEdit(note)} />
+        
+        {/* Delete button - only show for non-tasks */}
+        {!isTask && (
+          <ActionButton icon="fas fa-trash" title="Delete Note" onClick={() => onDelete(note)} />
+        )}
       </div>
     </div>
   );
