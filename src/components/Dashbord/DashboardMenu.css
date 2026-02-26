@@ -991,7 +991,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1001; /* Higher z-index */
+  z-index: 100; /* Higher z-index */
 }
 
 .user-avatar:hover {
@@ -1280,7 +1280,7 @@
   align-items: center;
   justify-content: center;
   position: relative;
-  z-index: 104; /* Highest */
+  z-index: 10; /* Highest */
 }
 
 .user-dropdown {

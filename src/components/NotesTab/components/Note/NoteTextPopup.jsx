@@ -1,17 +1,20 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import PropTypes from "prop-types";
-import TooltipPortal from "../Shared/TooltipPortal"; // Changed from named import
+import TooltipPortal from "../Shared/TooltipPortal";
 import { highlightHtmlContent } from "../../utils/htmlUtils";
 
 const NoteTextPopup = ({
   content,
   position,
-  elementRect,
   searchTerm,
-  onClose,
   viewMode,
+  onMouseEnter,
+  onMouseLeave,
 }) => {
-  if (!content || !position) return null;
+  const [isVisible, setIsVisible] = useState(true);
+  const popupRef = useRef(null);
+
+  if (!content || !isVisible) return null;
 
   // Get popup width based on view mode
   const getPopupWidth = () => {
@@ -21,10 +24,20 @@ const NoteTextPopup = ({
       case "cards":
         return "300px";
       case "stacked":
-        return "300px";
+        return "350px";
       default:
-        return "300px";
+        return "350px";
     }
+  };
+
+  const handleClose = (e) => {
+    e.stopPropagation();
+    setIsVisible(false);
+  };
+
+  // Check if device is mobile/small screen
+  const isSmallDevice = () => {
+    return window.innerWidth <= 768; // You can adjust this breakpoint
   };
 
   const popupWidth = getPopupWidth();
@@ -46,9 +59,10 @@ const NoteTextPopup = ({
           width: popupWidth,
           maxWidth: popupWidth,
           fontSize: "13px",
-          pointerEvents: "none",
-          maxHeight: "250px",
-          overflowY: "hidden",
+          pointerEvents: "auto",
+          maxHeight: "200px", 
+          overflowY: "auto", 
+          opacity: "0.97"
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -57,6 +71,7 @@ const NoteTextPopup = ({
             color: "#333",
             lineHeight: 1.5,
             wordBreak: "break-word",
+            whiteSpace: "pre-wrap", // Preserve whitespace and wrap text
           }}
           dangerouslySetInnerHTML={{
             __html: highlightHtmlContent(content, searchTerm),
@@ -73,10 +88,10 @@ NoteTextPopup.propTypes = {
     x: PropTypes.number,
     y: PropTypes.number,
   }),
-  elementRect: PropTypes.object,
   searchTerm: PropTypes.string,
-  onClose: PropTypes.func,
   viewMode: PropTypes.string,
+  onMouseEnter: PropTypes.func,
+  onMouseLeave: PropTypes.func,
 };
 
 NoteTextPopup.defaultProps = {
@@ -84,6 +99,8 @@ NoteTextPopup.defaultProps = {
   position: { x: 0, y: 0 },
   searchTerm: "",
   viewMode: "table",
+  onMouseEnter: () => {},
+  onMouseLeave: () => {},
 };
 
 export default NoteTextPopup;

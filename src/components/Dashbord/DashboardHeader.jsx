@@ -535,6 +535,8 @@ const DashboardHeader = ({
         return "No workspaces available";
       case 'userName':
         return "No users available for the current filter combination";
+      case 'priority':
+        return "No priorities available for the current filter combination";
       default:
         return "No options available";
     }
@@ -652,6 +654,27 @@ const DashboardHeader = ({
                   getFilterOptions("userName"),
                   loadingFilterOptions["userName"],
                   getEmptyMessage("userName")
+                )}
+              </div>
+
+              {/* Priority Filter */}
+              <div className="filter-dropdown">
+                <button
+                  className="filter-button"
+                  onClick={() => toggleFilterDropdown("priority")}
+                >
+                  {getFilterButtonLabel("priority")}
+                  <i
+                    className={`fas fa-chevron-${
+                      filterDropdownOpen === "priority" ? "up" : "down"
+                    }`}
+                  />
+                </button>
+                {filterDropdownOpen === "priority" && renderDropdownContent(
+                  "priority", 
+                  getFilterOptions("priority"),
+                  loadingFilterOptions["priority"],
+                  getEmptyMessage("priority")
                 )}
               </div>
             </div>
@@ -831,6 +854,27 @@ const DashboardHeader = ({
                   getFilterOptions("userName"),
                   loadingFilterOptions["userName"],
                   getEmptyMessage("userName")
+                )}
+              </div>
+
+              {/* Priority Filter for mobile */}
+              <div className="mobile-filter-group">
+                <div
+                  className="mobile-filter-button"
+                  onClick={() => toggleFilterDropdown("priority")}
+                >
+                  {getFilterButtonLabel("priority")}
+                  <i
+                    className={`fas fa-chevron-${
+                      filterDropdownOpen === "priority" ? "up" : "down"
+                    }`}
+                  />
+                </div>
+                {filterDropdownOpen === "priority" && renderMobileDropdownContent(
+                  "priority",
+                  getFilterOptions("priority"),
+                  loadingFilterOptions["priority"],
+                  getEmptyMessage("priority")
                 )}
               </div>
             </div>

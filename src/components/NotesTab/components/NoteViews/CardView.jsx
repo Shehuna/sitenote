@@ -28,7 +28,7 @@ const CardView = ({
   renderCardImageIcon,
   isNoteReply,
   getReplyNoteId,
-  isOriginalNoteExists, // ADD THIS
+  isOriginalNoteExists,
   userStatusMap,
   loadingUsers,
   getPriorityValue,
@@ -44,6 +44,7 @@ const CardView = ({
   isProjectFiltered,
   isJobFiltered,
   isUserNameFiltered,
+  userId,
 }) => {
   if (isLoading) {
     return (
@@ -105,6 +106,7 @@ const CardView = ({
           manuallyUpdatedPriorities={manuallyUpdatedPriorities}
           shouldShowNotePopup={shouldShowNotePopup}
           ref={index === displayNotes.length - 1 ? lastCardRef : null}
+          userId={userId}
         />
       ))}
       

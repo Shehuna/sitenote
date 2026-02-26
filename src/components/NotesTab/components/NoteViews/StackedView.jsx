@@ -5,7 +5,10 @@ import { highlightHtmlContent } from "../../utils/htmlUtils";
 import { CardSkeleton } from "../Skeleton";
 import { NoteCard } from "../Note";
 import EditJobModal from "./EditJobModal";
+import TaskModal from "../../../Modals/TaskModal";
+import SlideshowModal from "./SlideshowModal";
 import { PRIORITY_VALUES, PRIORITY_LABELS, PRIORITY_COLORS } from "../../utils/constants";
+import toast from "react-hot-toast";
 
 const StackedView = ({
   stackedJobs,
@@ -44,10 +47,20 @@ const StackedView = ({
   isStackedViewLoading,
   isFilteringStacked,
   jobsToDisplay,
+  onSaveTask,
 }) => {
   const [localExpandedStacks, setLocalExpandedStacks] = useState({});
   const [editJobModalOpen, setEditJobModalOpen] = useState(false);
   const [jobToEdit, setJobToEdit] = useState(null);
+  const [taskModalOpen, setTaskModalOpen] = useState(false);
+  const [selectedJobForTask, setSelectedJobForTask] = useState(null);
+  const [isSavingTask, setIsSavingTask] = useState(false);
+  
+  // Slideshow state
+  const [slideshowOpen, setSlideshowOpen] = useState(false);
+  const [slideshowNotes, setSlideshowNotes] = useState([]);
+  const [slideshowJobName, setSlideshowJobName] = useState('');
+  const [slideshowStartIndex, setSlideshowStartIndex] = useState(0);
 
   // Track view mode changes
   useEffect(() => {
@@ -62,6 +75,50 @@ const StackedView = ({
       return () => clearTimeout(timer);
     }
   }, [hasActiveFilters]);
+
+  // Function to handle task creation
+  const handleCreateTask = (job) => {
+    setSelectedJobForTask({
+      id: job.jobId || job.id || job.jobID,
+      name: job.jobName,
+    });
+    setTaskModalOpen(true);
+  };
+
+  // Function to handle task save
+  const handleSaveTask = async (taskData) => {
+    setIsSavingTask(true);
+    try {
+      // Call the provided onSaveTask function
+      if (onSaveTask) {
+        await onSaveTask(taskData);
+        
+        // Show success message
+        toast.success(`Task "${taskData.taskName}" created successfully!`);
+        
+        // Close the modal
+        setTaskModalOpen(false);
+        setSelectedJobForTask(null);
+      }
+    } catch (error) {
+      console.error("Failed to save task:", error);
+      toast.error(`Failed to create task: ${error.message}`);
+    } finally {
+      setIsSavingTask(false);
+    }
+  };
+
+  // Function to handle opening slideshow
+  const handleOpenSlideshow = (job, startIndex = 0) => {
+    if (job.notes && job.notes.length > 0) {
+      setSlideshowNotes(job.notes);
+      setSlideshowJobName(job.jobName);
+      setSlideshowStartIndex(startIndex);
+      setSlideshowOpen(true);
+    } else {
+      toast.error('No notes available for slideshow');
+    }
+  };
 
   // Show loading spinner when switching to stacked view or filtering
   if (isStackedViewLoading || isFilteringStacked) {
@@ -161,7 +218,6 @@ const StackedView = ({
                 hasActiveFilters,
                 openAiDialogForJob,
                 renderStackedImageIcon,
-                // Note card props
                 selectedRow,
                 handleRowClick,
                 handleRowDoubleClick,
@@ -191,6 +247,8 @@ const StackedView = ({
                   setJobToEdit(j);
                   setEditJobModalOpen(true);
                 },
+                onCreateTask: handleCreateTask,
+                onOpenSlideshow: handleOpenSlideshow, // Pass slideshow handler
               })
             : renderCollapsedStack({
                 job,
@@ -202,6 +260,8 @@ const StackedView = ({
                   setJobToEdit(j);
                   setEditJobModalOpen(true);
                 },
+                onCreateTask: handleCreateTask,
+                onOpenSlideshow: handleOpenSlideshow, // Pass slideshow handler
               });
         })}
 
@@ -223,6 +283,30 @@ const StackedView = ({
             }}
           />
         )}
+
+        {/* Task Modal */}
+        {taskModalOpen && selectedJobForTask && (
+          <TaskModal
+            isOpen={taskModalOpen}
+            onClose={() => {
+              setTaskModalOpen(false);
+              setSelectedJobForTask(null);
+            }}
+            jobId={selectedJobForTask.id}
+            jobName={selectedJobForTask.name}
+            onSaveTask={handleSaveTask}
+            isLoading={isSavingTask}
+          />
+        )}
+
+        {/* Slideshow Modal */}
+        <SlideshowModal
+          isOpen={slideshowOpen}
+          onClose={() => setSlideshowOpen(false)}
+          notes={slideshowNotes}
+          currentNoteIndex={slideshowStartIndex}
+          jobName={slideshowJobName}
+        />
       </div>
     </div>
   );
@@ -273,7 +357,16 @@ const renderStackedViewLoading = () => (
   </div>
 );
 
-const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogForJob, toggleStackExpansion, onOpenEdit }) => {
+const renderCollapsedStack = ({ 
+  job, 
+  searchTerm, 
+  hasActiveFilters, 
+  openAiDialogForJob, 
+  toggleStackExpansion, 
+  onOpenEdit,
+  onCreateTask,
+  onOpenSlideshow 
+}) => {
   if (!job) return null;
 
   const jobName = job.jobName;
@@ -362,9 +455,10 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                     marginBottom: "10px",
                     paddingBottom: "10px",
                     borderBottom: "1px solid #f0f0f0",
+                    flexShrink: 0, 
                   }}
                 >
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{
                         display: "flex",
@@ -375,7 +469,7 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                     >
                       <i
                         className="fas fa-briefcase"
-                        style={{ color: "#14A2B6" }}
+                        style={{ color: "#14A2B6", flexShrink: 0 }}
                       />
                       <div
                         style={{
@@ -386,16 +480,37 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                           flexDirection: "column",
                           alignItems: "flex-start",
                           gap: "2px",
+                          minWidth: 0, 
+                          width: "100%",
                         }}
                       >
-                        <span style={{ lineHeight: 1 }}>{job.jobName}</span>
+                        {/*truncation to job name */}
+                        <span 
+                          style={{ 
+                            lineHeight: 1,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            maxWidth: "160px", 
+                            display: "block",
+                          }}
+                          title={job.jobName}
+                        >
+                          {job.jobName}
+                        </span>
                         {projectName && (
-                          <span title={projectName}
+                          <span 
+                            title={projectName}
                             style={{
                               fontSize: "12px",
                               color: "#7f8c8d",
                               fontWeight: 400,
                               marginTop: "2px",
+                              whiteSpace: "nowrap", 
+                              overflow: "hidden", 
+                              textOverflow: "ellipsis", 
+                              maxWidth: "140px", 
+                              display: "block",
                             }}
                           >
                             {projectName}
@@ -404,7 +519,7 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                       </div>
                     </div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                     <div
                       style={{
                         display: "flex",
@@ -416,20 +531,24 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                         borderRadius: "20px",
                         fontSize: "12px",
                         fontWeight: 600,
+                        whiteSpace: "nowrap", 
+                        flexShrink: 0,
                       }}
                     >
                       <i className="fas fa-layer-group" />
                       <span>{noteCount} notes</span>
                     </div>
-                  {/* Edit button moved to footer (next to chat) - icon changed to gear */}
                   </div>
                 </div>
+                
                 <div
                   style={{
                     flex: 1,
                     display: "flex",
                     flexDirection: "column",
                     gap: "10px",
+                    minHeight: 0, 
+                    overflow: "hidden",
                   }}
                 >
                   <div
@@ -437,6 +556,7 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                       display: "flex",
                       alignItems: "center",
                       gap: "10px",
+                      flexShrink: 0, 
                     }}
                   >
                     <div
@@ -451,25 +571,26 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                         justifyContent: "center",
                         fontSize: "12px",
                         fontWeight: "bold",
+                        flexShrink: 0,
                       }}
                     >
                       {job.lastSiteNoteUserName
                         ? job.lastSiteNoteUserName.charAt(0).toUpperCase()
                         : job.jobName?.charAt(0)?.toUpperCase() || "J"}
                     </div>
-                    <span style={{ fontSize: "14px", color: "#555" }}>
+                    <span style={{ fontSize: "14px", color: "#555", flexShrink: 0 }}>
                       {job.lastSiteNoteUserName ||
                         (job.notes && job.notes.length > 0 && job.notes[0].userName) ||
                         "Loading..."}
                     </span>
                   </div>
 
+                 
                   <div
                     style={{
                       fontSize: "13px",
                       color: "#666",
                       lineHeight: 1.4,
-                      flex: 1,
                       overflow: "hidden",
                       display: "-webkit-box",
                       WebkitLineClamp: 3,
@@ -480,6 +601,8 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                       borderLeft: "3px solid #21f869ff",
                       marginTop: "8px",
                       position: "relative",
+                      maxHeight: "70px", 
+                      flexShrink: 0, 
                     }}
                   >
                     <div
@@ -514,62 +637,113 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
                     style={{
                       fontSize: "11px",
                       color: "#888",
-                      marginTop: "auto",
+                      marginTop: "auto", 
                       paddingTop: "8px",
                       borderTop: "1px dashed #e9ecef",
                       display: "flex",
                       alignItems: "center",
                       gap: "6px",
+                      justifyContent: "space-between",
                     }}
                   >
-                    <i className="fas fa-clock" style={{ fontSize: "10px" }} />
-                    <span>
-                      {job.latestTimeStamp
-                        ? formatRelativeTime(job.latestTimeStamp)
-                        : "No updates"}
-                    </span>
-                    <button
-                      className="attachment-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openAiDialogForJob(job);
-                      }}
-                      title="Summarize notes (AI)"
-                      style={{ 
-                        background: 'transparent', 
-                        border: 'none', 
-                        cursor: 'pointer', 
-                        color: '#1976d2', 
-                        marginLeft: '8px'  
-                      }}
-                    >
-                      <i className="fas fa-comments" />   
-                    </button>
-                    <button
-                      className="attachment-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (typeof onOpenEdit === 'function') onOpenEdit(job);
-                      }}
-                      title="Edit job"
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: '#444',
-                        marginLeft: '6px'
-                      }}
-                    >
-                      <i className="fas fa-cog" />
-                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <i className="fas fa-clock" style={{ fontSize: "10px" }} />
+                      <span>
+                        {job.latestTimeStamp
+                          ? formatRelativeTime(job.latestTimeStamp)
+                          : "No updates"}
+                      </span>
+                    </div>
+                    
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      {/* Slideshow button */}
+                      <button
+                        className="attachment-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenSlideshow(job, 0);
+                        }}
+                        title="View slideshow"
+                        style={{ 
+                          background: 'transparent', 
+                          border: 'none', 
+                          cursor: 'pointer', 
+                          color: '#9b59b6', 
+                          fontSize: '14px'
+                        }}
+                      >
+                        <i className="fas fa-images" />
+                      </button>
+
+                      {/* AI Summarize button */}
+                      <button
+                        className="attachment-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openAiDialogForJob(job);
+                        }}
+                        title="Summarize notes (AI)"
+                        style={{ 
+                          background: 'transparent', 
+                          border: 'none', 
+                          cursor: 'pointer', 
+                          color: '#1976d2', 
+                          fontSize: '14px'
+                        }}
+                      >
+                        <i className="fas fa-comments" />   
+                      </button>
+                      
+                      {/* Create Task button */}
+                      <button
+                        className="create-task-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (typeof onCreateTask === 'function') onCreateTask(job);
+                        }}
+                        title="Create Task"
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <i className="fas fa-plus-circle" />
+                      </button>
+                      
+                      {/* Settings button */}
+                      <button
+                        className="attachment-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (typeof onOpenEdit === 'function') onOpenEdit(job);
+                        }}
+                        title="Edit job"
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: '#444',
+                          fontSize: '14px'
+                        }}
+                      >
+                        <i className="fas fa-cog" />
+                      </button>
+                    </div>
                   </div>
                 </div>
+                
                 <div
                   style={{
                     textAlign: "center",
                     paddingTop: "10px",
                     borderTop: "1px dashed #e9ecef",
                     marginTop: "10px",
+                    flexShrink: 0,
                   }}
                 >
                   <div
@@ -588,18 +762,14 @@ const renderCollapsedStack = ({ job, searchTerm, hasActiveFilters, openAiDialogF
               <div
                 style={{
                   height: "100%",
-                  background:
-                    "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)",
+                  background: "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   color: "#bdc3c7",
                 }}
               >
-                <i
-                  className="fas fa-sticky-note"
-                  style={{ fontSize: "24px" }}
-                />
+                <i className="fas fa-sticky-note" style={{ fontSize: "24px" }} />
               </div>
             )}
           </div>
@@ -641,17 +811,18 @@ const renderExpandedStack = ({
   shouldShowNotePopup,
   toggleStackExpansion,
   onOpenEdit,
+  onCreateTask,
+  onOpenSlideshow,
 }) => {
   if (!job) return null;
 
   const jobName = job.jobName;
   const projectName = job.projectName || job.project?.name || job.project?.projectName || job.project?.project?.name || job.projectName;
-  // Sort notes by timestamp (most recent first) when displaying
   const jobNotes = job.notes
     ? [...job.notes].sort((a, b) => {
         const timeA = new Date(a.timeStamp || a.date || 0).getTime();
         const timeB = new Date(b.timeStamp || b.date || 0).getTime();
-        return timeB - timeA; // Most recent first
+        return timeB - timeA;
       })
     : [];
   const isLoading = job.isLoadingNotes;
@@ -681,6 +852,63 @@ const renderExpandedStack = ({
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {/* Slideshow button */}
+            <button
+              className="attachment-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenSlideshow(job, 0);
+              }}
+              title="View slideshow"
+              style={{
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                color: "#9b59b6",
+                fontSize: "14px",
+                padding: "6px 12px",
+                borderRadius: "4px",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "rgba(155, 89, 182, 0.1)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+              }}
+            >
+              <i className="fas fa-images" />
+            </button>
+
+            {/* Create Task button */}
+            <button
+              className="create-task-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (typeof onCreateTask === 'function') onCreateTask(job);
+              }}
+              title="Create Task"
+              style={{
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "14px",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "6px 12px",
+                borderRadius: "4px",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "rgba(40, 167, 69, 0.2)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "rgba(40, 167, 69, 0.1)";
+              }}
+            >
+              <i className="fas fa-plus-circle" />
+            </button>
+            
+            {/* AI Summarize button */}
             <button
               className="attachment-btn"
               onClick={(e) => {
@@ -695,9 +923,10 @@ const renderExpandedStack = ({
                 color: "#1976d2",
               }}
             >
-              <i className="fas fa-robot" />
+              <i className="fas fa-comments" />
             </button>
-            {/* Edit job shortcut */}
+            
+            {/* Settings button */}
             <button
               className="attachment-btn"
               onClick={(e) => {
@@ -715,6 +944,7 @@ const renderExpandedStack = ({
               <i className="fas fa-cog" />
             </button>
 
+            {/* Note count display */}
             <div className="expanded-stack-count">
               <i className="fas fa-layer-group" />
               <span>
@@ -963,6 +1193,7 @@ StackedView.propTypes = {
   isStackedViewLoading: PropTypes.bool,
   isFilteringStacked: PropTypes.bool,
   jobsToDisplay: PropTypes.array,
+  onSaveTask: PropTypes.func,
 };
 
 StackedView.defaultProps = {
@@ -977,6 +1208,7 @@ StackedView.defaultProps = {
   isFilteringStacked: false,
   jobsToDisplay: [],
   isOriginalNoteExists: () => false,
+  onSaveTask: () => {},
 };
 
 export default StackedView;
