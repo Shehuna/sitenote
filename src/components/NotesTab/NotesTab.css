@@ -284,7 +284,7 @@ tr.selected-row.priority-4 {
 
 .notes-grid {
   display: grid !important;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 350px)) !important;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)) !important;
   gap: 16px !important;
   width: 100% !important;
   height: calc(121vh - 400px) !important;
