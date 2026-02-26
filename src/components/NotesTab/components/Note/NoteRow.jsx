@@ -100,7 +100,7 @@ const NoteRow = forwardRef(({
     note.assigneeId ? { id: note.assigneeId, name: note.assigneeName } : null
   );
   const [selectedStatus, setSelectedStatus] = useState(
-    TASK_STATUS_MAP[note.taskStatus] || TASK_STATUS_MAP[1]
+    TASK_STATUS_MAP[note.status] || TASK_STATUS_MAP[1]
   );
   
   // Users state

@@ -622,3 +622,59 @@
     text-overflow: ellipsis;
   }
 }
+/* Description textarea styles */
+.task-modal textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.task-modal textarea:focus {
+  outline: none;
+  border-color: #1976d2;
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.1);
+}
+
+.task-modal textarea:disabled {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Info message for auto-copy hint */
+.info-message {
+  display: inline-block;
+  padding: 2px 6px;
+  background-color: #e8f5e9;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+/* Adjust modal width for better text area display */
+.task-modal {
+  width: 500px !important;
+  max-width: 90vw;
+}
+
+/* Description hint tooltip */
+.description-hint {
+  font-size: 11px;
+  color: #666;
+  margin-top: 4px;
+  padding: 4px 8px;
+  background-color: #f5f5f5;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.description-hint i {
+  color: #1976d2;
+}

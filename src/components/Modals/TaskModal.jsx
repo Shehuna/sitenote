@@ -14,6 +14,7 @@ const TaskModal = ({
   const [taskData, setTaskData] = useState({
     taskId: "",
     taskName: "",
+    description: "", // Added description field
   });
   const [errors, setErrors] = useState({});
   const [isDragging, setIsDragging] = useState(false);
@@ -32,6 +33,8 @@ const TaskModal = ({
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [loggedInUserId, setLoggedInUserId] = useState(null);
+  // Add state to track if description was manually edited
+  const [isDescriptionManuallyEdited, setIsDescriptionManuallyEdited] = useState(false);
   
   const modalRef = useRef(null);
   const headerRef = useRef(null);
@@ -41,6 +44,8 @@ const TaskModal = ({
   const userPopupRef = useRef(null);
   const statusIconRef = useRef(null);
   const statusPopupRef = useRef(null);
+  const taskNameInputRef = useRef(null);
+  const descriptionTextareaRef = useRef(null);
 
   const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`
   const dummyStatuses = [
@@ -73,6 +78,7 @@ const TaskModal = ({
       setTaskData({
         taskId: "",
         taskName: "",
+        description: "", // Reset description
       });
       setSelectedDueDate(null);
       setSelectedUser(null);
@@ -82,17 +88,36 @@ const TaskModal = ({
       setShowStatusPopup(false);
       setCurrentMonth(new Date());
       setErrors({});
+      setIsDescriptionManuallyEdited(false); // Reset manual edit flag
     }
   }, [isOpen, jobId, loggedInUserId]);
 
   // Initialize modal position
   useEffect(() => {
     if (isOpen) {
-      const centerX = window.innerWidth / 2 - 200;
-      const centerY = window.innerHeight / 2 - 150;
+      const centerX = window.innerWidth / 2 - 250; // Increased width for better text area
+      const centerY = window.innerHeight / 2 - 200;
       setPosition({ x: centerX, y: centerY });
     }
   }, [isOpen]);
+
+  // Auto-copy task name to description when task name changes, but only if description hasn't been manually edited
+  useEffect(() => {
+    if (!isDescriptionManuallyEdited && taskData.taskName) {
+      setTaskData(prev => ({
+        ...prev,
+        description: prev.taskName // Copy task name to description
+      }));
+    } else if (!taskData.taskName) {
+      // If task name is empty, clear description only if it wasn't manually edited
+      if (!isDescriptionManuallyEdited) {
+        setTaskData(prev => ({
+          ...prev,
+          description: ""
+        }));
+      }
+    }
+  }, [taskData.taskName, isDescriptionManuallyEdited]);
 
   const fetchUsers = async () => {
     setLoadingUsers(true);
@@ -215,10 +240,32 @@ const TaskModal = ({
       [name]: value
     }));
     
+    // If editing description, set the manual edit flag
+    if (name === 'description') {
+      setIsDescriptionManuallyEdited(true);
+    }
+    
     if (errors[name]) {
       setErrors(prev => ({
         ...prev,
         [name]: undefined
+      }));
+    }
+  };
+
+  // Handle description change separately to track manual edits
+  const handleDescriptionChange = (e) => {
+    const { value } = e.target;
+    setTaskData(prev => ({
+      ...prev,
+      description: value
+    }));
+    setIsDescriptionManuallyEdited(true);
+    
+    if (errors.description) {
+      setErrors(prev => ({
+        ...prev,
+        description: undefined
       }));
     }
   };
@@ -234,6 +281,7 @@ const TaskModal = ({
     // Prepare the payload for the API
     const payload = {
       title: taskData.taskName,
+      description: taskData.description || taskData.taskName, // Use description if available, otherwise task name
       assigneeId: selectedUser?.id || null,
       createdById: loggedInUserId,
       jobId: parseInt(jobId),
@@ -260,6 +308,7 @@ const TaskModal = ({
           ...savedTask,
           taskId: taskData.taskId, 
           taskName: taskData.taskName,
+          description: taskData.description || taskData.taskName,
           jobId: jobId,
           jobName: jobName,
           dueDate: selectedDueDate,
@@ -267,10 +316,11 @@ const TaskModal = ({
           status: selectedStatus
         });
       }
-      toast.success(`Task for ${jobName} is created successfully`)
+      toast.success(`Task for ${jobName} is created successfully`);
       onClose(); 
     } catch (error) {
       console.error('Error saving task:', error);
+      toast.error('Failed to create task');
     }
   };
 
@@ -443,6 +493,7 @@ const TaskModal = ({
           top: `${position.y}px`,
           transform: 'translate(0, 0)',
           zIndex: 1000,
+          width: '500px', // Increased width for better text area
         }}
         onKeyDown={handleKeyDown}
       >
@@ -451,7 +502,7 @@ const TaskModal = ({
           className="task-modal-header"
           style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
         >
-          <h3>New Task</h3>
+          <h3>New Task for {jobName}</h3>
           <button 
             className="close-button"
             onClick={onClose}
@@ -494,7 +545,46 @@ const TaskModal = ({
               placeholder="Enter Task Name"
               disabled={isLoading}
               autoFocus
+              ref={taskNameInputRef}
             />
+          </div>
+
+          {/* New Description Textarea */}
+          <div className="form-group">
+            <label htmlFor="description">
+              Task Description
+              {/* {taskData.description === taskData.taskName && taskData.taskName && !isDescriptionManuallyEdited && (
+                <span className="info-message" style={{ 
+                  marginLeft: '8px', 
+                  fontSize: '11px', 
+                  color: '#28a745',
+                  fontStyle: 'italic'
+                }}>
+                  (Auto-copied from task name - you can edit this)
+                </span>
+              )} */}
+            </label>
+            <textarea
+              id="description"
+              name="description"
+              value={taskData.description}
+              onChange={handleDescriptionChange}
+              placeholder="Enter task description "
+              disabled={isLoading}
+              rows="3"
+              ref={descriptionTextareaRef}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                fontSize: '14px',
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                minHeight: '80px'
+              }}
+            />
+           
           </div>
 
           {/* Icons section */}

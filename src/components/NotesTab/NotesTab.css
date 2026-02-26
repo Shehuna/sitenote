@@ -359,7 +359,8 @@ tr.selected-row.priority-4 {
 }
 .user-avatar-wrapper {
   position: relative;
-  display: inline-block;
+  display: flex;
+  
 }
 
 .user-avatar-wrapper:hover .user-tooltip {
@@ -400,6 +401,7 @@ tr.selected-row.priority-4 {
 .note-meta {
   flex: 1;
   min-width: 0;
+  margin-left: -15px;
 }
 
 .draggable-value {
@@ -410,8 +412,8 @@ tr.selected-row.priority-4 {
   margin: 2px 0;
 }
 .context-item.job {
-  font-weight: bold !important;
-  color: #000 !important;
+  font-weight: 600 !important;
+  color: #4d4d4d !important;
 }
 .context-item.workspace-project {
   max-width: none !important; 
@@ -445,6 +447,7 @@ tr.selected-row.priority-4 {
   font-size: 12px;
   color: #7f8c8d;
   margin-top: -4px !important;
+  margin-left: 4px;
 }
 
 .note-context {
@@ -631,7 +634,7 @@ tr.selected-row.priority-4 {
   
   .note-header {
     flex-wrap: nowrap !important; 
-    gap: 12px;
+    gap: 4px;
   }
   
   .note-context {

@@ -107,7 +107,7 @@ const NoteCard = forwardRef((props, ref) => {
     note.assigneeId ? { id: note.assigneeId, name: note.assigneeName } : null
   );
   const [selectedStatus, setSelectedStatus] = useState(
-    TASK_STATUS_MAP[note.taskStatus] || TASK_STATUS_MAP[1]
+    TASK_STATUS_MAP[note.status] || TASK_STATUS_MAP[1]
   );
   
   // Users state
@@ -137,121 +137,121 @@ const NoteCard = forwardRef((props, ref) => {
   const isTask = note.itemType === "Task";
 
   // Function to update task with toast notifications
- // Function to update task with toast notifications - ONLY FUNCTIONALITY FIXED
-const updateTask = useCallback(async (updates) => {
-  if (!note.taskId) {
-    console.error("No taskId found for note:", note);
-    toast.error("Cannot update task: Task ID not found");
-    return;
-  }
-
-  setUpdatingTask(true);
-  
-  // Determine what's being updated for the toast message
-  let updateType = '';
-  if (updates.dueDate !== undefined) updateType = 'Due date';
-  else if (updates.assigneeId !== undefined) updateType = 'Assignee';
-  else if (updates.status !== undefined) updateType = 'Status';
-  
-  try {
-    // Get the current assignee ID (must be included in all updates)
-    const currentAssigneeId = selectedAssignee?.id;
-    
-    // If we're updating due date or status and there's no assignee, we have a problem
-    if ((updates.dueDate !== undefined || updates.status !== undefined) && !currentAssigneeId) {
-      toast.error("Please select an assignee first");
-      setUpdatingTask(false);
+  const updateTask = useCallback(async (updates) => {
+    if (!note.taskId) {
+      console.error("No taskId found for note:", note);
+      toast.error("Cannot update task: Task ID not found");
       return;
     }
 
-    // Build the complete task payload - ALWAYS include the current assigneeId
-    const payload = {
-      title: note.title || note.note || "",
-      description: note.note || "",
-      startDate: note.startDate || new Date().toISOString(),
-      endDate: note.endDate || null,
-      dueDate: selectedDueDate || null,
-      assigneeId: currentAssigneeId || 0, // Always include assigneeId (use 0 if none, but API will reject)
-      createdById: note.userId || userId,
-      jobId: note.jobId || 0,
-      status: selectedStatus?.id || 1,
-      ...updates // Override with any updates passed
-    };
-
-    // If this is an assignee update, use the new assigneeId
-    if (updates.assigneeId !== undefined) {
-      payload.assigneeId = updates.assigneeId;
-    }
-
-    console.log("Updating task with payload:", payload);
-
-    const response = await fetch(`${apiUrl}/api/JobTasks/${note.taskId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
+    setUpdatingTask(true);
+    
+    // Determine what's being updated for the toast message
+    let updateType = '';
+    if (updates.dueDate !== undefined) updateType = 'Due date';
+    else if (updates.assigneeId !== undefined) updateType = 'Assignee';
+    else if (updates.status !== undefined) updateType = 'Status';
+    
+    try {
+      // Get the current assignee ID (must be included in all updates)
+      const currentAssigneeId = selectedAssignee?.id;
       
-      // Check for specific error about assigneeId
-      if (errorText.includes('assigneeId') || errorText.includes('foreign key')) {
-        throw new Error('Please select a valid assignee first.');
+      // If we're updating due date or status and there's no assignee, we have a problem
+      if ((updates.dueDate !== undefined || updates.status !== undefined) && !currentAssigneeId) {
+        toast.error("Please select an assignee first");
+        setUpdatingTask(false);
+        return;
+      }
+
+      // Build the complete task payload - ALWAYS include the current assigneeId
+      const payload = {
+        title: note.title || note.note || "",
+        description: note.note || "",
+        startDate: note.startDate || new Date().toISOString(),
+        endDate: note.endDate || null,
+        dueDate: selectedDueDate || null,
+        assigneeId: currentAssigneeId || 0, // Always include assigneeId (use 0 if none, but API will reject)
+        createdById: note.userId || userId,
+        jobId: note.jobId || 0,
+        status: selectedStatus?.id || 1,
+        ...updates // Override with any updates passed
+      };
+
+      // If this is an assignee update, use the new assigneeId
+      if (updates.assigneeId !== undefined) {
+        payload.assigneeId = updates.assigneeId;
+      }
+
+      console.log("Updating task with payload:", payload);
+
+      const response = await fetch(`${apiUrl}/api/JobTasks/${note.taskId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        
+        // Check for specific error about assigneeId
+        if (errorText.includes('assigneeId') || errorText.includes('foreign key')) {
+          throw new Error('Please select a valid assignee first.');
+        }
+        
+        throw new Error(`Failed to update task: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log("Task updated successfully:", result);
+      
+      // Show success toast
+      if (updateType) {
+        toast.success(`${updateType} updated successfully`);
+      } else {
+        toast.success("Task updated successfully");
       }
       
-      throw new Error(`Failed to update task: ${response.status} - ${errorText}`);
+      // Call the parent's callback if provided
+      if (updates.dueDate !== undefined && onTaskDueDateSelect) {
+        onTaskDueDateSelect(note, updates.dueDate);
+      }
+      if (updates.assigneeId !== undefined && onTaskAssigneeSelect) {
+        onTaskAssigneeSelect(note, { id: updates.assigneeId });
+      }
+      if (updates.status !== undefined && onTaskStatusSelect) {
+        onTaskStatusSelect(note, { id: updates.status });
+      }
+      
+      // Trigger refresh if available
+      if (refreshNotes) {
+        refreshNotes();
+      }
+      
+      return result;
+    } catch (error) {
+      console.error("Error updating task:", error);
+      
+      // Show error toast with specific message
+      let errorMessage = `Failed to update ${updateType.toLowerCase() || 'task'}`;
+      
+      if (error.message.includes('Failed to fetch')) {
+        errorMessage = "Network error. Please check your connection.";
+      } else if (error.message.includes('500')) {
+        errorMessage = "Server error. Please try again later.";
+      } else if (error.message.includes('foreign key') || error.message.includes('assigneeId')) {
+        errorMessage = "Please select a valid assignee first.";
+      } else {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
+    } finally {
+      setUpdatingTask(false);
     }
+  }, [note, selectedDueDate, selectedAssignee, selectedStatus, userId, apiUrl, onTaskDueDateSelect, onTaskAssigneeSelect, onTaskStatusSelect, refreshNotes]);
 
-    const result = await response.json();
-    console.log("Task updated successfully:", result);
-    
-    // Show success toast
-    if (updateType) {
-      toast.success(`${updateType} updated successfully`);
-    } else {
-      toast.success("Task updated successfully");
-    }
-    
-    // Call the parent's callback if provided
-    if (updates.dueDate !== undefined && onTaskDueDateSelect) {
-      onTaskDueDateSelect(note, updates.dueDate);
-    }
-    if (updates.assigneeId !== undefined && onTaskAssigneeSelect) {
-      onTaskAssigneeSelect(note, { id: updates.assigneeId });
-    }
-    if (updates.status !== undefined && onTaskStatusSelect) {
-      onTaskStatusSelect(note, { id: updates.status });
-    }
-    
-    // Trigger refresh if available
-    if (refreshNotes) {
-      refreshNotes();
-    }
-    
-    return result;
-  } catch (error) {
-    console.error("Error updating task:", error);
-    
-    // Show error toast with specific message
-    let errorMessage = `Failed to update ${updateType.toLowerCase() || 'task'}`;
-    
-    if (error.message.includes('Failed to fetch')) {
-      errorMessage = "Network error. Please check your connection.";
-    } else if (error.message.includes('500')) {
-      errorMessage = "Server error. Please try again later.";
-    } else if (error.message.includes('foreign key') || error.message.includes('assigneeId')) {
-      errorMessage = "Please select a valid assignee first.";
-    } else {
-      errorMessage = error.message;
-    }
-    
-    toast.error(errorMessage);
-  } finally {
-    setUpdatingTask(false);
-  }
-}, [note, selectedDueDate, selectedAssignee, selectedStatus, userId, apiUrl, onTaskDueDateSelect, onTaskAssigneeSelect, onTaskStatusSelect, refreshNotes]);
   // Function to fetch users with toast error
   const fetchUsers = useCallback(async () => {
     if (!userId) {
@@ -537,6 +537,32 @@ const updateTask = useCallback(async (updates) => {
     setPopupPosition(prev => ({ ...prev, status: calculatePopupPosition(statusIconRef) }));
   };
 
+  // Function to render status icon based on status ID
+// Function to render status icon based on status ID
+// Function to render status icon based on status ID
+const renderStatusIcon = () => {
+  const statusId = selectedStatus?.id;
+  const color = selectedStatus?.color || '#6c757d';
+  
+  switch(statusId) {
+    case 1: // To Do
+      return <i className="fas fa-check" style={{ fontSize: '14px', color: color }}></i>;
+    
+    case 2: // In Progress
+      return <i className="fas fa-check-double" style={{ fontSize: '14px', color: color }}></i>;
+    
+    case 3: // Blocked
+      return <i className="fas fa-times" style={{ fontSize: '16px', color: color }}></i>;
+    
+    case 4: // Done - Triple tick (if available in your Font Awesome version)
+      // Check if fa-check-triple exists, otherwise use stacked approach
+      return <i className="fas fa-check-circle" style={{ fontSize: '16px', color: color }}></i>;
+    
+    default:
+      return <i className="fas fa-check" style={{ fontSize: '14px', color: '#6c757d' }}></i>;
+  }
+};
+
   return (
     <>
       <div
@@ -601,6 +627,7 @@ const updateTask = useCallback(async (updates) => {
           assigneeIconRef={assigneeIconRef}
           statusIconRef={statusIconRef}
           updatingTask={updatingTask}
+          renderStatusIcon={renderStatusIcon}
         />
       </div>
 
@@ -770,7 +797,7 @@ const AssigneePopup = ({
         borderRadius: "8px",
         boxShadow: "0 8px 30px rgba(0, 0, 0, 0.2)",
         width: "240px",
-        maxHeight: "350px", // Increased height for better visibility
+        maxHeight: "350px",
         display: "flex",
         flexDirection: "column",
         opacity: 1,
@@ -797,7 +824,6 @@ const AssigneePopup = ({
         </div>
       )}
       
-      {/* Fixed header - doesn't scroll */}
       <div style={{ 
         padding: "12px", 
         borderBottom: "1px solid #eee", 
@@ -820,7 +846,6 @@ const AssigneePopup = ({
         )}
       </div>
       
-      {/* Scrollable content area - with proper max-height */}
       <div style={{ 
         maxHeight: "200px", 
         overflowY: "auto",
@@ -838,63 +863,60 @@ const AssigneePopup = ({
             {error}
           </div>
         ) : users && users.length > 0 ? (
-          <>
-            
-            {users.map(user => (
-              <div 
-                key={user.id}
-                onClick={() => !updating && onTaskAssigneeSelect(user)}
-                style={{
-                  padding: "10px 12px",
-                  cursor: updating ? "not-allowed" : "pointer",
-                  backgroundColor: selectedUser?.id === user.id ? "#e3f2fd" : "transparent",
-                  borderBottom: "1px solid #f5f5f5",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  opacity: updating ? 0.5 : 1,
-                  transition: "background-color 0.2s ease"
-                }}
-                onMouseEnter={(e) => {
-                  if (!updating) {
-                    e.currentTarget.style.backgroundColor = selectedUser?.id === user.id ? "#e3f2fd" : "#f5f5f5";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!updating) {
-                    e.currentTarget.style.backgroundColor = selectedUser?.id === user.id ? "#e3f2fd" : "transparent";
-                  }
-                }}
-              >
-                <div style={{ 
-                  width: "30px", 
-                  height: "30px", 
-                  borderRadius: "50%", 
-                  backgroundColor: user.color || getRandomColor(user.id),
-                  color: "white",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontWeight: "bold",
-                  fontSize: "12px",
-                  flexShrink: 0
-                }}>
-                  {getInitials(user.name)}
-                </div>
-                <span style={{ 
-                  overflow: "hidden", 
-                  textOverflow: "ellipsis", 
-                  whiteSpace: "nowrap",
-                  flex: 1
-                }}>
-                  {user.name}
-                </span>
-                {selectedUser?.id === user.id && (
-                  <i className="fas fa-check" style={{ marginLeft: "auto", color: "#1976d2", flexShrink: 0 }}></i>
-                )}
+          users.map(user => (
+            <div 
+              key={user.id}
+              onClick={() => !updating && onTaskAssigneeSelect(user)}
+              style={{
+                padding: "10px 12px",
+                cursor: updating ? "not-allowed" : "pointer",
+                backgroundColor: selectedUser?.id === user.id ? "#e3f2fd" : "transparent",
+                borderBottom: "1px solid #f5f5f5",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                opacity: updating ? 0.5 : 1,
+                transition: "background-color 0.2s ease"
+              }}
+              onMouseEnter={(e) => {
+                if (!updating) {
+                  e.currentTarget.style.backgroundColor = selectedUser?.id === user.id ? "#e3f2fd" : "#f5f5f5";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!updating) {
+                  e.currentTarget.style.backgroundColor = selectedUser?.id === user.id ? "#e3f2fd" : "transparent";
+                }
+              }}
+            >
+              <div style={{ 
+                width: "30px", 
+                height: "30px", 
+                borderRadius: "50%", 
+                backgroundColor: user.color || getRandomColor(user.id),
+                color: "white",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: "bold",
+                fontSize: "12px",
+                flexShrink: 0
+              }}>
+                {getInitials(user.name)}
               </div>
-            ))}
-          </>
+              <span style={{ 
+                overflow: "hidden", 
+                textOverflow: "ellipsis", 
+                whiteSpace: "nowrap",
+                flex: 1
+              }}>
+                {user.name}
+              </span>
+              {selectedUser?.id === user.id && (
+                <i className="fas fa-check" style={{ marginLeft: "auto", color: "#1976d2", flexShrink: 0 }}></i>
+              )}
+            </div>
+          ))
         ) : (
           <div style={{ padding: "20px", textAlign: "center", color: "#999" }}>
             <i className="fas fa-users" style={{ marginRight: "8px", fontSize: "24px", opacity: 0.5 }}></i>
@@ -1128,7 +1150,7 @@ const NoteMeta = ({
           alignItems: 'center',
           gap: '4px',
           padding: '2px 4px',
-          marginLeft: '-4px', 
+          
           borderRadius: '3px',
           backgroundColor: userNameFiltered ? 'rgba(52, 152, 219, 0.1)' : 'transparent',
           transition: 'all 0.2s ease'
@@ -1166,10 +1188,32 @@ const NoteContext = ({
 
   // Check if this is a task
   const isTask = note.itemType === "Task";
-  const taskName = note.title || note.note || ""; // Use title for task name, fallback to note
+  const taskName = note.title || note.note || "";
 
   return (
     <div className="note-context">
+       {isTask && taskName && (
+          <>
+            
+            <span 
+              className="task-name"
+              style={{
+                color: '#000',
+                fontWeight: '700',
+                fontSize: "12px",
+                maxWidth: '150px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                display: 'inline-block',
+                verticalAlign: 'middle'
+              }}
+              title={taskName}
+            >
+              {taskName.length > 30 ? `${taskName.substring(0, 30)}...` : taskName}
+            </span>
+          </>
+        )}
       <div 
         className="context-item job"
         title={`Click to filter by job: ${note.job}`}
@@ -1187,28 +1231,7 @@ const NoteContext = ({
         }}
       >
         {note.job || "—"}
-        {isTask && taskName && (
-          <>
-            <span style={{ margin: '0 4px', color: '#666', fontWeight: 'normal' }}>/</span>
-            <span 
-              className="task-name"
-              style={{
-                color: '#2c3e50',
-                fontWeight: '700',
-                fontSize: "12px",
-                maxWidth: '150px',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                display: 'inline-block',
-                verticalAlign: 'middle'
-              }}
-              title={taskName}
-            >
-              {taskName.length > 30 ? `${taskName.substring(0, 30)}...` : taskName}
-            </span>
-          </>
-        )}
+       
       </div>
       <div className="context-item workspace-project">
         <span title={note.workspace}>{note.workspace || "—"}</span>/
@@ -1228,6 +1251,8 @@ const NoteContext = ({
         >
           {note.project || "—"}
         </span>
+
+        
       </div>
     </div>
   );
@@ -1305,6 +1330,7 @@ const NoteFooter = ({
   assigneeIconRef,
   statusIconRef,
   updatingTask,
+  renderStatusIcon,
 }) => {
   return (
     <div className="note-footer">
@@ -1326,7 +1352,7 @@ const NoteFooter = ({
             <div ref={assigneeIconRef} style={{ display: 'inline-block', position: 'relative' }}>
               <div 
                 className={`task-icon-item ${selectedAssignee ? 'has-value' : ''} ${updatingTask ? 'updating' : ''}`}
-                title="Assignee"
+                title={`Assignee: ${selectedAssignee?.name || 'Unassigned'}`}
                 onClick={onAssigneeClick}
                 style={{ opacity: updatingTask ? 0.5 : 1, cursor: updatingTask ? 'not-allowed' : 'pointer' }}
               >
@@ -1337,11 +1363,18 @@ const NoteFooter = ({
             <div ref={statusIconRef} style={{ display: 'inline-block', position: 'relative' }}>
               <div 
                 className={`task-icon-item ${selectedStatus ? 'has-value' : ''} ${updatingTask ? 'updating' : ''}`}
-                title="Status"
+                title={`Status: ${selectedStatus?.name || 'To Do'}`}
                 onClick={onStatusClick}
-                style={{ opacity: updatingTask ? 0.5 : 1, cursor: updatingTask ? 'not-allowed' : 'pointer' }}
+                style={{ 
+                  opacity: updatingTask ? 0.5 : 1, 
+                  cursor: updatingTask ? 'not-allowed' : 'pointer',
+                  minWidth: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
               >
-                <i className="fas fa-tasks"></i>
+                {renderStatusIcon()}
               </div>
             </div>
           </>
