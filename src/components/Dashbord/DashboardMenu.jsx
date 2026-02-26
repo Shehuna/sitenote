@@ -32,7 +32,7 @@ const DashboardMenu = ({
   viewMode,
   setViewMode,
   handleRefresh,
-  handleNewNoteClick,
+  handleNewTaskModal,
   defWorkName,
 }) => {
   const [showUserProfileModal, setShowUserProfileModal] = useState(false);
@@ -722,7 +722,7 @@ const DashboardMenu = ({
             )}
 
             <button
-              onClick={handleNewNoteClick}
+              onClick={handleNewTaskModal}
               className="new-note-btn"
               title="New Note"
             >
@@ -850,8 +850,8 @@ const DashboardMenu = ({
               </button>
             </div>
 
-            <button onClick={handleNewNoteClick} className="new-note-btn">
-              <i className="fas fa-plus-circle" /> New Note
+            <button onClick={handleNewTaskModal} className="new-note-btn">
+              <i className="fas fa-plus-circle" /> New Task
             </button>
           </>
         )}

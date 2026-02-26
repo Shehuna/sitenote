@@ -2375,31 +2375,7 @@ useEffect(() => {
             </button>
           </div>
 
-          {/* Read-only access message */}
-          {isReadOnly && (
-            <div
-              className="read-only-message"
-              style={{
-                margin: "10px 20px",
-                padding: "15px",
-                backgroundColor: "#ffe9edff",
-                border: "1px solid #ffe9edff",
-                borderRadius: "4px",
-                color: "#5b4504ff",
-                textAlign: "center",
-                fontWeight: "500",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "10px",
-              }}
-            >
-              <i className="fas fa-eye" style={{ fontSize: "18px" }}></i>
-              <span>
-                You have read-only access and cannot create site notes.
-              </span>
-            </div>
-          )}
+        
 
           {apiError && (
             <div className="error-message">

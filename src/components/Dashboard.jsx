@@ -16,6 +16,7 @@ import InlineImageViewer from "./Modals/InlineImageViewer";
 import NotesTab from "./NotesTab/NotesTab.jsx";
 import DashboardMenu from "./Dashbord/DashboardMenu.jsx";
 import DashboardHeader from "./Dashbord/DashboardHeader.jsx";
+import NewTaskModal from "./Modals/NewTaskModal.jsx";
 
 const Dashboard = ({
   notes,
@@ -82,7 +83,7 @@ const Dashboard = ({
   const [loadingWorkspaceRole, setLoadingWorkspaceRole] = useState(false);
   const [filteredNotesFromApi, setFilteredNotesFromApi] = useState([]);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showNewTaskModal, setShowNewTaskModal] = useState(false);
   const [showNewModal, setShowNewModal] = useState(false);
   const [selectedNote, setSelectedNote] = useState(null);
   const [showAttachedFileModal, setShowAttachedFileModal] = useState(false);
@@ -2419,6 +2420,10 @@ const handleRefresh = async () => {
     setShowNewModal(true);
   };
 
+  const handleNewTaskClick = () => {
+    setShowNewTaskModal(true);
+  };
+
   useEffect(() => {
     if (showNewModal && modalSource === "grid" && newNoteModalRef.current) {
       const timer = setTimeout(() => {
@@ -3277,7 +3282,7 @@ const performSearch = useCallback(async (searchText) => {
           setViewMode={setViewMode}
           handleRefresh={handleRefresh}
           refreshNotes={refreshNotes}
-          handleNewNoteClick={handleNewNoteClick}
+          handleNewTaskModal={handleNewTaskClick}
           defWorkName={defaultUserWorkspaceName}
           role={role}
         />
@@ -3569,6 +3574,19 @@ const performSearch = useCallback(async (searchText) => {
           onNext={handleNextImage}
           onPrev={handlePrevImage}
           apiUrl={apiUrl}
+        />
+      )}
+
+      {showNewTaskModal && (
+        <NewTaskModal 
+        isOpen={showNewTaskModal}
+          onClose={() => {
+            
+            setShowNewTaskModal(false);
+          }}
+        defaultWorkspaceRole={defaultWorkspaceRole}
+        userworksaces={userWorkspace}
+        refreshNotes = {refreshNotes}
         />
       )}
     </div>

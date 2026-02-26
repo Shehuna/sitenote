@@ -1164,6 +1164,10 @@ const NoteContext = ({
     ? isJobFiltered(note.job) 
     : false;
 
+  // Check if this is a task
+  const isTask = note.itemType === "Task";
+  const taskName = note.title || note.note || ""; // Use title for task name, fallback to note
+
   return (
     <div className="note-context">
       <div 
@@ -1183,6 +1187,28 @@ const NoteContext = ({
         }}
       >
         {note.job || "—"}
+        {isTask && taskName && (
+          <>
+            <span style={{ margin: '0 4px', color: '#666', fontWeight: 'normal' }}>/</span>
+            <span 
+              className="task-name"
+              style={{
+                color: '#2c3e50',
+                fontWeight: '700',
+                fontSize: "12px",
+                maxWidth: '150px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                display: 'inline-block',
+                verticalAlign: 'middle'
+              }}
+              title={taskName}
+            >
+              {taskName.length > 30 ? `${taskName.substring(0, 30)}...` : taskName}
+            </span>
+          </>
+        )}
       </div>
       <div className="context-item workspace-project">
         <span title={note.workspace}>{note.workspace || "—"}</span>/
@@ -1220,6 +1246,12 @@ const NoteContent = ({ note, searchTerm, viewMode, onMouseEnter, onMouseLeave, s
     }
   };
 
+  // Check if this is a task
+  const isTask = note.itemType === "Task";
+  
+  // For tasks, use description instead of title/note
+  const contentToDisplay = isTask ? (note.description || "") : (note.note || "");
+
   return (
     <div className="note-content">
       <div
@@ -1237,7 +1269,7 @@ const NoteContent = ({ note, searchTerm, viewMode, onMouseEnter, onMouseLeave, s
           className="note-text"
           style={{ maxHeight: "110px", overflow: "hidden", position: "relative" }}
           dangerouslySetInnerHTML={{
-            __html: highlightHtmlContent(note.note || "", searchTerm),
+            __html: highlightHtmlContent(contentToDisplay, searchTerm),
           }}
         />
       </div>
