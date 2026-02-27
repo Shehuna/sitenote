@@ -1408,7 +1408,7 @@ useEffect(() => {
         const noteData = {
           note: noteHtmlContent, // Save the cleaned HTML content
           date: new Date(selectedDate).toISOString(),
-          jobId: selectedJob,
+          taskId: prefilledData.taskid,
           userId: user.id,
         };
 
