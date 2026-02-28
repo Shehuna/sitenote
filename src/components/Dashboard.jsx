@@ -2281,6 +2281,7 @@ const refreshStackedViewWithNewNote = useCallback(async (noteData, operation = '
             job: selectedNote.job,
             jobId: selectedNote.jobId,
             workspace: selectedNote.workspace,
+            taskid: selectedNote.taskId
           });
           setModalSource("grid");
           setShowNewModal(true);

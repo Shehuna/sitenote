@@ -94,7 +94,6 @@ const NewNoteModal = forwardRef(
     // Check if user has read-only access (role 3)
     const isReadOnly = defaultWorkspaceRole === 3;
 
-   console.log(hasActiveSearchText)
     // Constants
     const ALLOWED_FILE_TYPES = {
       "image/jpeg": [".jpg", ".jpeg"],
