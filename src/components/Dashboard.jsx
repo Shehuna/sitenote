@@ -2410,6 +2410,7 @@ const handleRefresh = async () => {
       jobId: note.jobId,
       workspace: note.workspace,
       userId: note.userId,
+      taskid: note.taskId
     });
     setModalSource("grid");
     setShowNewModal(true);
