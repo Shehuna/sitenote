@@ -2697,3 +2697,157 @@ tr.highlight-original-note {
     transform: translateY(0);
   }
 }
+/* Add these CSS rules to your stylesheet */
+
+/* Base styles for note footer */
+.note-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+}
+
+/* Task icons container - left aligned */
+.note-attachments {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Action buttons container - right aligned */
+.note-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto; /* This pushes it to the right */
+}
+
+/* For regular notes, maintain the same layout */
+.note-footer:not(.task-footer) .note-attachments {
+  flex: 1;
+}
+
+/* Mobile specific styles */
+@media (max-width: 768px) {
+  .note-footer {
+    flex-wrap: nowrap; /* Prevent wrapping */
+    padding: 6px 8px;
+    gap: 4px;
+  }
+
+  /* Task specific mobile styles */
+  .task-card .note-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  /* Task icons - left aligned, no space between */
+  .task-card .note-attachments {
+    display: flex;
+    align-items: center;
+    gap: 12px; /* Consistent spacing between icons */
+    flex: 1;
+  }
+
+  /* Individual task icon styling */
+  .task-card .task-icon-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Action buttons - right aligned */
+  .task-card .note-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    flex-shrink: 0; /* Prevent shrinking */
+  }
+
+  /* Regular note mobile styles */
+  .note-card:not(.task-card) .note-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  /* Attachment buttons container for regular notes */
+  .note-card:not(.task-card) .note-attachments {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+  }
+
+  /* Reply button - keep it with other attachments, not pushed to right */
+  .note-card:not(.task-card) .attachment-btn,
+  .note-card:not(.task-card) .link-to-note-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Ensure consistent button sizing */
+  .attachment-btn,
+  .link-to-note-btn,
+  .action-btn {
+    min-width: 28px;
+    height: 28px;
+    padding: 0 4px;
+    font-size: 12px;
+  }
+
+  /* Priority indicator styling for mobile */
+  .priority-indicator {
+    margin-right: 4px;
+  }
+}
+
+/* Small mobile devices */
+@media (max-width: 480px) {
+  .note-footer {
+    padding: 4px 6px;
+  }
+
+  /* Reduce gaps on very small screens */
+  .task-card .note-attachments {
+    gap: 8px;
+  }
+
+  .task-card .note-actions {
+    gap: 6px;
+  }
+
+  /* Make icons slightly smaller if needed */
+  .task-icon-item i,
+  .attachment-btn i,
+  .action-btn i {
+    font-size: 12px;
+  }
+}
+
+/* Ensure popups are properly positioned on mobile */
+@media (max-width: 768px) {
+  .calendar-popup-root,
+  .user-popup-root,
+  .status-popup-root {
+    width: 200px !important; /* Slightly smaller on mobile */
+    max-width: 90vw !important; /* Never wider than viewport */
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+  }
+
+  /* Adjust popup position for better mobile viewing */
+  .calendar-popup-root {
+    width: 220px !important;
+  }
+}

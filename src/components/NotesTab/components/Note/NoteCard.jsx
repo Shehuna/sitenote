@@ -1333,7 +1333,7 @@ const NoteFooter = ({
   renderStatusIcon,
 }) => {
   return (
-    <div className="note-footer">
+    <div className={`note-footer ${isTask ? 'task-footer' : ''}`}>
       <div className="note-attachments">
         {/* For tasks: only show task-related icons */}
         {isTask ? (
