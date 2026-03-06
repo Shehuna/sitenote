@@ -1,187 +1,240 @@
-// components/TaskCard.js
+// TaskCard.jsx
 import React from 'react';
 import PropTypes from 'prop-types';
 import { formatRelativeTime } from '../../utils/formatUtils';
 
-const TaskCard = ({ task, onClick }) => {
+const TaskCard = ({ task, onEdit, onDelete, onStatusChange, onClick }) => {
   const getStatusBadge = (status) => {
-    switch(status) {
-      case 0: return { text: 'Pending', color: '#f39c12' };
-      case 1: return { text: 'Active', color: '#2ecc71' };
-      case 2: return { text: 'In Progress', color: '#3498db' };
-      case 3: return { text: 'Review', color: '#9b59b6' };
-      case 4: return { text: 'Blocked', color: '#e74c3c' };
-      default: return { text: 'Unknown', color: '#95a5a6' };
-    }
+    const statusMap = {
+      1: { label: 'To Do', color: '#c2c2c2' },
+      2: { label: 'In Progress', color: '#ff8400' },
+      3: { label: 'Blocked', color: '#dc3545' }, 
+      4: { label: 'Done', color: '#28a745' },
+    };
+    return statusMap[status] || { label: 'Unknown', color: '#6c757d' };
   };
 
   const status = getStatusBadge(task.status);
+  const dueDate = task.dueDate ? new Date(task.dueDate) : null;
+  const isOverdue = dueDate && dueDate < new Date() && task.status !== 2;
+
+  const handleCardClick = (e) => {
+    // Don't trigger if clicking on buttons or select
+    if (e.target.tagName === 'BUTTON' || 
+        e.target.tagName === 'SELECT' || 
+        e.target.closest('button') || 
+        e.target.closest('select') ||
+        e.target.closest('.action-btn') ||
+        e.target.closest('.attachment-btn')) {
+      return;
+    }
+    if (onClick) {
+      console.log('Task card clicked:', task.id, task.title);
+      onClick(task);
+    }
+  };
 
   return (
-    <div
-      className="task-card"
-      onClick={onClick}
+    <div 
+      className="task-card" 
+      onClick={handleCardClick}
       style={{
-        backgroundColor: "white",
-        borderRadius: "8px",
-        padding: "16px",
-        marginBottom: "12px",
-        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-        border: "1px solid #e9ecef",
-        cursor: "pointer",
-        transition: "all 0.2s ease",
-        position: "relative",
-        overflow: "hidden",
+        backgroundColor: 'white',
+        borderRadius: '8px',
+        padding: '16px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+        border: '1px solid #e0e0e0',
+        transition: 'all 0.3s ease',
+        cursor: 'pointer',
+        position: 'relative',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.boxShadow = "0 4px 8px rgba(0,0,0,0.15)";
-        e.currentTarget.style.transform = "translateY(-2px)";
+        e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.boxShadow = "0 2px 4px rgba(0,0,0,0.1)";
-        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
       }}
     >
-      {/* Status indicator line */}
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 0,
-          bottom: 0,
-          width: "4px",
+      {/* Header */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: '12px',
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+        }}>
+          <i className="fas fa-tasks" style={{ color: '#14A2B6' }} />
+          <span style={{
+            fontWeight: 600,
+            fontSize: '14px',
+            color: '#2c3e50',
+          }}>
+            {task.friendlyId || `Task #${task.id}`}
+          </span>
+        </div>
+        <div style={{
+          padding: '4px 8px',
+          borderRadius: '4px',
+          fontSize: '11px',
+          fontWeight: 600,
           backgroundColor: status.color,
-        }}
-      />
+          color: 'white',
+        }}>
+          {status.label}
+        </div>
+      </div>
 
-      <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", marginLeft: "4px" }}>
-        {/* Task icon */}
-        <div
+      {/* Title */}
+      <h4 style={{
+        margin: '0 0 8px 0',
+        fontSize: '16px',
+        fontWeight: 600,
+        color: '#333',
+        lineHeight: '1.4',
+      }}>
+        {task.title}
+      </h4>
+
+      {/* Description (if exists) */}
+      {task.description && (
+        <p style={{
+          margin: '0 0 12px 0',
+          fontSize: '13px',
+          color: '#666',
+          lineHeight: '1.5',
+          overflow: 'hidden',
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+        }}>
+          {task.description}
+        </p>
+      )}
+
+      {/* Metadata */}
+      <div style={{
+        marginTop: '12px',
+        paddingTop: '12px',
+        borderTop: '1px solid #f0f0f0',
+      }}>
+        {/* Due Date */}
+        {task.dueDate && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            marginBottom: '6px',
+            fontSize: '12px',
+            color: isOverdue ? '#dc3545' : '#666',
+          }}>
+            <i className="fas fa-calendar-alt" style={{ fontSize: '11px' }} />
+            <span>
+              Due: {dueDate.toLocaleDateString()}
+              {isOverdue && ' (Overdue)'}
+            </span>
+          </div>
+        )}
+
+        {/* Assignee */}
+        {task.assigneeName && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            marginBottom: '6px',
+            fontSize: '12px',
+            color: '#666',
+          }}>
+            <i className="fas fa-user" style={{ fontSize: '11px' }} />
+            <span>Assignee: {task.assigneeName}</span>
+          </div>
+        )}
+
+        {/* Created Info */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          fontSize: '11px',
+          color: '#888',
+        }}>
+          <i className="fas fa-clock" style={{ fontSize: '10px' }} />
+          <span>
+            Created {task.createdAt ? formatRelativeTime(task.createdAt) : 'recently'}
+          </span>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        gap: '8px',
+        marginTop: '12px',
+        paddingTop: '8px',
+        borderTop: '1px dashed #e9ecef',
+      }}>
+        {/* Status dropdown */}
+        <select
+          value={task.status}
+          onChange={(e) => onStatusChange(task.id, parseInt(e.target.value))}
+          onClick={(e) => e.stopPropagation()}
           style={{
-            width: "40px",
-            height: "40px",
-            borderRadius: "8px",
-            backgroundColor: "#f39c12",
-            color: "white",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "16px",
-            fontWeight: "bold",
-            flexShrink: 0,
+            padding: '4px 8px',
+            borderRadius: '4px',
+            border: '1px solid #ddd',
+            fontSize: '12px',
+            backgroundColor: 'white',
+            cursor: 'pointer',
           }}
         >
-          <i className="fas fa-tasks" />
-        </div>
+          <option value={1}>To Do</option>
+          <option value={2}>In Progress</option>
+          <option value={3}>Blocked</option>
+          <option value={4}>Done</option>
+        </select>
 
-        {/* Task content */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {/* Title and status row */}
-          <div style={{ 
-            display: "flex", 
-            alignItems: "center", 
-            gap: "8px", 
-            marginBottom: "6px",
-            flexWrap: "wrap"
-          }}>
-            <span style={{ 
-              fontWeight: 600, 
-              color: "#2c3e50",
-              fontSize: "15px",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              maxWidth: "200px",
-            }} title={task.title}>
-              {task.title}
-            </span>
-            <span
-              style={{
-                fontSize: "11px",
-                padding: "2px 8px",
-                borderRadius: "12px",
-                backgroundColor: `${status.color}20`,
-                color: status.color,
-                fontWeight: 500,
-              }}
-            >
-              {status.text}
-            </span>
-            <span
-              style={{
-                fontSize: "11px",
-                padding: "2px 8px",
-                borderRadius: "12px",
-                backgroundColor: "#f0f0f0",
-                color: "#666",
-              }}
-            >
-              {task.friendlyId}
-            </span>
-          </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit(task);
+          }}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            color: '#007bff',
+            fontSize: '14px',
+            padding: '4px 8px',
+          }}
+          title="Edit task"
+          className="action-btn"
+        >
+          <i className="fas fa-edit" />
+        </button>
 
-          {/* Description */}
-          {task.description && (
-            <p style={{ 
-              fontSize: "13px", 
-              color: "#666", 
-              margin: "8px 0",
-              lineHeight: "1.5",
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-              textOverflow: "ellipsis"
-            }}>
-              {task.description}
-            </p>
-          )}
-
-          {/* Meta information */}
-          <div style={{ 
-            display: "flex", 
-            gap: "16px", 
-            fontSize: "12px", 
-            color: "#888", 
-            marginTop: "8px",
-            borderTop: "1px solid #f0f0f0",
-            paddingTop: "8px",
-            flexWrap: "wrap"
-          }}>
-            {task.assigneeName && (
-              <span>
-                <i className="fas fa-user" style={{ marginRight: "4px" }} />
-                {task.assigneeName}
-              </span>
-            )}
-            {task.dueDate && (
-              <span>
-                <i className="fas fa-calendar" style={{ marginRight: "4px" }} />
-                Due: {new Date(task.dueDate).toLocaleDateString()}
-              </span>
-            )}
-            {task.createdAt && (
-              <span>
-                <i className="fas fa-clock" style={{ marginRight: "4px" }} />
-                {formatRelativeTime(task.createdAt)}
-              </span>
-            )}
-          </div>
-
-          {/* Subtle hint that this is clickable */}
-          <div style={{ 
-            marginTop: "8px", 
-            fontSize: "11px", 
-            color: "#999",
-            display: "flex",
-            justifyContent: "flex-end",
-            alignItems: "center",
-            gap: "4px"
-          }}>
-            <span>Click to view notes</span>
-            <i className="fas fa-chevron-right" style={{ fontSize: "10px" }} />
-          </div>
-        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(task.id);
+          }}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            color: '#dc3545',
+            fontSize: '14px',
+            padding: '4px 8px',
+          }}
+          title="Delete task"
+          className="action-btn"
+        >
+          <i className="fas fa-trash" />
+        </button>
       </div>
     </div>
   );
@@ -189,16 +242,27 @@ const TaskCard = ({ task, onClick }) => {
 
 TaskCard.propTypes = {
   task: PropTypes.shape({
-    id: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
+    id: PropTypes.number.isRequired,
     title: PropTypes.string.isRequired,
     description: PropTypes.string,
-    status: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
-    friendlyId: PropTypes.string,
-    assigneeName: PropTypes.string,
+    status: PropTypes.number.isRequired,
     dueDate: PropTypes.string,
+    assigneeName: PropTypes.string,
+    friendlyId: PropTypes.string,
     createdAt: PropTypes.string,
   }).isRequired,
-  onClick: PropTypes.func.isRequired,
+  onEdit: PropTypes.func,
+  onDelete: PropTypes.func,
+  onStatusChange: PropTypes.func,
+  onClick: PropTypes.func, // Added onClick prop
+};
+
+TaskCard.defaultProps = {
+  onEdit: () => {},
+  onDelete: () => {},
+  onStatusChange: () => {},
+  onClick: () => {}, // Added default
 };
 
 export default TaskCard;
+
