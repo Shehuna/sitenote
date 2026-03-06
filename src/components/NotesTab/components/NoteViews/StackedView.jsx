@@ -219,19 +219,15 @@ const StackedView = ({
     });
 
   const isAnyStackExpanded = Object.values(expandedStacks).some((v) => v);
-
-  // Check if any task is expanded in the current job
-  const hasExpandedTask = (jobId) => {
-    return Object.keys(expandedTasks).some(taskId => {
-      const task = tasksByJob[jobId]?.find(t => t.id.toString() === taskId);
-      return task && expandedTasks[taskId];
-    });
-  };
+  
+  // Check if any task is expanded across all jobs
+  const hasAnyTaskExpanded = Object.values(expandedTasks).some(isExpanded => isExpanded);
 
   return (
     <div className="stacked-notes-horizontal">
       <div className="stacked-container">
-        {isAnyStackExpanded && (
+        {/* Only show collapse button when stacks are expanded AND no task is expanded */}
+        {isAnyStackExpanded && !hasAnyTaskExpanded && (
           <div className="fixed-collapse-btn-wrapper">
             <button
               className="collapse-all-stacks-btn"
@@ -424,7 +420,7 @@ const renderExpandedStackWithTasks = ({
   loadingTasks,
   expandedTasks,
   expandedTask,
-  onTaskToggle, // Add this
+  onTaskToggle,
   onTaskClick,
   onTaskEdit,
   onTaskDelete,
@@ -444,6 +440,9 @@ const renderExpandedStackWithTasks = ({
     acc[task.status] = (acc[task.status] || 0) + 1;
     return acc;
   }, {});
+
+  // Get note count for expanded task
+  const expandedTaskNoteCount = expandedTask ? (notesByTask[expandedTask.id]?.length || 0) : 0;
 
   return (
     <div
@@ -466,26 +465,18 @@ const renderExpandedStackWithTasks = ({
                 )}
               </div>
             </div>
-            
-            {/* Collapse button when task is expanded */}
-            
           </div>
           
           {/* Action Buttons */}
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {expandedTask && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onCollapseTask();
-                }}
-                style={styles.collapseButton}
-                title="Back to tasks"
-              >
-                <i className="fas fa-arrow-left" style={{ marginRight: '6px' }} />
-                
-              </button>
+            {/* Task Count Badge - Show when not in expanded task view */}
+            {!expandedTask && taskCount > 0 && (
+              <div style={styles.taskCountBadge}>
+                <i className="fas fa-tasks" style={{ marginRight: '6px' }} />
+                <span>{taskCount} {taskCount === 1 ? 'Task' : 'Tasks'}</span>
+              </div>
             )}
+            
             {/* Slideshow button */}
             <button
               className="attachment-btn"
@@ -545,7 +536,7 @@ const renderExpandedStackWithTasks = ({
               <i className="fas fa-comments" style={{ color: '#1976d2' }} />
             </button>
             
-            {/* Settings button */}
+            {/* Settings button (Edit Job) */}
             <button
               className="attachment-btn"
               onClick={(e) => {
@@ -563,34 +554,6 @@ const renderExpandedStackWithTasks = ({
             >
               <i className="fas fa-cog" style={{ color: '#444' }} />
             </button>
-
-            {/* Task summary badges - only show when no task is expanded */}
-            {!expandedTask && taskCount > 0 && (
-              <div style={styles.taskSummary}>
-                {Object.entries(taskSummary).map(([status, count]) => {
-                  const statusColors = {
-                    1: { bg: '#c2c2c2', label: 'To Do' },
-                    2: { bg: '#ff8400', label: 'In Progress' },
-                    3: { bg: '#dc3545', label: 'Blocked' },
-                    4: { bg: '#28a745', label: 'Done' },
-                  };
-                  const statusInfo = statusColors[status] || { bg: '#6c757d', label: 'Unknown' };
-                  
-                  return (
-                    <div
-                      key={status}
-                      style={{
-                        ...styles.statusBadge,
-                        backgroundColor: statusInfo.bg,
-                      }}
-                      title={`${statusInfo.label}: ${count}`}
-                    >
-                      {count}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </div>
         </div>
 
@@ -639,35 +602,34 @@ const renderExpandedStackWithTasks = ({
                                 </span>
                               )}
                             </div>
-                            {expandedTask.description && (
-                              <div style={styles.expandedTaskDescription}>
-                                {expandedTask.description}
-                              </div>
-                            )}
                           </div>
                         </div>
                         <div style={styles.expandedTaskActions}>
-                          <button
-                            onClick={() => onTaskEdit(expandedTask)}
-                            style={styles.taskActionButton}
-                            title="Edit task"
-                          >
-                            <i className="fas fa-edit" />
-                          </button>
-                          <button
-                            onClick={() => onTaskDelete(expandedTask.id)}
-                            style={{ ...styles.taskActionButton, color: '#dc3545' }}
-                            title="Delete task"
-                          >
-                            <i className="fas fa-trash" />
-                          </button>
+                          {/* Note Count Badge - Show next to back button */}
+                          {expandedTaskNoteCount > 0 && (
+                            <div style={styles.noteCountBadge}>
+                              <i className="fas fa-sticky-note" style={{ marginRight: '4px' }} />
+                              <span>{expandedTaskNoteCount} {expandedTaskNoteCount === 1 ? 'Note' : 'Notes'}</span>
+                            </div>
+                          )}
+                          {expandedTask && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onCollapseTask();
+                              }}
+                              style={styles.collapseButton}
+                              title="Back to tasks"
+                            >
+                              <i className="fas fa-arrow-left" style={{ marginRight: '6px' }} />
+                              
+                            </button>
+                          )}
                         </div>
                       </div>
 
                       {/* Notes for expanded task */}
                       <div style={styles.taskNotesSection}>
-                       
-                        
                         {loadingNotesByTask[expandedTask.id] ? (
                           <div style={styles.noteLoadingState}>
                             <i className="fas fa-spinner fa-spin" style={styles.smallSpinner} />
@@ -730,10 +692,10 @@ const renderExpandedStackWithTasks = ({
                             onDelete={onTaskDelete}
                             onStatusChange={onTaskStatusChange}
                             onClick={onTaskClick}
-                            onToggle={onTaskToggle} // Pass the toggle function
-                            isExpanded={false} // Tasks are never expanded in this view, we show notes separately
+                            onToggle={onTaskToggle}
+                            isExpanded={false}
+                            showToggle={true}
                           />
-                          
                         </div>
                       ))}
                     </div>
@@ -1243,11 +1205,14 @@ const styles = {
     padding: '6px 12px',
     borderRadius: '4px',
     cursor: 'pointer',
-    fontSize: '13px',
-    marginLeft: '20px',
+    fontSize: '12px',
     display: 'flex',
     alignItems: 'center',
     transition: 'all 0.2s ease',
+    '&:hover': {
+      backgroundColor: '#3498db',
+      color: 'white',
+    },
   },
   actionButton: {
     background: 'transparent',
@@ -1257,6 +1222,30 @@ const styles = {
     padding: '8px 12px',
     borderRadius: '4px',
     transition: 'all 0.2s ease',
+  },
+  taskCountBadge: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    background: '#3498db',
+    color: 'white',
+    padding: '6px 12px',
+    borderRadius: '20px',
+    fontSize: '13px',
+    fontWeight: 600,
+    marginRight: '8px',
+  },
+  noteCountBadge: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+    background: '#f39c12',
+    color: 'white',
+    padding: '4px 10px',
+    borderRadius: '20px',
+    fontSize: '12px',
+    fontWeight: 600,
+    marginRight: '8px',
   },
   taskSummary: {
     display: 'flex',
@@ -1385,6 +1374,7 @@ const styles = {
   expandedTaskActions: {
     display: 'flex',
     gap: '8px',
+    alignItems: 'center',
   },
   taskActionButton: {
     background: 'transparent',
@@ -1443,6 +1433,18 @@ const styles = {
     borderRadius: '8px',
     fontSize: '13px',
   },
+  noteCountBadge: {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '4px',
+  background: '#3498db',
+  color: 'white',
+  padding: '4px 10px',
+  borderRadius: '20px',
+  fontSize: '12px',
+  fontWeight: 600,
+  marginRight: '8px',
+},
 };
 
 StackedView.propTypes = {

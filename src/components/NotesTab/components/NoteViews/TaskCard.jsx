@@ -46,7 +46,7 @@ const TaskCard = ({
   return (
     <div 
       className="task-card" 
-      onClick={handleTaskToggle}
+      
       style={{
         backgroundColor: 'white',
         borderRadius: '8px',
@@ -110,7 +110,7 @@ const TaskCard = ({
 
       {/* Description (if exists) */}
       {task.description && (
-        <p style={{
+        <p onClick={handleTaskToggle} style={{
           margin: '0 0 12px 0',
           fontSize: '13px',
           color: '#666',
