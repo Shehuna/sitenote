@@ -517,11 +517,11 @@ tr.selected-row.priority-4 {
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  padding: 2px 8px !important; /* Reduced padding */
+  padding: 2px 8px !important;
   border-top: 1px solid #f0f0f0 !important;
   margin-top: auto !important;
   flex-shrink: 0 !important;
-  min-height: 16px !important; /* Slightly taller to accommodate all icons */
+  min-height: 16px !important;
   font-size: 11px !important;
   gap: 4px !important;
   background: #fafafa;
@@ -533,9 +533,9 @@ tr.selected-row.priority-4 {
   display: flex !important;
   align-items: center !important;
   gap: 2px !important;
-  flex-wrap: nowrap !important; /* Prevent wrapping */
+  flex-wrap: nowrap !important;
   flex-shrink: 1 !important;
-  min-width: 0 !important; /* Allow shrinking */
+  min-width: 0 !important;
 }
 
 .attachment-btn {
@@ -561,9 +561,9 @@ tr.selected-row.priority-4 {
   display: flex !important;
   align-items: center !important;
   gap: 2px !important;
-  flex-wrap: nowrap !important; /* Prevent wrapping */
-  flex-shrink: 0 !important; /* Don't shrink the action buttons */
-  margin-left: auto !important; /* Push to the right */
+  flex-wrap: nowrap !important;
+  flex-shrink: 0 !important;
+  margin-left: auto !important;
 }
 
 .action-btn {
@@ -591,6 +591,115 @@ tr.selected-row.priority-4 {
   color: #e74c3c;
 }
 
+/* Task card specific styles */
+.note-card.task-card .note-footer {
+  background-color: #e0f7fa !important;
+  border-top: 1px solid #b2ebf2 !important;
+}
+
+.note-card.task-card.selected .note-footer {
+  background-color: #b2ebf2 !important;
+}
+
+.note-card.task-card:hover .note-footer {
+  background-color: #b2ebf2 !important;
+}
+
+/* Task icon items */
+.task-icon-item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  background: #e0f7fa !important;
+  border: none !important;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #666;
+  font-size: 11px;
+  transition: all 0.2s;
+  height: 10px;
+  white-space: nowrap;
+}
+
+.task-icon-item.has-value {
+  background-color: #e3f2fd;
+  color: #1976d2;
+  border: none !important;
+}
+
+.task-icon-item i {
+  font-size: 12px;
+}
+
+.icon-value {
+  font-size: 10px;
+  font-weight: 500;
+  max-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Link button */
+.link-to-note-btn {
+  background: transparent;
+  border: none !important;
+  color: #3498db;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+  height: 24px;
+  width: 28px;
+}
+
+.link-to-note-btn:hover {
+  background-color: #e3f2fd;
+  border: none !important;
+}
+
+.link-to-note-btn i {
+  font-size: 11px;
+}
+
+/* Popup styles */
+.calendar-popup-root,
+.user-popup-root,
+.status-popup-root {
+  position: fixed;
+  z-index: 999999;
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+  opacity: 1;
+  color: #333333;
+  pointer-events: auto;
+}
+
+.calendar-popup-root {
+  width: 240px;
+  padding: 12px;
+}
+
+.user-popup-root {
+  width: 240px;
+  max-height: 350px;
+  display: flex;
+  flex-direction: column;
+}
+
+.status-popup-root {
+  width: 200px;
+}
+
+/* Media Queries */
 @media (min-width: 1400px) {
   .notes-grid {
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -665,7 +774,7 @@ tr.selected-row.priority-4 {
   .note-card {
     min-height: auto;
     padding: 16px;
-    margin: 0 !important;;
+    margin: 0 !important;
   }
   
   .note-header {
@@ -715,59 +824,175 @@ tr.selected-row.priority-4 {
   }
 }
 
+/* Updated Mobile Styles - 480px and below */
 @media (max-width: 480px) {
-  .stacked-container {
-    padding: 10px 10px;
-    gap: 10px;
-  }
-  
-  .expanded-stack {
-    padding: 10px;
-    margin: 0 !important;
-    min-width: 100%;
-    box-sizing: border-box;
-  }
-  
-  .expanded-notes-grid {
-    gap: 8px;
-    padding: 8px 0 !important;
-  }
-  
-  .expanded-stack-title {
-    font-size: 16px;
-  }
-  
-  .stack-layer-card {
-    height: 220px; /* Reduced height for very small screens */
-  }
-  
-  .note-card {
-    min-height: auto !important;
-    padding: 12px !important;
-  }
-  
-  .note-header {
-    flex-wrap: wrap !important;
-  }
-  
-  .note-context {
-    flex: 0 0 100% !important;
-    margin-top: 8px;
-    padding-left: 0 !important;
+  .note-footer {
+    padding: 4px 6px !important;
     flex-direction: row !important;
-    justify-content: flex-start !important;
-    gap: 8px !important;
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
+    min-height: 32px !important;
   }
-  
-  .context-item {
-    max-width: none !important;
-    text-align: left !important;
-    background: #f5f5f5 !important;
-    padding: 2px 6px !important;
-    border-radius: 4px !important;
+
+  /* Task cards - keep left and right alignment */
+  .task-card .note-footer {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+  }
+
+  /* Task icons - left aligned with consistent spacing */
+  .task-card .note-attachments {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex: 1 !important;
+    flex-wrap: nowrap !important;
+    justify-content: flex-start !important;
+  }
+
+  /* Individual task icons */
+  .task-card .task-icon-item {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 24px !important;
+    height: 24px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    flex-shrink: 0 !important;
+    background: transparent !important;
+  }
+
+  /* Action buttons - right aligned */
+  .task-card .note-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    margin-left: auto !important;
+    flex-shrink: 0 !important;
+    flex-wrap: nowrap !important;
+  }
+
+  /* Regular note cards */
+  .note-card:not(.task-card) .note-footer {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+  }
+
+  /* Regular note attachments - includes reply icon */
+  .note-card:not(.task-card) .note-attachments {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    flex: 1 !important;
+    flex-wrap: nowrap !important;
+  }
+
+  /* Regular note action buttons */
+  .note-card:not(.task-card) .note-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    margin-left: auto !important;
+    flex-shrink: 0 !important;
+    flex-wrap: nowrap !important;
+  }
+
+  /* Button sizes for all types */
+  .attachment-btn,
+  .link-to-note-btn,
+  .action-btn {
+    min-width: 24px !important;
+    height: 24px !important;
+    padding: 0 4px !important;
+    font-size: 11px !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Priority indicator */
+  .priority-indicator {
+    margin-right: 2px !important;
+    width: 8px !important;
+    height: 8px !important;
+  }
+
+  /* Icon sizes */
+  .task-icon-item i,
+  .attachment-btn i,
+  .link-to-note-btn i,
+  .action-btn i {
+    font-size: 11px !important;
+  }
+
+  /* Prevent wrapping */
+  .note-footer .note-attachments,
+  .note-footer .note-actions {
+    flex-wrap: nowrap !important;
+  }
+
+  /* Hide text labels on very small screens */
+  .icon-value,
+  .status-badge span,
+  .attachment-btn span {
+    display: none !important;
+  }
+
+  /* Show only icons */
+  .task-icon-item {
+    gap: 0 !important;
+  }
+
+  /* Ensure reply icon stays with attachments */
+  .note-card:not(.task-card) .attachment-btn:has(.fa-reply) {
+    display: inline-flex !important;
+  }
+
+  /* Popup adjustments for mobile */
+  .calendar-popup-root,
+  .user-popup-root,
+  .status-popup-root {
+    width: 200px !important;
+    max-width: 90vw !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    font-size: 11px !important;
+  }
+
+  .calendar-popup-root {
+    width: 220px !important;
   }
 }
 
+/* Extra small devices */
+@media (max-width: 360px) {
+  .task-card .note-attachments {
+    gap: 4px !important;
+  }
+  
+  .task-card .note-actions {
+    gap: 2px !important;
+  }
+  
+  .attachment-btn,
+  .link-to-note-btn,
+  .action-btn {
+    min-width: 22px !important;
+    height: 22px !important;
+  }
+  
+  .task-icon-item {
+    width: 22px !important;
+    height: 22px !important;
+  }
+}
+
+/* Rest of your existing styles below */
 .note-card.skeleton {
   animation: pulse 1.5s ease-in-out infinite;
   min-height: 200px;
@@ -1093,7 +1318,7 @@ tr.selected-row.priority-4 {
 
 .grid-scroll-container {
   flex: 1;
-  min-height: 0 !important; /* This is crucial! */
+  min-height: 0 !important;
   overflow-x: hidden !important;
   position: relative;
   display: flex;
@@ -2078,622 +2303,4 @@ tr.highlight-original-note {
 .stacked-view .note-url-link {
   font-weight: 500;
 }
-/* Base note card styles - make sure position relative is set */
-.note-card {
-  position: relative;
-  /* ... your existing note card styles ... */
-}
 
-/* Base note card styles - remove the orange left border */
-.note-card.task-card {
-  /* Remove border-left: 4px solid #f39c12; */
-}
-
-/* Task card specific styles - light cyan footer background */
-.note-card.task-card .note-footer {
-  background-color: #e0f7fa !important; /* Light cyan background */
-  border-top: 1px solid #b2ebf2 !important; /* Slightly darker cyan border */
-}
-
-/* Optional: Different shade for selected task cards */
-.note-card.task-card.selected .note-footer {
-  background-color: #b2ebf2 !important; /* Slightly darker cyan when selected */
-}
-
-/* Optional: Hover effect */
-.note-card.task-card:hover .note-footer {
-  background-color: #b2ebf2 !important;
-}
-
-/* Keep the rest of your task card styles if any */
-/* Task icon items - no borders */
-.task-icon-item {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px 4px; /* Reduced padding */
-  background: #e0f7fa !important;
-  border: none !important; /* Force remove borders */
-  border-radius: 4px;
-  cursor: pointer;
-  color: #666;
-  font-size: 11px; /* Slightly smaller */
-  transition: all 0.2s;
-  height: 10px; /* Reduced height */
-  white-space: nowrap;
-}
-
-
-
-.task-icon-item.has-value {
-  background-color: #e3f2fd;
-  color: #1976d2;
-  border: none !important; /* Force remove borders even when has value */
-}
-
-.task-icon-item i {
-  font-size: 12px; /* Slightly smaller */
-}
-
-.icon-value {
-  font-size: 10px;
-  font-weight: 500;
-  max-width: 60px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* Attachment button - no border */
-.attachment-btn {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 6px; /* Reduced padding */
-  background: transparent;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  color: #666;
-  font-size: 11px;
-  height: 24px; /* Match task-icon-item height */
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-.attachment-btn:hover {
-  background-color: #f0f0f0;
-  color: #333;
-}
-
-.attachment-btn i {
-  font-size: 11px;
-}
-
-.attachment-btn span {
-  font-size: 10px;
-}
-/* Link button - no border */
-.link-to-note-btn {
-  background: transparent;
-  border: none !important; /* Force remove borders */
-  color: #3498db;
-  border-radius: 4px;
-  padding: 2px 6px; /* Reduced padding */
-  font-size: 11px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  transition: all 0.2s ease;
-  height: 24px;
-  width: 28px; /* Slightly smaller */
-}
-
-.link-to-note-btn:hover {
-  background-color: #e3f2fd;
-  border: none !important;
-}
-
-.link-to-note-btn i {
-  font-size: 11px;
-}
-/* Action button - no border */
-.action-btn {
-  background: transparent;
-  border: none !important; /* Force remove borders */
-  color: #666;
-  border-radius: 4px;
-  padding: 2px;
-  font-size: 11px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  height: 24px;
-  width: 24px; /* Fixed small width */
-}
-
-.action-btn:hover {
-  background-color: #f0f0f0;
-  color: #333;
-  border: none !important;
-}
-
-.action-btn i {
-  font-size: 11px;
-}
-
-.note-footer .priority-indicator {
-  width: 8px !important; 
-  height: 8px !important; 
-  border-radius: 50%;
-  margin: 0 4px !important;
-  display: inline-block;
-}
-
-.user-avatar-small {
-  width: 16px !important;
-  height: 16px !important;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 9px;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 4px;
-  border-radius: 10px;
-  font-size: 9px;
-  font-weight: 600;
-  white-space: nowrap;
-  gap: 2px;
-  max-width: 70px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.status-badge i {
-  font-size: 7px;
-  margin-right: 2px;
-}
-/* Popups with higher z-index */
-.calendar-popup.task-popup,
-.user-popup.task-popup,
-.status-popup.task-popup {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  margin-bottom: 2px !important;
-  background: white;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px; /* Smaller border radius */
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); /* Smaller shadow */
-  z-index: 99999 !important;
-  animation: popupFadeIn 0.2s ease;
-  font-size: 8px; /* Smaller base font */
-}
-
-.note-actions > div {
-  display: inline-flex;
-  flex-shrink: 0;
-}
-
-@media (max-width: 768px) {
-  .note-footer {
-    padding: 4px !important;
-    flex-wrap: wrap !important;
-    min-height: auto !important;
-  }
-  
-  .note-attachments {
-    margin-bottom: 2px;
-  }
-  
-  .task-icon-item {
-    padding: 2px 4px;
-    height: 22px;
-    font-size: 10px;
-  }
-  
-  .status-badge {
-    max-width: 60px;
-  }
-  
-  .icon-value {
-    max-width: 50px;
-  }
-}
-
-@media (max-width: 480px) {
-  .note-footer {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-  }
-  
-  .note-attachments, .note-actions {
-    width: 100%;
-    justify-content: space-between;
-  }
-  
-  .note-actions {
-    margin-left: 0;
-    justify-content: flex-end;
-  }
-}
-
-@keyframes popupFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.calendar-popup.task-popup {
-  width: 220px; /* Reduced from 260px */
-  padding: 6px; /* Reduced from 16px */
-}
-
-.calendar-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2px !important; /* Reduced from 16px */
-}
-
-.calendar-nav-button {
-  background: none;
-  border: none;
-  width: 18px; /* Reduced from 32px */
-  height: 18px; /* Reduced from 32px */
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: #666;
-  transition: all 0.2s;
-  font-size: 11px; /* Smaller icon */
-}
-
-/* Status popup specific */
-.status-popup.task-popup {
-  width: 240px;
-}
-
-.calendar-nav-button:hover {
-  background-color: #f0f0f0;
-  color: #333;
-}
-
-.calendar-nav-button {
-  background: none;
-  border: none;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: #666;
-  transition: all 0.2s;
-}
-
-.calendar-month-year {
-  font-size: 12px; /* Reduced from 14px */
-  font-weight: 600;
-  color: #333;
-}
-
-.calendar-weekdays {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 2px; /* Reduced from 4px */
-  margin-bottom: 6px; /* Reduced from 8px */
-}
-
-.weekday {
-  text-align: center;
-  font-size: 10px; /* Reduced from 12px */
-  font-weight: 600;
-  color: #666;
-  padding: 2px; /* Reduced from 4px */
-}
-
-.calendar-days {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 2px; /* Reduced from 4px */
-}
-
-.calendar-day {
-  aspect-ratio: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  cursor: pointer;
-  border-radius: 50%;
-  transition: all 0.2s;
-  padding: 4px;
-}
-
-.calendar-day.current-month {
-  color: #333;
-}
-
-.calendar-day.other-month {
-  color: #999;
-}
-
-.calendar-day:hover:not(.disabled) {
-  background-color: #f0f0f0;
-}
-
-.calendar-day.selected {
-  background-color: #1976d2;
-  color: white;
-  font-weight: 600;
-}
-
-.calendar-day.today {
-  border: 1px solid #1976d2;
-  font-weight: 600;
-}
-
-.calendar-day.disabled {
-  color: #ccc;
-  cursor: not-allowed;
-}
-
-.calendar-footer {
-  margin-top: 2px !important;
-  padding-top: 6px;
-  border-top: 1px solid #eaeaea;
-  display: flex;
-  justify-content: flex-end;
-}
-.user-popup.task-popup {
-  width: 220px; 
-}
-.user-popup-header,
-.status-popup-header {
-  padding: 2px 6px; 
-  border-bottom: 1px solid #e0e0e0;
-}
-
-.user-popup-title,
-.status-popup-title {
-  font-size: 8px; 
-  font-weight: 600;
-  color: #333;
-}
-
-.user-list-container,
-.status-list-container {
-  max-height: 120px; 
-  overflow-y: auto;
-  padding: 1px; 
-}
-
-.user-list-container::-webkit-scrollbar,
-.status-list-container::-webkit-scrollbar {
-  width: 4px; /* Smaller scrollbar */
-}
-.user-list-container::-webkit-scrollbar-track,
-.status-list-container::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 10px;
-}
-
-.user-list-container::-webkit-scrollbar-thumb,
-.status-list-container::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 10px;
-}
-
-.user-list-container::-webkit-scrollbar-thumb:hover,
-.status-list-container::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
-}
-
-.user-item {
-  display: flex;
-  align-items: center;
-  padding: 6px 8px; /* Reduced from 8px 12px */
-  cursor: pointer;
-  border-radius: 4px; /* Smaller radius */
-  transition: background-color 0.2s;
-  margin-bottom: 1px;
-}
-
-.user-item:hover {
-  background-color: #f5f5f5;
-}
-.user-item.selected {
-  background-color: #e3f2fd;
-}
-
-.user-avatar {
-  width: 24px; /* Reduced from 32px */
-  height: 24px; /* Reduced from 32px */
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 11px; /* Reduced from 13px */
-  font-weight: 400;
-  margin-right: 8px; /* Reduced from 12px */
-  flex-shrink: 0;
-}
-
-.user-name {
-  font-size: 12px !important; /* Reduced from 14px */
-  color: #333;
-  font-weight: 500 !important;
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.user-check-icon {
-  color: #1976d2;
-  margin-left: 4px; /* Reduced from 8px */
-  flex-shrink: 0;
-  font-size: 10px; /* Smaller */
-}
-.user-popup-footer,
-.status-popup-footer {
-  padding: 4px 6px; /* Reduced from 12px 16px */
-  border-top: 1px solid #e0e0e0;
-  display: flex;
-  justify-content: flex-end;
-}
-
-/* Status popup specific - smaller */
-.status-popup.task-popup {
-  width: 180px; /* Reduced from 240px */
-}
-
-.status-item {
-  display: flex;
-  align-items: center;
-  padding: px 4px !important; /* Reduced from 8px 10px */
-  cursor: pointer;
-  border-radius: 4px; /* Smaller radius */
-  transition: background-color 0.2s;
-  margin-bottom: 1px;
-  border-left: 3px solid transparent;
-}
-
-.status-item:hover {
-  background-color: #f5f5f5;
-}
-
-.status-item.selected {
-  background-color: #f8f9fa;
-}
-
-.status-icon-wrapper {
-  width: 14px; /* Reduced from 24px */
-  height: 14px; /* Reduced from 24px */
-  border-radius: 6px; /* Smaller radius */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 8px; /* Reduced from 14px */
-  margin-right: 8px; /* Reduced from 12px */
-  flex-shrink: 0;
-}
-
-.status-name {
-  font-size: 12px !important; /* Reduced from 14px */
-  color: #333;
-  flex: 1;
-  font-weight: 500;
-}
-
-.status-check-icon {
-  margin-left: 4px;
-  flex-shrink: 0;
-  font-size: 8px; /* Smaller */
-}
-
-.clear-button {
-  padding: 2px 6px; /* Reduced from 3px 8px */
-  background: none;
-  border: 1px solid #dc3545;
-  color: #dc3545;
-  border-radius: 4px;
-  font-size: 11px; /* Reduced from 12px */
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.clear-button:hover {
-  background: #dc3545;
-  color: white;
-}
-
-.loading-users {
-  padding: 12px;
-  text-align: center;
-  color: #666;
-  font-size: 11px;
-}
-
-.loading-users i {
-  font-size: 11px;
-  margin-right: 4px;
-}
-
-.no-users {
-  padding: 12px;
-  text-align: center;
-  color: #999;
-  font-size: 11px;
-}
-
-/* User avatar small */
-.user-avatar-small {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 10px;
-  font-weight: 600;
-}
-
-/* Status badge */
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 4px;
-  border-radius: 12px;
-  font-size: 8px !important;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-/* Note footer layout */
-.note-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  border-top: 1px solid #eaeaea;
-  background: #fafafa;
-}
-
-.note-attachments, .note-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-@keyframes popupFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(5px); /* Smaller movement */
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
