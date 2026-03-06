@@ -21,6 +21,7 @@ const EditNoteModal = ({
     userId: "",
     projectId: "",
     jobId: "",
+    taskId: "",
     note: "",
     workspaceId: "",
   });
@@ -87,6 +88,8 @@ const EditNoteModal = ({
   const currentUser = getCurrentUser();
   const isCreator = note?.userId && note.userId.toString() === currentUser.id.toString();
   const canEditNote = isCreator;
+
+  console.log(note)
 
   const allowedFileTypes = {
     "image/jpeg": [".jpg", ".jpeg"],
@@ -590,6 +593,7 @@ useEffect(() => {
         date: correctedDate,
         projectId: note.projectId?.toString() || "",
         jobId: note.jobId?.toString() || "",
+        taskId: note.taskId?.toString() || "",
         note: note.note || "",
         userId: user.id,
         workspaceId: note.workspaceId?.toString() || ""
@@ -1302,6 +1306,7 @@ const insertHtmlSafely = (htmlContent) => {
         Date: new Date(journalData.date).toISOString(),
         Note: noteText,
         JobId: journalData.jobId,
+        TaskId: journalData.taskId,
         UserId: journalData.userId,
       });
 
@@ -1372,6 +1377,7 @@ const insertHtmlSafely = (htmlContent) => {
   date: journalData.date,
   timeStamp: new Date().toISOString(),
   jobId: journalData.jobId,
+  taskId: journalData.taskId,
   job: note.job, // Keep original job name
   projectId: journalData.projectId,
   project: note.project, // Keep original project name
