@@ -1,9 +1,11 @@
+// components/NoteViews/StackedView.jsx
 import React, { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import { formatRelativeTime } from "../../utils/formatUtils";
 import { highlightHtmlContent } from "../../utils/htmlUtils";
 import { CardSkeleton } from "../Skeleton";
 import { NoteCard } from "../Note";
+import TaskCard from "./TaskCard";
 import EditJobModal from "./EditJobModal";
 import TaskModal from "../../../Modals/TaskModal";
 import SlideshowModal from "./SlideshowModal";
@@ -48,6 +50,20 @@ const StackedView = ({
   isFilteringStacked,
   jobsToDisplay,
   onSaveTask,
+  // Task hierarchy props
+  tasksByJob = {},
+  loadingTasksByJob = {},
+  expandedTasks = {},
+  toggleTaskExpansion,
+  notesByTask = {},
+  loadingNotesByTask = {},
+  fetchTasksForJob,
+  fetchNotesForTask,
+  // Task action handlers
+  onTaskEdit,
+  onTaskDelete,
+  onTaskStatusChange,
+  onTaskClick,
 }) => {
   const [localExpandedStacks, setLocalExpandedStacks] = useState({});
   const [editJobModalOpen, setEditJobModalOpen] = useState(false);
@@ -89,16 +105,16 @@ const StackedView = ({
   const handleSaveTask = async (taskData) => {
     setIsSavingTask(true);
     try {
-      // Call the provided onSaveTask function
       if (onSaveTask) {
         await onSaveTask(taskData);
-        
-        // Show success message
         toast.success(`Task "${taskData.taskName}" created successfully!`);
-        
-        // Close the modal
         setTaskModalOpen(false);
         setSelectedJobForTask(null);
+        
+        // Refresh tasks for the job
+        if (selectedJobForTask && fetchTasksForJob) {
+          await fetchTasksForJob(selectedJobForTask.id);
+        }
       }
     } catch (error) {
       console.error("Failed to save task:", error);
@@ -117,6 +133,33 @@ const StackedView = ({
       setSlideshowOpen(true);
     } else {
       toast.error('No notes available for slideshow');
+    }
+  };
+
+  // Handle task card click to toggle expansion
+  const handleTaskCardClick = (task) => {
+    if (onTaskClick) {
+      onTaskClick(task);
+    } else if (toggleTaskExpansion) {
+      // Toggle expansion: when expanded, show notes; when collapsed, show tasks
+      toggleTaskExpansion(task.id, task.jobId);
+    }
+  };
+
+  // Handle task toggle for TaskCard component
+  const handleTaskToggle = (taskId) => {
+    if (toggleTaskExpansion) {
+      // Find the jobId for this task
+      let jobId = null;
+      for (const [jId, tasks] of Object.entries(tasksByJob)) {
+        if (tasks.some(t => t.id === taskId)) {
+          jobId = parseInt(jId);
+          break;
+        }
+      }
+      if (jobId) {
+        toggleTaskExpansion(taskId, jobId);
+      }
     }
   };
 
@@ -157,7 +200,7 @@ const StackedView = ({
             ? "Please wait while we load your jobs..."
             : hasActiveFilters
               ? "Try adjusting your filters to see matching jobs"
-              : "No jobs with notes found."}
+              : "No jobs with tasks or notes found."}
         </p>
       </div>
     );
@@ -176,6 +219,14 @@ const StackedView = ({
     });
 
   const isAnyStackExpanded = Object.values(expandedStacks).some((v) => v);
+
+  // Check if any task is expanded in the current job
+  const hasExpandedTask = (jobId) => {
+    return Object.keys(expandedTasks).some(taskId => {
+      const task = tasksByJob[jobId]?.find(t => t.id.toString() === taskId);
+      return task && expandedTasks[taskId];
+    });
+  };
 
   return (
     <div className="stacked-notes-horizontal">
@@ -206,13 +257,18 @@ const StackedView = ({
 
           const jobName = job.jobName;
           const isExpanded = expandedStacks[jobName];
+          const jobTasks = tasksByJob[job.jobId] || [];
+          const expandedTaskId = Object.keys(expandedTasks).find(
+            taskId => expandedTasks[taskId] && jobTasks.some(t => t.id.toString() === taskId)
+          );
+          const expandedTask = expandedTaskId ? jobTasks.find(t => t.id.toString() === expandedTaskId) : null;
 
           if (!isExpanded && isAnyStackExpanded) {
             return null;
           }
 
           return isExpanded
-            ? renderExpandedStack({
+            ? renderExpandedStackWithTasks({
                 job,
                 searchTerm,
                 hasActiveFilters,
@@ -248,7 +304,24 @@ const StackedView = ({
                   setEditJobModalOpen(true);
                 },
                 onCreateTask: handleCreateTask,
-                onOpenSlideshow: handleOpenSlideshow, // Pass slideshow handler
+                onOpenSlideshow: handleOpenSlideshow,
+                // Task props
+                tasks: jobTasks,
+                loadingTasks: loadingTasksByJob[job.jobId] || false,
+                expandedTasks,
+                expandedTask, // The currently expanded task (if any)
+                onTaskToggle: handleTaskToggle, // Pass the toggle function
+                onTaskClick: handleTaskCardClick,
+                onTaskEdit,
+                onTaskDelete,
+                onTaskStatusChange,
+                notesByTask,
+                loadingNotesByTask,
+                onCollapseTask: () => {
+                  if (expandedTaskId) {
+                    toggleTaskExpansion(expandedTaskId, job.jobId);
+                  }
+                },
               })
             : renderCollapsedStack({
                 job,
@@ -261,7 +334,7 @@ const StackedView = ({
                   setEditJobModalOpen(true);
                 },
                 onCreateTask: handleCreateTask,
-                onOpenSlideshow: handleOpenSlideshow, // Pass slideshow handler
+                onOpenSlideshow: handleOpenSlideshow,
               });
         })}
 
@@ -312,50 +385,368 @@ const StackedView = ({
   );
 };
 
-const renderStackedViewLoading = () => (
-  <div
-    className="stacked-view-loading"
-    style={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      height: "400px",
-      width: "100%",
-      backgroundColor: "#f8f9fa",
-      borderRadius: "8px",
-    }}
-  >
-    <i
-      className="fas fa-spinner fa-spin"
-      style={{
-        fontSize: "48px",
-        color: "#3498db",
-        marginBottom: "20px",
-      }}
-    />
+const renderExpandedStackWithTasks = ({
+  job,
+  searchTerm,
+  hasActiveFilters,
+  openAiDialogForJob,
+  renderStackedImageIcon,
+  selectedRow,
+  handleRowClick,
+  handleRowDoubleClick,
+  handleAddFromRow,
+  handleEdit,
+  handleDelete,
+  handleViewAttachments,
+  handleReplyToNote,
+  handlePriorityClick,
+  handlePriorityMouseEnter,
+  handlePriorityMouseLeave,
+  handleNoteTextMouseEnter,
+  handleNoteTextMouseLeave,
+  handleLinkedNoteClick,
+  handleLinkedNoteMouseEnter,
+  handleLinkedNoteMouseLeave,
+  isNoteReply,
+  getReplyNoteId,
+  isOriginalNoteExists,
+  userStatusMap,
+  loadingUsers,
+  getPriorityValue,
+  manuallyUpdatedPriorities,
+  shouldShowNotePopup,
+  toggleStackExpansion,
+  onOpenEdit,
+  onCreateTask,
+  onOpenSlideshow,
+  // Task props
+  tasks,
+  loadingTasks,
+  expandedTasks,
+  expandedTask,
+  onTaskToggle, // Add this
+  onTaskClick,
+  onTaskEdit,
+  onTaskDelete,
+  onTaskStatusChange,
+  notesByTask,
+  loadingNotesByTask,
+  onCollapseTask,
+}) => {
+  if (!job) return null;
+
+  const jobName = job.jobName;
+  const projectName = job.projectName || job.project?.name || job.project?.projectName || job.project?.project?.name || job.projectName;
+  const taskCount = tasks ? tasks.length : 0;
+
+  // Calculate task counts by status for summary
+  const taskSummary = tasks.reduce((acc, task) => {
+    acc[task.status] = (acc[task.status] || 0) + 1;
+    return acc;
+  }, {});
+
+  return (
     <div
-      style={{
-        fontSize: "18px",
-        color: "#2c3e50",
-        marginBottom: "10px",
-        fontWeight: "500",
-      }}
+      key={`stack-${job.jobId || job.jobName}`}
+      className="job-stack-container expanded-full-width"
+      style={styles.expandedContainer}
     >
-      Loading stacked view...
+      <div className="expanded-stack">
+        {/* Header Section */}
+        <div className="expanded-stack-header" style={styles.expandedHeader}>
+          <div className="expanded-stack-title-section">
+            <div className="expanded-stack-title" style={styles.titleSection}>
+              <i className="fas fa-briefcase" style={styles.briefcaseIcon} />
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
+                <span style={{ fontSize: 16, fontWeight: 600 }}>{jobName}</span>
+                {projectName && (
+                  <small title={projectName} style={{ fontSize: 12, color: '#7f8c8d', fontWeight: 400 }}>
+                    {projectName}
+                  </small>
+                )}
+              </div>
+            </div>
+            
+            {/* Collapse button when task is expanded */}
+            
+          </div>
+          
+          {/* Action Buttons */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {expandedTask && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCollapseTask();
+                }}
+                style={styles.collapseButton}
+                title="Back to tasks"
+              >
+                <i className="fas fa-arrow-left" style={{ marginRight: '6px' }} />
+                
+              </button>
+            )}
+            {/* Slideshow button */}
+            <button
+              className="attachment-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenSlideshow(job, 0);
+              }}
+              title="View slideshow"
+              style={styles.actionButton}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "rgba(155, 89, 182, 0.1)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+              }}
+            >
+              <i className="fas fa-images" style={{ color: '#9b59b6' }} />
+            </button>
+
+            {/* Create Task button - hide when task is expanded */}
+            {!expandedTask && (
+              <button
+                className="create-task-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (typeof onCreateTask === 'function') onCreateTask(job);
+                }}
+                title="Create Task"
+                style={styles.actionButton}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "rgba(40, 167, 69, 0.2)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                }}
+              >
+                <i className="fas fa-plus-circle" style={{ color: '#28a745' }} />
+              </button>
+            )}
+            
+            {/* AI Summarize button */}
+            <button
+              className="attachment-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                openAiDialogForJob(job);
+              }}
+              title="Summarize notes (AI)"
+              style={styles.actionButton}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "rgba(25, 118, 210, 0.1)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+              }}
+            >
+              <i className="fas fa-comments" style={{ color: '#1976d2' }} />
+            </button>
+            
+            {/* Settings button */}
+            <button
+              className="attachment-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (typeof onOpenEdit === 'function') onOpenEdit(job);
+              }}
+              title="Edit job"
+              style={styles.actionButton}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "rgba(68, 68, 68, 0.1)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+              }}
+            >
+              <i className="fas fa-cog" style={{ color: '#444' }} />
+            </button>
+
+            {/* Task summary badges - only show when no task is expanded */}
+            {!expandedTask && taskCount > 0 && (
+              <div style={styles.taskSummary}>
+                {Object.entries(taskSummary).map(([status, count]) => {
+                  const statusColors = {
+                    1: { bg: '#c2c2c2', label: 'To Do' },
+                    2: { bg: '#ff8400', label: 'In Progress' },
+                    3: { bg: '#dc3545', label: 'Blocked' },
+                    4: { bg: '#28a745', label: 'Done' },
+                  };
+                  const statusInfo = statusColors[status] || { bg: '#6c757d', label: 'Unknown' };
+                  
+                  return (
+                    <div
+                      key={status}
+                      style={{
+                        ...styles.statusBadge,
+                        backgroundColor: statusInfo.bg,
+                      }}
+                      title={`${statusInfo.label}: ${count}`}
+                    >
+                      {count}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Content Area */}
+        <div className="tasks-container" style={styles.tasksContainer}>
+          {loadingTasks ? (
+            <div style={styles.loadingState}>
+              <i className="fas fa-spinner fa-spin" style={styles.spinner} />
+              <div>Loading tasks for {jobName}...</div>
+            </div>
+          ) : (
+            <>
+              {tasks.length === 0 ? (
+                <div style={styles.emptyState}>
+                  <i className="fas fa-tasks" style={styles.emptyIcon} />
+                  <p>No tasks found for this job</p>
+                  <button
+                    onClick={() => onCreateTask(job)}
+                    style={styles.createButton}
+                    onMouseEnter={(e) => {
+                      e.target.style.backgroundColor = '#2980b9';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.backgroundColor = '#3498db';
+                    }}
+                  >
+                    <i className="fas fa-plus" style={{ marginRight: '6px' }} />
+                    Create First Task
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* Show expanded task notes if a task is expanded */}
+                  {expandedTask ? (
+                    <div style={styles.expandedTaskSection}>
+                      {/* Mini task header */}
+                      <div style={styles.expandedTaskHeader}>
+                        <div style={styles.expandedTaskInfo}>
+                          <i className="fas fa-tasks" style={{ color: '#3498db', marginRight: '10px' }} />
+                          <div>
+                            <div style={styles.expandedTaskTitle}>
+                              {expandedTask.title}
+                              {expandedTask.friendlyId && (
+                                <span style={styles.expandedTaskFriendlyId}>
+                                  {expandedTask.friendlyId}
+                                </span>
+                              )}
+                            </div>
+                            {expandedTask.description && (
+                              <div style={styles.expandedTaskDescription}>
+                                {expandedTask.description}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div style={styles.expandedTaskActions}>
+                          <button
+                            onClick={() => onTaskEdit(expandedTask)}
+                            style={styles.taskActionButton}
+                            title="Edit task"
+                          >
+                            <i className="fas fa-edit" />
+                          </button>
+                          <button
+                            onClick={() => onTaskDelete(expandedTask.id)}
+                            style={{ ...styles.taskActionButton, color: '#dc3545' }}
+                            title="Delete task"
+                          >
+                            <i className="fas fa-trash" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Notes for expanded task */}
+                      <div style={styles.taskNotesSection}>
+                       
+                        
+                        {loadingNotesByTask[expandedTask.id] ? (
+                          <div style={styles.noteLoadingState}>
+                            <i className="fas fa-spinner fa-spin" style={styles.smallSpinner} />
+                            <span>Loading notes...</span>
+                          </div>
+                        ) : (
+                          <div style={styles.notesGrid}>
+                            {notesByTask[expandedTask.id]?.length > 0 ? (
+                              notesByTask[expandedTask.id].map((note) => (
+                                <NoteCard
+                                  key={note.id}
+                                  note={note}
+                                  selectedRow={selectedRow}
+                                  searchTerm={searchTerm}
+                                  viewMode="stacked"
+                                  handleRowClick={handleRowClick}
+                                  handleRowDoubleClick={handleRowDoubleClick}
+                                  handleAddFromRow={handleAddFromRow}
+                                  handleEdit={handleEdit}
+                                  handleDelete={handleDelete}
+                                  handleViewAttachments={handleViewAttachments}
+                                  handleReplyToNote={handleReplyToNote}
+                                  handlePriorityClick={handlePriorityClick}
+                                  handlePriorityMouseEnter={handlePriorityMouseEnter}
+                                  handlePriorityMouseLeave={handlePriorityMouseLeave}
+                                  handleNoteTextMouseEnter={handleNoteTextMouseEnter}
+                                  handleNoteTextMouseLeave={handleNoteTextMouseLeave}
+                                  handleLinkedNoteClick={handleLinkedNoteClick}
+                                  handleLinkedNoteMouseEnter={handleLinkedNoteMouseEnter}
+                                  handleLinkedNoteMouseLeave={handleLinkedNoteMouseLeave}
+                                  renderCardImageIcon={renderStackedImageIcon}
+                                  isNoteReply={isNoteReply}
+                                  getReplyNoteId={getReplyNoteId}
+                                  isOriginalNoteExists={isOriginalNoteExists}
+                                  userStatusMap={userStatusMap}
+                                  loadingUsers={loadingUsers}
+                                  getPriorityValue={getPriorityValue}
+                                  manuallyUpdatedPriorities={manuallyUpdatedPriorities}
+                                  shouldShowNotePopup={shouldShowNotePopup}
+                                />
+                              ))
+                            ) : (
+                              <div style={styles.noNotesMessage}>
+                                <i className="fas fa-sticky-note" style={{ opacity: 0.5, marginRight: '8px' }} />
+                                No notes yet for this task
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    /* Show all tasks in grid when no task is expanded */
+                    <div style={styles.tasksGrid}>
+                      {tasks.map((task) => (
+                        <div key={task.id} style={styles.taskWrapper}>
+                          <TaskCard
+                            task={task}
+                            onEdit={onTaskEdit}
+                            onDelete={onTaskDelete}
+                            onStatusChange={onTaskStatusChange}
+                            onClick={onTaskClick}
+                            onToggle={onTaskToggle} // Pass the toggle function
+                            isExpanded={false} // Tasks are never expanded in this view, we show notes separately
+                          />
+                          
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
-    <div
-      style={{
-        fontSize: "14px",
-        color: "#7f8c8d",
-        textAlign: "center",
-        maxWidth: "400px",
-      }}
-    >
-      Please wait while we organize your notes by job...
-    </div>
-  </div>
-);
+  );
+};
 
 const renderCollapsedStack = ({ 
   job, 
@@ -413,7 +804,7 @@ const renderCollapsedStack = ({
               }}
             />
             <div style={{ fontSize: "14px", color: "#666" }}>
-              Loading notes...
+              Loading...
             </div>
           </div>
         </div>
@@ -484,7 +875,6 @@ const renderCollapsedStack = ({
                           width: "100%",
                         }}
                       >
-                        {/*truncation to job name */}
                         <span 
                           style={{ 
                             lineHeight: 1,
@@ -585,7 +975,6 @@ const renderCollapsedStack = ({
                     </span>
                   </div>
 
-                 
                   <div
                     style={{
                       fontSize: "13px",
@@ -626,7 +1015,7 @@ const renderCollapsedStack = ({
                               ? job.notes[0].note || "No note content"
                               : hasActiveFilters && job.hasLoadedNotes
                                 ? "No notes match current filters"
-                                : "Click to load notes",
+                                : "Click to load",
                           searchTerm,
                         ),
                       }}
@@ -712,7 +1101,7 @@ const renderCollapsedStack = ({
                           gap: '4px',
                         }}
                       >
-                        <i className="fas fa-plus-circle" />
+                        <i className="fas fa-plus-circle" style={{ color: '#28a745' }} />
                       </button>
                       
                       {/* Settings button */}
@@ -779,381 +1168,281 @@ const renderCollapsedStack = ({
   );
 };
 
-const renderExpandedStack = ({
-  job,
-  searchTerm,
-  hasActiveFilters,
-  openAiDialogForJob,
-  renderStackedImageIcon,
-  selectedRow,
-  handleRowClick,
-  handleRowDoubleClick,
-  handleAddFromRow,
-  handleEdit,
-  handleDelete,
-  handleViewAttachments,
-  handleReplyToNote,
-  handlePriorityClick,
-  handlePriorityMouseEnter,
-  handlePriorityMouseLeave,
-  handleNoteTextMouseEnter,
-  handleNoteTextMouseLeave,
-  handleLinkedNoteClick,
-  handleLinkedNoteMouseEnter,
-  handleLinkedNoteMouseLeave,
-  isNoteReply,
-  getReplyNoteId,
-  isOriginalNoteExists,
-  userStatusMap,
-  loadingUsers,
-  getPriorityValue,
-  manuallyUpdatedPriorities,
-  shouldShowNotePopup,
-  toggleStackExpansion,
-  onOpenEdit,
-  onCreateTask,
-  onOpenSlideshow,
-}) => {
-  if (!job) return null;
-
-  const jobName = job.jobName;
-  const projectName = job.projectName || job.project?.name || job.project?.projectName || job.project?.project?.name || job.projectName;
-  const jobNotes = job.notes
-    ? [...job.notes].sort((a, b) => {
-        const timeA = new Date(a.timeStamp || a.date || 0).getTime();
-        const timeB = new Date(b.timeStamp || b.date || 0).getTime();
-        return timeB - timeA;
-      })
-    : [];
-  const isLoading = job.isLoadingNotes;
-  const hasError = job.errorLoadingNotes;
-  const hasLoaded = job.hasLoadedNotes;
-  const noteCount = job.noteCount || 0;
-  const displayNoteCount = jobNotes.length;
-
-  return (
+const renderStackedViewLoading = () => (
+  <div
+    className="stacked-view-loading"
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      height: "400px",
+      width: "100%",
+      backgroundColor: "#f8f9fa",
+      borderRadius: "8px",
+    }}
+  >
+    <i
+      className="fas fa-spinner fa-spin"
+      style={{
+        fontSize: "48px",
+        color: "#3498db",
+        marginBottom: "20px",
+      }}
+    />
     <div
-      key={`stack-${job.jobId || job.jobName}`}
-      className={`job-stack-container expanded-full-width`}
+      style={{
+        fontSize: "18px",
+        color: "#2c3e50",
+        marginBottom: "10px",
+        fontWeight: "500",
+      }}
     >
-      <div className="expanded-stack">
-        <div className="expanded-stack-header">
-          <div className="expanded-stack-title-section">
-            <div className="expanded-stack-title">
-              <i className="fas fa-briefcase" />
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 }}>
-                <span style={{ fontSize: 16, fontWeight: 600 }}>{jobName}</span>
-                {projectName && (
-                  <small title={projectName} style={{ fontSize: 12, color: '#7f8c8d', fontWeight: 400 }}>
-                    {projectName}
-                  </small>
-                )}
-              </div>
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {/* Slideshow button */}
-            <button
-              className="attachment-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenSlideshow(job, 0);
-              }}
-              title="View slideshow"
-              style={{
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                color: "#9b59b6",
-                fontSize: "14px",
-                padding: "6px 12px",
-                borderRadius: "4px",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "rgba(155, 89, 182, 0.1)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "transparent";
-              }}
-            >
-              <i className="fas fa-images" />
-            </button>
-
-            {/* Create Task button */}
-            <button
-              className="create-task-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (typeof onCreateTask === 'function') onCreateTask(job);
-              }}
-              title="Create Task"
-              style={{
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                fontSize: "14px",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "6px 12px",
-                borderRadius: "4px",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "rgba(40, 167, 69, 0.2)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "rgba(40, 167, 69, 0.1)";
-              }}
-            >
-              <i className="fas fa-plus-circle" />
-            </button>
-            
-            {/* AI Summarize button */}
-            <button
-              className="attachment-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                openAiDialogForJob(job);
-              }}
-              title="Summarize notes (AI)"
-              style={{
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                color: "#1976d2",
-              }}
-            >
-              <i className="fas fa-comments" />
-            </button>
-            
-            {/* Settings button */}
-            <button
-              className="attachment-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (typeof onOpenEdit === 'function') onOpenEdit(job);
-              }}
-              title="Edit job"
-              style={{
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                color: "#444",
-              }}
-            >
-              <i className="fas fa-cog" />
-            </button>
-
-            {/* Note count display */}
-            <div className="expanded-stack-count">
-              <i className="fas fa-layer-group" />
-              <span>
-                {displayNoteCount} of {noteCount} notes
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Loading state */}
-        {isLoading && (
-          <div
-            className="stack-notes-loading"
-            style={{
-              padding: "40px",
-              textAlign: "center",
-              color: "#666",
-              backgroundColor: "#f8f9fa",
-              borderRadius: "8px",
-              margin: "20px 0",
-            }}
-          >
-            <i
-              className="fas fa-spinner fa-spin"
-              style={{
-                fontSize: "24px",
-                marginBottom: "10px",
-                display: "block",
-              }}
-            />
-            <div>Loading notes for {jobName}...</div>
-          </div>
-        )}
-
-        {/* Error state */}
-        {hasError && !isLoading && (
-          <div
-            className="stack-notes-error"
-            style={{
-              padding: "20px",
-              textAlign: "center",
-              color: "#e74c3c",
-              backgroundColor: "#fdf2f2",
-              borderRadius: "8px",
-              margin: "20px 0",
-              border: "1px solid #f8d7da",
-            }}
-          >
-            <i
-              className="fas fa-exclamation-triangle"
-              style={{
-                fontSize: "24px",
-                marginBottom: "10px",
-                display: "block",
-              }}
-            />
-            <div style={{ marginBottom: "10px" }}>
-              Failed to load notes: {hasError}
-            </div>
-            <button
-              onClick={() => toggleStackExpansion(jobName, job.jobId)}
-              style={{
-                padding: "8px 16px",
-                backgroundColor: "#3498db",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: "pointer",
-              }}
-            >
-              <i className="fas fa-redo" style={{ marginRight: "8px" }} />
-              Retry Loading
-            </button>
-          </div>
-        )}
-
-        {/* Loaded notes */}
-        {hasLoaded && !isLoading && !hasError && (
-          <>
-            {displayNoteCount === 0 ? (
-              <div
-                className="no-notes-filtered"
-                style={{
-                  padding: "40px",
-                  textAlign: "center",
-                  color: "#999",
-                  backgroundColor: "#f8f9fa",
-                  borderRadius: "8px",
-                  margin: "20px 0",
-                }}
-              >
-                <i
-                  className="fas fa-search"
-                  style={{
-                    fontSize: "24px",
-                    marginBottom: "10px",
-                    display: "block",
-                    opacity: 0.5,
-                  }}
-                />
-                <div>No notes match your current filters for this job</div>
-                {hasActiveFilters && (
-                  <div
-                    style={{
-                      marginTop: "10px",
-                      fontSize: "14px",
-                      color: "#666",
-                    }}
-                  >
-                    Try adjusting your filters or clear them to see all notes
-                  </div>
-                )}
-              </div>
-            ) : (
-              <>
-                {displayNoteCount > 0 && displayNoteCount < noteCount && (
-                  <div
-                    className="notes-count-info"
-                    style={{
-                      padding: "8px",
-                      backgroundColor: "#e3f2fd",
-                      borderRadius: "4px",
-                      margin: "10px 0",
-                      fontSize: "12px",
-                      color: "#1565c0",
-                    }}
-                  >
-                    <i className="fas fa-info-circle" /> Showing{" "}
-                    {displayNoteCount} of {noteCount} notes
-                    {hasActiveFilters && " that match your filters"}
-                  </div>
-                )}
-
-                <div className="expanded-notes-grid">
-                  {jobNotes.map((note) => {
-                    const priorityValue = getPriorityValue(note);
-                    const isReply = isNoteReply(note.id);
-                    const originalNoteId = isReply
-                      ? getReplyNoteId(note.id)
-                      : null;
-
-                    return (
-                      <NoteCard
-                        key={note.id}
-                        note={note}
-                        selectedRow={selectedRow}
-                        searchTerm={searchTerm}
-                        viewMode="stacked"
-                        handleRowClick={handleRowClick}
-                        handleRowDoubleClick={handleRowDoubleClick}
-                        handleAddFromRow={handleAddFromRow}
-                        handleEdit={handleEdit}
-                        handleDelete={handleDelete}
-                        handleViewAttachments={handleViewAttachments}
-                        handleReplyToNote={handleReplyToNote}
-                        handlePriorityClick={handlePriorityClick}
-                        handlePriorityMouseEnter={handlePriorityMouseEnter}
-                        handlePriorityMouseLeave={handlePriorityMouseLeave}
-                        handleNoteTextMouseEnter={handleNoteTextMouseEnter}
-                        handleNoteTextMouseLeave={handleNoteTextMouseLeave}
-                        handleLinkedNoteClick={handleLinkedNoteClick}
-                        handleLinkedNoteMouseEnter={handleLinkedNoteMouseEnter}
-                        handleLinkedNoteMouseLeave={handleLinkedNoteMouseLeave}
-                        renderCardImageIcon={renderStackedImageIcon}
-                        isNoteReply={isNoteReply}
-                        getReplyNoteId={getReplyNoteId}
-                        isOriginalNoteExists={isOriginalNoteExists}
-                        userStatusMap={userStatusMap}
-                        loadingUsers={loadingUsers}
-                        getPriorityValue={getPriorityValue}
-                        manuallyUpdatedPriorities={manuallyUpdatedPriorities}
-                        shouldShowNotePopup={shouldShowNotePopup}
-                      />
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </>
-        )}
-
-        {/* No notes loaded yet */}
-        {!hasLoaded && !isLoading && !hasError && (
-          <div
-            className="stack-notes-placeholder"
-            style={{
-              padding: "40px",
-              textAlign: "center",
-              color: "#999",
-              backgroundColor: "#f8f9fa",
-              borderRadius: "8px",
-              margin: "20px 0",
-            }}
-          >
-            <i
-              className="fas fa-sticky-note"
-              style={{
-                fontSize: "24px",
-                marginBottom: "10px",
-                display: "block",
-                opacity: 0.5,
-              }}
-            />
-            <div>Click "Retry Loading" to load notes for this job</div>
-          </div>
-        )}
-      </div>
+      Loading stacked view...
     </div>
-  );
+    <div
+      style={{
+        fontSize: "14px",
+        color: "#7f8c8d",
+        textAlign: "center",
+        maxWidth: "400px",
+      }}
+    >
+      Please wait while we organize your data...
+    </div>
+  </div>
+);
+
+const styles = {
+  expandedContainer: {
+    width: '100%',
+    marginBottom: '20px',
+  },
+  expandedHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '16px 20px',
+    backgroundColor: '#f8f9fa',
+    borderBottom: '2px solid #e9ecef',
+    borderRadius: '8px 8px 0 0',
+  },
+  titleSection: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+  },
+  briefcaseIcon: {
+    color: '#14A2B6',
+    fontSize: '18px',
+  },
+  collapseButton: {
+    background: 'transparent',
+    border: '1px solid #3498db',
+    color: '#3498db',
+    padding: '6px 12px',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '13px',
+    marginLeft: '20px',
+    display: 'flex',
+    alignItems: 'center',
+    transition: 'all 0.2s ease',
+  },
+  actionButton: {
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: '16px',
+    padding: '8px 12px',
+    borderRadius: '4px',
+    transition: 'all 0.2s ease',
+  },
+  taskSummary: {
+    display: 'flex',
+    gap: '4px',
+    marginLeft: '8px',
+  },
+  statusBadge: {
+    width: '20px',
+    height: '20px',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: 'white',
+    fontSize: '11px',
+    fontWeight: 'bold',
+  },
+  tasksContainer: {
+    marginTop: '20px',
+    padding: '0 20px 20px 20px',
+  },
+  tasksGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
+    gap: '16px',
+  },
+  taskWrapper: {
+    display: 'flex',
+    flexDirection: 'column',
+    position: 'relative',
+  },
+  taskNoteBadge: {
+    position: 'absolute',
+    top: '10px',
+    right: '10px',
+    backgroundColor: '#3498db',
+    color: 'white',
+    padding: '2px 8px',
+    borderRadius: '12px',
+    fontSize: '11px',
+    fontWeight: 600,
+    zIndex: 2,
+  },
+  loadingState: {
+    padding: '40px',
+    textAlign: 'center',
+    color: '#666',
+    backgroundColor: '#f8f9fa',
+    borderRadius: '8px',
+  },
+  spinner: {
+    fontSize: '24px',
+    color: '#3498db',
+    marginBottom: '10px',
+    display: 'block',
+  },
+  smallSpinner: {
+    fontSize: '14px',
+    color: '#3498db',
+  },
+  emptyState: {
+    padding: '40px',
+    textAlign: 'center',
+    color: '#999',
+    backgroundColor: '#f8f9fa',
+    borderRadius: '8px',
+  },
+  emptyIcon: {
+    fontSize: '32px',
+    marginBottom: '10px',
+    opacity: 0.5,
+    display: 'block',
+  },
+  createButton: {
+    marginTop: '10px',
+    padding: '8px 16px',
+    backgroundColor: '#3498db',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '13px',
+    fontWeight: 500,
+    transition: 'background-color 0.2s ease',
+  },
+  expandedTaskSection: {
+    padding: '20px',
+    backgroundColor: '#f8f9fa',
+    borderRadius: '8px',
+    border: '1px solid #e9ecef',
+  },
+  expandedTaskHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: '20px',
+    paddingBottom: '15px',
+    borderBottom: '2px solid #e9ecef',
+  },
+  expandedTaskInfo: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    flex: 1,
+  },
+  expandedTaskTitle: {
+    fontSize: '16px',
+    fontWeight: 600,
+    color: '#2c3e50',
+    marginBottom: '4px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  expandedTaskFriendlyId: {
+    fontSize: '12px',
+    color: '#7f8c8d',
+    backgroundColor: '#f0f0f0',
+    padding: '2px 6px',
+    borderRadius: '4px',
+  },
+  expandedTaskDescription: {
+    fontSize: '14px',
+    color: '#666',
+    lineHeight: 1.5,
+  },
+  expandedTaskActions: {
+    display: 'flex',
+    gap: '8px',
+  },
+  taskActionButton: {
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: '14px',
+    color: '#3498db',
+    padding: '6px 10px',
+    borderRadius: '4px',
+  },
+  taskNotesSection: {
+    marginTop: '16px',
+  },
+  notesHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: '16px',
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#2c3e50',
+  },
+  addNoteButton: {
+    background: '#3498db',
+    border: 'none',
+    color: 'white',
+    padding: '6px 12px',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+  },
+  notesGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+    gap: '16px',
+  },
+  noteLoadingState: {
+    padding: '30px',
+    textAlign: 'center',
+    color: '#666',
+    backgroundColor: 'white',
+    borderRadius: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '10px',
+  },
+  noNotesMessage: {
+    padding: '30px',
+    textAlign: 'center',
+    color: '#999',
+    backgroundColor: 'white',
+    borderRadius: '8px',
+    fontSize: '13px',
+  },
 };
 
 StackedView.propTypes = {
@@ -1194,6 +1483,20 @@ StackedView.propTypes = {
   isFilteringStacked: PropTypes.bool,
   jobsToDisplay: PropTypes.array,
   onSaveTask: PropTypes.func,
+  // Task hierarchy props
+  tasksByJob: PropTypes.object,
+  loadingTasksByJob: PropTypes.object,
+  expandedTasks: PropTypes.object,
+  toggleTaskExpansion: PropTypes.func,
+  notesByTask: PropTypes.object,
+  loadingNotesByTask: PropTypes.object,
+  fetchTasksForJob: PropTypes.func,
+  fetchNotesForTask: PropTypes.func,
+  // Task action handlers
+  onTaskEdit: PropTypes.func,
+  onTaskDelete: PropTypes.func,
+  onTaskStatusChange: PropTypes.func,
+  onTaskClick: PropTypes.func,
 };
 
 StackedView.defaultProps = {
@@ -1209,6 +1512,20 @@ StackedView.defaultProps = {
   jobsToDisplay: [],
   isOriginalNoteExists: () => false,
   onSaveTask: () => {},
+  // Task hierarchy default props
+  tasksByJob: {},
+  loadingTasksByJob: {},
+  expandedTasks: {},
+  toggleTaskExpansion: () => {},
+  notesByTask: {},
+  loadingNotesByTask: {},
+  fetchTasksForJob: () => {},
+  fetchNotesForTask: () => {},
+  // Task action handlers
+  onTaskEdit: () => {},
+  onTaskDelete: () => {},
+  onTaskStatusChange: () => {},
+  onTaskClick: () => {},
 };
 
 export default StackedView;

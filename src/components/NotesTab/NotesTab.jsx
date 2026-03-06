@@ -82,6 +82,14 @@ const NotesTab = ({
   const [showAiDialog, setShowAiDialog] = useState(false);
   const [aiJobContext, setAiJobContext] = useState(null);
 
+  const [tasksByJob, setTasksByJob] = useState({});
+const [loadingTasksByJob, setLoadingTasksByJob] = useState({});
+const [expandedTasks, setExpandedTasks] = useState({});
+const [notesByTask, setNotesByTask] = useState({});
+const [loadingNotesByTask, setLoadingNotesByTask] = useState({});
+
+const apiUrl = `${process.env.REACT_APP_API_BASE_URL}/api`;
+
   // Refs
   const containerRef = useRef(null);
   const loadingRef = useRef(false);
@@ -332,6 +340,91 @@ const handleJobClick = (jobName) => {
     toast.error('Filter functionality is not available');
   }
 };
+
+const fetchTasksForJob = useCallback(async (jobId) => {
+  if (!jobId || loadingTasksByJob[jobId]) return;
+  
+  setLoadingTasksByJob(prev => ({ ...prev, [jobId]: true }));
+  
+  try {
+    const response = await fetch(`${apiUrl}/JobTasks/job/${jobId}`);
+    const result = await response.json();
+    
+    if (result.success && result.data) {
+      setTasksByJob(prev => ({ ...prev, [jobId]: result.data }));
+    }
+  } catch (error) {
+    console.error('Error fetching tasks:', error);
+    toast.error('Failed to load tasks');
+  } finally {
+    setLoadingTasksByJob(prev => ({ ...prev, [jobId]: false }));
+  }
+}, [apiUrl]);
+
+const fetchNotesForTask = useCallback(async (taskId, jobId) => {
+  if (!taskId || !userId || loadingNotesByTask[taskId]) return;
+  
+  setLoadingNotesByTask(prev => ({ ...prev, [taskId]: true }));
+  
+  try {
+    const params = new URLSearchParams({
+      pageNumber: "1",
+      pageSize: "50",
+      taskId: taskId,
+      userId: userId
+    });
+    
+    const response = await fetch(`${apiUrl}/SiteNote/GetSiteNotesWithFilters?${params.toString()}`);
+    const data = await response.json();
+    
+    const formattedNotes = (data.siteNotes || []).map(n => ({
+      ...n,
+      id: n.id,
+      userName: n.userName || n.UserName,
+      documentCount: n.documentCount || 0,
+      timeStamp: n.timeStamp || n.date,
+      date: n.date || n.createdDate,
+      workspace: n.workspace || '',
+      project: n.project || '',
+      job: n.job || '',
+      note: n.note || n.content,
+      jobId: n.jobId || jobId,
+      taskId: n.taskId
+    }));
+    
+    setNotesByTask(prev => ({ ...prev, [taskId]: formattedNotes }));
+  } catch (error) {
+    console.error('Error fetching task notes:', error);
+  } finally {
+    setLoadingNotesByTask(prev => ({ ...prev, [taskId]: false }));
+  }
+}, [apiUrl, userId]);
+
+const toggleTaskExpansion = useCallback((taskId, jobId) => {
+  setExpandedTasks(prev => {
+    const isExpanding = !prev[taskId];
+    
+    // If expanding and no notes loaded, fetch them
+    if (isExpanding && (!notesByTask[taskId] || notesByTask[taskId].length === 0)) {
+      fetchNotesForTask(taskId, jobId);
+    }
+    
+    return { ...prev, [taskId]: isExpanding };
+  });
+}, [notesByTask, fetchNotesForTask]);
+
+// Modify the existing toggleStackExpansion to fetch tasks
+const handleStackToggle = useCallback((jobName, jobId) => {
+  // Call the original toggleStackExpansion from props
+  toggleStackExpansion(jobName, jobId);
+  
+  // If expanding, fetch tasks for this job
+  const isExpanding = !expandedStacks[jobName];
+  if (isExpanding) {
+    fetchTasksForJob(jobId);
+  }
+}, [toggleStackExpansion, expandedStacks, fetchTasksForJob]);
+
 
 const isProjectFiltered = (projectName) => {
   console.log('Checking if project is filtered:', projectName);
@@ -682,19 +775,28 @@ const isUserNameFiltered = (userName) => {
       case "stacked":
         return (
           <StackedView
-            {...commonProps}
-            stackedJobs={stackedJobs}
-            loadingStackedJobs={loadingStackedJobs}
-            expandedStacks={expandedStacks}
-            toggleStackExpansion={toggleStackExpansion}
-            hasActiveFilters={hasActiveFilters}
-            searchTerm={searchTerm}
-            openAiDialogForJob={handleOpenAiDialogForJob}
-            renderStackedImageIcon={renderStackedImageIcon}
-            isStackedViewLoading={isStackedViewLoading}
-            isFilteringStacked={isFilteringStacked}
-            jobsToDisplay={jobsToDisplay}
-          />
+  {...commonProps}
+  stackedJobs={stackedJobs}
+  loadingStackedJobs={loadingStackedJobs}
+  expandedStacks={expandedStacks}
+  toggleStackExpansion={handleStackToggle} // Use the wrapper
+  hasActiveFilters={hasActiveFilters}
+  searchTerm={searchTerm}
+  openAiDialogForJob={handleOpenAiDialogForJob}
+  renderStackedImageIcon={renderStackedImageIcon}
+  isStackedViewLoading={isStackedViewLoading}
+  isFilteringStacked={isFilteringStacked}
+  jobsToDisplay={jobsToDisplay}
+  // New props
+  tasksByJob={tasksByJob}
+  loadingTasksByJob={loadingTasksByJob}
+  expandedTasks={expandedTasks}
+  toggleTaskExpansion={toggleTaskExpansion}
+  notesByTask={notesByTask}
+  loadingNotesByTask={loadingNotesByTask}
+  fetchTasksForJob={fetchTasksForJob}
+  fetchNotesForTask={fetchNotesForTask}
+/>
         );
         
       default: // cards
