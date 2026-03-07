@@ -285,6 +285,7 @@ tr.selected-row.priority-4 {
 .notes-grid {
   display: grid !important;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)) !important;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)) !important;
   gap: 16px !important;
   width: 100% !important;
   height: calc(121vh - 400px) !important;
@@ -517,11 +518,12 @@ tr.selected-row.priority-4 {
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  padding: 2px 8px !important; /* Reduced padding */
+  padding: 0 !important; 
+  padding-bottom: 0 !important;
   border-top: 1px solid #f0f0f0 !important;
   margin-top: auto !important;
   flex-shrink: 0 !important;
-  min-height: 16px !important; /* Slightly taller to accommodate all icons */
+  min-height: 24px !important;
   font-size: 11px !important;
   gap: 4px !important;
   background: #fafafa;
@@ -532,10 +534,6 @@ tr.selected-row.priority-4 {
 .note-attachments {
   display: flex !important;
   align-items: center !important;
-  gap: 2px !important;
-  flex-wrap: nowrap !important; /* Prevent wrapping */
-  flex-shrink: 1 !important;
-  min-width: 0 !important; /* Allow shrinking */
 }
 
 .attachment-btn {
@@ -560,10 +558,7 @@ tr.selected-row.priority-4 {
 .note-actions {
   display: flex !important;
   align-items: center !important;
-  gap: 2px !important;
-  flex-wrap: nowrap !important; /* Prevent wrapping */
-  flex-shrink: 0 !important; /* Don't shrink the action buttons */
-  margin-left: auto !important; /* Push to the right */
+  gap: 4px !important;
 }
 
 .action-btn {
@@ -591,6 +586,115 @@ tr.selected-row.priority-4 {
   color: #e74c3c;
 }
 
+/* Task card specific styles */
+.note-card.task-card .note-footer {
+  background-color: #e0f7fa !important;
+  border-top: 1px solid #b2ebf2 !important;
+}
+
+.note-card.task-card.selected .note-footer {
+  background-color: #b2ebf2 !important;
+}
+
+.note-card.task-card:hover .note-footer {
+  background-color: #b2ebf2 !important;
+}
+
+/* Task icon items */
+.task-icon-item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  background: #e0f7fa !important;
+  border: none !important;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #666;
+  font-size: 11px;
+  transition: all 0.2s;
+  height: 10px;
+  white-space: nowrap;
+}
+
+.task-icon-item.has-value {
+  background-color: #e3f2fd;
+  color: #1976d2;
+  border: none !important;
+}
+
+.task-icon-item i {
+  font-size: 12px;
+}
+
+.icon-value {
+  font-size: 10px;
+  font-weight: 500;
+  max-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Link button */
+.link-to-note-btn {
+  background: transparent;
+  border: none !important;
+  color: #3498db;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+  height: 24px;
+  width: 28px;
+}
+
+.link-to-note-btn:hover {
+  background-color: #e3f2fd;
+  border: none !important;
+}
+
+.link-to-note-btn i {
+  font-size: 11px;
+}
+
+/* Popup styles */
+.calendar-popup-root,
+.user-popup-root,
+.status-popup-root {
+  position: fixed;
+  z-index: 999999;
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+  opacity: 1;
+  color: #333333;
+  pointer-events: auto;
+}
+
+.calendar-popup-root {
+  width: 240px;
+  padding: 12px;
+}
+
+.user-popup-root {
+  width: 240px;
+  max-height: 350px;
+  display: flex;
+  flex-direction: column;
+}
+
+.status-popup-root {
+  width: 200px;
+}
+
+/* Media Queries */
 @media (min-width: 1400px) {
   .notes-grid {
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
@@ -665,7 +769,7 @@ tr.selected-row.priority-4 {
   .note-card {
     min-height: auto;
     padding: 16px;
-    margin: 0 !important;;
+    margin: 0 !important;
   }
   
   .note-header {
@@ -715,59 +819,175 @@ tr.selected-row.priority-4 {
   }
 }
 
+/* Updated Mobile Styles - 480px and below */
 @media (max-width: 480px) {
-  .stacked-container {
-    padding: 10px 10px;
-    gap: 10px;
-  }
-  
-  .expanded-stack {
-    padding: 10px;
-    margin: 0 !important;
-    min-width: 100%;
-    box-sizing: border-box;
-  }
-  
-  .expanded-notes-grid {
-    gap: 8px;
-    padding: 8px 0 !important;
-  }
-  
-  .expanded-stack-title {
-    font-size: 16px;
-  }
-  
-  .stack-layer-card {
-    height: 220px; /* Reduced height for very small screens */
-  }
-  
-  .note-card {
-    min-height: auto !important;
-    padding: 12px !important;
-  }
-  
-  .note-header {
-    flex-wrap: wrap !important;
-  }
-  
-  .note-context {
-    flex: 0 0 100% !important;
-    margin-top: 8px;
-    padding-left: 0 !important;
+  .note-footer {
+    padding: 4px 6px !important;
     flex-direction: row !important;
-    justify-content: flex-start !important;
-    gap: 8px !important;
+    flex-wrap: nowrap !important;
+    gap: 4px !important;
+    min-height: 32px !important;
   }
-  
-  .context-item {
-    max-width: none !important;
-    text-align: left !important;
-    background: #f5f5f5 !important;
-    padding: 2px 6px !important;
-    border-radius: 4px !important;
+
+  /* Task cards - keep left and right alignment */
+  .task-card .note-footer {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+  }
+
+  /* Task icons - left aligned with consistent spacing */
+  .task-card .note-attachments {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex: 1 !important;
+    flex-wrap: nowrap !important;
+    justify-content: flex-start !important;
+  }
+
+  /* Individual task icons */
+  .task-card .task-icon-item {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 24px !important;
+    height: 24px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    flex-shrink: 0 !important;
+    background: transparent !important;
+  }
+
+  /* Action buttons - right aligned */
+  .task-card .note-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    margin-left: auto !important;
+    flex-shrink: 0 !important;
+    flex-wrap: nowrap !important;
+  }
+
+  /* Regular note cards */
+  .note-card:not(.task-card) .note-footer {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+  }
+
+  /* Regular note attachments - includes reply icon */
+  .note-card:not(.task-card) .note-attachments {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    flex: 1 !important;
+    flex-wrap: nowrap !important;
+  }
+
+  /* Regular note action buttons */
+  .note-card:not(.task-card) .note-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    margin-left: auto !important;
+    flex-shrink: 0 !important;
+    flex-wrap: nowrap !important;
+  }
+
+  /* Button sizes for all types */
+  .attachment-btn,
+  .link-to-note-btn,
+  .action-btn {
+    min-width: 24px !important;
+    height: 24px !important;
+    padding: 0 4px !important;
+    font-size: 11px !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Priority indicator */
+  .priority-indicator {
+    margin-right: 2px !important;
+    width: 8px !important;
+    height: 8px !important;
+  }
+
+  /* Icon sizes */
+  .task-icon-item i,
+  .attachment-btn i,
+  .link-to-note-btn i,
+  .action-btn i {
+    font-size: 11px !important;
+  }
+
+  /* Prevent wrapping */
+  .note-footer .note-attachments,
+  .note-footer .note-actions {
+    flex-wrap: nowrap !important;
+  }
+
+  /* Hide text labels on very small screens */
+  .icon-value,
+  .status-badge span,
+  .attachment-btn span {
+    display: none !important;
+  }
+
+  /* Show only icons */
+  .task-icon-item {
+    gap: 0 !important;
+  }
+
+  /* Ensure reply icon stays with attachments */
+  .note-card:not(.task-card) .attachment-btn:has(.fa-reply) {
+    display: inline-flex !important;
+  }
+
+  /* Popup adjustments for mobile */
+  .calendar-popup-root,
+  .user-popup-root,
+  .status-popup-root {
+    width: 200px !important;
+    max-width: 90vw !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    font-size: 11px !important;
+  }
+
+  .calendar-popup-root {
+    width: 220px !important;
   }
 }
 
+/* Extra small devices */
+@media (max-width: 360px) {
+  .task-card .note-attachments {
+    gap: 4px !important;
+  }
+  
+  .task-card .note-actions {
+    gap: 2px !important;
+  }
+  
+  .attachment-btn,
+  .link-to-note-btn,
+  .action-btn {
+    min-width: 22px !important;
+    height: 22px !important;
+  }
+  
+  .task-icon-item {
+    width: 22px !important;
+    height: 22px !important;
+  }
+}
+
+/* Rest of your existing styles below */
 .note-card.skeleton {
   animation: pulse 1.5s ease-in-out infinite;
   min-height: 200px;
@@ -1093,7 +1313,7 @@ tr.selected-row.priority-4 {
 
 .grid-scroll-container {
   flex: 1;
-  min-height: 0 !important; /* This is crucial! */
+  min-height: 0 !important;
   overflow-x: hidden !important;
   position: relative;
   display: flex;

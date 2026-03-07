@@ -9,7 +9,10 @@ import TaskCard from "./TaskCard";
 import EditJobModal from "./EditJobModal";
 import TaskModal from "../../../Modals/TaskModal";
 import SlideshowModal from "./SlideshowModal";
+import TaskModal from "../../../Modals/TaskModal";
+import SlideshowModal from "./SlideshowModal";
 import { PRIORITY_VALUES, PRIORITY_LABELS, PRIORITY_COLORS } from "../../utils/constants";
+import toast from "react-hot-toast";
 import toast from "react-hot-toast";
 
 const StackedView = ({
@@ -321,6 +324,8 @@ const StackedView = ({
                     toggleTaskExpansion(expandedTaskId, job.jobId);
                   }
                 },
+                onCreateTask: handleCreateTask,
+                onOpenSlideshow: handleOpenSlideshow, // Pass slideshow handler
               })
             : renderCollapsedStack({
                 job,
@@ -334,6 +339,8 @@ const StackedView = ({
                 },
                 onCreateTask: handleCreateTask,
                 onOpenSlideshow: handleOpenSlideshow,
+                onCreateTask: handleCreateTask,
+                onOpenSlideshow: handleOpenSlideshow, // Pass slideshow handler
               });
         })}
 
@@ -726,6 +733,16 @@ const renderCollapsedStack = ({
   onCreateTask,
   onOpenSlideshow 
 }) => {
+const renderCollapsedStack = ({ 
+  job, 
+  searchTerm, 
+  hasActiveFilters, 
+  openAiDialogForJob, 
+  toggleStackExpansion, 
+  onOpenEdit,
+  onCreateTask,
+  onOpenSlideshow 
+}) => {
   if (!job) return null;
 
   const jobName = job.jobName;
@@ -859,11 +876,18 @@ const renderCollapsedStack = ({
                         {projectName && (
                           <span 
                             title={projectName}
+                          <span 
+                            title={projectName}
                             style={{
                               fontSize: "12px",
                               color: "#7f8c8d",
                               fontWeight: 400,
                               marginTop: "2px",
+                              whiteSpace: "nowrap", 
+                              overflow: "hidden", 
+                              textOverflow: "ellipsis", 
+                              maxWidth: "140px", 
+                              display: "block",
                               whiteSpace: "nowrap", 
                               overflow: "hidden", 
                               textOverflow: "ellipsis", 
@@ -915,6 +939,7 @@ const renderCollapsedStack = ({
                       alignItems: "center",
                       gap: "10px",
                       flexShrink: 0, 
+                      flexShrink: 0, 
                     }}
                   >
                     <div
@@ -930,6 +955,7 @@ const renderCollapsedStack = ({
                         fontSize: "12px",
                         fontWeight: "bold",
                         flexShrink: 0,
+                        flexShrink: 0,
                       }}
                     >
                       {job.lastSiteNoteUserName
@@ -943,6 +969,7 @@ const renderCollapsedStack = ({
                     </span>
                   </div>
 
+                 
                   <div
                     style={{
                       fontSize: "13px",
@@ -1119,6 +1146,7 @@ const renderCollapsedStack = ({
               <div
                 style={{
                   height: "100%",
+                  background: "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)",
                   background: "linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)",
                   display: "flex",
                   alignItems: "center",
