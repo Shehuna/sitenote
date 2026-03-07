@@ -19,10 +19,7 @@ const NewTaskModal = ({
   refreshStackedView = null,
   hasActiveSearchText,
   performSearching,
-  searchTerm,
-  // New props for edit mode
-  editTaskData = null,
-  isEditMode = false,
+  searchTerm
 }) => {
   // State declarations
   const [selectedProject, setSelectedProject] = useState("");
@@ -36,7 +33,6 @@ const NewTaskModal = ({
   const [apiError, setApiError] = useState(null);
   const [isLoadingProjects, setIsLoadingProjects] = useState(false);
   const [isLoadingJobs, setIsLoadingJobs] = useState(false);
-  const [isLoadingTaskData, setIsLoadingTaskData] = useState(false);
   
   const modalRef = useRef(null);
 
@@ -94,47 +90,6 @@ const NewTaskModal = ({
     { name: "Cyan", value: "#00ffff" },
     { name: "Teal", value: "#008080" },
   ];
-
-  // Reset all state to initial values
-  const resetAllState = useCallback(() => {
-    setSelectedProject("");
-    setSelectedJob("");
-    setSelectedWorkspace("");
-    setFilteredJobs([]);
-    setFilteredProjects([]);
-    setTaskTitle("");
-    setErrors({});
-    setApiError(null);
-    setIsLoadingProjects(false);
-    setIsLoadingJobs(false);
-    setIsLoadingTaskData(false);
-    setSearchQuery("");
-    setSearchResults([]);
-    setShowSearchResults(false);
-    setSelectedProjectData(null);
-    setSelectedJobData(null);
-    setRichTextContent("");
-    setPastedImages([]);
-    setShowEmojiPicker(false);
-    setShowColorPicker(false);
-    setSelectedColor("#000000");
-    hasFocusedRef.current = false;
-    
-    // Clear editor content
-    if (editorRef.current) {
-      editorRef.current.innerHTML = "";
-    }
-  }, []);
-
-  // Reset state when modal closes or when opening for new task
-  useEffect(() => {
-    if (!isOpen) {
-      resetAllState();
-    } else if (isOpen && !isEditMode) {
-      // When opening for new task, reset all state
-      resetAllState();
-    }
-  }, [isOpen, isEditMode, resetAllState]);
 
   // Initialize emoji picker
   useEffect(() => {
@@ -225,216 +180,6 @@ const NewTaskModal = ({
       };
     }
   }, [isOpen, showEmojiPicker, isReadOnly]);
-
-  // Load task data when in edit mode
-  const loadTaskData = useCallback(async () => {
-    if (isEditMode && editTaskData && editTaskData.taskId) {
-      setIsLoadingTaskData(true);
-      
-      try {
-        // Reset first to ensure clean state
-        resetAllState();
-        
-        // Set basic task info
-        setTaskTitle(editTaskData.title || editTaskData.note || "");
-        
-        // Set description - use description field or note field
-        const description = editTaskData.description || editTaskData.note || "";
-        setRichTextContent(description);
-        
-        // Set workspace
-        if (editTaskData.workspaceId) {
-          setSelectedWorkspace(editTaskData.workspaceId.toString());
-        }
-        
-        // Set project
-        if (editTaskData.projectId) {
-          setSelectedProject(editTaskData.projectId.toString());
-          
-          // Create project data object
-          setSelectedProjectData({
-            id: editTaskData.projectId,
-            name: editTaskData.project,
-            workspaceId: editTaskData.workspaceId
-          });
-        }
-        
-        // Set job
-        if (editTaskData.jobId) {
-          setSelectedJob(editTaskData.jobId.toString());
-          
-          // Create job data object
-          setSelectedJobData({
-            id: editTaskData.jobId,
-            name: editTaskData.job,
-            projectId: editTaskData.projectId
-          });
-        }
-        
-      } catch (error) {
-        console.error("Error loading task data:", error);
-        setApiError("Failed to load task data");
-      } finally {
-        setIsLoadingTaskData(false);
-      }
-    }
-  }, [isEditMode, editTaskData, resetAllState]);
-
-  // Load task data when modal opens in edit mode
-  useEffect(() => {
-    if (isOpen && isEditMode && editTaskData) {
-      loadTaskData();
-    }
-  }, [isOpen, isEditMode, editTaskData, loadTaskData]);
-
-  // Set editor content after editor is ready
-  useEffect(() => {
-    if (isOpen && isEditMode && editTaskData && editorRef.current && !isLoadingTaskData) {
-      const description = editTaskData.description || editTaskData.note || "";
-      if (description && editorRef.current) {
-        // Small timeout to ensure editor is fully rendered
-        setTimeout(() => {
-          if (editorRef.current) {
-            editorRef.current.innerHTML = description;
-            setRichTextContent(description);
-          }
-        }, 100);
-      }
-    }
-  }, [isOpen, isEditMode, editTaskData, editorRef.current, isLoadingTaskData]);
-
-  // Fetch all search data when modal opens
-  useEffect(() => {
-    const fetchAllSearchData = async () => {
-      if (!isOpen || isReadOnly) return;
-
-      try {
-        const user = getCurrentUser();
-        const response = await fetch(
-          `${apiUrl}/SiteNote/SearchJobs?userId=${user.id}&search=`,
-        );
-
-        if (!response.ok) {
-          throw new Error(
-            `Failed to fetch search data: ${response.status} ${response.statusText}`,
-          );
-        }
-
-        const data = await response.json();
-        const allData = data.results || data || [];
-        setAllSearchData(allData);
-      } catch (error) {
-        console.error("Error fetching search data:", error);
-        setApiError("Failed to load search data");
-      }
-    };
-
-    fetchAllSearchData();
-  }, [isOpen, apiUrl, isReadOnly]);
-
-  // Fetch projects when workspace changes
-  useEffect(() => {
-    const fetchProjectsByWorkspace = async () => {
-      if (isReadOnly) return;
-
-      if (!selectedWorkspace) {
-        setFilteredProjects([]);
-        if (!isEditMode || !editTaskData) {
-          setSelectedProject("");
-          setSelectedProjectData(null);
-        }
-        return;
-      }
-
-      setIsLoadingProjects(true);
-      try {
-        const user = getCurrentUser();
-        const response = await fetch(
-          `${apiUrl}/Project/GetProjectsByUserJobPermission/${user.id}/${selectedWorkspace}`,
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch projects");
-        }
-
-        const data = await response.json();
-        const projectsData = data.projects || [];
-        setFilteredProjects(projectsData);
-        
-        // If in edit mode and we have a project ID, make sure it's selected
-        if (isEditMode && editTaskData && editTaskData.projectId) {
-          const projectIdStr = editTaskData.projectId.toString();
-          const projectExists = projectsData.some(p => 
-            (p.id || p.projectId)?.toString() === projectIdStr
-          );
-          
-          if (projectExists) {
-            setSelectedProject(projectIdStr);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching projects:", error);
-        setApiError("Failed to load projects");
-        setFilteredProjects([]);
-      } finally {
-        setIsLoadingProjects(false);
-      }
-    };
-
-    fetchProjectsByWorkspace();
-  }, [selectedWorkspace, apiUrl, isReadOnly, isEditMode, editTaskData]);
-
-  // Fetch jobs when project changes
-  useEffect(() => {
-    const fetchJobsByProject = async () => {
-      if (isReadOnly) return;
-
-      if (!selectedProject) {
-        setFilteredJobs([]);
-        if (!isEditMode || !editTaskData) {
-          setSelectedJob("");
-          setSelectedJobData(null);
-        }
-        return;
-      }
-
-      setIsLoadingJobs(true);
-      try {
-        const user = getCurrentUser();
-        const response = await fetch(
-          `${apiUrl}/UserJobAuth/GetJobsByUserAndProject/${user.id}/${selectedProject}`,
-        );
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch jobs");
-        }
-
-        const data = await response.json();
-        const jobsData = data.jobs || [];
-        setFilteredJobs(jobsData);
-        
-        // If in edit mode and we have a job ID, make sure it's selected
-        if (isEditMode && editTaskData && editTaskData.jobId) {
-          const jobIdStr = editTaskData.jobId.toString();
-          const jobExists = jobsData.some(j => 
-            (j.id || j.jobId)?.toString() === jobIdStr
-          );
-          
-          if (jobExists) {
-            setSelectedJob(jobIdStr);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching jobs:", error);
-        setApiError("Failed to load jobs");
-        setFilteredJobs([]);
-      } finally {
-        setIsLoadingJobs(false);
-      }
-    };
-
-    fetchJobsByProject();
-  }, [selectedProject, apiUrl, isReadOnly, isEditMode, editTaskData]);
 
   // Utility functions
   const getCurrentUser = () => {
@@ -662,8 +407,7 @@ const NewTaskModal = ({
       isOpen &&
       source === "grid" &&
       !hasFocusedRef.current &&
-      !isReadOnly &&
-      !isLoadingTaskData
+      !isReadOnly
     ) {
       const focusEditor = () => {
         if (editorRef.current && document.contains(editorRef.current)) {
@@ -684,7 +428,149 @@ const NewTaskModal = ({
         clearTimeout(timeout3);
       };
     }
-  }, [isOpen, source, isReadOnly, isLoadingTaskData]);
+  }, [isOpen, source, isReadOnly]);
+
+  // Reset states when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      hasFocusedRef.current = false;
+      setSearchQuery("");
+      setSearchResults([]);
+      setShowSearchResults(false);
+      setSelectedProjectData(null);
+      setSelectedJobData(null);
+      setApiError(null);
+      setPastedImages([]);
+      setRichTextContent("");
+      setShowEmojiPicker(false);
+      setShowColorPicker(false);
+      setTaskTitle("");
+    }
+  }, [isOpen]);
+
+  // Fetch all search data when modal opens
+  useEffect(() => {
+    const fetchAllSearchData = async () => {
+      if (!isOpen || isReadOnly) return;
+
+      try {
+        const user = getCurrentUser();
+        const response = await fetch(
+          `${apiUrl}/SiteNote/SearchJobs?userId=${user.id}&search=`,
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Failed to fetch search data: ${response.status} ${response.statusText}`,
+          );
+        }
+
+        const data = await response.json();
+        const allData = data.results || data || [];
+        setAllSearchData(allData);
+      } catch (error) {
+        console.error("Error fetching search data:", error);
+        setApiError("Failed to load search data");
+      }
+    };
+
+    fetchAllSearchData();
+  }, [isOpen, apiUrl, isReadOnly]);
+
+  // Fetch projects when workspace changes
+  useEffect(() => {
+    const fetchProjectsByWorkspace = async () => {
+      if (isReadOnly) return;
+
+      if (!selectedWorkspace) {
+        setFilteredProjects([]);
+        setSelectedProject("");
+        setSelectedProjectData(null);
+        return;
+      }
+
+      setIsLoadingProjects(true);
+      try {
+        const user = getCurrentUser();
+        const response = await fetch(
+          `${apiUrl}/Project/GetProjectsByUserJobPermission/${user.id}/${selectedWorkspace}`,
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch projects");
+        }
+
+        const data = await response.json();
+        const projectsData = data.projects || [];
+        setFilteredProjects(projectsData);
+      } catch (error) {
+        console.error("Error fetching projects:", error);
+        setApiError("Failed to load projects");
+        setFilteredProjects([]);
+      } finally {
+        setIsLoadingProjects(false);
+      }
+    };
+
+    fetchProjectsByWorkspace();
+  }, [selectedWorkspace, apiUrl, isReadOnly]);
+
+  // Fetch jobs when project changes
+  useEffect(() => {
+    const fetchJobsByProject = async () => {
+      if (isReadOnly) return;
+
+      if (!selectedProject) {
+        setFilteredJobs([]);
+        setSelectedJob("");
+        setSelectedJobData(null);
+        return;
+      }
+
+      setIsLoadingJobs(true);
+      try {
+        const user = getCurrentUser();
+        const response = await fetch(
+          `${apiUrl}/UserJobAuth/GetJobsByUserAndProject/${user.id}/${selectedProject}`,
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch jobs");
+        }
+
+        const data = await response.json();
+        const jobsData = data.jobs || [];
+        setFilteredJobs(jobsData);
+      } catch (error) {
+        console.error("Error fetching jobs:", error);
+        setApiError("Failed to load jobs");
+        setFilteredJobs([]);
+      } finally {
+        setIsLoadingJobs(false);
+      }
+    };
+
+    fetchJobsByProject();
+  }, [selectedProject, apiUrl, isReadOnly]);
+
+  // Initialize modal state when opened
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedWorkspace("");
+      setSelectedProject("");
+      setSelectedJob("");
+      setTaskTitle("");
+      setRichTextContent("");
+      setFilteredProjects([]);
+      setFilteredJobs([]);
+      setSelectedProjectData(null);
+      setSelectedJobData(null);
+      setIsSaving(false);
+      setApiError(null);
+      setPastedImages([]);
+      setShowEmojiPicker(false);
+    }
+  }, [isOpen]);
 
   // Client-side search function
   const performSearch = useCallback(
@@ -1074,102 +960,91 @@ const NewTaskModal = ({
     return cleanedHtml;
   };
 
-  // Save task to JobTasks endpoint (POST for new, PUT for edit)
-  const handleSave = async () => {
-    if (isReadOnly) return;
+// Save task to JobTasks endpoint
+const handleSave = async () => {
+  if (isReadOnly) return;
 
-    const newErrors = {};
-    if (!selectedJob) newErrors.job = "Please select a job";
-    if (!taskTitle.trim()) newErrors.title = "Task title is required";
+  const newErrors = {};
+  if (!selectedJob) newErrors.job = "Please select a job";
+  if (!taskTitle.trim()) newErrors.title = "Task title is required";
 
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
+  if (Object.keys(newErrors).length > 0) {
+    setErrors(newErrors);
+    return;
+  }
+
+  setIsSaving(true);
+  setApiError(null);
+
+  try {
+    const user = getCurrentUser();
+    
+    // Current date in ISO format
+    const now = new Date().toISOString();
+
+    // Get description content (will be empty string if no content)
+    let descriptionContent = prepareDescriptionContent();
+    
+    // If description is empty, use task title as description
+    const hasTextContent = descriptionContent.replace(/<[^>]*>/g, "").trim();
+    if (!hasTextContent && pastedImages.length === 0) {
+      descriptionContent = taskTitle.trim();
     }
 
-    setIsSaving(true);
-    setApiError(null);
+    const taskData = {
+      title: taskTitle.trim(),
+      description: descriptionContent,
+      startDate: now,
+      endDate: now,
+      dueDate: now,
+      assigneeId: user.id,
+      createdById: user.id,
+      jobId: parseInt(selectedJob, 10),
+      status: 1 // Active status
+    };
 
-    try {
-      const user = getCurrentUser();
+    console.log("Saving task with data:", taskData);
+
+    const response = await fetch(`${apiUrl}/JobTasks`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(taskData),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorMessage = "Failed to save task";
       
-      // Current date in ISO format
-      const now = new Date().toISOString();
-
-      // Get description content (will be empty string if no content)
-      let descriptionContent = prepareDescriptionContent();
+      try {
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.message || errorData.title || errorMessage;
+      } catch (e) {
+        errorMessage = `Server error: ${response.status} ${response.statusText}`;
+      }
       
-      // If description is empty, use task title as description
-      const hasTextContent = descriptionContent.replace(/<[^>]*>/g, "").trim();
-      if (!hasTextContent && pastedImages.length === 0) {
-        descriptionContent = taskTitle.trim();
-      }
-
-      const taskData = {
-        title: taskTitle.trim(),
-        description: descriptionContent,
-        startDate: isEditMode && editTaskData?.startDate ? editTaskData.startDate : now,
-        endDate: isEditMode && editTaskData?.endDate ? editTaskData.endDate : now,
-        dueDate: isEditMode && editTaskData?.dueDate ? editTaskData.dueDate : now,
-        assigneeId: isEditMode && editTaskData?.assigneeId ? editTaskData.assigneeId : user.id,
-        createdById: isEditMode && editTaskData?.createdById ? editTaskData.createdById : user.id,
-        jobId: parseInt(selectedJob, 10),
-        status: isEditMode && editTaskData?.status ? editTaskData.status : 1
-      };
-
-      let url = `${apiUrl}/JobTasks`;
-      let method = "POST";
-      
-      // If in edit mode, use PUT with task ID
-      if (isEditMode && editTaskData && editTaskData.taskId) {
-        url = `${apiUrl}/JobTasks/${editTaskData.taskId}`;
-        method = "PUT";
-      }
-
-      console.log(`${isEditMode ? 'Updating' : 'Saving'} task with data:`, taskData);
-      console.log("URL:", url, "Method:", method);
-
-      const response = await fetch(url, {
-        method: method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(taskData),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorMessage = `Failed to ${isEditMode ? 'update' : 'save'} task`;
-        
-        try {
-          const errorData = JSON.parse(errorText);
-          errorMessage = errorData.message || errorData.title || errorMessage;
-        } catch (e) {
-          errorMessage = `Server error: ${response.status} ${response.statusText}`;
-        }
-        
-        throw new Error(errorMessage);
-      }
-
-      const savedTask = await response.json();
-      
-      toast.success(`Task ${isEditMode ? 'updated' : 'saved'} successfully!`);
-
-      // Refresh notes or tasks list
-      if (refreshNotes) {
-        await refreshNotes();
-      }
-
-      // Close modal and reset state
-      onClose();
-    } catch (error) {
-      console.error("Save error:", error);
-      setApiError(error.message || `Failed to ${isEditMode ? 'update' : 'save'} task`);
-      toast.error(`Failed to ${isEditMode ? 'update' : 'save'} task`);
-    } finally {
-      setIsSaving(false);
+      throw new Error(errorMessage);
     }
-  };
+
+    const savedTask = await response.json();
+    
+    toast.success("Task saved successfully!");
+
+    // Refresh notes or tasks list
+    if (refreshNotes) {
+      await refreshNotes();
+    }
+
+    onClose();
+  } catch (error) {
+    console.error("Save error:", error);
+    setApiError(error.message || "Failed to save task");
+    toast.error("Failed to save task");
+  } finally {
+    setIsSaving(false);
+  }
+};
 
   // Keyboard shortcut for save
   const handleSaveShortcut = useCallback(
@@ -1214,38 +1089,6 @@ const NewTaskModal = ({
     }
   }, [apiError, errors, isOpen]);
 
-  // Loading overlay for edit mode
-  const renderLoadingOverlay = () => {
-    if (isLoadingTaskData) {
-      return (
-        <div className="loading-overlay" style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(255, 255, 255, 0.8)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 1000,
-          borderRadius: "8px"
-        }}>
-          <div className="loading-spinner" style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: "10px"
-          }}>
-            <i className="fas fa-spinner fa-spin" style={{ fontSize: "32px", color: "#007bff" }}></i>
-            <span>Loading task data...</span>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
-
   // Search component
   const renderSearchSection = () => (
     <div className="search-section">
@@ -1262,7 +1105,7 @@ const NewTaskModal = ({
             placeholder="Type to search for workspace, project, or job..."
             className="search-input"
             style={{ width: "100%" }}
-            disabled={isReadOnly || isLoadingTaskData}
+            disabled={isReadOnly}
           />
           {isSearching && !isReadOnly && (
             <div className="search-spinner">🔍 Searching...</div>
@@ -1318,34 +1161,34 @@ const NewTaskModal = ({
         <button
           onClick={() => formatText("bold")}
           title="Bold"
-          disabled={isReadOnly || isLoadingTaskData}
-          className={isReadOnly || isLoadingTaskData ? "disabled" : ""}
+          disabled={isReadOnly}
+          className={isReadOnly ? "disabled" : ""}
         >
           <i className="fas fa-bold"></i>
         </button>
         <button
           onClick={() => formatText("italic")}
           title="Italic"
-          disabled={isReadOnly || isLoadingTaskData}
-          className={isReadOnly || isLoadingTaskData ? "disabled" : ""}
+          disabled={isReadOnly}
+          className={isReadOnly ? "disabled" : ""}
         >
           <i className="fas fa-italic"></i>
         </button>
         <button
           onClick={() => formatText("underline")}
           title="Underline"
-          disabled={isReadOnly || isLoadingTaskData}
-          className={isReadOnly || isLoadingTaskData ? "disabled" : ""}
+          disabled={isReadOnly}
+          className={isReadOnly ? "disabled" : ""}
         >
           <i className="fas fa-underline"></i>
         </button>
 
         <div className="color-picker-wrapper" style={{ position: "relative", display: "inline-block" }}>
           <button
-            onClick={() => !isReadOnly && !isLoadingTaskData && setShowColorPicker(!showColorPicker)}
-            title={isReadOnly || isLoadingTaskData ? "Read-only mode" : "Text Color"}
-            className={`color-button ${showColorPicker ? "active" : ""} ${isReadOnly || isLoadingTaskData ? "disabled" : ""}`}
-            disabled={isReadOnly || isLoadingTaskData}
+            onClick={() => !isReadOnly && setShowColorPicker(!showColorPicker)}
+            title={isReadOnly ? "Read-only mode" : "Text Color"}
+            className={`color-button ${showColorPicker ? "active" : ""} ${isReadOnly ? "disabled" : ""}`}
+            disabled={isReadOnly}
             type="button"
             style={{
               border: `2px solid ${selectedColor}`,
@@ -1355,7 +1198,7 @@ const NewTaskModal = ({
             <i className="fas fa-palette" style={{ color: selectedColor }}></i>
           </button>
 
-          {showColorPicker && !isReadOnly && !isLoadingTaskData && (
+          {showColorPicker && !isReadOnly && (
             <div className="color-picker-dropdown" ref={colorPickerRef}>
               <div className="color-picker-header">
                 <span>Text Color</span>
@@ -1390,16 +1233,16 @@ const NewTaskModal = ({
         <button
           onClick={() => formatText("insertUnorderedList")}
           title="Bullet List"
-          disabled={isReadOnly || isLoadingTaskData}
-          className={isReadOnly || isLoadingTaskData ? "disabled" : ""}
+          disabled={isReadOnly}
+          className={isReadOnly ? "disabled" : ""}
         >
           <i className="fas fa-list-ul"></i>
         </button>
         <button
           onClick={() => formatText("insertOrderedList")}
           title="Numbered List"
-          disabled={isReadOnly || isLoadingTaskData}
-          className={isReadOnly || isLoadingTaskData ? "disabled" : ""}
+          disabled={isReadOnly}
+          className={isReadOnly ? "disabled" : ""}
         >
           <i className="fas fa-list-ol"></i>
         </button>
@@ -1412,18 +1255,18 @@ const NewTaskModal = ({
           <button
             ref={emojiButtonRef}
             onClick={() =>
-              !isReadOnly && !isLoadingTaskData && setShowEmojiPicker(!showEmojiPicker)
+              !isReadOnly && setShowEmojiPicker(!showEmojiPicker)
             }
-            title={isReadOnly || isLoadingTaskData ? "Read-only mode" : "Insert Emoji"}
-            className={`emoji-button ${showEmojiPicker ? "active" : ""} ${isReadOnly || isLoadingTaskData ? "disabled" : ""}`}
-            disabled={isReadOnly || isLoadingTaskData}
+            title={isReadOnly ? "Read-only mode" : "Insert Emoji"}
+            className={`emoji-button ${showEmojiPicker ? "active" : ""} ${isReadOnly ? "disabled" : ""}`}
+            disabled={isReadOnly}
             type="button"
           >
             <i className="far fa-smile"></i>
           </button>
 
           {/* Emoji Picker Dropdown */}
-          {showEmojiPicker && !isReadOnly && !isLoadingTaskData && (
+          {showEmojiPicker && !isReadOnly && (
             <div className="emoji-picker-container">
               <emoji-picker
                 ref={emojiPickerRef}
@@ -1456,8 +1299,8 @@ const NewTaskModal = ({
         <div className="image-upload-wrapper">
           <label
             htmlFor="image-upload"
-            className={`image-upload-button ${isReadOnly || isLoadingTaskData ? "disabled" : ""}`}
-            title={isReadOnly || isLoadingTaskData ? "Read-only mode" : "Upload Image"}
+            className={`image-upload-button ${isReadOnly ? "disabled" : ""}`}
+            title={isReadOnly ? "Read-only mode" : "Upload Image"}
           >
             <i className="fas fa-image"></i>
             <input
@@ -1465,7 +1308,7 @@ const NewTaskModal = ({
               type="file"
               accept="image/*"
               onChange={handleImageUpload}
-              disabled={isReadOnly || isLoadingTaskData}
+              disabled={isReadOnly}
               style={{ display: "none" }}
             />
           </label>
@@ -1473,15 +1316,15 @@ const NewTaskModal = ({
 
         <button
           onClick={clearEditor}
-          title={isReadOnly || isLoadingTaskData ? "Read-only mode" : "Clear All"}
-          className={`clear-button ${isReadOnly || isLoadingTaskData ? "disabled" : ""}`}
-          disabled={isReadOnly || isLoadingTaskData}
+          title={isReadOnly ? "Read-only mode" : "Clear All"}
+          className={`clear-button ${isReadOnly ? "disabled" : ""}`}
+          disabled={isReadOnly}
         >
           <i className="fas fa-trash"></i>
         </button>
       </div>
 
-      {pastedImages.length > 0 && !isReadOnly && !isLoadingTaskData && (
+      {pastedImages.length > 0 && !isReadOnly && (
         <div className="image-counter">
           <i className="fas fa-images"></i> {pastedImages.length} image
           {pastedImages.length !== 1 ? "s" : ""} attached
@@ -1495,36 +1338,30 @@ const NewTaskModal = ({
     return (
       <div className="editor-content-container">
         <div className="form-group">
-          <label>Description</label>
           
-          {!isReadOnly && !isLoadingTaskData && renderEditorToolbar()}
+          {!isReadOnly && renderEditorToolbar()}
 
           <div
             ref={editorRef}
-            contentEditable={!isReadOnly && !isLoadingTaskData}
-            className={`rich-text-editor ${isReadOnly || isLoadingTaskData ? "read-only" : ""}`}
+            contentEditable={!isReadOnly}
+            className={`rich-text-editor ${isReadOnly ? "read-only" : ""}`}
             onPaste={handlePaste}
             onInput={handleEditorInput}
             placeholder={
-              isReadOnly || isLoadingTaskData
-                ? isLoadingTaskData ? "Loading task data..." : "Read-only mode - Cannot edit"
+              isReadOnly
+                ? "Read-only mode - Cannot edit"
                 : "Type your task description here and paste images..."
             }
             suppressContentEditableWarning={true}
             style={{
-              pointerEvents: isReadOnly || isLoadingTaskData ? "none" : "auto",
-              opacity: isReadOnly || isLoadingTaskData ? 0.7 : 1,
-              backgroundColor: isReadOnly || isLoadingTaskData ? "#f5f5f5" : "#fff",
-              cursor: isReadOnly || isLoadingTaskData ? "not-allowed" : "text",
-              minHeight: "150px",
-              border: "1px solid #ddd",
-              borderRadius: "4px",
-              padding: "10px",
-              overflowY: "auto"
+              pointerEvents: isReadOnly ? "none" : "auto",
+              opacity: isReadOnly ? 0.7 : 1,
+              backgroundColor: isReadOnly ? "#f5f5f5" : "#fff",
+              cursor: isReadOnly ? "not-allowed" : "text",
             }}
           />
 
-          {pastedImages.length > 0 && !isReadOnly && !isLoadingTaskData && (
+          {pastedImages.length > 0 && !isReadOnly && (
             <div className="image-upload-status">
               <i className="fas fa-images"></i>
               {pastedImages.length} image
@@ -1541,98 +1378,39 @@ const NewTaskModal = ({
   const jobOptions = getJobOptions();
 
   return isOpen ? (
-    <div className="edit-note-modal-overlay" style={{
-      position: "fixed",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: "rgba(0, 0, 0, 0.5)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      zIndex: 1000
-    }}>
-      <div className="edit-note-modal" ref={modalRef} style={{
-        backgroundColor: "#fff",
-        borderRadius: "8px",
-        width: "600px",
-        maxWidth: "90%",
-        maxHeight: "90vh",
-        overflowY: "auto",
-        position: "relative",
-        padding: "20px"
-      }}>
-        {renderLoadingOverlay()}
-        
-        <div className="modal-header" style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "20px",
-          paddingBottom: "10px",
-          borderBottom: "1px solid #eee"
-        }}>
-          <h2 style={{ margin: 0 }}>{isEditMode ? 'Edit Task' : 'New Task'}</h2>
+    <div className="edit-note-modal-overlay">
+      <div className="edit-note-modal" ref={modalRef}>
+        <div className="modal-header">
+          <h2>New Task</h2>
           <button
             className="close-button"
             onClick={onClose}
-            disabled={isSaving || isLoadingTaskData}
-            style={{
-              background: "none",
-              border: "none",
-              fontSize: "24px",
-              cursor: "pointer",
-              padding: "0 5px"
-            }}
+            disabled={isSaving}
           >
             ×
           </button>
         </div>
 
         {apiError && (
-          <div className="error-message" style={{
-            backgroundColor: "#f8d7da",
-            color: "#721c24",
-            padding: "10px",
-            borderRadius: "4px",
-            marginBottom: "15px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center"
-          }}>
+          <div className="error-message">
             {apiError}
             <button
               onClick={() => setApiError(null)}
               className="dismiss-error"
-              disabled={isSaving || isLoadingTaskData}
-              style={{
-                background: "none",
-                border: "none",
-                fontSize: "18px",
-                cursor: "pointer",
-                color: "#721c24"
-              }}
             >
               ×
             </button>
           </div>
         )}
 
-        {!isReadOnly && !isLoadingTaskData && renderSearchSection()}
+        {!isReadOnly && renderSearchSection()}
 
-        <div className="form-group" style={{ marginBottom: "15px" }}>
-          <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>Workspace</label>
+        <div className="form-group">
+          <label>Workspace</label>
           <select
             value={selectedWorkspace}
             onChange={(e) => setSelectedWorkspace(e.target.value)}
-            disabled={isReadOnly || isLoadingTaskData}
-            style={{
-              width: "100%",
-              padding: "8px",
-              border: "1px solid #ddd",
-              borderRadius: "4px"
-            }}
+            disabled={isReadOnly}
           >
             <option value="">Select Workspace</option>
             {userworksaces.map(
@@ -1647,11 +1425,11 @@ const NewTaskModal = ({
           </select>
         </div>
 
-        <div className="form-group" style={{ marginBottom: "15px" }}>
-          <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
+        <div className="form-group">
+          <label>
             Project{" "}
             {errors.project && (
-              <span className="error-message-inline" style={{ color: "#dc3545", marginLeft: "5px" }}>{errors.project}</span>
+              <span className="error-message-inline">{errors.project}</span>
             )}
           </label>
           <select
@@ -1669,13 +1447,7 @@ const NewTaskModal = ({
                 job: undefined,
               }));
             }}
-            disabled={!selectedWorkspace || isLoadingProjects || isReadOnly || isLoadingTaskData}
-            style={{
-              width: "100%",
-              padding: "8px",
-              border: "1px solid #ddd",
-              borderRadius: "4px"
-            }}
+            disabled={!selectedWorkspace || isLoadingProjects || isReadOnly}
           >
             <option value="">Select Project</option>
             {isLoadingProjects ? (
@@ -1700,11 +1472,11 @@ const NewTaskModal = ({
           </select>
         </div>
 
-        <div className="form-group" style={{ marginBottom: "15px" }}>
-          <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
+        <div className="form-group">
+          <label>
             Job{" "}
             {errors.job && (
-              <span className="error-message-inline" style={{ color: "#dc3545", marginLeft: "5px" }}>{errors.job}</span>
+              <span className="error-message-inline">{errors.job}</span>
             )}
           </label>
           <select
@@ -1718,13 +1490,7 @@ const NewTaskModal = ({
               setSelectedJobData(selectedJobObj || null);
               setErrors((prev) => ({ ...prev, job: undefined }));
             }}
-            disabled={!selectedProject || isLoadingJobs || isReadOnly || isLoadingTaskData}
-            style={{
-              width: "100%",
-              padding: "8px",
-              border: "1px solid #ddd",
-              borderRadius: "4px"
-            }}
+            disabled={!selectedProject || isLoadingJobs || isReadOnly}
           >
             <option value="">Select Job</option>
             {isLoadingJobs ? (
@@ -1746,11 +1512,11 @@ const NewTaskModal = ({
           </select>
         </div>
 
-        <div className="form-group" style={{ marginBottom: "15px" }}>
-          <label style={{ display: "block", marginBottom: "5px", fontWeight: "bold" }}>
+        <div className="form-group">
+          <label>
             Task Title{" "}
             {errors.title && (
-              <span className="error-message-inline" style={{ color: "#dc3545", marginLeft: "5px" }}>{errors.title}</span>
+              <span className="error-message-inline">{errors.title}</span>
             )}
           </label>
           <input
@@ -1761,56 +1527,27 @@ const NewTaskModal = ({
               setErrors((prev) => ({ ...prev, title: undefined }));
             }}
             placeholder="Enter task title"
-            disabled={isReadOnly || isLoadingTaskData}
-            style={{
-              width: "100%",
-              padding: "8px",
-              border: "1px solid #ddd",
-              borderRadius: "4px"
-            }}
+            disabled={isReadOnly}
           />
         </div>
 
         {renderEditorContent()}
 
-        <div className="modal-footer" style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          gap: "10px",
-          marginTop: "20px",
-          paddingTop: "15px",
-          borderTop: "1px solid #eee"
-        }}>
+        <div className="modal-footer">
           <button
             className="cancel-button"
             onClick={onClose}
-            disabled={isSaving || isLoadingTaskData}
-            style={{
-              padding: "8px 16px",
-              border: "1px solid #ddd",
-              borderRadius: "4px",
-              backgroundColor: "#f8f9fa",
-              cursor: "pointer"
-            }}
+            disabled={isSaving}
           >
             Cancel
           </button>
-          {!isReadOnly && !isLoadingTaskData && (
+          {!isReadOnly && (
             <button
               className="save-button"
               onClick={handleSave}
               disabled={isSaving}
-              style={{
-                padding: "8px 16px",
-                border: "none",
-                borderRadius: "4px",
-                backgroundColor: "#007bff",
-                color: "#fff",
-                cursor: isSaving ? "not-allowed" : "pointer",
-                opacity: isSaving ? 0.7 : 1
-              }}
             >
-              {isSaving ? "Saving..." : (isEditMode ? 'Update Task' : 'Save Task')}
+              {isSaving ? "Saving..." : "Save Task"}
             </button>
           )}
         </div>
@@ -1841,9 +1578,6 @@ NewTaskModal.propTypes = {
   hasActiveSearchText: PropTypes.bool,
   performSearching: PropTypes.func,
   searchTerm: PropTypes.string,
-  // New props for edit mode
-  editTaskData: PropTypes.object,
-  isEditMode: PropTypes.bool,
 };
 
 NewTaskModal.defaultProps = {
@@ -1860,9 +1594,6 @@ NewTaskModal.defaultProps = {
   hasActiveSearchText: false,
   performSearching: null,
   searchTerm: "",
-  // New props default values
-  editTaskData: null,
-  isEditMode: false,
 };
 
 export default NewTaskModal;

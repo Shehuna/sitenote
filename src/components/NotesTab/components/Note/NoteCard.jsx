@@ -1,4 +1,5 @@
 import React, { forwardRef, useState, useEffect, useRef, useCallback } from "react";
+import React, { forwardRef, useState, useEffect, useRef, useCallback } from "react";
 import PropTypes from "prop-types";
 import ReactDOM from "react-dom";
 import toast from "react-hot-toast"; // Add this import
@@ -1333,7 +1334,7 @@ const NoteFooter = ({
   renderStatusIcon,
 }) => {
   return (
-    <div className={`note-footer ${isTask ? 'task-footer' : ''}`}>
+    <div className="note-footer">
       <div className="note-attachments">
         {/* For tasks: only show task-related icons */}
         {isTask ? (
