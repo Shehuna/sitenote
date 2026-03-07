@@ -84,6 +84,7 @@ const Dashboard = ({
   const [filteredNotesFromApi, setFilteredNotesFromApi] = useState([]);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
   const [showNewModal, setShowNewModal] = useState(false);
   const [selectedNote, setSelectedNote] = useState(null);
   const [showAttachedFileModal, setShowAttachedFileModal] = useState(false);
@@ -2281,6 +2282,7 @@ const refreshStackedViewWithNewNote = useCallback(async (noteData, operation = '
             job: selectedNote.job,
             jobId: selectedNote.jobId,
             workspace: selectedNote.workspace,
+            taskid: selectedNote.taskId
           });
           setModalSource("grid");
           setShowNewModal(true);
@@ -2409,6 +2411,7 @@ const handleRefresh = async () => {
       jobId: note.jobId,
       workspace: note.workspace,
       userId: note.userId,
+      taskid: note.taskId
     });
     setModalSource("grid");
     setShowNewModal(true);
@@ -2436,9 +2439,15 @@ const handleRefresh = async () => {
   }, [showNewModal, modalSource]);
 
   const handleEdit = (note) => {
+    if (note.itemType === "Task") {
+    // Open task modal in edit mode
+    setEditingTask(note);
+    setShowNewTaskModal(true);
+  } else {
     setSelectedNote(note);
     setShowEditModal(true);
   };
+}
 
   const handleDelete = (note) => {
     const currentUser = JSON.parse(localStorage.getItem("user"));
@@ -3587,6 +3596,8 @@ const performSearch = useCallback(async (searchText) => {
         defaultWorkspaceRole={defaultWorkspaceRole}
         userworksaces={userWorkspace}
         refreshNotes = {refreshNotes}
+        isEditMode={true}
+        editTaskData={editingTask}
         />
       )}
     </div>

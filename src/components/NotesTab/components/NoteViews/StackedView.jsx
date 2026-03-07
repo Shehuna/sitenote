@@ -50,6 +50,7 @@ const StackedView = ({
   isFilteringStacked,
   jobsToDisplay,
   onSaveTask,
+  userId,
   // Task hierarchy props
   tasksByJob = {},
   loadingTasksByJob = {},
@@ -64,6 +65,7 @@ const StackedView = ({
   onTaskDelete,
   onTaskStatusChange,
   onTaskClick,
+  
 }) => {
   const [localExpandedStacks, setLocalExpandedStacks] = useState({});
   const [editJobModalOpen, setEditJobModalOpen] = useState(false);
@@ -295,6 +297,7 @@ const StackedView = ({
                 manuallyUpdatedPriorities,
                 shouldShowNotePopup,
                 toggleStackExpansion,
+                userId,
                 onOpenEdit: (j) => {
                   setJobToEdit(j);
                   setEditJobModalOpen(true);
@@ -428,6 +431,7 @@ const renderExpandedStackWithTasks = ({
   notesByTask,
   loadingNotesByTask,
   onCollapseTask,
+  userId,
 }) => {
   if (!job) return null;
 
@@ -595,12 +599,13 @@ const renderExpandedStackWithTasks = ({
                           <i className="fas fa-tasks" style={{ color: '#3498db', marginRight: '10px' }} />
                           <div>
                             <div style={styles.expandedTaskTitle}>
-                              {expandedTask.title}
+                              
                               {expandedTask.friendlyId && (
                                 <span style={styles.expandedTaskFriendlyId}>
                                   {expandedTask.friendlyId}
                                 </span>
                               )}
+                              {expandedTask.title}
                             </div>
                           </div>
                         </div>
@@ -695,6 +700,7 @@ const renderExpandedStackWithTasks = ({
                             onToggle={onTaskToggle}
                             isExpanded={false}
                             showToggle={true}
+                            userId={userId}
                           />
                         </div>
                       ))}
@@ -1269,7 +1275,7 @@ const styles = {
   },
   tasksGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
     gap: '16px',
   },
   taskWrapper: {
@@ -1351,7 +1357,7 @@ const styles = {
     flex: 1,
   },
   expandedTaskTitle: {
-    fontSize: '16px',
+    fontSize: '14px',
     fontWeight: 600,
     color: '#2c3e50',
     marginBottom: '4px',

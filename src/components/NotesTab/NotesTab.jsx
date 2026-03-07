@@ -796,6 +796,7 @@ const isUserNameFiltered = (userName) => {
   loadingNotesByTask={loadingNotesByTask}
   fetchTasksForJob={fetchTasksForJob}
   fetchNotesForTask={fetchNotesForTask}
+  userId={userId}
 />
         );
         

@@ -359,7 +359,7 @@ function App() {
       const UpdatedNoteData = {
         note: updatedData.Note,
         date: updatedData.Date,
-        jobId: updatedData.JobId,
+        taskId: updatedData.TaskId,
         userId: updatedData.UserId,
       };
 
@@ -608,3 +608,4 @@ function App() {
 }
 
 export default App;
+
